@@ -1,0 +1,6 @@
+{
+  "name": "Reboot ERP",
+  "description": "Reboot — Comprehensive Plastic Manufacturing ERP system with advanced data grids, real-time telemetry, and modular execution.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
