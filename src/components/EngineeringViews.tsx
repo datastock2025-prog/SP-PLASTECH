@@ -13,6 +13,11 @@ import {
   ApprovalStatus,
 } from '../types';
 import { ManufacturingBomWizardModal } from './engineering/bomWizard/ManufacturingBomWizardModal';
+import { MultiLevelBomTreeView } from './engineering/MultiLevelBomTreeView';
+import { BomVersionDiffView } from './engineering/BomVersionDiffView';
+import { ProcessRoutingOperationsView } from './engineering/ProcessRoutingOperationsView';
+import { EngineeringChangeOrderView } from './engineering/EngineeringChangeOrderView';
+import { LegacyBomBuilderView } from './engineering/LegacyBomBuilderView';
 import {
   INITIAL_BOMS,
   INITIAL_ECRS,
@@ -133,14 +138,8 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
   const [machineReqs, setMachineReqs] = useState<MachineMoldRequirement[]>(INITIAL_MACHINE_MOLD_REQS);
 
   // 9-Step Manufacturing BOM Wizard State
-  const [isMfgBomWizardOpen, setIsMfgBomWizardOpen] = useState<boolean>(view === 'bomBuilder');
+  const [isMfgBomWizardOpen, setIsMfgBomWizardOpen] = useState<boolean>(false);
   const [wizardParentItem, setWizardParentItem] = useState<ItemMaster | null>(null);
-
-  useEffect(() => {
-    if (view === 'bomBuilder') {
-      setIsMfgBomWizardOpen(true);
-    }
-  }, [view]);
 
   // Status helper badges
   const renderStatusBadge = (status: ApprovalStatus | string) => {
@@ -800,339 +799,29 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
   }
 
   /* =========================================================================
-     3. BOM BUILDER / BOM EDITOR (3-Panel Engineering Workspace)
+     3. BOM BUILDER / BOM EDITOR (Redesigned Legacy BOM Builder Workspace)
   ========================================================================= */
   if (view === 'bomBuilder') {
     return (
-      <div className="space-y-4">
-        {/* Workspace Top Bar */}
-        <div className="flex items-center justify-between pb-3 border-b border-[#E4E0D6]">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => onNavigate('bomList')}
-              className="p-1.5 text-[#6B7280] hover:text-[#14213D] hover:bg-white rounded-lg border border-[#E4E0D6]"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-[#14213D]">BOM Builder Workspace</h1>
-                <span className="font-mono text-xs px-2 py-0.5 bg-[#F6F4EF] rounded border border-[#E4E0D6] font-bold text-[#0F8B8D]">
-                  {activeBom.id} &middot; {activeBom.version}
-                </span>
-                {renderStatusBadge(activeBom.status)}
-              </div>
-              <div className="text-xs text-[#6B7280]">{activeBom.parentName} ({activeBom.parent})</div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                const pItem = items.find((i) => i.code === activeBom.parent) || items[0];
-                setWizardParentItem(pItem);
-                setIsMfgBomWizardOpen(true);
-              }}
-              className="btn btn-sm btn-primary flex items-center gap-1.5 shadow-sm"
-            >
-              <Layers className="w-3.5 h-3.5" /> 9-Step Manufacturing Wizard
-            </button>
-            <button
-              onClick={() => showToast('Formula validated! 100% balance & regrind tolerance verified.')}
-              className="btn btn-sm btn-ghost border-[#E4E0D6] flex items-center gap-1.5"
-            >
-              <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Check Validation
-            </button>
-            <button
-              onClick={() => {
-                showToast(`Cost rollup executed! Standard cost: ₹${(activeBom.standardCost || 46.25).toFixed(2)}/unit`);
-              }}
-              className="btn btn-sm btn-ghost border-[#E4E0D6] flex items-center gap-1.5"
-            >
-              <DollarSign className="w-3.5 h-3.5 text-[#E8622C]" /> Run Cost Rollup
-            </button>
-            <button
-              onClick={() => {
-                onUpdateBom({ ...activeBom, updated: new Date().toISOString().slice(0, 10) });
-                showToast(`Saved draft for ${activeBom.id}`);
-              }}
-              className="btn btn-sm btn-primary flex items-center gap-1.5"
-            >
-              <Save className="w-3.5 h-3.5" /> Save Changes
-            </button>
-          </div>
-        </div>
-
-        {/* 3-Panel Engineering Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          {/* LEFT PANEL: Component Catalog & Search (3 cols) */}
-          <div className="lg:col-span-3 bg-white p-3.5 rounded-xl border border-[#E4E0D6] shadow-xs space-y-3">
-            <div className="font-bold text-xs text-[#14213D] flex items-center justify-between">
-              <span>Component Catalog</span>
-              <span className="text-[10px] text-[#6B7280] font-mono">{items.length} items</span>
-            </div>
-
-            <div className="flex items-center gap-2 bg-[#F6F4EF] border border-[#E4E0D6] rounded-lg px-2.5 py-1 text-xs">
-              <Search className="w-3.5 h-3.5 text-[#9CA3AF]" />
-              <input
-                placeholder="Search resin, masterbatch, regrind..."
-                className="w-full bg-transparent border-none outline-none text-xs"
-              />
-            </div>
-
-            <div className="space-y-1.5 max-h-[600px] overflow-y-auto pr-1">
-              {items.map((item) => (
-                <div
-                  key={item.code}
-                  className="p-2 bg-[#F9F8F5] border border-[#E4E0D6] rounded-lg text-xs hover:border-[#0F8B8D] hover:bg-white transition-all space-y-1 cursor-pointer group"
-                  onClick={() => {
-                    const newLine: BomLine = {
-                      id: `L-${Date.now()}`,
-                      sequence: (activeBom.lines.length + 1) * 10,
-                      level: 1,
-                      item: item.code,
-                      name: item.name,
-                      category: item.type,
-                      qty: 0.05,
-                      uom: item.baseUOM,
-                      scrap: 1.0,
-                      cost: 15.0,
-                      additionPhase: 'Main Hopper',
-                      status: 'active'
-                    };
-                    onUpdateBom({ ...activeBom, lines: [...activeBom.lines, newLine] });
-                    showToast(`Added ${item.code} to BOM lines`);
-                  }}
-                >
-                  <div className="flex items-center justify-between font-bold text-[#14213D]">
-                    <span className="font-mono text-[#0F8B8D] text-[11px]">{item.code}</span>
-                    <span className="text-[10px] px-1.5 py-0.2 bg-white rounded border border-[#E4E0D6]">{item.type}</span>
-                  </div>
-                  <div className="text-[11px] text-[#4B5563] truncate">{item.name}</div>
-                  <div className="flex items-center justify-between text-[10px] text-[#6B7280]">
-                    <span>Stock: {item.stock}</span>
-                    <span className="text-[#0F8B8D] font-bold group-hover:underline">+ Add to BOM</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* CENTER PANEL: BOM Structure Tree / Grid Editor (6 cols) */}
-          <div className="lg:col-span-6 bg-white p-4 rounded-xl border border-[#E4E0D6] shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-sm text-[#14213D]">BOM Formulation Lines</h3>
-                <p className="text-[11px] text-[#6B7280]">Edit component quantities, scrap percentages, and injection addition phase.</p>
-              </div>
-              <span className="text-xs font-bold text-[#E8622C] font-mono">
-                {activeBom.lines.length} Line Items
-              </span>
-            </div>
-
-            {/* Line items table */}
-            <div className="overflow-x-auto border border-[#E4E0D6] rounded-lg">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="bg-[#F6F4EF] border-b border-[#E4E0D6] text-[#4B5563] font-semibold text-[11px]">
-                    <th className="p-2.5">Seq</th>
-                    <th className="p-2.5">Component</th>
-                    <th className="p-2.5">Qty / Unit</th>
-                    <th className="p-2.5">Phase</th>
-                    <th className="p-2.5">Scrap %</th>
-                    <th className="p-2.5 text-right">Cost (₹)</th>
-                    <th className="p-2.5"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#E4E0D6]">
-                  {activeBom.lines.map((line, idx) => (
-                    <tr key={idx} className="hover:bg-[#F9F8F5]">
-                      <td className="p-2.5 font-mono text-[#6B7280]">{line.sequence || (idx + 1) * 10}</td>
-                      <td className="p-2.5">
-                        <div className="font-bold text-[#14213D]">{line.name}</div>
-                        <div className="font-mono text-[10px] text-[#0F8B8D]">{line.item}</div>
-                      </td>
-                      <td className="p-2.5">
-                        <input
-                          type="number"
-                          step="0.001"
-                          defaultValue={line.qty}
-                          onChange={(e) => {
-                            line.qty = parseFloat(e.target.value) || 0;
-                          }}
-                          className="w-16 px-1.5 py-0.5 border border-[#E4E0D6] rounded font-mono text-xs"
-                        />
-                        <span className="ml-1 text-[10px] text-[#6B7280]">{line.uom}</span>
-                      </td>
-                      <td className="p-2.5">
-                        <select
-                          defaultValue={line.additionPhase || 'Main Hopper'}
-                          onChange={(e) => {
-                            line.additionPhase = e.target.value as any;
-                          }}
-                          className="text-[10.5px] border border-[#E4E0D6] rounded px-1.5 py-0.5 bg-white"
-                        >
-                          <option value="Main Hopper">Main Hopper</option>
-                          <option value="Side Feeder">Side Feeder</option>
-                          <option value="Liquid Dosing">Liquid Dosing</option>
-                          <option value="Pre-mix">Pre-mix</option>
-                        </select>
-                      </td>
-                      <td className="p-2.5 font-mono">
-                        <input
-                          type="number"
-                          defaultValue={line.scrap}
-                          onChange={(e) => {
-                            line.scrap = parseFloat(e.target.value) || 0;
-                          }}
-                          className="w-12 px-1.5 py-0.5 border border-[#E4E0D6] rounded font-mono text-xs"
-                        />
-                        %
-                      </td>
-                      <td className="p-2.5 text-right font-mono font-semibold text-[#14213D]">
-                        ₹{(line.cost || 0).toFixed(2)}
-                      </td>
-                      <td className="p-2.5 text-right">
-                        <button
-                          onClick={() => {
-                            const updatedLines = activeBom.lines.filter((_, i) => i !== idx);
-                            onUpdateBom({ ...activeBom, lines: updatedLines });
-                            showToast(`Removed ${line.item} from BOM`);
-                          }}
-                          className="text-[#9CA3AF] hover:text-rose-600 p-1"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Plastic Formula Summary Box */}
-            <div className="p-3 bg-[#F6F4EF] rounded-lg border border-[#E4E0D6] text-xs space-y-2">
-              <div className="font-bold text-[#14213D] flex items-center justify-between">
-                <span>Plastic Batch Formulation Verification</span>
-                <span className="text-emerald-700 font-mono font-bold">100.0% Normalized</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-[11px]">
-                <div className="p-2 bg-white rounded border border-[#E4E0D6]">
-                  <div className="text-[#6B7280]">Virgin Resin Base</div>
-                  <div className="font-bold text-[#14213D] font-mono mt-0.5">84.5%</div>
-                </div>
-                <div className="p-2 bg-white rounded border border-[#E4E0D6]">
-                  <div className="text-[#6B7280]">Regrind Fraction</div>
-                  <div className="font-bold text-[#0F8B8D] font-mono mt-0.5">13.0% (≤15% Max)</div>
-                </div>
-                <div className="p-2 bg-white rounded border border-[#E4E0D6]">
-                  <div className="text-[#6B7280]">MB &amp; Additives</div>
-                  <div className="font-bold text-[#E8622C] font-mono mt-0.5">2.5% LDR</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* RIGHT PANEL: Cost Rollup, Validation & Approvals (3 cols) */}
-          <div className="lg:col-span-3 bg-white p-3.5 rounded-xl border border-[#E4E0D6] shadow-xs space-y-4">
-            {/* Tab strip */}
-            <div className="flex border-b border-[#E4E0D6] text-xs font-semibold">
-              {['Cost Rollup', 'Validation', 'Approvals'].map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`pb-2 px-2.5 transition-colors border-b-2 ${
-                    activeTab === tab
-                      ? 'border-[#0F8B8D] text-[#0F8B8D] font-bold'
-                      : 'border-transparent text-[#6B7280] hover:text-[#14213D]'
-                  }`}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
-
-            {/* Cost Rollup Tab */}
-            {activeTab === 'Cost Rollup' && (
-              <div className="space-y-2.5 text-xs">
-                <div className="font-bold text-[#14213D] flex justify-between">
-                  <span>Unit Cost Breakdown</span>
-                  <span className="font-mono text-emerald-700 font-bold">₹{(activeBom.standardCost || 46.25).toFixed(2)}</span>
-                </div>
-                <div className="divide-y divide-[#F3F4F6] text-[11px]">
-                  <div className="py-1.5 flex justify-between">
-                    <span className="text-[#6B7280]">Raw Material (Virgin)</span>
-                    <span className="font-mono font-semibold">₹35.80</span>
-                  </div>
-                  <div className="py-1.5 flex justify-between">
-                    <span className="text-[#6B7280]">Direct Labor (IMM Operator)</span>
-                    <span className="font-mono font-semibold">₹4.20</span>
-                  </div>
-                  <div className="py-1.5 flex justify-between">
-                    <span className="text-[#6B7280]">Machine Overhead (250T)</span>
-                    <span className="font-mono font-semibold">₹5.50</span>
-                  </div>
-                  <div className="py-1.5 flex justify-between">
-                    <span className="text-[#6B7280]">Mold Amortization (4-Cav)</span>
-                    <span className="font-mono font-semibold">₹1.25</span>
-                  </div>
-                  <div className="py-1.5 flex justify-between text-emerald-600">
-                    <span>Regrind Credit (13%)</span>
-                    <span className="font-mono font-semibold">-₹2.30</span>
-                  </div>
-                  <div className="py-2 flex justify-between font-bold text-xs border-t border-[#E4E0D6] text-[#14213D]">
-                    <span>Total Standard BOM Cost</span>
-                    <span className="font-mono">₹{(activeBom.standardCost || 46.25).toFixed(2)}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Validation Tab */}
-            {activeTab === 'Validation' && (
-              <div className="space-y-2 text-xs">
-                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 space-y-1">
-                  <div className="flex items-center gap-1.5 font-bold">
-                    <CheckCircle className="w-3.5 h-3.5" /> Formula 100% Balanced
-                  </div>
-                  <div className="text-[10.5px]">Total resin + regrind + masterbatch equals exactly 100.0%.</div>
-                </div>
-                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 space-y-1">
-                  <div className="flex items-center gap-1.5 font-bold">
-                    <CheckCircle className="w-3.5 h-3.5" /> Regrind Percentage Valid
-                  </div>
-                  <div className="text-[10.5px]">13% clean regrind is within allowable 15% ceiling for food-contact container.</div>
-                </div>
-                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 space-y-1">
-                  <div className="flex items-center gap-1.5 font-bold">
-                    <CheckCircle className="w-3.5 h-3.5" /> Machine &amp; Mold Linked
-                  </div>
-                  <div className="text-[10.5px]">Linked to MOLD-INJ-084 and 250T Injection Press.</div>
-                </div>
-              </div>
-            )}
-
-            {/* Approvals Tab */}
-            {activeTab === 'Approvals' && (
-              <div className="space-y-3 text-xs">
-                <div className="font-bold text-[#14213D]">Stage-Gate Signoff</div>
-                <div className="space-y-2">
-                  {(activeBom.approvals || []).map((app, i) => (
-                    <div key={i} className="p-2 bg-[#F9F8F5] border border-[#E4E0D6] rounded text-[11px] space-y-0.5">
-                      <div className="flex justify-between font-bold text-[#14213D]">
-                        <span>{app.stage}</span>
-                        <span className="text-emerald-700 font-semibold">{app.status}</span>
-                      </div>
-                      <div className="text-[#6B7280]">{app.approver} ({app.role})</div>
-                      <div className="text-[10px] text-[#9CA3AF]">{app.timestamp}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      <LegacyBomBuilderView
+        boms={boms}
+        items={items}
+        selectedId={selectedId}
+        routings={routings}
+        alternates={alternates}
+        regrindSpecs={regrindSpecs}
+        machineReqs={machineReqs}
+        ecrs={ecrs}
+        ecos={ecos}
+        onUpdateBom={onUpdateBom}
+        onCreateBom={onCreateBom}
+        onNavigate={onNavigate}
+        showToast={showToast}
+        onOpenWizard={(parent) => {
+          setWizardParentItem(parent);
+          setIsMfgBomWizardOpen(true);
+        }}
+      />
     );
   }
 
@@ -1141,104 +830,15 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
   ========================================================================= */
   if (view === 'bomTree') {
     return (
-      <div className="space-y-5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => onNavigate('bomList')}
-              className="p-1.5 text-[#6B7280] hover:text-[#14213D] hover:bg-white rounded-lg border border-[#E4E0D6]"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </button>
-            <div>
-              <div className="font-mono text-[11px] uppercase tracking-wider text-[#0F8B8D] font-bold">
-                Structure Hierarchy Visualizer
-              </div>
-              <h1 className="text-xl font-bold text-[#14213D]">Multi-Level BOM Tree</h1>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setExpandedNodes({ root: true, 'node-1': true, 'node-2': true })}
-              className="btn btn-sm btn-ghost border-[#E4E0D6]"
-            >
-              Expand All
-            </button>
-            <button
-              onClick={() => setExpandedNodes({ root: true })}
-              className="btn btn-sm btn-ghost border-[#E4E0D6]"
-            >
-              Collapse All
-            </button>
-            <button
-              onClick={() => showToast('Exported BOM Tree to Excel & PDF')}
-              className="btn btn-sm btn-primary flex items-center gap-1.5"
-            >
-              <Download className="w-3.5 h-3.5" /> Export Tree
-            </button>
-          </div>
-        </div>
-
-        {/* Tree Container */}
-        <div className="panel bg-white p-5 rounded-xl border border-[#E4E0D6] shadow-xs">
-          <div className="p-3 bg-[#F6F4EF] rounded-lg border border-[#E4E0D6] mb-4 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-[#14213D]">Selected Product:</span>
-              <span className="font-mono font-bold text-[#0F8B8D]">{activeBom.parent}</span>
-              <span>&mdash; {activeBom.parentName}</span>
-            </div>
-            <div className="flex items-center gap-4 text-[11px]">
-              <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Active Component</span>
-              <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-full bg-blue-500" /> Substitute Available</span>
-              <span className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-full bg-[#E8622C]" /> Regrind Fraction</span>
-            </div>
-          </div>
-
-          {/* Interactive Tree View Nodes */}
-          <div className="space-y-2 text-xs font-mono">
-            {/* Level 0: Finished Good */}
-            <div className="p-3 bg-[#14213D] text-white rounded-lg flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ChevronDown className="w-4 h-4 text-[#E8622C]" />
-                <span className="font-bold text-sm">{activeBom.parent} &mdash; {activeBom.parentName}</span>
-              </div>
-              <span className="text-xs px-2 py-0.5 bg-white/10 rounded font-sans">Level 0 &middot; Finished Good</span>
-            </div>
-
-            {/* Level 1: Molded Sub-structure */}
-            <div className="ml-6 pl-4 border-l-2 border-[#E4E0D6] space-y-2">
-              <div className="p-2.5 bg-[#F6F4EF] border border-[#E4E0D6] rounded-lg flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ChevronDown className="w-3.5 h-3.5 text-[#0F8B8D]" />
-                  <span className="font-bold text-[#14213D]">Molded Tub Body (PP Injection Core)</span>
-                </div>
-                <span className="text-[11px] text-[#6B7280] font-sans">Level 1 &middot; Subassembly</span>
-              </div>
-
-              {/* Level 2: Formulation Lines */}
-              <div className="ml-6 pl-4 border-l-2 border-[#0F8B8D]/40 space-y-1.5">
-                {activeBom.lines.map((line, idx) => (
-                  <div
-                    key={idx}
-                    className="p-2 bg-white border border-[#E4E0D6] rounded-md flex items-center justify-between text-xs hover:border-[#0F8B8D] transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${line.regrindPct ? 'bg-[#E8622C]' : 'bg-emerald-500'}`} />
-                      <span className="font-bold text-[#14213D]">{line.item}</span>
-                      <span className="text-[#6B7280] font-sans">&mdash; {line.name}</span>
-                    </div>
-                    <div className="flex items-center gap-4 text-[11px]">
-                      <span className="font-bold text-[#14213D]">{line.qty} {line.uom}</span>
-                      <span className="text-[#6B7280]">Scrap: {line.scrap}%</span>
-                      <span className="font-bold text-emerald-700">₹{(line.cost || 0).toFixed(2)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <MultiLevelBomTreeView
+        boms={boms}
+        items={items}
+        selectedId={selectedId}
+        onNavigate={onNavigate}
+        showToast={showToast}
+        openDrawer={openDrawer}
+        closeDrawer={closeDrawer}
+      />
     );
   }
 
@@ -1347,158 +947,56 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
   ========================================================================= */
   if (view === 'ecrList' || view === 'ecoList') {
     return (
-      <div className="space-y-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="font-mono text-[11px] uppercase tracking-wider text-[#E8622C] font-bold">
-              Engineering Change Control (IATF 16949)
-            </div>
-            <h1 className="text-xl font-bold text-[#14213D]">
-              {view === 'ecrList' ? 'Engineering Change Requests (ECR)' : 'Engineering Change Orders (ECO)'}
-            </h1>
-            <p className="text-xs text-[#6B7280]">
-              Controlled change governance, impact analysis, revision history, and implementation checklists.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                const newEcr: EngineeringChangeRequest = {
-                  id: `ECR-${Date.now().toString().slice(-4)}`,
-                  ecrNumber: `ECR-2026-${Date.now().toString().slice(-3)}`,
-                  requestDate: new Date().toISOString().slice(0, 10),
-                  requestedBy: 'Engineering Team',
-                  department: 'Product Engineering',
-                  relatedItem: 'FG-CTN-500',
-                  relatedItemName: 'Plastic Container 500ml',
-                  changeType: 'Material Change',
-                  priority: 'High',
-                  riskLevel: 'Medium',
-                  targetDate: '2026-09-30',
-                  description: 'Substitute masterbatch to improve mold release and cycle time.',
-                  reason: 'Optimize IMM cycle time by 1.2 sec.',
-                  expectedImpact: 'Annual cost saving of ₹45,000.',
-                  status: 'Under Review',
-                  affectedBoms: ['BOM-1001'],
-                  affectedWorkOrders: [],
-                  stockImpactKg: 200,
-                  estimatedCostImpact: -45000,
-                  approvals: []
-                };
-                setEcrs([newEcr, ...ecrs]);
-                showToast(`Created ${newEcr.ecrNumber}`);
-              }}
-              className="btn btn-sm btn-primary flex items-center gap-1.5"
-            >
-              <Plus className="w-3.5 h-3.5" /> Create New ECR
-            </button>
-          </div>
-        </div>
-
-        {/* ECR / ECO List Cards */}
-        <div className="space-y-3">
-          {ecrs.map((ecr) => (
-            <div key={ecr.id} className="p-4 bg-white rounded-xl border border-[#E4E0D6] shadow-xs space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5">
-                  <span className="font-mono font-bold text-xs text-[#E8622C] px-2 py-0.5 bg-[#F6F4EF] rounded border border-[#E4E0D6]">
-                    {ecr.ecrNumber}
-                  </span>
-                  <h3 className="font-bold text-sm text-[#14213D]">{ecr.description}</h3>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                    ecr.priority === 'High' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
-                  }`}>
-                    {ecr.priority} Priority
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[11px] font-bold">
-                    {ecr.status}
-                  </span>
-                </div>
-              </div>
-
-              <p className="text-xs text-[#4B5563]">{ecr.reason}</p>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-[#F3F4F6] text-xs">
-                <div><span className="text-[#6B7280]">Item:</span> <b className="text-[#14213D]">{ecr.relatedItem}</b></div>
-                <div><span className="text-[#6B7280]">Requested By:</span> <b className="text-[#14213D]">{ecr.requestedBy}</b></div>
-                <div><span className="text-[#6B7280]">Target Date:</span> <b className="text-[#14213D]">{ecr.targetDate}</b></div>
-                <div><span className="text-[#6B7280]">Cost Impact:</span> <b className="text-emerald-700">₹{ecr.estimatedCostImpact.toLocaleString()}</b></div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <EngineeringChangeOrderView
+        initialViewMode={view === 'ecoList' ? 'eco' : 'ecr'}
+        selectedId={selectedId}
+        ecrs={ecrs}
+        ecos={ecos}
+        items={items}
+        boms={boms}
+        onUpdateEcrs={setEcrs}
+        onUpdateEcos={setEcos}
+        onUpdateBom={onUpdateBom}
+        onNavigate={onNavigate}
+        showToast={showToast}
+        openDrawer={openDrawer}
+        closeDrawer={closeDrawer}
+      />
     );
   }
 
   /* =========================================================================
-     7. BOM COMPARISON SCREEN (Side-by-Side Diff)
+     7. BOM COMPARISON SCREEN (Side-by-Side Diff & Version Analysis)
   ========================================================================= */
-  if (view === 'bomCompare') {
+  if (view === 'bomCompare' || view === 'bomVersions') {
     return (
-      <div className="space-y-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="font-mono text-[11px] uppercase tracking-wider text-[#0F8B8D] font-bold">
-              Revision Diff Tool
-            </div>
-            <h1 className="text-xl font-bold text-[#14213D]">BOM Version &amp; Revision Comparison</h1>
-            <p className="text-xs text-[#6B7280]">
-              Side-by-side visual diff highlighting added, removed, and modified materials &amp; costs.
-            </p>
-          </div>
-        </div>
+      <BomVersionDiffView
+        boms={boms}
+        items={items}
+        selectedId={selectedId}
+        onNavigate={onNavigate}
+        showToast={showToast}
+        openDrawer={openDrawer}
+        closeDrawer={closeDrawer}
+      />
+    );
+  }
 
-        <div className="panel bg-white p-5 rounded-xl border border-[#E4E0D6] shadow-xs space-y-4">
-          <div className="grid grid-cols-2 gap-4 p-3 bg-[#F6F4EF] rounded-lg border border-[#E4E0D6] text-xs">
-            <div>
-              <span className="text-[#6B7280]">Left Comparison (Baseline):</span>
-              <div className="font-bold text-sm text-[#14213D] mt-0.5">BOM-1001 (v2.0 - Standard)</div>
-            </div>
-            <div>
-              <span className="text-[#6B7280]">Right Comparison (Proposed Revision):</span>
-              <div className="font-bold text-sm text-[#0F8B8D] mt-0.5">BOM-1001 (v2.1 - Clariant UV Upgrade)</div>
-            </div>
-          </div>
-
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-[#F6F4EF] border-b border-[#E4E0D6] text-[#4B5563] font-bold text-[11px]">
-                <th className="p-2.5">Component Item</th>
-                <th className="p-2.5">Attribute</th>
-                <th className="p-2.5">Baseline (v2.0)</th>
-                <th className="p-2.5">Revision (v2.1)</th>
-                <th className="p-2.5">Difference Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E4E0D6]">
-              <tr className="bg-amber-50/50">
-                <td className="p-2.5 font-bold text-[#14213D]">MB-WHT-002 vs MB-WHT-009</td>
-                <td className="p-2.5 text-[#6B7280]">Masterbatch Supplier</td>
-                <td className="p-2.5 font-mono">Standard TiO2 (Old)</td>
-                <td className="p-2.5 font-mono font-bold text-[#0F8B8D]">Clariant UV Fast White</td>
-                <td className="p-2.5"><span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">Modified Component</span></td>
-              </tr>
-              <tr>
-                <td className="p-2.5 font-bold text-[#14213D]">RM-PP-NAT-001</td>
-                <td className="p-2.5 text-[#6B7280]">Base Resin Qty</td>
-                <td className="p-2.5 font-mono">0.0425 KG</td>
-                <td className="p-2.5 font-mono">0.0425 KG</td>
-                <td className="p-2.5"><span className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-[10px] font-bold">Unchanged</span></td>
-              </tr>
-              <tr className="bg-emerald-50/50">
-                <td className="p-2.5 font-bold text-[#14213D]">Standard Unit Cost</td>
-                <td className="p-2.5 text-[#6B7280]">Cost Rollup</td>
-                <td className="p-2.5 font-mono">₹46.10</td>
-                <td className="p-2.5 font-mono font-bold text-emerald-700">₹46.25 (+₹0.15)</td>
-                <td className="p-2.5"><span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">Cost Delta +0.3%</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+  /* =========================================================================
+     7b. PROCESS ROUTING OPERATIONS SCREEN
+  ========================================================================= */
+  if (view === 'routingList') {
+    return (
+      <ProcessRoutingOperationsView
+        routings={routings}
+        boms={boms}
+        items={items}
+        selectedId={selectedId}
+        onNavigate={onNavigate}
+        showToast={showToast}
+        openDrawer={openDrawer}
+        closeDrawer={closeDrawer}
+      />
     );
   }
 
@@ -1663,9 +1161,6 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
           isOpen={isMfgBomWizardOpen}
           onClose={() => {
             setIsMfgBomWizardOpen(false);
-            if (view === 'bomBuilder') {
-              onNavigate('bomList');
-            }
           }}
           parentItem={wizardParentItem}
           allItems={items}

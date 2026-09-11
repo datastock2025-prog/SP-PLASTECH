@@ -384,20 +384,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {isOpenMobile && (
         <div
           onClick={onCloseMobile}
-          className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-xs md:hidden"
+          className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-xs lg:hidden"
         />
       )}
 
       {/* Sidebar Container */}
       <aside
-        className={`bg-[#14213D] text-[#EDEFF7] flex flex-col select-none border-r border-[#1C2B4D] z-30 transition-all duration-200 ease-in-out ${
+        className={`bg-[#14213D] text-[#EDEFF7] flex flex-col select-none border-r border-[#1C2B4D] transition-all duration-200 ease-in-out ${
           isOpenMobile
-            ? 'fixed inset-y-0 left-0 w-[280px] shadow-2xl z-50 flex'
+            ? 'fixed inset-y-0 left-0 w-[280px] max-w-[85vw] shadow-2xl z-50 flex h-full'
             : isCollapsed
-            ? 'hidden md:flex w-[68px] shrink-0'
-            : 'hidden md:flex w-[250px] shrink-0'
+            ? 'hidden lg:flex w-[68px] shrink-0 h-full z-20'
+            : 'hidden lg:flex w-[250px] shrink-0 h-full z-20'
         }`}
-        style={{ height: 'calc(100vh - 56px)' }}
       >
         {/* Top Zone: Navigation Header & Filter */}
         <div className="p-2.5 border-b border-white/[0.08] shrink-0">
@@ -462,7 +461,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Middle Zone: Scrollable Navigation Sections */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 space-y-3 scrollbar-thin scrollbar-thumb-white/10">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 space-y-3 scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {/* Favorites / Pinned Section (if any & not searching) */}
           {!filterQuery && favorites.length > 0 && (
             <div className="pb-2 border-b border-white/[0.06]">
@@ -496,7 +495,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         title={isCollapsed ? `${item.label} (Pinned)` : undefined}
                         className={`group relative flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
                           active
-                            ? 'bg-[#E8622C]/20 text-white font-semibold relative before:content-[\'\'] before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-1 before:bg-[#E8622C] before:rounded-r'
+                            ? 'bg-[#E8622C]/20 text-white font-semibold shadow-2xs'
                             : 'text-[#C7CEE6] hover:bg-white/[0.06] hover:text-white'
                         } ${isCollapsed ? 'justify-center px-0' : ''}`}
                       >
@@ -569,9 +568,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       setFlyoutGroup(flyoutGroup?.id === group.id ? null : group);
                     }}
                     title={group.title}
-                    className={`w-full py-2 flex flex-col items-center justify-center rounded-lg cursor-pointer transition-colors relative ${
+                    className={`w-full py-2 flex flex-col items-center justify-center rounded-lg cursor-pointer transition-colors ${
                       hasActiveChild
-                        ? 'bg-[#E8622C]/20 text-white font-semibold before:content-[\'\'] before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:bg-[#E8622C] before:rounded-r'
+                        ? 'bg-[#E8622C]/20 text-[#E8622C] font-semibold'
                         : 'text-[#9AA5C4] hover:bg-white/[0.06] hover:text-white'
                     }`}
                   >
@@ -584,7 +583,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                 {/* Group Items (when expanded on desktop/drawer) */}
                 {(!isCollapsed && (isExpanded || filterQuery)) && (
-                  <div className="space-y-0.5 pl-2 border-l border-white/[0.08] ml-2 mt-0.5">
+                  <div className="space-y-0.5 pl-1.5 ml-1 mt-0.5">
                     {group.items.map((item) => {
                       const active = isSelected(item.view);
                       const isFav = favorites.includes(item.view);
@@ -596,7 +595,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           onClick={() => handleNav(item.view, item.params)}
                           className={`group relative flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
                             active
-                              ? 'bg-[#E8622C]/20 text-white font-semibold relative before:content-[\'\'] before:absolute before:-left-2.5 before:top-1.5 before:bottom-1.5 before:w-1 before:bg-[#E8622C] before:rounded-r'
+                              ? 'bg-[#E8622C]/20 text-white font-semibold shadow-2xs'
                               : 'text-[#C7CEE6] hover:bg-white/[0.06] hover:text-white'
                           }`}
                         >
@@ -694,7 +693,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Bottom Zone: Collapse Control & Version */}
         <div className="p-2 border-t border-white/[0.08] shrink-0 bg-[#101B33]">
-          {!isCollapsed ? (
+          {isOpenMobile ? (
+            <div className="flex items-center justify-between px-2 py-1">
+              <div className="text-[10px] text-slate-400 font-mono">
+                Reboot v4.8 &bull; Industrial
+              </div>
+              <button
+                onClick={onCloseMobile}
+                className="flex items-center gap-1 px-2 py-1 rounded text-slate-400 hover:text-white hover:bg-white/10 text-xs transition-colors cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span className="text-[10px]">Close Menu</span>
+              </button>
+            </div>
+          ) : !isCollapsed ? (
             <div className="flex items-center justify-between px-2 py-1">
               <div className="text-[10px] text-slate-400 font-mono">
                 Reboot v4.8 &bull; Industrial
@@ -702,7 +714,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 onClick={onToggleCollapse}
                 title="Collapse Sidebar (Ctrl+B)"
-                className="flex items-center gap-1 px-2 py-1 rounded text-slate-400 hover:text-white hover:bg-white/10 text-xs transition-colors"
+                className="flex items-center gap-1 px-2 py-1 rounded text-slate-400 hover:text-white hover:bg-white/10 text-xs transition-colors cursor-pointer"
               >
                 <ChevronLeft className="w-4 h-4" />
                 <span className="text-[10px]">Collapse</span>
@@ -712,7 +724,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               onClick={onToggleCollapse}
               title="Expand Sidebar (Ctrl+B)"
-              className="w-full py-1.5 flex items-center justify-center rounded text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+              className="w-full py-1.5 flex items-center justify-center rounded text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
             >
               <ChevronRight className="w-4 h-4" />
             </button>

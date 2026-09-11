@@ -168,6 +168,7 @@ export const FinanceViews: React.FC<FinanceProps> = ({
     case 'productCosting':
       return (
         <ProductCostingView
+          onNavigate={onNavigate}
           openDrawer={openDrawer}
           closeDrawer={closeDrawer}
           showToast={showToast}

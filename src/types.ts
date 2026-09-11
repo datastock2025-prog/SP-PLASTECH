@@ -501,6 +501,25 @@ export interface MachineMaster {
   cavityCount?: number;
 }
 
+export interface RejectionBreakdownItem {
+  id?: string;
+  reason: string;
+  qty: number;
+  category?: 'dimensional' | 'visual' | 'material' | 'structural' | 'process' | 'startup' | string;
+  notes?: string;
+}
+
+export interface DowntimeIntervalItem {
+  id?: string;
+  fromTime: string;
+  toTime: string;
+  min: number;
+  reason: string;
+  category?: 'mechanical' | 'electrical' | 'mold' | 'process' | 'material' | 'planned' | string;
+  by?: string;
+  notes?: string;
+}
+
 export interface WorkOrder {
   id: string;
   item: string;
@@ -520,6 +539,9 @@ export interface WorkOrder {
   jitSeq?: number;
   shift?: string;
   planDate?: string;
+  plant?: string;
+  plantName?: string;
+  jitScheduleId?: string;
   cycleTimeStd?: number;
   locInput?: string;
   locOutput?: string;
@@ -528,6 +550,10 @@ export interface WorkOrder {
   rejectionReason?: string;
   runnerQty?: number;
   lumbesQty?: number;
+  runnerWeightKg?: number;
+  lumpsWeightKg?: number;
+  rejectionBreakdown?: RejectionBreakdownItem[];
+  downtimeIntervals?: DowntimeIntervalItem[];
   remark?: string;
   qualityReleased?: boolean;
   releasedBy?: string;

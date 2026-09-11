@@ -108,17 +108,17 @@ export const HomeView: React.FC<HomeViewProps> = ({
   }, [searchQuery, selectedCategory]);
 
   return (
-    <div className="space-y-6 max-w-[1600px] mx-auto pb-12">
+    <div className="space-y-5 sm:space-y-6 w-full max-w-[1600px] mx-auto pb-12 min-w-0">
       {/* Launch Hero Command Banner */}
-      <div className="bg-gradient-to-br from-[#14213D] via-[#1A2C52] to-[#0F8B8D] text-white p-5 sm:p-7 rounded-2xl shadow-md relative overflow-hidden">
+      <div className="bg-gradient-to-br from-[#14213D] via-[#1A2C52] to-[#0F8B8D] text-white p-4 sm:p-6 lg:p-7 rounded-2xl shadow-md relative overflow-hidden">
         <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-radial from-white/[0.08] to-transparent pointer-events-none" />
-        <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-          <div>
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/10 text-emerald-300 text-[11px] font-mono uppercase tracking-wider mb-2 backdrop-blur-xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Plant 01 &bull; Injection Molding Unit (Hosūr) &bull; Shift A
+        <div className="relative z-10 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-5 lg:gap-6 min-w-0">
+          <div className="min-w-0 flex-1">
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/10 text-emerald-300 text-[11px] font-mono uppercase tracking-wider mb-2 backdrop-blur-xs flex-wrap">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span>Plant 01 &bull; Injection Molding Unit (Hosūr) &bull; Shift A</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight font-['Space_Grotesk'] text-white">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight font-['Space_Grotesk'] text-white truncate">
               Reboot ERP &mdash; Workspace Home
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 max-w-2xl mt-1.5 leading-relaxed">
@@ -127,37 +127,37 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
 
           {/* Quick Metrics */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 w-full lg:w-auto shrink-0">
-            <div className="bg-white/10 backdrop-blur-xs px-3.5 py-2.5 rounded-xl border border-white/10">
-              <div className="text-lg sm:text-xl font-bold text-white font-mono">92.4%</div>
-              <div className="text-[10px] text-slate-300 uppercase tracking-wider font-medium">OEE Today</div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5 w-full xl:w-auto shrink-0 min-w-0">
+            <div className="bg-white/10 backdrop-blur-xs px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border border-white/10 min-w-0 text-center sm:text-left">
+              <div className="text-base sm:text-xl font-bold text-white font-mono">92.4%</div>
+              <div className="text-[10px] text-slate-300 uppercase tracking-wider font-medium truncate">OEE Today</div>
             </div>
-            <div className="bg-white/10 backdrop-blur-xs px-3.5 py-2.5 rounded-xl border border-white/10">
-              <div className="text-lg sm:text-xl font-bold text-cyan-300 font-mono">{activeWOCount}</div>
-              <div className="text-[10px] text-slate-300 uppercase tracking-wider font-medium">Active WOs</div>
+            <div className="bg-white/10 backdrop-blur-xs px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border border-white/10 min-w-0 text-center sm:text-left">
+              <div className="text-base sm:text-xl font-bold text-cyan-300 font-mono">{activeWOCount}</div>
+              <div className="text-[10px] text-slate-300 uppercase tracking-wider font-medium truncate">Active WOs</div>
             </div>
-            <div className="bg-white/10 backdrop-blur-xs px-3.5 py-2.5 rounded-xl border border-white/10">
-              <div className="text-lg sm:text-xl font-bold text-amber-300 font-mono">{lowStockCount}</div>
-              <div className="text-[10px] text-slate-300 uppercase tracking-wider font-medium">Low Stock</div>
+            <div className="bg-white/10 backdrop-blur-xs px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border border-white/10 min-w-0 text-center sm:text-left">
+              <div className="text-base sm:text-xl font-bold text-amber-300 font-mono">{lowStockCount}</div>
+              <div className="text-[10px] text-slate-300 uppercase tracking-wider font-medium truncate">Low Stock</div>
             </div>
-            <div className="bg-white/10 backdrop-blur-xs px-3.5 py-2.5 rounded-xl border border-white/10">
-              <div className="text-lg sm:text-xl font-bold text-emerald-300 font-mono">{openPOCount}</div>
-              <div className="text-[10px] text-slate-300 uppercase tracking-wider font-medium">Open POs</div>
+            <div className="bg-white/10 backdrop-blur-xs px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border border-white/10 min-w-0 text-center sm:text-left">
+              <div className="text-base sm:text-xl font-bold text-emerald-300 font-mono">{openPOCount}</div>
+              <div className="text-[10px] text-slate-300 uppercase tracking-wider font-medium truncate">Open POs</div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Angular Guide Highlight & System Banner */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="p-4 rounded-xl bg-gradient-to-r from-[#E8622C]/10 via-[#0F8B8D]/10 to-white bg-white border border-[#E8622C]/30 flex items-center justify-between gap-4 shadow-xs">
-          <div className="flex items-center gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 min-w-0">
+        <div className="p-4 rounded-xl bg-gradient-to-r from-[#E8622C]/10 via-[#0F8B8D]/10 to-white bg-white border border-[#E8622C]/30 flex items-center justify-between gap-4 shadow-xs min-w-0">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-[#E8622C] text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
               <Code className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Angular 18+ Architecture Specification</h3>
-              <p className="text-xs text-slate-500">Standalone modules, Signals state, OnPush migration guide.</p>
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-slate-900 truncate">Angular 18+ Architecture Specification</h3>
+              <p className="text-xs text-slate-500 truncate">Standalone modules, Signals state, OnPush migration guide.</p>
             </div>
           </div>
           <button
@@ -169,14 +169,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </button>
         </div>
 
-        <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-500/10 via-teal-500/10 to-white bg-white border border-indigo-200 flex items-center justify-between gap-4 shadow-xs">
-          <div className="flex items-center gap-3">
+        <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-500/10 via-teal-500/10 to-white bg-white border border-indigo-200 flex items-center justify-between gap-4 shadow-xs min-w-0">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
               <Users className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Human Resources &amp; Line Staffing</h3>
-              <p className="text-xs text-slate-500">128 active personnel, biometric punches, IATF skill matrix.</p>
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-slate-900 truncate">Human Resources &amp; Line Staffing</h3>
+              <p className="text-xs text-slate-500 truncate">128 active personnel, biometric punches, IATF skill matrix.</p>
             </div>
           </div>
           <button
@@ -190,9 +190,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </div>
 
       {/* Module Finder & Category Filters */}
-      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4 min-w-0">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-          <div className="relative flex-1">
+          <div className="relative flex-1 min-w-0">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
@@ -211,13 +211,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
             )}
           </div>
 
-          <div className="text-xs text-slate-500 font-medium self-end md:self-center">
+          <div className="text-xs text-slate-500 font-medium self-end md:self-center shrink-0">
             Showing <b>{filteredGroups.reduce((acc, g) => acc + g.items.length, 0)}</b> of <b>{allItems.length}</b> screens
           </div>
         </div>
 
         {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {categories.map((cat) => (
             <button
               key={cat.id}
@@ -236,7 +236,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
       {/* Module Groups Grid */}
       {filteredGroups.length === 0 ? (
-        <div className="bg-white p-12 text-center rounded-2xl border border-slate-200">
+        <div className="bg-white p-12 text-center rounded-2xl border border-slate-200 min-w-0">
           <Search className="w-10 h-10 text-slate-300 mx-auto mb-3" />
           <h3 className="text-sm font-bold text-slate-800">No modules match "{searchQuery}"</h3>
           <p className="text-xs text-slate-500 mt-1">Try searching for keywords like "BOM", "Work Order", "Quality", "Tax", or "Audit".</p>
@@ -248,29 +248,29 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </button>
         </div>
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-8 min-w-0">
           {filteredGroups.map((group) => (
-            <div key={group.id} className="space-y-3">
+            <div key={group.id} className="space-y-3 min-w-0">
               {/* Group Title Header */}
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-[#E8622C]" />
-                  <h2 className="text-sm sm:text-base font-bold text-slate-900 uppercase tracking-wider font-['Space_Grotesk']">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200 min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-2 h-2 rounded-full bg-[#E8622C] shrink-0" />
+                  <h2 className="text-sm sm:text-base font-bold text-slate-900 uppercase tracking-wider font-['Space_Grotesk'] truncate">
                     {group.title}
                   </h2>
-                  <span className="text-[11px] font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full font-semibold">
+                  <span className="text-[11px] font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full font-semibold shrink-0">
                     {group.items.length} {group.items.length === 1 ? 'Screen' : 'Screens'}
                   </span>
                 </div>
               </div>
 
               {/* Items Card Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3 min-w-0">
                 {group.items.map((item) => (
                   <div
                     key={item.id}
                     onClick={() => onNavigate(item.view, item.params)}
-                    className="p-3.5 rounded-xl bg-white border border-slate-200/90 hover:border-indigo-400 hover:shadow-md transition-all duration-150 cursor-pointer flex flex-col justify-between group relative overflow-hidden"
+                    className="p-3.5 rounded-xl bg-white border border-slate-200/90 hover:border-indigo-400 hover:shadow-md transition-all duration-150 cursor-pointer flex flex-col justify-between group relative overflow-hidden min-w-0"
                   >
                     <div className="space-y-2">
                       <div className="flex items-start justify-between gap-2">

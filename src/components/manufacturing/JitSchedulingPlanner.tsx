@@ -1,0 +1,800 @@
+import React, { useState, useMemo } from 'react';
+import {
+  Calendar,
+  Cpu,
+  Plus,
+  FileSpreadsheet,
+  Download,
+  Printer,
+  CheckCircle2,
+  AlertTriangle,
+  Layers,
+  Sparkles,
+  RotateCcw,
+  Send,
+  Sliders,
+  Store,
+  ChevronRight,
+  Clock,
+  Package,
+} from 'lucide-react';
+import {
+  WorkOrder,
+  MachineMaster,
+  ItemMaster,
+  BomMaster,
+} from '../../types';
+import { MoldMaster } from '../../data/manufacturingData';
+import {
+  PlannedMachineJob,
+  ExplodedMaterialRequirement,
+  StoreInventoryNode,
+} from './jit/jitTypes';
+import {
+  DEFAULT_CONNECTED_STORES,
+  calculatePcsFromHours,
+  explodePlanRequirements,
+  exportJitPlanToExcel,
+  exportJitPlanToCsv,
+} from './jit/jitCalculations';
+import { JitMachineRow } from './jit/JitMachineRow';
+import { JitRecipeModal } from './jit/JitRecipeModal';
+import { JitStoreFeasibilityView } from './jit/JitStoreFeasibilityView';
+import { JitCommonComposer } from './jit/JitCommonComposer';
+import { JitSingleScheduleGrid } from './jit/JitSingleScheduleGrid';
+
+interface Props {
+  workOrders: WorkOrder[];
+  machines: MachineMaster[];
+  items: ItemMaster[];
+  boms: BomMaster[];
+  molds: MoldMaster[];
+  onNavigate: (view: string, param?: any) => void;
+  onUpdateWO: (wo: WorkOrder) => void;
+  onCreateWO: (wo: WorkOrder) => void;
+  openDrawer: (title: string, content: React.ReactNode, footer?: React.ReactNode) => void;
+  closeDrawer: () => void;
+  openConfirm: (title: string, message: string, onConfirm: () => void) => void;
+  showToast: (msg: string) => void;
+}
+
+export const JitSchedulingPlanner: React.FC<Props> = ({
+  workOrders,
+  machines,
+  items,
+  boms,
+  molds,
+  onNavigate,
+  onUpdateWO,
+  onCreateWO,
+  openDrawer,
+  closeDrawer,
+  openConfirm,
+  showToast,
+}) => {
+  // Compute Tomorrow's Date (Default for next-day production plan)
+  const tomorrowStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
+  }, []);
+
+  const todayStr = useMemo(() => {
+    return new Date().toISOString().split('T')[0];
+  }, []);
+
+  const dayAfterTomorrowStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 2);
+    return d.toISOString().split('T')[0];
+  }, []);
+
+  // State: Target Production Plan Date
+  const [planDate, setPlanDate] = useState<string>(tomorrowStr);
+  const [plannerPlant, setPlannerPlant] = useState<string>('PLANT-01');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'feasibility' | 'summary'>('schedule');
+
+  // Stores state (default connected + custom future stores)
+  const [stores, setStores] = useState<StoreInventoryNode[]>(DEFAULT_CONNECTED_STORES);
+
+  // Modal states
+  const [inspectedJob, setInspectedJob] = useState<PlannedMachineJob | null>(null);
+
+  // Initial planned jobs under tomorrow's date
+  const [jobs, setJobs] = useState<PlannedMachineJob[]>([
+    {
+      id: 'job-imm-01',
+      planDate: tomorrowStr,
+      plant: 'PLANT-01',
+      plantName: 'Plant 01: Injection Molding Unit',
+      machineId: machines[0]?.id || 'IMM-180T-01',
+      itemCode: 'FG-CTN-500',
+      itemName: 'Plastic Container 500ml',
+      moldId: 'MLD-1001',
+      moldName: '500ml Round Container 4-Cavity Tool',
+      cavities: 4,
+      cycleTimeSec: 12.0,
+      plannedHours: 16.0,
+      calculatedPcs: 18240,
+      targetPcs: 18240,
+      calculationMode: 'hours_to_pcs',
+      shift: 'Full Day 24H',
+      efficiencyPct: 95,
+      operator: 'R. Sharma',
+      priority: 'High',
+      status: 'Draft',
+    },
+    {
+      id: 'job-imm-02',
+      planDate: tomorrowStr,
+      plant: 'PLANT-01',
+      plantName: 'Plant 01: Injection Molding Unit',
+      machineId: machines[1]?.id || 'IMM-250T-03',
+      itemCode: 'FG-BKT-010',
+      itemName: 'Household Bucket 10L',
+      moldId: 'MLD-1003',
+      moldName: 'Household 10L Bucket & Handle 2-Cavity',
+      cavities: 2,
+      cycleTimeSec: 18.0,
+      plannedHours: 16.0,
+      calculatedPcs: 6080,
+      targetPcs: 6080,
+      calculationMode: 'hours_to_pcs',
+      shift: 'Shift A (06:00 - 14:00)',
+      efficiencyPct: 95,
+      operator: 'K. Patel',
+      priority: 'Normal',
+      status: 'Draft',
+    },
+    {
+      id: 'job-imm-03',
+      planDate: tomorrowStr,
+      plant: 'PLANT-01',
+      plantName: 'Plant 01: Injection Molding Unit',
+      machineId: machines[2]?.id || 'IMM-350T-02',
+      itemCode: 'FG-PAL-010',
+      itemName: 'Plastic Pallet Heavy Duty',
+      moldId: 'MLD-1002',
+      moldName: 'Industrial Heavy Pallet 1-Cavity Mold',
+      cavities: 1,
+      cycleTimeSec: 45.0,
+      plannedHours: 8.0,
+      calculatedPcs: 608,
+      targetPcs: 608,
+      calculationMode: 'hours_to_pcs',
+      shift: 'Shift B (14:00 - 22:00)',
+      efficiencyPct: 95,
+      operator: 'M. Ali',
+      priority: 'High',
+      status: 'Draft',
+    },
+  ]);
+
+  // Filter jobs for currently selected dynamic plan date
+  const currentPlanJobs = useMemo(() => {
+    return jobs.filter((j) => (j.planDate || planDate) === planDate);
+  }, [jobs, planDate]);
+
+  // Aggregate Exploded Material Requirements for selected plan date
+  const materialRequirements = useMemo(() => {
+    return explodePlanRequirements(currentPlanJobs, boms, items, stores);
+  }, [currentPlanJobs, boms, items, stores]);
+
+  // High-level KPIs for selected plan date
+  const totalPlannedHours = currentPlanJobs.reduce((acc, j) => acc + j.plannedHours, 0);
+  const totalProducedPcs = currentPlanJobs.reduce((acc, j) => acc + j.calculatedPcs, 0);
+  const totalResinKg = materialRequirements
+    .filter((r) => r.category === 'RM')
+    .reduce((acc, r) => acc + r.requiredQty, 0);
+  const totalMasterbatchKg = materialRequirements
+    .filter((r) => r.category === 'MB')
+    .reduce((acc, r) => acc + r.requiredQty, 0);
+  const totalInsertsNos = materialRequirements
+    .filter((r) => r.category === 'INSERT')
+    .reduce((acc, r) => acc + r.requiredQty, 0);
+  const totalPackagingBoxes = materialRequirements
+    .filter((r) => r.category === 'PCK')
+    .reduce((acc, r) => acc + r.requiredQty, 0);
+
+  const shortageCount = materialRequirements.filter((r) => r.feasibility === 'Critical_Shortage').length;
+  const isAllFeasible = shortageCount === 0 && materialRequirements.length > 0;
+
+  // Handlers for Jobs
+  const handleUpdateJob = (updated: PlannedMachineJob) => {
+    setJobs((prev) => prev.map((j) => (j.id === updated.id ? updated : j)));
+  };
+
+  // Add job submitted from Common Composer
+  const handleAddJobFromComposer = (newJob: PlannedMachineJob) => {
+    setJobs((prev) => [newJob, ...prev]);
+    showToast(`Added ${newJob.machineId} (${newJob.itemCode}, ${newJob.calculatedPcs.toLocaleString()} PCS) to ${newJob.planDate} schedule!`);
+  };
+
+  const handleDuplicateJob = (jobToDup: PlannedMachineJob) => {
+    const dup: PlannedMachineJob = {
+      ...jobToDup,
+      id: `job-${Date.now()}`,
+      shift: 'Shift B (14:00 - 22:00)',
+      status: 'Draft',
+    };
+    setJobs((prev) => [dup, ...prev]);
+    showToast(`Duplicated ${jobToDup.itemCode} on ${dup.machineId}`);
+  };
+
+  const handleDeleteJob = (jobId: string) => {
+    setJobs((prev) => prev.filter((j) => j.id !== jobId));
+    showToast('Removed machine from daily plan');
+  };
+
+  // Release a single machine job as a Work Order
+  const handleReleaseSingleJob = (job: PlannedMachineJob) => {
+    const woId = `WO-JIT-${job.planDate.replace(/-/g, '').slice(2)}-${Date.now().toString().slice(-4)}`;
+    const woPriority: 'Low' | 'Medium' | 'High' =
+      job.priority === 'High' || job.priority === 'Urgent' ? 'High' : 'Medium';
+    const targetPlant = job.plant || plannerPlant || 'PLANT-01';
+    const targetPlantName = job.plantName || 'Plant 01: Injection Molding Unit';
+    const schId = `SCH-${job.planDate.replace(/-/g, '')}-01`;
+
+    const newWO: WorkOrder = {
+      id: woId,
+      item: job.itemCode,
+      bomId: boms.find((b) => b.parent === job.itemCode)?.id || 'BOM-1001',
+      machine: job.machineId,
+      day: job.planDate,
+      planDate: job.planDate,
+      qty: job.calculatedPcs,
+      uom: 'PCS',
+      completed: 0,
+      scrap: 0,
+      status: 'released',
+      priority: woPriority,
+      dueDate: job.planDate,
+      operator: job.operator || 'Assigned Operator',
+      downtimeMin: 0,
+      mold: job.moldId,
+      jitSeq: 1,
+      shift: job.shift,
+      plant: targetPlant,
+      plantName: targetPlantName,
+      jitScheduleId: schId,
+      outputLogs: [],
+      downtimeLogs: [],
+      checklist: [
+        { label: 'Mold mounted & clamped to tonnage', done: true },
+        { label: 'Cooling water lines & temperature controller connected', done: true },
+        { label: 'Material hopper loaded with verified resin & masterbatch', done: true },
+      ],
+      history: [
+        {
+          event: `JIT Work Order dispatched for ${job.planDate} (${job.plannedHours}h on ${job.machineId}, ${targetPlant})`,
+          time: new Date().toISOString().replace('T', ' ').slice(0, 19),
+        },
+      ],
+    };
+
+    onCreateWO(newWO);
+    setJobs((prev) =>
+      prev.map((j) => (j.id === job.id ? { ...j, status: 'Released', workOrderId: woId } : j))
+    );
+    showToast(`Dispatched ${woId} to ${targetPlant} Shopfloor for ${job.itemCode}! Viewable in Work Order Management.`);
+  };
+
+  // Release all jobs under a specific date
+  const handleReleaseDateJobs = (targetDate: string, scheduleNumber?: string) => {
+    const targetJobs = jobs.filter((j) => (j.planDate || planDate) === targetDate);
+    if (targetJobs.length === 0) return;
+
+    const schId = scheduleNumber || `SCH-${targetDate.replace(/-/g, '')}-01`;
+
+    openConfirm(
+      `Release Work Orders for Schedule ${schId}?`,
+      `This will dispatch official active Work Orders for all ${targetJobs.length} scheduled machines on ${targetDate} to their respective plant facilities.`,
+      () => {
+        let count = 0;
+        targetJobs.forEach((job, idx) => {
+          if (job.status === 'Released') return;
+          const woId = `WO-JIT-${targetDate.replace(/-/g, '').slice(2)}-${idx + 1}`;
+          const woPriority: 'Low' | 'Medium' | 'High' =
+            job.priority === 'High' || job.priority === 'Urgent' ? 'High' : 'Medium';
+          const targetPlant = job.plant || plannerPlant || 'PLANT-01';
+          const targetPlantName = job.plantName || 'Plant 01: Injection Molding Unit';
+
+          const newWO: WorkOrder = {
+            id: woId,
+            item: job.itemCode,
+            bomId: boms.find((b) => b.parent === job.itemCode)?.id || 'BOM-1001',
+            machine: job.machineId,
+            day: targetDate,
+            planDate: targetDate,
+            qty: job.calculatedPcs,
+            uom: 'PCS',
+            completed: 0,
+            scrap: 0,
+            status: 'released',
+            priority: woPriority,
+            dueDate: targetDate,
+            operator: job.operator || 'Assigned Operator',
+            downtimeMin: 0,
+            mold: job.moldId,
+            jitSeq: idx + 1,
+            shift: job.shift,
+            plant: targetPlant,
+            plantName: targetPlantName,
+            jitScheduleId: schId,
+            outputLogs: [],
+            downtimeLogs: [],
+            checklist: [
+              { label: 'Mold mounted & clamped to tonnage', done: true },
+              { label: 'Cooling water lines & temperature controller connected', done: true },
+              { label: 'Material hopper loaded with verified resin & masterbatch', done: true },
+            ],
+            history: [
+              {
+                event: `JIT Schedule ${schId} dispatched for ${targetDate} (${job.plannedHours}h on ${job.machineId}, ${targetPlant})`,
+                time: new Date().toISOString().replace('T', ' ').slice(0, 19),
+              },
+            ],
+          };
+          onCreateWO(newWO);
+          count++;
+        });
+
+        setJobs((prev) =>
+          prev.map((j) =>
+            (j.planDate || planDate) === targetDate ? { ...j, status: 'Released' } : j
+          )
+        );
+
+        showToast(`Released ${count} Work Orders for Schedule ${schId}! Viewable in Work Order Management.`);
+      }
+    );
+  };
+
+  // Date specific exports
+  const handleExportDateExcel = (targetDate: string, scheduleNumber?: string) => {
+    const targetJobs = jobs.filter((j) => (j.planDate || planDate) === targetDate);
+    const targetReqs = explodePlanRequirements(targetJobs, boms, items, stores);
+    exportJitPlanToExcel(targetDate, targetJobs, targetReqs, machines, stores);
+    showToast(`Downloaded ${scheduleNumber || 'JIT_Plan_' + targetDate.replace(/-/g, '')}.xlsx`);
+  };
+
+  const handleExportDateCsv = (targetDate: string, scheduleNumber?: string) => {
+    const targetJobs = jobs.filter((j) => (j.planDate || planDate) === targetDate);
+    const targetReqs = explodePlanRequirements(targetJobs, boms, items, stores);
+    exportJitPlanToCsv(targetDate, targetJobs, targetReqs);
+    showToast(`Downloaded ${scheduleNumber || 'JIT_Plan_' + targetDate.replace(/-/g, '')}.csv`);
+  };
+
+  // Run full stock verification
+  const handleVerifyStockFeasibility = () => {
+    const reqs = explodePlanRequirements(jobs, boms, items, stores);
+    const hasShortage = reqs.some((r) => r.feasibility === 'Critical_Shortage');
+
+    setJobs((prev) =>
+      prev.map((j) => ({
+        ...j,
+        status: hasShortage ? 'Material_Shortage' : 'Feasible',
+      }))
+    );
+
+    if (hasShortage) {
+      showToast('⚠️ Stock verification completed: Material shortages detected! Check Store Feasibility tab.');
+    } else {
+      showToast('✅ 100% Stock Feasible! All resins, colorants & packaging verified across factory stores.');
+    }
+  };
+
+  // Release Schedule & Generate Work Orders in System
+  const handleReleaseScheduleToShopfloor = () => {
+    openConfirm(
+      'Release Next-Day Schedule to Production?',
+      `This will formalize the ${jobs.length} scheduled machine jobs for ${planDate} into official active Work Orders across respective manufacturing plants and notify shift supervisors.`,
+      () => {
+        const schId = `SCH-${planDate.replace(/-/g, '')}-01`;
+        let createdCount = 0;
+        jobs.forEach((job, idx) => {
+          const woId = `WO-JIT-${planDate.replace(/-/g, '').slice(2)}-${idx + 1}`;
+          const woPriority: 'Low' | 'Medium' | 'High' =
+            job.priority === 'High' || job.priority === 'Critical'
+              ? 'High'
+              : job.priority === 'Low'
+              ? 'Low'
+              : 'Medium';
+          const targetPlant = job.plant || plannerPlant || 'PLANT-01';
+          const targetPlantName = job.plantName || 'Plant 01: Injection Molding Unit';
+
+          const newWO: WorkOrder = {
+            id: woId,
+            item: job.itemCode,
+            bomId: boms.find((b) => b.parent === job.itemCode)?.id || 'BOM-1042',
+            machine: job.machineId,
+            day: planDate,
+            planDate: planDate,
+            qty: job.calculatedPcs,
+            uom: 'PCS',
+            completed: 0,
+            scrap: 0,
+            status: 'released',
+            priority: woPriority,
+            dueDate: planDate,
+            operator: job.operator || 'Assigned Operator',
+            downtimeMin: 0,
+            mold: job.moldId,
+            jitSeq: idx + 1,
+            shift: job.shift,
+            plant: targetPlant,
+            plantName: targetPlantName,
+            jitScheduleId: schId,
+            outputLogs: [],
+            downtimeLogs: [],
+            checklist: [
+              { label: 'Mold mounted & clamped to tonnage', done: true },
+              { label: 'Cooling water lines & temperature controller connected', done: true },
+              { label: 'Material hopper loaded with verified resin & masterbatch', done: true },
+            ],
+            history: [
+              {
+                event: `JIT Schedule created for ${planDate} (${job.plannedHours}h on ${job.machineId}, ${targetPlant})`,
+                time: new Date().toISOString().replace('T', ' ').slice(0, 19),
+              },
+            ],
+          };
+          onCreateWO(newWO);
+          createdCount++;
+        });
+
+        setJobs((prev) =>
+          prev.map((j) => ({
+            ...j,
+            status: 'Released',
+          }))
+        );
+
+        showToast(`🎉 Successfully released ${createdCount} Work Orders to Shopfloor for ${planDate}! Viewable in Work Order Management.`);
+      }
+    );
+  };
+
+  // Export handlers
+  const handleExportExcel = () => {
+    exportJitPlanToExcel(planDate, jobs, materialRequirements, machines, stores);
+    showToast(`Downloaded JIT_Production_Plan_${planDate.replace(/-/g, '')}.xlsx`);
+  };
+
+  const handleExportCsv = () => {
+    exportJitPlanToCsv(planDate, jobs, materialRequirements);
+    showToast(`Downloaded JIT_Production_Plan_${planDate.replace(/-/g, '')}.csv`);
+  };
+
+  const handlePrintPlan = () => {
+    window.print();
+  };
+
+  // Store Management
+  const handleAddStore = (newStore: StoreInventoryNode) => {
+    setStores((prev) => [...prev, newStore]);
+    showToast(`Registered new factory store: ${newStore.code} (${newStore.name})`);
+  };
+
+  const handleRemoveStore = (storeId: string) => {
+    setStores((prev) => prev.filter((s) => s.id !== storeId));
+    showToast('Custom store removed');
+  };
+
+  return (
+    <div className="space-y-6 pb-12">
+      {/* Top Header & Day Selector Cockpit */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold uppercase tracking-wider bg-indigo-100 text-indigo-800">
+                JIT Production Planner
+              </span>
+              <span className="text-xs text-slate-400">|</span>
+              <span className="text-xs font-semibold text-slate-600">
+                Daily Injection Molding Schedule & Feasibility Engine
+              </span>
+            </div>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight mt-1">
+              Production Plan for {planDate === tomorrowStr ? 'Tomorrow (Next Day)' : planDate}
+            </h1>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Plan created one day prior: schedule multiple IMMs, calculate output by run hours, explode BOM recipes (RM, MB, Inserts, PCK), and verify stock across all stores.
+            </p>
+          </div>
+
+          {/* Quick Actions & Export Buttons */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors"
+              title="Download full multi-sheet production schedule & recipe requirements in Microsoft Excel format"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>Export Excel (.xlsx)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors"
+              title="Download standard CSV format for ERP/MES import"
+            >
+              <Download className="w-4 h-4" />
+              <span>Export CSV</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePrintPlan}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold rounded-lg shadow-xs transition-colors"
+              title="Print traveler clipboard schedule sheet"
+            >
+              <Printer className="w-4 h-4 text-slate-500" />
+              <span className="hidden sm:inline">Print Traveler</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Date Selector & Planning Horizon Strip */}
+        <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-indigo-600" />
+              Target Production Date:
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setPlanDate(tomorrowStr)}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                planDate === tomorrowStr
+                  ? 'bg-indigo-600 text-white shadow-xs ring-2 ring-indigo-300'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              ⚡ Tomorrow (Next-Day Plan)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPlanDate(todayStr)}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                planDate === todayStr
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              Today
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPlanDate(dayAfterTomorrowStr)}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                planDate === dayAfterTomorrowStr
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              Day After Tomorrow
+            </button>
+
+            <div className="relative flex items-center ml-1">
+              <input
+                type="date"
+                value={planDate}
+                onChange={(e) => e.target.value && setPlanDate(e.target.value)}
+                className="bg-white border border-slate-300 text-slate-800 text-xs font-semibold rounded-lg px-2.5 py-1 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleVerifyStockFeasibility}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-bold rounded-lg transition-colors shadow-2xs"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Verify Stock Feasibility</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleReleaseScheduleToShopfloor}
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>Release to Shop Floor</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Aggregate KPI Strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
+        <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs space-y-1">
+          <span className="text-slate-500 font-medium text-[11px] block truncate">Scheduled IMMs</span>
+          <div className="text-xl font-extrabold text-slate-900 font-mono">
+            {jobs.length}{' '}
+            <span className="text-xs font-normal text-slate-500">of {machines.length}</span>
+          </div>
+          <div className="text-[10px] text-slate-400">Multiple machines on date</div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs space-y-1">
+          <span className="text-slate-500 font-medium text-[11px] block truncate">Total Run Hours</span>
+          <div className="text-xl font-extrabold text-indigo-700 font-mono">
+            {totalPlannedHours.toFixed(1)} <span className="text-xs font-normal text-slate-500">hrs</span>
+          </div>
+          <div className="text-[10px] text-indigo-600 font-medium">
+            {((totalPlannedHours / (jobs.length * 24)) * 100).toFixed(0)}% Shop Allocation
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs space-y-1">
+          <span className="text-slate-500 font-medium text-[11px] block truncate">Total Forecast Yield</span>
+          <div className="text-xl font-extrabold text-emerald-700 font-mono">
+            {totalProducedPcs.toLocaleString()} <span className="text-xs font-bold text-slate-500">PCS</span>
+          </div>
+          <div className="text-[10px] text-emerald-600">Based on cycle & cavities</div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs space-y-1">
+          <span className="text-slate-500 font-medium text-[11px] block truncate">Raw Material (Resin)</span>
+          <div className="text-xl font-extrabold text-slate-800 font-mono">
+            {Math.round(totalResinKg).toLocaleString()} <span className="text-xs text-slate-500">KG</span>
+          </div>
+          <div className="text-[10px] text-slate-400">Polymer demands</div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs space-y-1">
+          <span className="text-slate-500 font-medium text-[11px] block truncate">Masterbatch & Color</span>
+          <div className="text-xl font-extrabold text-purple-700 font-mono">
+            {totalMasterbatchKg.toFixed(1)} <span className="text-xs text-slate-500">KG</span>
+          </div>
+          <div className="text-[10px] text-slate-400">Color concentrates</div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs space-y-1">
+          <span className="text-slate-500 font-medium text-[11px] block truncate">Store Feasibility</span>
+          <div className="text-sm font-extrabold font-mono pt-1">
+            {shortageCount > 0 ? (
+              <span className="inline-flex items-center gap-1 text-rose-600">
+                <AlertTriangle className="w-4 h-4" /> {shortageCount} Shortages
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-emerald-600">
+                <CheckCircle2 className="w-4 h-4" /> 100% Feasible
+              </span>
+            )}
+          </div>
+          <div className="text-[10px] text-slate-400">Across all connected stores</div>
+        </div>
+      </div>
+
+      {/* Navigation View Switcher (Tabs) */}
+      <div className="border-b border-slate-200 flex items-center justify-between">
+        <div className="flex space-x-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab('schedule')}
+            className={`pb-3 px-3 text-xs font-bold transition-colors flex items-center gap-2 border-b-2 ${
+              activeTab === 'schedule'
+                ? 'border-indigo-600 text-indigo-700'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Cpu className="w-4 h-4" />
+            <span>1. Injection Machine Daily Schedule ({jobs.length} Machines)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('feasibility')}
+            className={`pb-3 px-3 text-xs font-bold transition-colors flex items-center gap-2 border-b-2 ${
+              activeTab === 'feasibility'
+                ? 'border-indigo-600 text-indigo-700'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Store className="w-4 h-4" />
+            <span>2. Store Availability & Shortage Analysis ({materialRequirements.length} Materials)</span>
+            {shortageCount > 0 && (
+              <span className="w-4 h-4 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">
+                {shortageCount}
+              </span>
+            )}
+          </button>
+        </div>
+
+        <div className="pb-2">
+          {activeTab === 'schedule' && (
+            <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+              Configure above and click <strong className="text-indigo-700">ADD</strong> to schedule
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Tab 1: Machine Production Schedule & Grouped Date Grid */}
+      {activeTab === 'schedule' && (
+        <div className="space-y-6">
+          {/* Section 1: Common Machine Job Composer matching Reference Image */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs px-1">
+              <span className="font-bold text-slate-800 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                <Cpu className="w-4 h-4 text-indigo-600" />
+                <span>Common Machine Job Configurator (Configure & Click ADD)</span>
+              </span>
+              <span className="text-[11px] text-indigo-700 font-semibold">
+                Formula: (Hours × 3600 / Cycle Time) × Cavities × Efficiency
+              </span>
+            </div>
+
+            <JitCommonComposer
+              planDate={planDate}
+              onChangePlanDate={setPlanDate}
+              selectedPlant={plannerPlant}
+              onChangePlant={setPlannerPlant}
+              machines={machines}
+              items={items}
+              molds={molds}
+              boms={boms}
+              stores={stores}
+              onAddJob={handleAddJobFromComposer}
+              onOpenRecipeModal={(j) => setInspectedJob(j)}
+            />
+          </div>
+
+          {/* Section 2: Single Master Production Schedule Grid Under Unique Day-Wise Schedule Number */}
+          <div className="space-y-3 pt-2">
+            <JitSingleScheduleGrid
+              selectedDate={planDate}
+              onChangeDate={setPlanDate}
+              jobs={jobs}
+              machines={machines}
+              items={items}
+              molds={molds}
+              boms={boms}
+              stores={stores}
+              workOrders={workOrders}
+              onUpdateJob={handleUpdateJob}
+              onDeleteJob={handleDeleteJob}
+              onDuplicateJob={handleDuplicateJob}
+              onReleaseSingleJob={handleReleaseSingleJob}
+              onReleaseSchedule={handleReleaseDateJobs}
+              onViewRecipe={(j) => setInspectedJob(j)}
+              onExportExcel={handleExportDateExcel}
+              onExportCsv={handleExportDateCsv}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Tab 2: Store Availability & Multi-Store Analysis */}
+      {activeTab === 'feasibility' && (
+        <JitStoreFeasibilityView
+          requirements={materialRequirements}
+          items={items}
+          stores={stores}
+          onAddStore={handleAddStore}
+          onRemoveStore={handleRemoveStore}
+        />
+      )}
+
+      {/* Detailed Recipe Modal */}
+      {inspectedJob && (
+        <JitRecipeModal
+          job={inspectedJob}
+          items={items}
+          boms={boms}
+          onClose={() => setInspectedJob(null)}
+        />
+      )}
+    </div>
+  );
+};

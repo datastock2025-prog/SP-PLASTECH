@@ -137,10 +137,23 @@ export const WorkOrderDetailTraveler: React.FC<TravelerProps> = ({
       <div className="bg-white rounded-2xl border border-[#E4E0D6] p-6 shadow-xs relative overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div className="space-y-3">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 flex-wrap">
               <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-[#0F8B8D]/10 text-[#0F8B8D]">
                 {wo.id}
               </span>
+              {wo.plant && (
+                <span
+                  className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-[#14213D] text-white shadow-2xs"
+                  title={wo.plantName || wo.plant}
+                >
+                  {wo.plant}
+                </span>
+              )}
+              {wo.jitScheduleId && (
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  ⚡ {wo.jitScheduleId}
+                </span>
+              )}
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
                 wo.status === 'in_progress' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-800'
               }`}>
@@ -156,11 +169,12 @@ export const WorkOrderDetailTraveler: React.FC<TravelerProps> = ({
             <div>
               <h1 className="text-2xl font-bold text-[#14213D]">{itemName(wo.item)}</h1>
               <div className="text-xs text-[#6B7280] font-mono mt-0.5">
-                Item Code: {wo.item} &bull; Plant Location: {wo.locOutput || 'FG-WH-01-A1'}
+                Item Code: {wo.item} &bull; Facility: {wo.plantName || wo.plant || 'Plant 01: Injection Molding Unit'} &bull; Output: {wo.locOutput || 'FG-WH-01-A1'}
               </div>
             </div>
 
             <div className="flex flex-wrap gap-4 text-xs pt-1">
+              <div><span className="text-[#6B7280]">Plant:</span> <b className="text-indigo-900 font-bold">{wo.plant || 'PLANT-01'}</b></div>
               <div><span className="text-[#6B7280]">Machine:</span> <b className="text-[#14213D] font-mono">{wo.machine || 'Unassigned'}</b></div>
               <div><span className="text-[#6B7280]">Installed Mold:</span> <b className="text-[#14213D] font-mono">{wo.mold || 'MLD-1001'}</b></div>
               <div><span className="text-[#6B7280]">Shift:</span> <b className="text-[#14213D]">{wo.shift || 'Shift A'}</b></div>

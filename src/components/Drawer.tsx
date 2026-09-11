@@ -28,7 +28,7 @@ export const Drawer: React.FC<DrawerProps> = ({
         onClick={onClose}
       />
 
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
+      <div className="fixed inset-y-0 right-0 max-w-full flex pl-0 sm:pl-10">
         <div className={`w-screen ${width} bg-white shadow-2xl flex flex-col transform transition-transform duration-200 ease-out`}>
           {/* Header */}
           <div className="px-5 py-4 border-b border-[#E4E0D6] flex items-center justify-between shrink-0">

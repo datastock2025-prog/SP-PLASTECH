@@ -444,6 +444,33 @@ export const INITIAL_ECRS: EngineeringChangeRequest[] = [
       { stage: 'Engineering Review', approver: 'Vikram Singh', role: 'Lead Engineer', status: 'Approved', timestamp: '2026-08-27 10:00' },
       { stage: 'Quality Review', approver: 'Ananya Sen', role: 'QA Lead', status: 'Pending', timestamp: '2026-08-27 16:00' }
     ]
+  },
+  {
+    id: 'ECR-2026-003',
+    ecrNumber: 'ECR-2026-003',
+    requestDate: '2026-09-02',
+    requestedBy: 'Sunil Mehta',
+    department: 'Tooling & Mold Engineering',
+    relatedItem: 'FG-BKT-010',
+    relatedItemName: 'Household Bucket 10L (Heavy Duty)',
+    relatedBomId: 'BOM-1003',
+    changeType: 'Process Improvement',
+    priority: 'High',
+    riskLevel: 'Medium',
+    targetDate: '2026-10-15',
+    description: 'Redesign bail handle mold core insert to increase rib thickness from 2.2mm to 2.8mm to eliminate handle deflection under 12kg dynamic load test.',
+    reason: 'Drop test at -5°C showed occasional ear cracking at 1.2m impact. Structural rib reinforcement prevents failure.',
+    expectedImpact: 'Cycle time neutral (+0.2 sec). Material weight increase of 4.2 grams offset by zero warranty returns.',
+    status: 'Approved',
+    affectedBoms: ['BOM-1003'],
+    affectedWorkOrders: ['WO-4412'],
+    stockImpactKg: 650,
+    estimatedCostImpact: 24000,
+    approvals: [
+      { stage: 'Engineering Review', approver: 'Vikram Singh', role: 'Lead Engineer', status: 'Approved', timestamp: '2026-09-03 11:15' },
+      { stage: 'Quality Review', approver: 'Ananya Sen', role: 'QA Lead', status: 'Approved', timestamp: '2026-09-04 14:00' },
+      { stage: 'Finance Review', approver: 'Neha Deshmukh', role: 'Cost Accountant', status: 'Approved', timestamp: '2026-09-05 10:30' }
+    ]
   }
 ];
 
@@ -479,6 +506,38 @@ export const INITIAL_ECOS: EngineeringChangeOrder[] = [
     approvals: [
       { stage: 'Engineering Approval', approver: 'Vikram Singh', role: 'Engineering Lead', status: 'Approved', timestamp: '2026-08-26 14:00' },
       { stage: 'Plant Manager Implementation Release', approver: 'Priya Rao', role: 'Plant Director', status: 'Approved', timestamp: '2026-08-27 11:30' }
+    ]
+  },
+  {
+    id: 'ECO-2026-081',
+    ecoNumber: 'ECO-2026-081',
+    linkedEcrId: 'ECR-2026-000',
+    itemCode: 'FG-PET-030',
+    itemName: 'PET Bottle Preform 28mm PCO 1881',
+    bomId: 'BOM-1004',
+    changeOwner: 'Vikram Singh',
+    priority: 'Medium',
+    targetDate: '2026-08-15',
+    status: 'Implemented',
+    effectiveStrategy: 'Immediate',
+    specificBatchDate: '2026-08-10',
+    beforeBomLines: [
+      { item: 'RM-PET-001', name: 'Standard Virgin Bottle Grade PET', qty: 0.0192, uom: 'KG', scrap: 1.0, cost: 1.82 }
+    ],
+    afterBomLines: [
+      { item: 'RM-PET-002', name: 'High-IV Fast-Reheat Virgin PET (IV 0.84)', qty: 0.0185, uom: 'KG', scrap: 0.6, cost: 1.76 }
+    ],
+    checklist: [
+      { task: 'BOM lines & version bumped to v1.4', completed: true, completedBy: 'Vikram Singh', completedDate: '2026-08-12' },
+      { task: 'Item Master created for High-IV PET', completed: true, completedBy: 'Vikram Singh', completedDate: '2026-08-12' },
+      { task: 'Mold hot runner profile adjusted for Fast-Reheat', completed: true, completedBy: 'Sunil Mehta', completedDate: '2026-08-13' },
+      { task: 'Blowing qualification on customer Sidel line passed', completed: true, completedBy: 'Ananya Sen', completedDate: '2026-08-14' },
+      { task: 'Standard cost rollup executed & active', completed: true, completedBy: 'Neha Deshmukh', completedDate: '2026-08-15' },
+      { task: 'Production floor work orders switched', completed: true, completedBy: 'Rajesh K', completedDate: '2026-08-15' }
+    ],
+    approvals: [
+      { stage: 'Engineering Approval', approver: 'Vikram Singh', role: 'Engineering Lead', status: 'Approved', timestamp: '2026-08-12 10:00' },
+      { stage: 'Plant Manager Implementation Release', approver: 'Priya Rao', role: 'Plant Director', status: 'Approved', timestamp: '2026-08-14 16:00' }
     ]
   }
 ];
@@ -737,6 +796,260 @@ export const INITIAL_ROUTINGS: BomRouting[] = [
         scrapPct: 0.05,
         qualityCheckpoint: true,
         instructions: 'Pack 200 tubs per carton with PE polybag liner. Apply Barcode 128 lot label.',
+        status: 'active'
+      }
+    ]
+  },
+  {
+    id: 'RTG-1002',
+    linkedBomId: 'BOM-1002',
+    itemCode: 'FG-BKT-010',
+    itemName: 'Household Bucket 10L',
+    version: 'v1.4',
+    status: 'released',
+    standardBatchSize: 500,
+    effectiveDate: '2026-06-15',
+    operations: [
+      {
+        seq: 10,
+        name: 'HDPE Granule Preheating & Color Mixing',
+        workCenter: 'Drying & Blending Cell 02',
+        machineId: 'MIX-002',
+        machineName: 'Motan Gravimetric Blender',
+        setupTimeMin: 20,
+        runTimeSec: 60,
+        cycleTimeSec: 0,
+        crewSize: 1,
+        laborSkill: 'Material Handler',
+        outputPerHour: 600,
+        scrapPct: 0.1,
+        qualityCheckpoint: true,
+        instructions: 'Blend 98% Prime HDPE with 2% Red Masterbatch. Check dispersion uniformity.',
+        status: 'active'
+      },
+      {
+        seq: 20,
+        name: 'Heavy-Duty Injection Molding',
+        workCenter: 'Heavy IMM Bay 01',
+        machineId: 'IMM-04',
+        machineName: 'KraussMaffei 650T Heavy IMM',
+        moldId: 'MOLD-BKT-10L',
+        setupTimeMin: 60,
+        runTimeSec: 28.0,
+        cycleTimeSec: 28.0,
+        crewSize: 1,
+        laborSkill: 'Heavy Machine Technician',
+        outputPerHour: 128,
+        scrapPct: 1.5,
+        qualityCheckpoint: true,
+        instructions: 'Single cavity heavy wall mold. Maintain hydraulic core pull timing at 2.4s.',
+        status: 'active'
+      },
+      {
+        seq: 30,
+        name: 'Metal Wire Handle Assembly',
+        workCenter: 'Secondary Assembly Station A',
+        machineId: 'ASM-003',
+        machineName: 'Pneumatic Bail Attaching Rig',
+        setupTimeMin: 15,
+        runTimeSec: 6.0,
+        cycleTimeSec: 6.0,
+        crewSize: 1,
+        laborSkill: 'Assembly Operator',
+        outputPerHour: 450,
+        scrapPct: 0.2,
+        qualityCheckpoint: true,
+        instructions: 'Insert galvanized wire bail into bucket ears with ergonomic plastic grip sleeve.',
+        status: 'active'
+      },
+      {
+        seq: 40,
+        name: 'Drop Impact & Handle Pull Testing',
+        workCenter: 'QA Proof Testing Cell',
+        setupTimeMin: 5,
+        runTimeSec: 4.0,
+        cycleTimeSec: 4.0,
+        crewSize: 1,
+        laborSkill: 'Quality Inspector',
+        outputPerHour: 400,
+        scrapPct: 0.1,
+        qualityCheckpoint: true,
+        instructions: '1.2m drop test filled with water. 35kg static tensile pull on handle bail.',
+        status: 'active'
+      },
+      {
+        seq: 50,
+        name: 'Stacking & Pallet Shrink Wrap',
+        workCenter: 'Palletizing Bay 01',
+        machineId: 'WRP-001',
+        machineName: 'Robotic Turntable Stretch Wrapper',
+        setupTimeMin: 10,
+        runTimeSec: 5.0,
+        cycleTimeSec: 5.0,
+        crewSize: 1,
+        laborSkill: 'Palletizer',
+        outputPerHour: 500,
+        scrapPct: 0.05,
+        qualityCheckpoint: false,
+        instructions: 'Interstack 25 buckets per column, 4 columns per Euro pallet with corner protectors.',
+        status: 'active'
+      }
+    ]
+  },
+  {
+    id: 'RTG-1003',
+    linkedBomId: 'BOM-1003',
+    itemCode: 'FG-PET-030',
+    itemName: 'PET Bottle Preform 28mm (24g)',
+    version: 'v3.0',
+    status: 'released',
+    standardBatchSize: 10000,
+    effectiveDate: '2026-08-01',
+    operations: [
+      {
+        seq: 10,
+        name: 'PET Resin Dehumidified Crystallization',
+        workCenter: 'PET Drying Silo Bay',
+        machineId: 'PET-DRY-01',
+        machineName: 'Conair Micro-Drying Tower (-50°C DP)',
+        setupTimeMin: 30,
+        runTimeSec: 240,
+        cycleTimeSec: 0,
+        crewSize: 1,
+        laborSkill: 'Process Chemist',
+        outputPerHour: 1200,
+        scrapPct: 0.05,
+        qualityCheckpoint: true,
+        instructions: 'Drying temp 175°C for 5 hours. Moisture content strictly < 30 ppm (Karl Fischer test).',
+        status: 'active'
+      },
+      {
+        seq: 20,
+        name: 'High-Speed Multi-Cavity Preform Injection',
+        workCenter: 'Cleanroom Imm Cell 01 (ISO 8)',
+        machineId: 'HUSKY-01',
+        machineName: 'Husky HyPET 300T 48-Cavity System',
+        moldId: 'MOLD-PET-48C',
+        setupTimeMin: 90,
+        runTimeSec: 9.5,
+        cycleTimeSec: 9.5,
+        crewSize: 1,
+        laborSkill: 'Husky Master Technician',
+        outputPerHour: 18189,
+        scrapPct: 0.4,
+        qualityCheckpoint: true,
+        instructions: '48 cavities valve-gate. Coolant chilled at 8°C. Check Acetaldehyde (AA) level < 1.5 ppm.',
+        status: 'active'
+      },
+      {
+        seq: 30,
+        name: 'High-Speed Optical Camera Gate Inspection',
+        workCenter: 'Opto-Electronic Sorting Zone',
+        machineId: 'VIS-002',
+        machineName: 'Pressco 360° Preform Camera Sorter',
+        setupTimeMin: 15,
+        runTimeSec: 0.2,
+        cycleTimeSec: 0.2,
+        crewSize: 0,
+        laborSkill: 'Automated Vision System',
+        outputPerHour: 20000,
+        scrapPct: 0.1,
+        qualityCheckpoint: true,
+        instructions: '100% inline check for gate crystallinity, thread diameter (28mm PCO 1881), black specs.',
+        status: 'active'
+      },
+      {
+        seq: 40,
+        name: 'Octabin Bulk Filling & Nitrogen Purge',
+        workCenter: 'Cleanroom Bulk Packaging',
+        setupTimeMin: 10,
+        runTimeSec: 1.0,
+        cycleTimeSec: 1.0,
+        crewSize: 1,
+        laborSkill: 'Cleanroom Packer',
+        outputPerHour: 15000,
+        scrapPct: 0.02,
+        qualityCheckpoint: true,
+        instructions: 'Fill 7,500 preforms per corrugated Octabin lined with static-dissipative anti-dust bag.',
+        status: 'active'
+      }
+    ]
+  },
+  {
+    id: 'RTG-1004',
+    linkedBomId: 'BOM-1004',
+    itemCode: 'FG-CAP-028',
+    itemName: 'Flip-top Cap 28mm (PP)',
+    version: 'v1.2',
+    status: 'released',
+    standardBatchSize: 5000,
+    effectiveDate: '2026-05-10',
+    operations: [
+      {
+        seq: 10,
+        name: 'PP Homopolymer Conveying & Color Dosimeter',
+        workCenter: 'Cap Material Handling Hub',
+        machineId: 'DOS-001',
+        machineName: 'Maguire Gravimetric Feeder',
+        setupTimeMin: 10,
+        runTimeSec: 30,
+        cycleTimeSec: 0,
+        crewSize: 1,
+        laborSkill: 'Material Handler',
+        outputPerHour: 3000,
+        scrapPct: 0.1,
+        qualityCheckpoint: false,
+        instructions: 'Meter 97% PP + 3% White Masterbatch into feed throat.',
+        status: 'active'
+      },
+      {
+        seq: 20,
+        name: 'High-Speed 24-Cavity Cap Injection',
+        workCenter: 'Fast IMM Cell 03',
+        machineId: 'IMM-06',
+        machineName: 'Netstal Elios 200T High-Speed IMM',
+        moldId: 'MOLD-CAP-24C',
+        setupTimeMin: 50,
+        runTimeSec: 7.0,
+        cycleTimeSec: 7.0,
+        crewSize: 1,
+        laborSkill: 'High-Speed IMM Operator',
+        outputPerHour: 12342,
+        scrapPct: 0.6,
+        qualityCheckpoint: true,
+        instructions: '24-cavity unscrewing and in-mold closing mechanism. Verify hinge flex life (100 flexes).',
+        status: 'active'
+      },
+      {
+        seq: 30,
+        name: 'In-Mold Automatic Cap Closing Rig',
+        workCenter: 'Automation Take-Out Zone',
+        machineId: 'ROB-004',
+        machineName: 'Integrated Pneumatic Closing Bar',
+        setupTimeMin: 10,
+        runTimeSec: 1.0,
+        cycleTimeSec: 1.0,
+        crewSize: 0,
+        laborSkill: 'Automated Mechanism',
+        outputPerHour: 12500,
+        scrapPct: 0.05,
+        qualityCheckpoint: false,
+        instructions: 'Fold and snap hinge closed before air blow-off discharge.',
+        status: 'active'
+      },
+      {
+        seq: 40,
+        name: 'Automated Box Bagging & Count Verification',
+        workCenter: 'Packing Station 01',
+        setupTimeMin: 10,
+        runTimeSec: 2.0,
+        cycleTimeSec: 2.0,
+        crewSize: 1,
+        laborSkill: 'Packer',
+        outputPerHour: 8000,
+        scrapPct: 0.02,
+        qualityCheckpoint: true,
+        instructions: 'Weigh-scale count 2,500 caps per box. Heat-seal PE bag and barcode label carton.',
         status: 'active'
       }
     ]

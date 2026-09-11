@@ -136,6 +136,17 @@ export const App: React.FC = () => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
 
+  // Auto-close mobile drawer when window expands to desktop size
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+        setIsMobileSidebarOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => {
@@ -197,6 +208,7 @@ export const App: React.FC = () => {
   const handleNavigate = (view: string, param?: any) => {
     setCurrentView(view);
     setViewParams(param || {});
+    setIsMobileSidebarOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -238,12 +250,15 @@ export const App: React.FC = () => {
       ecrList: ['Engineering Changes', 'ECR Requests'],
       ecoList: ['Engineering Changes', 'ECO Orders'],
       bomCompare: ['BOM & Engineering', 'BOM Version Comparison Diff'],
+      bomVersions: ['BOM & Engineering', 'BOM Versions & Diff Viewer'],
       whereUsed: ['BOM & Engineering', 'Where-Used Traceability'],
+      routingList: ['BOM & Engineering', 'Process Routing Operations'],
       approvalWorkflow: ['BOM & Engineering', 'Multi-Stage Approval Workflow Hub'],
       machineList: ['Master Data', 'Machines & Molds'],
       mfgDash: ['Manufacturing', 'Command Center'],
       machineSchedule: ['Manufacturing', 'Planning Board'],
       woList: ['Manufacturing', 'Work Orders'],
+      createWoGrid: ['Manufacturing', 'Work Orders', 'Bulk Creation Wizard (100+)'],
       woDetail: ['Manufacturing', 'Work Orders', viewParams.id || 'Detail'],
       jitBoard: ['Manufacturing', 'JIT Scheduling'],
       prodEntryGrid: ['Manufacturing', 'Production Entry Grid'],
@@ -447,9 +462,11 @@ export const App: React.FC = () => {
     'ecrList',
     'ecoList',
     'bomCompare',
+    'bomVersions',
     'whereUsed',
     'approvalWorkflow',
     'bomImport',
+    'routingList',
   ].includes(currentView);
   const isMasterData = ['itemList', 'itemDetail', 'machineList'].includes(currentView);
   const isManufacturing = [
@@ -469,6 +486,7 @@ export const App: React.FC = () => {
     'operatorHistory',
     'materialIssuing',
     'moldTooling',
+    'createWoGrid',
   ].includes(currentView);
   const isProcurement = [
     'procurementDash',
@@ -681,7 +699,7 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#F6F4EF] text-[#1C1F26] font-['Plus_Jakarta_Sans']">
+    <div className="flex flex-col h-screen w-full max-w-full overflow-hidden bg-[#F6F4EF] text-[#1C1F26] font-['Plus_Jakarta_Sans']">
       {/* Topbar: Fixed at top, full width */}
       <Topbar
         breadcrumbs={getBreadcrumbs()}
@@ -706,7 +724,7 @@ export const App: React.FC = () => {
       />
 
       {/* Workspace Body: Sidebar on left + Content on right */}
-      <div className="flex-1 flex min-h-0 overflow-hidden relative">
+      <div className="flex-1 flex min-h-0 overflow-hidden relative w-full max-w-full">
         {/* Sidebar */}
         <Sidebar
           currentView={currentView}
@@ -724,7 +742,7 @@ export const App: React.FC = () => {
         />
 
         {/* View Container */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-5 md:p-6 min-w-0 transition-all">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 min-w-0 transition-all w-full max-w-full">
           {currentView === 'home' && (
             <HomeView
               onNavigate={handleNavigate}

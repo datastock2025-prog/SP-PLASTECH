@@ -30,6 +30,7 @@ import { ProductionSettingsConfig } from './manufacturing/ProductionSettingsConf
 import { OperatorHistoryView } from './manufacturing/OperatorHistoryView';
 import { BulkWizardModal } from './manufacturing/BulkWizardModal';
 import { ExcelImportModal } from './manufacturing/ExcelImportModal';
+import { JitSchedulingPlanner } from './manufacturing/JitSchedulingPlanner';
 
 interface ManufacturingProps {
   view: string;
@@ -116,13 +117,32 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
         />
       )}
 
+      {/* 2b. JIT Scheduling & Daily Production Planning Cockpit */}
+      {view === 'jitBoard' && (
+        <JitSchedulingPlanner
+          workOrders={workOrders}
+          machines={machines}
+          items={items}
+          boms={boms}
+          molds={INITIAL_MOLDS}
+          onNavigate={onNavigate}
+          onUpdateWO={onUpdateWO}
+          onCreateWO={onCreateWO}
+          openDrawer={openDrawer}
+          closeDrawer={closeDrawer}
+          openConfirm={openConfirm}
+          showToast={showToast}
+        />
+      )}
+
       {/* 3. Work Order Manager List */}
-      {(view === 'woList' || view === 'workOrders') && (
+      {(view === 'woList' || view === 'workOrders' || view === 'createWoGrid') && (
         <WorkOrderManager
           workOrders={workOrders}
           machines={machines}
           items={items}
           boms={boms}
+          molds={INITIAL_MOLDS}
           onNavigate={onNavigate}
           onUpdateWO={onUpdateWO}
           onCreateWO={onCreateWO}
@@ -313,13 +333,19 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
       )}
 
       {/* Modals */}
-      {isBulkWizardOpen && (
+      {(isBulkWizardOpen || view === 'createWoGrid') && (
         <BulkWizardModal
           machines={machines}
           items={items}
           boms={boms}
+          molds={INITIAL_MOLDS}
           onBulkCreate={handleBulkCreate}
-          onClose={() => setIsBulkWizardOpen(false)}
+          onClose={() => {
+            setIsBulkWizardOpen(false);
+            if (view === 'createWoGrid') {
+              onNavigate('woList');
+            }
+          }}
           showToast={showToast}
         />
       )}

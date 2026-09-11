@@ -1,6 +1,6 @@
 {
   "name": "Reboot ERP",
-  "description": "Reboot — Comprehensive Plastic Manufacturing ERP system with advanced data grids, real-time telemetry, and modular execution.",
+  "description": "Reboot — Comprehensive Plastic Manufacturing ERP system with JIT production scheduling, multi-machine daily planning, BOM recipe explosion, and multi-store availability verification.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

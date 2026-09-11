@@ -25,9 +25,11 @@ import {
   ChevronDown,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Building2
 } from 'lucide-react';
 import { PaginationBar } from '../common/PaginationBar';
+import { JIT_PLANT_OPTIONS } from './jit/JitCommonComposer';
 
 interface WorkOrderManagerProps {
   workOrders: WorkOrder[];
@@ -39,6 +41,8 @@ interface WorkOrderManagerProps {
   onUpdateWO: (wo: WorkOrder) => void;
   onCreateWO: (wo: WorkOrder) => void;
   onDeleteWO: (id: string) => void;
+  onOpenBulkWizard?: () => void;
+  onOpenExcelImport?: () => void;
   openDrawer: (title: string, content: React.ReactNode, footer?: React.ReactNode) => void;
   closeDrawer: () => void;
   openConfirm: (title: string, message: string, onConfirm: () => void) => void;
@@ -55,6 +59,8 @@ export const WorkOrderManager: React.FC<WorkOrderManagerProps> = ({
   onUpdateWO,
   onCreateWO,
   onDeleteWO,
+  onOpenBulkWizard,
+  onOpenExcelImport,
   openDrawer,
   closeDrawer,
   openConfirm,
@@ -62,6 +68,7 @@ export const WorkOrderManager: React.FC<WorkOrderManagerProps> = ({
 }) => {
   const [activeSavedView, setActiveSavedView] = useState<string>('all');
   const [searchQuery, setSearchTerm] = useState<string>('');
+  const [selectedPlant, setSelectedPlant] = useState<string>('all');
   const [selectedMachine, setSelectedMachine] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
@@ -89,13 +96,17 @@ export const WorkOrderManager: React.FC<WorkOrderManagerProps> = ({
       const matchId = wo.id.toLowerCase().includes(q);
       const matchItem = wo.item.toLowerCase().includes(q) || itemName(wo.item).toLowerCase().includes(q);
       const matchOp = wo.operator?.toLowerCase().includes(q);
-      if (!matchId && !matchItem && !matchOp) return false;
+      const matchPlant = wo.plant?.toLowerCase().includes(q) || wo.plantName?.toLowerCase().includes(q);
+      const matchJit = wo.jitScheduleId?.toLowerCase().includes(q);
+      if (!matchId && !matchItem && !matchOp && !matchPlant && !matchJit) return false;
     }
+    if (selectedPlant !== 'all' && (wo.plant || 'PLANT-01') !== selectedPlant) return false;
     if (selectedMachine !== 'all' && wo.machine !== selectedMachine) return false;
     if (selectedStatus !== 'all' && wo.status !== selectedStatus) return false;
     if (selectedPriority !== 'all' && wo.priority !== selectedPriority) return false;
 
     if (activeSavedView === 'today') return wo.planDate === '2026-08-21' || wo.dueDate?.includes('22');
+    if (activeSavedView === 'jit_released') return wo.id.startsWith('WO-JIT') || !!wo.jitScheduleId;
     if (activeSavedView === 'in_progress') return wo.status === 'in_progress';
     if (activeSavedView === 'pending_mat') return wo.status === 'material_wait';
     if (activeSavedView === 'quality_hold') return wo.status === 'quality_hold';
@@ -341,8 +352,8 @@ export const WorkOrderManager: React.FC<WorkOrderManagerProps> = ({
 
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => onNavigate('createWoGrid')}
-            className="px-3 py-2 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 text-xs font-bold flex items-center gap-1.5 transition-colors"
+            onClick={() => (onOpenBulkWizard ? onOpenBulkWizard() : onNavigate('createWoGrid'))}
+            className="px-3 py-2 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
           >
             <Sparkles className="w-3.5 h-3.5 text-purple-600" />
             Bulk Creation Wizard (100+)
@@ -368,6 +379,7 @@ export const WorkOrderManager: React.FC<WorkOrderManagerProps> = ({
       <div className="flex bg-[#F6F4EF] p-1.5 rounded-2xl border border-[#E4E0D6] overflow-x-auto text-xs font-semibold gap-1">
         {[
           { id: 'all', label: 'All Orders' },
+          { id: 'jit_released', label: '⚡ JIT Scheduled Orders' },
           { id: 'today', label: "Today's Schedule" },
           { id: 'in_progress', label: 'In Progress' },
           { id: 'pending_mat', label: 'Pending Material' },
@@ -390,17 +402,30 @@ export const WorkOrderManager: React.FC<WorkOrderManagerProps> = ({
 
       {/* Search & Multi-Faceted Filter Bar */}
       <div className="bg-white p-4 rounded-2xl border border-[#E4E0D6] shadow-xs space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
           <div className="relative">
             <Search className="w-4 h-4 text-[#9CA3AF] absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search WO#, item code, operator..."
+              placeholder="Search WO#, plant, item, op..."
               value={searchQuery}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-9 pr-3 py-2 rounded-xl border border-[#E4E0D6] bg-white font-medium"
             />
           </div>
+
+          <select
+            value={selectedPlant}
+            onChange={(e) => setSelectedPlant(e.target.value)}
+            className="w-full p-2 rounded-xl border border-[#E4E0D6] bg-white font-semibold text-[#14213D]"
+          >
+            <option value="all">All Manufacturing Plants</option>
+            {JIT_PLANT_OPTIONS.map((p) => (
+              <option key={p.code} value={p.code}>
+                {p.code} &mdash; {p.unit} ({p.location.split(',')[0]})
+              </option>
+            ))}
+          </select>
 
           <select
             value={selectedMachine}
@@ -606,7 +631,25 @@ export const WorkOrderManager: React.FC<WorkOrderManagerProps> = ({
                     </td>
 
                     <td className="p-3">
-                      <div className="font-mono font-bold text-[#0F8B8D]">{wo.id}</div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-mono font-bold text-[#0F8B8D]">{wo.id}</span>
+                        {wo.plant && (
+                          <span
+                            className="font-mono text-[9px] font-bold bg-[#14213D] text-white px-1.5 py-0.5 rounded shadow-2xs"
+                            title={wo.plantName || wo.plant}
+                          >
+                            {wo.plant}
+                          </span>
+                        )}
+                        {wo.jitScheduleId && (
+                          <span
+                            className="font-mono text-[9px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 px-1 py-0.2 rounded"
+                            title={`JIT Production Schedule ${wo.jitScheduleId}`}
+                          >
+                            ⚡ {wo.jitScheduleId}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[10px] text-[#6B7280]">Due {wo.dueDate}</div>
                     </td>
 
@@ -616,7 +659,14 @@ export const WorkOrderManager: React.FC<WorkOrderManagerProps> = ({
                     </td>
 
                     <td className="p-3">
-                      <div className="font-mono font-semibold text-[#14213D]">{wo.machine || 'Unassigned'}</div>
+                      <div className="font-mono font-semibold text-[#14213D] flex items-center gap-1">
+                        <span>{wo.machine || 'Unassigned'}</span>
+                        {wo.plant && (
+                          <span className="text-[9px] font-medium text-slate-500 font-mono">
+                            • {wo.plant}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[10px] text-[#6B7280]">{wo.mold || 'No mold set'}</div>
                     </td>
 
