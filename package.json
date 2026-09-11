@@ -12,17 +12,26 @@
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
+    "@hookform/resolvers": "^5.9.1",
     "@tailwindcss/vite": "^4.1.14",
+    "@tanstack/react-query": "^5.102.8",
+    "@types/dompurify": "^3.2.0",
     "@vitejs/plugin-react": "^5.0.4",
+    "axios": "^1.20.0",
+    "dompurify": "^3.4.15",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "react-hook-form": "^7.87.0",
+    "react-router-dom": "^7.18.3",
     "recharts": "^3.10.1",
     "vite": "^6.2.3",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^4.6.2",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

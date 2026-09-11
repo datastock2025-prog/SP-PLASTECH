@@ -1,0 +1,61 @@
+// ============================================================================
+// DOMAIN MODULE: SCM (SUPPLY CHAIN MANAGEMENT & ADVANCED PLANNING)
+// Modular Monolithic Architecture — Reboot ERP
+// ============================================================================
+
+export { ScmViews } from '../../components/scm/ScmViews';
+export {
+  mockScmKPIs,
+  mockSupplyChainFlowNodes,
+  mockScmExceptions,
+  mockDemandPlan,
+  mockSalesForecasts,
+  mockSopScenarios,
+  mockScmInventory,
+  mockMrpSuggestions,
+  mockReplenishmentItems,
+  mockSupplierCollaboration,
+  mockInboundShipments,
+  mockOutboundDeliveries,
+  mockCarriers,
+  mockSupplierRiskProfiles,
+  mockOrderToDeliveryTimelines,
+  mockESGMetrics,
+  mockFreightCarriers,
+  mockSupplierRisks,
+  mockSustainabilityMetrics,
+  mockInventoryAging,
+  mockOrderTimelines,
+  mockTraceabilityRecords,
+  mockScmRbac,
+  mockScmReports,
+  mockScmSettings,
+} from '../../data/mockScmData';
+
+export type {
+  SCMKPI,
+  SupplyChainFlowNode,
+  SCMException,
+  DemandPlanItem,
+  SalesForecastEntry,
+  SOPScenario,
+  SCMInventoryItem,
+  MRPSuggestion,
+  ReplenishmentItem,
+  SupplierCollaborationPO,
+  InboundShipment,
+  OutboundShipment,
+  CarrierMaster,
+  TrackTraceNode,
+  SupplierRiskProfile,
+  OrderToDeliveryTimelineItem,
+  ESGSustainabilityMetric,
+  FreightCarrier,
+  OutboundDelivery,
+  InventoryAgingRecord,
+  OrderTimelineItem,
+  ScmRolePermission,
+  SCMReportTemplate,
+  ScmSettingsConfig,
+  TraceabilityRecord,
+} from '../../types/scm';

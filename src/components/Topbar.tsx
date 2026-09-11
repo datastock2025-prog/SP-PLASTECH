@@ -104,7 +104,7 @@ interface TopbarProps {
   breadcrumbs: string[];
   searchQuery: string;
   onSearchChange: (q: string) => void;
-  openAngularGuide: () => void;
+  openArchitectureGuide?: () => void;
   currentView?: string;
   onNavigate?: (view: string, param?: any) => void;
   currentUser?: AuthUser | null;
@@ -120,7 +120,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   breadcrumbs,
   searchQuery,
   onSearchChange,
-  openAngularGuide,
+  openArchitectureGuide,
   currentView = 'home',
   onNavigate,
   currentUser,
@@ -131,6 +131,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   onRoleChange,
   showToast = (_msg: string) => {},
 }) => {
+  const handleOpenArchitectureGuide = openArchitectureGuide || (() => onNavigate?.('architectureGuide'));
   // Dropdown States
   const [showPlantDropdown, setShowPlantDropdown] = useState(false);
   const [showQuickActionsDropdown, setShowQuickActionsDropdown] = useState(false);
@@ -969,12 +970,12 @@ export const Topbar: React.FC<TopbarProps> = ({
                 <button
                   onClick={() => {
                     setShowHelpDropdown(false);
-                    openAngularGuide();
+                    handleOpenArchitectureGuide();
                   }}
                   className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-teal-50 text-[#0F8B8D] font-bold cursor-pointer"
                 >
                   <Code className="w-4 h-4" />
-                  <span>Angular 18 Migration Guide</span>
+                  <span>React Architecture Guide</span>
                 </button>
               </div>
             </div>

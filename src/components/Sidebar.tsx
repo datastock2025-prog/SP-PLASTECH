@@ -95,7 +95,7 @@ import {
 interface SidebarProps {
   currentView: string;
   onNavigate: (view: string, param?: any) => void;
-  openAngularGuide: () => void;
+  openArchitectureGuide?: () => void;
   currentUser?: AuthUser | null;
   isOpenMobile?: boolean;
   onCloseMobile?: () => void;
@@ -190,7 +190,7 @@ const renderNavIcon = (iconName: string, className = 'w-4 h-4') => {
 export const Sidebar: React.FC<SidebarProps> = ({
   currentView,
   onNavigate,
-  openAngularGuide,
+  openArchitectureGuide,
   currentUser,
   isOpenMobile = false,
   onCloseMobile = () => {},
@@ -224,8 +224,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Favorites / Pinned Views State
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
-      const stored = localStorage.getItem('reboot_pinned_screens');
-      if (stored) return JSON.parse(stored);
+      if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+        const stored = localStorage.getItem('reboot_pinned_screens');
+        if (stored) return JSON.parse(stored);
+      }
     } catch (e) {
       console.error(e);
     }
@@ -236,8 +238,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Recent Records State
   const [recentRecords, setRecentRecords] = useState<RecentRecordItem[]>(() => {
     try {
-      const stored = localStorage.getItem('reboot_recent_records');
-      if (stored) return JSON.parse(stored);
+      if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+        const stored = localStorage.getItem('reboot_recent_records');
+        if (stored) return JSON.parse(stored);
+      }
     } catch (e) {
       console.error(e);
     }

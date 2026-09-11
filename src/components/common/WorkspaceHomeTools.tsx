@@ -21,8 +21,10 @@ import {
   ChevronRight,
   Sliders,
   Plus,
+  Lock,
 } from 'lucide-react';
 import { INITIAL_RECENT_RECORDS, RecentRecordItem } from '../../data/sidebarNavigationData';
+import { RequireAuth } from '../../shared/components/RequireAuth';
 
 interface WorkspaceToolProps {
   onNavigate: (view: string, param?: any) => void;
@@ -184,18 +186,28 @@ export const WorkspaceApprovalsView: React.FC<WorkspaceToolProps> = ({ onNavigat
               >
                 Inspect Details
               </button>
-              <button
-                onClick={() => handleAction(app.id, 'Reject')}
-                className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition-colors"
+              <RequireAuth
+                roles={['admin', 'manager', 'lead', 'director']}
+                fallback={
+                  <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-1.5 rounded-lg border border-amber-200 flex items-center gap-1 font-medium">
+                    <Lock className="w-3 h-3" />
+                    Sign-off Clearance Required
+                  </span>
+                }
               >
-                Reject
-              </button>
-              <button
-                onClick={() => handleAction(app.id, 'Approve')}
-                className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-colors"
-              >
-                One-Click Approve
-              </button>
+                <button
+                  onClick={() => handleAction(app.id, 'Reject')}
+                  className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition-colors"
+                >
+                  Reject
+                </button>
+                <button
+                  onClick={() => handleAction(app.id, 'Approve')}
+                  className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-colors"
+                >
+                  One-Click Approve
+                </button>
+              </RequireAuth>
             </div>
           </div>
         ))}
@@ -333,13 +345,15 @@ export const WorkspaceRecentRecordsView: React.FC<WorkspaceToolProps> = ({ onNav
           </div>
         </div>
         {records.length > 0 && (
-          <button
-            onClick={handleClear}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-rose-50 hover:text-rose-600 text-slate-600 text-xs font-semibold transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Clear History</span>
-          </button>
+          <RequireAuth roles={['admin', 'user']}>
+            <button
+              onClick={handleClear}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-rose-50 hover:text-rose-600 text-slate-600 text-xs font-semibold transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Clear History</span>
+            </button>
+          </RequireAuth>
         )}
       </div>
 

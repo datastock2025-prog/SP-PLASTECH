@@ -1,32 +1,40 @@
 import React, { useState, useEffect } from 'react';
-import { Sidebar } from './components/Sidebar';
-import { Topbar } from './components/Topbar';
-import { Drawer } from './components/Drawer';
-import { ConfirmModal } from './components/ConfirmModal';
-import { HomeView } from './components/HomeView';
-import { MasterDataViews } from './components/MasterDataViews';
-import { EngineeringViews } from './components/EngineeringViews';
-import { ManufacturingViews } from './components/ManufacturingViews';
-import { ProcurementViews } from './components/ProcurementViews';
-import { WarehouseViews } from './components/WarehouseViews';
-import { SalesViews } from './components/SalesViews';
-import { FinanceViews } from './components/FinanceViews';
-import { QualityViews } from './components/QualityViews';
-import { MepViews } from './components/MepViews';
-import { HrViews } from './components/HrViews';
-import { ScmViews } from './components/scm/ScmViews';
-import { CrmViews } from './components/CrmViews';
-import { AdminViews } from './components/AdminViews';
-import { AngularArchitectureGuide } from './components/AngularArchitectureGuide';
-import { LoginScreen } from './components/LoginScreen';
+
+// ============================================================================
+// MODULAR MONOLITHIC & DOMAIN-DRIVEN IMPORT ARCHITECTURE
+// ============================================================================
+// Core Application Shell & Infrastructure
+import { Sidebar, Topbar, Drawer, ConfirmModal } from './core';
+import { AuthLayout } from './shared/layouts/AuthLayout';
+import { RequireAuth, AuthContext } from './shared/components/RequireAuth';
+import { PromptBuilder } from './shared/components/PromptBuilder';
+
+// Domain Feature Modules (Bounded Contexts)
 import {
+  LoginScreen,
+  HomeView,
   WorkspaceTasksView,
   WorkspaceApprovalsView,
   WorkspaceNotificationsView,
   WorkspaceSavedViewsView,
   WorkspaceRecentRecordsView,
-} from './components/common/WorkspaceHomeTools';
+  MasterDataViews,
+  EngineeringViews,
+  ManufacturingViews,
+  ProcurementViews,
+  WarehouseViews,
+  SalesViews,
+  FinanceViews,
+  QualityViews,
+  MepViews,
+  HrViews,
+  ScmViews,
+  CrmViews,
+  AdminViews,
+  ReactArchitectureGuide,
+} from './modules';
 
+// Domain Seed Data & State Fixtures
 import {
   initialItems,
   initialBoms,
@@ -47,9 +55,10 @@ import {
   initialStockTransactions,
   INITIAL_RMAS,
 } from './data/initialData';
-import { INITIAL_BOMS } from './data/engineeringData';
-import { DEMO_USERS } from './data/authUsers';
+import { INITIAL_BOMS } from './modules/engineering';
+import { DEMO_USERS } from './modules/auth';
 
+// Domain Models & Shared Entities
 import {
   ItemMaster,
   BomMaster,
@@ -69,21 +78,8 @@ import {
 } from './types';
 
 export const App: React.FC = () => {
-  // Authentication & Session State
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
-    try {
-      const saved = localStorage.getItem('reboot_auth_user') || localStorage.getItem('polymer_auth_user');
-      if (saved && saved !== 'null' && saved !== 'undefined') {
-        const parsed = JSON.parse(saved);
-        if (parsed && parsed.id && parsed.name) {
-          return parsed;
-        }
-      }
-      return DEMO_USERS[0];
-    } catch {
-      return DEMO_USERS[0];
-    }
-  });
+  // Authentication & Session State (Security Directive: in-memory state; no tokens in localStorage)
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => DEMO_USERS[0]);
   const [lastLoggedOutUser, setLastLoggedOutUser] = useState<AuthUser | null>(null);
 
   // Current active navigation view
@@ -158,11 +154,6 @@ export const App: React.FC = () => {
     if (currentUser) {
       const updatedUser = { ...currentUser, plantId };
       setCurrentUser(updatedUser);
-      try {
-        localStorage.setItem('reboot_auth_user', JSON.stringify(updatedUser));
-      } catch (e) {
-        console.error(e);
-      }
     }
   };
 
@@ -170,33 +161,17 @@ export const App: React.FC = () => {
     if (currentUser) {
       const updatedUser = { ...currentUser, role: newRole };
       setCurrentUser(updatedUser);
-      try {
-        localStorage.setItem('reboot_auth_user', JSON.stringify(updatedUser));
-      } catch (e) {
-        console.error(e);
-      }
     }
   };
 
   const handleLogin = (user: AuthUser, plantId: string, shiftId: string) => {
     setCurrentUser(user);
-    try {
-      localStorage.setItem('reboot_auth_user', JSON.stringify(user));
-    } catch (e) {
-      console.error(e);
-    }
     showToast(`Authenticated as ${user.name} (${user.role}) — ${user.plantId}`);
   };
 
   const handleLogout = () => {
     setLastLoggedOutUser(currentUser);
     setCurrentUser(null);
-    try {
-      localStorage.removeItem('reboot_auth_user');
-      localStorage.removeItem('polymer_auth_user');
-    } catch (e) {
-      console.error(e);
-    }
     showToast('Terminal session locked / Signed out');
   };
 
@@ -237,7 +212,7 @@ export const App: React.FC = () => {
       notifications: ['Workspace Home', 'Notification Center'],
       savedViews: ['Workspace Home', 'Saved Views & Presets'],
       recentRecords: ['Workspace Home', 'Recent Records Log'],
-      angularGuide: ['Workspace', 'Angular 18+ Architecture Guide'],
+      architectureGuide: ['Workspace', 'React Enterprise Architecture Guide'],
       itemList: ['Master Data', 'Item Master'],
       itemDetail: ['Master Data', 'Item Master', viewParams.code || 'Detail'],
       bomList: ['BOM & Engineering', 'BOM / Formula Master Grid'],
@@ -685,7 +660,7 @@ export const App: React.FC = () => {
 
   if (!currentUser) {
     return (
-      <>
+      <AuthLayout>
         <LoginScreen onLogin={handleLogin} lastLoggedOutUser={lastLoggedOutUser} />
         {/* Toast Notification */}
         {toastMsg && (
@@ -694,12 +669,14 @@ export const App: React.FC = () => {
             <span>{toastMsg}</span>
           </div>
         )}
-      </>
+      </AuthLayout>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen w-full max-w-full overflow-hidden bg-[#F6F4EF] text-[#1C1F26] font-['Plus_Jakarta_Sans']">
+    <AuthContext.Provider value={{ currentUser, setCurrentUser }}>
+      <RequireAuth currentUser={currentUser}>
+      <div className="flex flex-col h-screen w-full max-w-full overflow-hidden bg-[#F6F4EF] text-[#1C1F26] font-['Plus_Jakarta_Sans']">
       {/* Topbar: Fixed at top, full width */}
       <Topbar
         breadcrumbs={getBreadcrumbs()}
@@ -707,7 +684,7 @@ export const App: React.FC = () => {
         onSearchChange={setSearchQuery}
         currentView={currentView}
         onNavigate={handleNavigate}
-        openAngularGuide={() => handleNavigate('angularGuide')}
+        openArchitectureGuide={() => handleNavigate('architectureGuide')}
         currentUser={currentUser}
         onLogout={handleLogout}
         onSwitchUser={handleSwitchUser}
@@ -729,7 +706,7 @@ export const App: React.FC = () => {
         <Sidebar
           currentView={currentView}
           onNavigate={handleNavigate}
-          openAngularGuide={() => handleNavigate('angularGuide')}
+          openArchitectureGuide={() => handleNavigate('architectureGuide')}
           currentUser={currentUser}
           isOpenMobile={isMobileSidebarOpen}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
@@ -746,7 +723,7 @@ export const App: React.FC = () => {
           {currentView === 'home' && (
             <HomeView
               onNavigate={handleNavigate}
-              openAngularGuide={() => handleNavigate('angularGuide')}
+              openArchitectureGuide={() => handleNavigate('architectureGuide')}
               activeWOCount={activeWOCount}
               lowStockCount={lowStockCount}
               openPOCount={openPOCount}
@@ -773,8 +750,18 @@ export const App: React.FC = () => {
             <WorkspaceRecentRecordsView onNavigate={handleNavigate} showToast={showToast} />
           )}
 
-          {currentView === 'angularGuide' && (
-            <AngularArchitectureGuide />
+          {currentView === 'architectureGuide' && (
+            <ReactArchitectureGuide />
+          )}
+
+          {(currentView === 'aiPromptBuilder' || currentView === 'promptBuilder' || currentView === 'aiAssistant') && (
+            <div className="max-w-5xl mx-auto space-y-6 pb-12">
+              <PromptBuilder
+                onSubmitPrompt={(values, compiled) => {
+                  showToast(`AI Prompt compiled for ${values.domainContext.toUpperCase()}!`);
+                }}
+              />
+            </div>
           )}
 
           {isEngineering && (
@@ -1081,7 +1068,9 @@ export const App: React.FC = () => {
           <span>{toastMsg}</span>
         </div>
       )}
-    </div>
+      </div>
+    </RequireAuth>
+  </AuthContext.Provider>
   );
 };
 export default App;

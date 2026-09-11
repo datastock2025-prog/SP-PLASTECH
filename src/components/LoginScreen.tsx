@@ -230,7 +230,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, lastLoggedOut
               </div>
               <div className="flex items-center gap-2">
                 <Server className="w-3.5 h-3.5 text-blue-400" />
-                <span>Angular 18 Enterprise Migration Ready</span>
+                <span>React 19 Enterprise Architecture Ready</span>
               </div>
             </div>
           </div>

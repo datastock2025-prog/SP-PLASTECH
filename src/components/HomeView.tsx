@@ -37,7 +37,7 @@ import { NAVIGATION_GROUPS, NavItemDef } from '../data/sidebarNavigationData';
 
 interface HomeViewProps {
   onNavigate: (view: string, param?: any) => void;
-  openAngularGuide: () => void;
+  openArchitectureGuide?: () => void;
   activeWOCount: number;
   lowStockCount: number;
   openPOCount: number;
@@ -45,11 +45,12 @@ interface HomeViewProps {
 
 export const HomeView: React.FC<HomeViewProps> = ({
   onNavigate,
-  openAngularGuide,
+  openArchitectureGuide,
   activeWOCount,
   lowStockCount,
   openPOCount,
 }) => {
+  const handleOpenGuide = openArchitectureGuide || (() => onNavigate('architectureGuide'));
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
 
@@ -148,23 +149,42 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </div>
 
-      {/* Angular Guide Highlight & System Banner */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 min-w-0">
+      {/* React Architecture Guide & AI Stack Banners */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 min-w-0">
         <div className="p-4 rounded-xl bg-gradient-to-r from-[#E8622C]/10 via-[#0F8B8D]/10 to-white bg-white border border-[#E8622C]/30 flex items-center justify-between gap-4 shadow-xs min-w-0">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-[#E8622C] text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
               <Code className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-sm font-bold text-slate-900 truncate">Angular 18+ Architecture Specification</h3>
-              <p className="text-xs text-slate-500 truncate">Standalone modules, Signals state, OnPush migration guide.</p>
+              <h3 className="text-sm font-bold text-slate-900 truncate">React Enterprise Spec</h3>
+              <p className="text-xs text-slate-500 truncate">Modular monolith, state stores &amp; concurrency.</p>
             </div>
           </div>
           <button
-            onClick={openAngularGuide}
+            onClick={handleOpenGuide}
             className="px-3 py-1.5 rounded-lg bg-[#E8622C] hover:bg-[#D45320] text-white text-xs font-bold transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1"
           >
             <span>Open Spec</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="p-4 rounded-xl bg-gradient-to-r from-[#0F8B8D]/10 via-[#E8622C]/10 to-white bg-white border border-[#0F8B8D]/30 flex items-center justify-between gap-4 shadow-xs min-w-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-[#0F8B8D] text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-slate-900 truncate">AI Stack &amp; Prompt Studio</h3>
+              <p className="text-xs text-slate-500 truncate">Streaming UI, context selectors &amp; tone sliders.</p>
+            </div>
+          </div>
+          <button
+            onClick={() => onNavigate('aiPromptBuilder')}
+            className="px-3 py-1.5 rounded-lg bg-[#0F8B8D] hover:bg-[#0D7A7C] text-white text-xs font-bold transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1"
+          >
+            <span>Launch Studio</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -175,8 +195,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <Users className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-sm font-bold text-slate-900 truncate">Human Resources &amp; Line Staffing</h3>
-              <p className="text-xs text-slate-500 truncate">128 active personnel, biometric punches, IATF skill matrix.</p>
+              <h3 className="text-sm font-bold text-slate-900 truncate">HR &amp; Line Staffing</h3>
+              <p className="text-xs text-slate-500 truncate">128 active personnel, IATF skill matrix.</p>
             </div>
           </div>
           <button
