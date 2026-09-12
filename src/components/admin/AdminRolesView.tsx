@@ -54,18 +54,23 @@ import {
   mockSimulationScenarios,
   mockMultiContextPolicies,
 } from '../../data/mockAdminExtendedData';
+import { WorkspaceModuleRbacView } from './WorkspaceModuleRbacView';
+import { useWorkspaceRbac } from '../../hooks/useWorkspaceRbac';
 
 interface AdminRolesViewProps {
   showToast?: (msg: string) => void;
-  initialTab?: 'matrix' | 'simulator' | 'sod' | 'hierarchy';
+  initialTab?: 'matrix' | 'simulator' | 'sod' | 'hierarchy' | 'workspace_access';
+  onNavigate?: (view: string, param?: any) => void;
 }
 
 export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
   showToast = (_msg: string) => {},
   initialTab = 'matrix',
+  onNavigate,
 }) => {
+  const { pendingCount } = useWorkspaceRbac();
   // Navigation / View State
-  const [activeTab, setActiveTab] = useState<'matrix' | 'simulator' | 'sod' | 'hierarchy'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'matrix' | 'simulator' | 'sod' | 'hierarchy' | 'workspace_access'>(initialTab);
   const [roles, setRoles] = useState<AdminRole[]>(mockAdminRoles);
   const [selectedRoleId, setSelectedRoleId] = useState<string>(roles[0]?.id || '');
   const [moduleCategoryFilter, setModuleCategoryFilter] = useState<string>('ALL');
@@ -621,6 +626,27 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
         >
           <GitBranch className="w-4 h-4" />
           <span>Role Hierarchy &amp; Assignments</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('workspace_access')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all relative ${
+            activeTab === 'workspace_access'
+              ? 'bg-[#0F8B8D] text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Sliders className="w-4 h-4" />
+          <span>Home Workspace RBAC &amp; Screen Approvals</span>
+          {pendingCount > 0 ? (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-900 font-bold animate-pulse">
+              {pendingCount} Quarantined
+            </span>
+          ) : (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-white/20">
+              Active
+            </span>
+          )}
         </button>
       </div>
 
@@ -1756,6 +1782,13 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* TAB 5: WORKSPACE MODULE VISIBILITY & SCREEN QUARANTINE   */}
+      {/* ========================================================= */}
+      {activeTab === 'workspace_access' && (
+        <WorkspaceModuleRbacView showToast={showToast} onNavigate={onNavigate} />
       )}
 
       {/* Modal: Create Role */}

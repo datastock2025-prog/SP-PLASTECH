@@ -31,6 +31,17 @@ import { OperatorHistoryView } from './manufacturing/OperatorHistoryView';
 import { BulkWizardModal } from './manufacturing/BulkWizardModal';
 import { ExcelImportModal } from './manufacturing/ExcelImportModal';
 import { JitSchedulingPlanner } from './manufacturing/JitSchedulingPlanner';
+import { WipOperationsManager } from './manufacturing/WipOperationsManager';
+import {
+  INITIAL_WIP_RECORDS,
+  INITIAL_PLANT_STORE_ITEMS,
+  INITIAL_MATERIAL_TRANSFERS,
+} from '../data/operationsWipData';
+import {
+  WipInventoryRecord,
+  PlantStoreInventoryItem,
+  MaterialTransferRecord,
+} from '../types/operationsWipTypes';
 
 interface ManufacturingProps {
   view: string;
@@ -71,6 +82,27 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
 }) => {
   const [isBulkWizardOpen, setIsBulkWizardOpen] = useState(false);
   const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
+
+  // WIP, Deflash & Assembly Stores state
+  const [wipRecords, setWipRecords] = useState<WipInventoryRecord[]>(INITIAL_WIP_RECORDS);
+  const [plantStoreItems, setPlantStoreItems] = useState<PlantStoreInventoryItem[]>(INITIAL_PLANT_STORE_ITEMS);
+  const [materialTransfers, setMaterialTransfers] = useState<MaterialTransferRecord[]>(INITIAL_MATERIAL_TRANSFERS);
+
+  const handleUpdateWipRecord = (record: WipInventoryRecord) => {
+    setWipRecords((prev) => prev.map((r) => (r.id === record.id ? record : r)));
+  };
+
+  const handleAddWipRecord = (record: WipInventoryRecord) => {
+    setWipRecords((prev) => [record, ...prev]);
+  };
+
+  const handleUpdatePlantStoreItems = (newItems: PlantStoreInventoryItem[]) => {
+    setPlantStoreItems(newItems);
+  };
+
+  const handleAddMaterialTransfer = (transfer: MaterialTransferRecord) => {
+    setMaterialTransfers((prev) => [transfer, ...prev]);
+  };
 
   // Helper for batch creating orders from Bulk Wizard or Excel Import
   const handleBulkCreate = (newOrders: WorkOrder[]) => {
@@ -327,6 +359,24 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
       {view === 'operatorHistory' && (
         <OperatorHistoryView
           workOrders={workOrders}
+          onNavigate={onNavigate}
+          showToast={showToast}
+        />
+      )}
+
+      {/* 20. WIP, Deflash & Assembly Stores (QC Gate) */}
+      {(view === 'wipOperations' || view === 'wip') && (
+        <WipOperationsManager
+          wipRecords={wipRecords}
+          plantStoreItems={plantStoreItems}
+          materialTransfers={materialTransfers}
+          workOrders={workOrders}
+          items={items}
+          machines={machines}
+          onUpdateWipRecord={handleUpdateWipRecord}
+          onAddWipRecord={handleAddWipRecord}
+          onUpdatePlantStoreItems={handleUpdatePlantStoreItems}
+          onAddMaterialTransfer={handleAddMaterialTransfer}
           onNavigate={onNavigate}
           showToast={showToast}
         />

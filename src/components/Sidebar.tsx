@@ -91,6 +91,7 @@ import {
   INITIAL_RECENT_RECORDS,
   ROLE_DEFAULT_FAVORITES,
 } from '../data/sidebarNavigationData';
+import { useWorkspaceRbac } from '../hooks/useWorkspaceRbac';
 
 interface SidebarProps {
   currentView: string;
@@ -201,6 +202,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   openPOCount = 12,
   showToast = (_msg: string) => {},
 }) => {
+  const { isSidebarVisible, quarantinedScreens, normalizeRoleKey } = useWorkspaceRbac();
+  const canonicalRole = normalizeRoleKey(currentUser?.role || currentUser?.roleType);
+
   // Navigation Search & Filter
   const [filterQuery, setFilterQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -339,21 +343,71 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onCloseMobile();
   };
 
-  // Filter items based on search input
+  // Filter items based on search input and role visibility (Sidebar RBAC)
   const filteredNavigation = useMemo(() => {
-    const q = filterQuery.toLowerCase().trim();
-    if (!q) return NAVIGATION_GROUPS;
+    const q = filterQuery ? filterQuery.toLowerCase().trim() : '';
 
-    return NAVIGATION_GROUPS.map((group) => {
-      const matchesGroupTitle = group.title.toLowerCase().includes(q);
-      const matchedItems = group.items.filter(
+    // Clone base navigation groups
+    const baseGroups: NavGroupDef[] = (NAVIGATION_GROUPS || []).map((group) => ({
+      ...group,
+      items: [...group.items],
+    }));
+
+    // Inject any approved quarantined screens into their respective group
+    (quarantinedScreens || []).forEach((qs) => {
+      if (qs.status === 'APPROVED' && isSidebarVisible(canonicalRole, qs.view)) {
+        let targetGroup = baseGroups.find((g) => g.id === qs.groupId);
+        if (!targetGroup) {
+          targetGroup = {
+            id: qs.groupId,
+            title: qs.groupTitle,
+            icon: 'Layers',
+            defaultExpanded: true,
+            items: [],
+          };
+          baseGroups.push(targetGroup);
+        }
+        if (!targetGroup.items.some((it) => it.view === qs.view)) {
+          targetGroup.items.push({
+            id: `dyn-${qs.view}`,
+            label: qs.title,
+            view: qs.view,
+            icon: 'Sparkles',
+            subGroup: qs.subGroup || 'New Feature',
+            badge: 'New',
+            badgeColor: 'bg-emerald-600',
+          });
+        }
+      }
+    });
+
+    return baseGroups.map((group) => {
+      if (!group) return null;
+
+      // Filter items visible to current role in sidebar
+      const roleVisibleItems = (group.items || []).filter((item) => {
+        if (!item) return false;
+        return isSidebarVisible(canonicalRole, item.view);
+      });
+
+      if (roleVisibleItems.length === 0) return null;
+
+      const matchesGroupTitle = group.title ? group.title.toLowerCase().includes(q) : false;
+      const matchedItems = roleVisibleItems.filter(
         (item) =>
-          item.label.toLowerCase().includes(q) ||
-          item.subGroup?.toLowerCase().includes(q) ||
-          item.view.toLowerCase().includes(q)
+          !q ||
+          (item.label && item.label.toLowerCase().includes(q)) ||
+          (item.subGroup && item.subGroup.toLowerCase().includes(q)) ||
+          (item.view && item.view.toLowerCase().includes(q))
       );
 
-      if (matchesGroupTitle) return group;
+      if (matchesGroupTitle && !q) {
+        return {
+          ...group,
+          items: roleVisibleItems,
+        };
+      }
+
       if (matchedItems.length > 0) {
         return {
           ...group,
@@ -362,12 +416,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       }
       return null;
     }).filter(Boolean) as NavGroupDef[];
-  }, [filterQuery]);
+  }, [filterQuery, canonicalRole, isSidebarVisible, quarantinedScreens]);
 
   // All flat navigation items for lookup
   const itemLookup = useMemo(() => {
     const map = new Map<string, NavItemDef>();
-    NAVIGATION_GROUPS.forEach((g) => g.items.forEach((item) => map.set(item.view, item)));
+    (NAVIGATION_GROUPS || []).forEach((g) => (g.items || []).forEach((item) => map.set(item.view, item)));
     return map;
   }, []);
 
@@ -534,7 +588,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* Grouped Navigation Sections */}
           {filteredNavigation.map((group) => {
             const isExpanded = expandedGroups[group.id] ?? false;
-            const hasActiveChild = group.items.some((i) => isSelected(i.view));
+            const hasActiveChild = (group?.items || []).some((i) => isSelected(i.view));
 
             return (
               <div key={group.id} className="space-y-0.5">
@@ -588,7 +642,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {/* Group Items (when expanded on desktop/drawer) */}
                 {(!isCollapsed && (isExpanded || filterQuery)) && (
                   <div className="space-y-0.5 pl-1.5 ml-1 mt-0.5">
-                    {group.items.map((item) => {
+                    {(group?.items || []).map((item) => {
                       const active = isSelected(item.view);
                       const isFav = favorites.includes(item.view);
                       const badge = getItemBadge(item);
@@ -749,12 +803,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span>{flyoutGroup.title}</span>
             </div>
             <span className="text-[10px] text-slate-400 font-mono font-normal">
-              {flyoutGroup.items.length} items
+              {(flyoutGroup?.items || []).length} items
             </span>
           </div>
 
           <div className="space-y-0.5">
-            {flyoutGroup.items.map((item) => {
+            {(flyoutGroup?.items || []).map((item) => {
               const active = isSelected(item.view);
               const badge = getItemBadge(item);
               const isFav = favorites.includes(item.view);

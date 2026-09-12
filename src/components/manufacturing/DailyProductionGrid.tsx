@@ -46,6 +46,7 @@ interface ProductionGridProps {
   openDrawer: (title: string, content: React.ReactNode, footer?: React.ReactNode) => void;
   closeDrawer: () => void;
   showToast: (msg: string) => void;
+  onSyncWipLot?: (wo: WorkOrder, source: 'grid_entry' | 'excel_csv_upload', notes?: string) => void;
 }
 
 export const DailyProductionGrid: React.FC<ProductionGridProps> = ({
@@ -59,6 +60,7 @@ export const DailyProductionGrid: React.FC<ProductionGridProps> = ({
   openDrawer,
   closeDrawer,
   showToast,
+  onSyncWipLot,
 }) => {
   const [selectedDate, setSelectedDate] = useState<string>('2026-08-21');
   const [selectedShift, setSelectedShift] = useState<string>('all');
@@ -202,23 +204,27 @@ export const DailyProductionGrid: React.FC<ProductionGridProps> = ({
     const row = gridData.find((r) => r.id === id);
     if (row) {
       onUpdateWO(row);
+      onSyncWipLot?.(row, 'grid_entry', 'Updated via Daily Production Grid manual entry');
       setDirtyRowIds((prev) => {
         const next = new Set(prev);
         next.delete(id);
         return next;
       });
-      showToast(`Work Order ${id} saved successfully`);
+      showToast(`Work Order ${id} saved & synced to WIP Inventory`);
     }
   };
 
   const handleSaveAllDirty = () => {
+    let count = 0;
     gridData.forEach((row) => {
       if (dirtyRowIds.has(row.id)) {
         onUpdateWO(row);
+        onSyncWipLot?.(row, 'grid_entry', 'Batch saved via Daily Production Grid');
+        count++;
       }
     });
     setDirtyRowIds(new Set());
-    showToast(`Saved all ${dirtyRowIds.size} modified production records.`);
+    showToast(`Saved and synced ${count} production records to WIP Inventory.`);
   };
 
   // Rejection Modal Callback
@@ -382,6 +388,7 @@ export const DailyProductionGrid: React.FC<ProductionGridProps> = ({
             map.set(imp.id.toLowerCase(), merged);
             newDirty.add(existing.id);
             onUpdateWO(merged);
+            onSyncWipLot?.(merged, 'excel_csv_upload', `Reconciled and imported from Excel/CSV upload for ${merged.id}`);
           } else {
             // Append if not found
             const newRow: WorkOrder = {
@@ -413,6 +420,7 @@ export const DailyProductionGrid: React.FC<ProductionGridProps> = ({
             map.set(imp.id.toLowerCase(), newRow);
             newDirty.add(newRow.id);
             onCreateWO(newRow);
+            onSyncWipLot?.(newRow, 'excel_csv_upload', `Imported new batch from Excel/CSV upload for ${newRow.id}`);
           }
         });
 
@@ -448,7 +456,10 @@ export const DailyProductionGrid: React.FC<ProductionGridProps> = ({
         history: [{ event: 'Imported from Excel as new record', time: 'Just now' }],
       }));
 
-      newItems.forEach((item) => onCreateWO(item));
+      newItems.forEach((item) => {
+        onCreateWO(item);
+        onSyncWipLot?.(item, 'excel_csv_upload', `Appended from Excel/CSV upload for ${item.id}`);
+      });
       setGridData((prev) => [...newItems, ...prev]);
       setDirtyRowIds((prev) => {
         const next = new Set(prev);
@@ -565,6 +576,16 @@ export const DailyProductionGrid: React.FC<ProductionGridProps> = ({
           >
             <Download className="w-3.5 h-3.5 text-[#0F8B8D]" />
             Export
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onNavigate('wipOperations')}
+            className="px-3 py-2 rounded-xl bg-[#E8622C] hover:bg-[#d45320] text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors"
+            title="Open WIP Inventory, Deflash/Assembly Stores & QC Gate"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            WIP &amp; QC Stores
           </button>
 
           <button

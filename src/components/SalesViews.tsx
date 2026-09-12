@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   SalesOrder,
   SalesQuotation,
@@ -22,6 +22,48 @@ import { SalesBackordersAndForecastsView } from './sales/SalesBackordersAndForec
 import { SalesContractListView } from './sales/SalesContractListView';
 import { CustomerMasterListView } from './sales/CustomerMasterListView';
 import { CustomerDetailView } from './sales/CustomerDetailView';
+
+// Redesigned Indian ERP Compliance Modules
+import { SalesOrderDashboard } from './sales/redesign/SalesOrderDashboard';
+import { SalesOrderList } from './sales/redesign/SalesOrderList';
+import { SalesOrderWizard } from './sales/redesign/SalesOrderWizard';
+import { SalesOrderDetail } from './sales/redesign/SalesOrderDetail';
+import { MonthlyPlanOrdersView } from './sales/redesign/MonthlyPlanOrdersView';
+import { DailyOrderQuickEntry } from './sales/redesign/DailyOrderQuickEntry';
+import { MonthlyDailyReconciliation } from './sales/redesign/MonthlyDailyReconciliation';
+
+import { DispatchDashboard } from './dispatch/DispatchDashboard';
+import { DeliveryChallanManagement } from './dispatch/DeliveryChallanManagement';
+import { CreateDeliveryChallan } from './dispatch/CreateDeliveryChallan';
+import { DeliveryChallanDetail } from './dispatch/DeliveryChallanDetail';
+import { GatePassVerification } from './dispatch/GatePassVerification';
+import { EWayBillManagement } from './dispatch/EWayBillManagement';
+import { EInvoiceManagement } from './dispatch/EInvoiceManagement';
+import { ComplianceExceptionsDashboard } from './compliance/ComplianceExceptionsDashboard';
+
+import {
+  INITIAL_PLASTIC_SALES_ORDERS,
+  INITIAL_MONTHLY_PLANS,
+  INITIAL_ORDER_RELATIONSHIPS,
+  INITIAL_DELIVERY_NOTES,
+  INITIAL_FG_BATCHES,
+  INITIAL_E_INVOICES,
+  INITIAL_E_WAY_BILLS,
+  INITIAL_GATE_PASSES,
+  INITIAL_COMPLIANCE_EXCEPTIONS,
+} from '../data/salesOrderDeliveryData';
+
+import {
+  PlasticSalesOrder,
+  MonthlyPlanOrder,
+  OrderRelationship,
+  DeliveryNoteChallan,
+  FgBatchStock,
+  EInvoiceRecord,
+  EWayBillRecord,
+  GatePassRecord,
+  ComplianceExceptionRecord,
+} from '../types/salesOrderDeliveryTypes';
 
 interface SalesProps {
   view: string;
@@ -68,6 +110,97 @@ export const SalesViews: React.FC<SalesProps> = ({
   openConfirm,
   showToast,
 }) => {
+  // Redesigned Indian ERP Compliance Data State
+  const [plasticSalesOrders, setPlasticSalesOrders] = useState<PlasticSalesOrder[]>(INITIAL_PLASTIC_SALES_ORDERS);
+  const [monthlyPlans, setMonthlyPlans] = useState<MonthlyPlanOrder[]>(INITIAL_MONTHLY_PLANS);
+  const [relationships, setRelationships] = useState<OrderRelationship[]>(INITIAL_ORDER_RELATIONSHIPS);
+  const [deliveries, setDeliveries] = useState<DeliveryNoteChallan[]>(INITIAL_DELIVERY_NOTES);
+  const [batches, setBatches] = useState<FgBatchStock[]>(INITIAL_FG_BATCHES);
+  const [eInvoices, setEInvoices] = useState<EInvoiceRecord[]>(INITIAL_E_INVOICES);
+  const [eWayBills, setEWayBills] = useState<EWayBillRecord[]>(INITIAL_E_WAY_BILLS);
+  const [gatePasses, setGatePasses] = useState<GatePassRecord[]>(INITIAL_GATE_PASSES);
+  const [exceptions, setExceptions] = useState<ComplianceExceptionRecord[]>(INITIAL_COMPLIANCE_EXCEPTIONS);
+
+  // Sub-navigation states
+  const [salesSubNav, setSalesSubNav] = useState<'list' | 'dashboard' | 'wizard' | 'plans' | 'quickEntry' | 'reconciliation'>('list');
+  const [dispatchSubNav, setDispatchSubNav] = useState<'dashboard' | 'challans' | 'createChallan' | 'gatePass' | 'ewb' | 'eInvoice' | 'compliance'>('dashboard');
+  const [selectedPlasticSoId, setSelectedPlasticSoId] = useState<string>(selectedId || 'SO-5001');
+  const [selectedDelivery, setSelectedDelivery] = useState<DeliveryNoteChallan | null>(null);
+
+  // Business Action Handlers
+  const handleSaveOrder = (newOrder: PlasticSalesOrder) => {
+    setPlasticSalesOrders((prev) => [newOrder, ...(prev || []).filter((o) => o.id !== newOrder.id)]);
+    setSalesSubNav('list');
+    showToast(`Sales Order ${newOrder.id} successfully saved & confirmed.`);
+  };
+
+  const handleSaveDelivery = (newDeliv: DeliveryNoteChallan) => {
+    setDeliveries((prev) => [newDeliv, ...prev]);
+    setDispatchSubNav('challans');
+    showToast(`Delivery Challan ${newDeliv.id} created. E-Way Bill & Gate Pass staged.`);
+  };
+
+  const handleApproveGateOut = (passId: string) => {
+    setGatePasses((prev) =>
+      prev.map((g) =>
+        g.id === passId
+          ? { ...g, securityCheckStatus: 'Cleared', gateOutTimestamp: '2026-09-12 12:00:00' }
+          : g
+      )
+    );
+    showToast(`Gate Pass ${passId} security verified. Boom barrier cleared for exit.`);
+  };
+
+  const handleHoldGatePass = (passId: string, reason: string) => {
+    setGatePasses((prev) =>
+      prev.map((g) =>
+        g.id === passId
+          ? { ...g, securityCheckStatus: 'Security Hold', holdReason: reason }
+          : g
+      )
+    );
+    showToast(`Vehicle held at gate: ${reason}`);
+  };
+
+  const handleGenerateIrn = (invNum: string) => {
+    setEInvoices((prev) =>
+      prev.map((inv) =>
+        inv.invoiceNumber === invNum
+          ? {
+              ...inv,
+              status: 'Generated',
+              irn: 'b78a994c1f9302194857dc820a45719bc40192e472093849102830fca1029148',
+              ackNo: '112026090014521',
+              ackDate: '2026-09-12 11:15:00',
+              errorMessage: undefined,
+            }
+          : inv
+      )
+    );
+    showToast(`IRN successfully obtained from NIC Invoice Registration Portal for ${invNum}.`);
+  };
+
+  const handleCancelIrn = (invNum: string, reason: string) => {
+    setEInvoices((prev) =>
+      prev.map((inv) =>
+        inv.invoiceNumber === invNum ? { ...inv, status: 'Cancelled' } : inv
+      )
+    );
+    showToast(`IRN for ${invNum} cancelled: ${reason}`);
+  };
+
+  const handleUpdateEwb = (updated: EWayBillRecord) => {
+    setEWayBills((prev) => prev.map((e) => (e.ewbNumber === updated.ewbNumber ? updated : e)));
+    showToast(`E-Way Bill ${updated.ewbNumber} updated.`);
+  };
+
+  const handleResolveException = (id: string) => {
+    setExceptions((prev) =>
+      prev.map((x) => (x.id === id ? { ...x, status: 'Resolved' } : x))
+    );
+    showToast(`Compliance Exception ${id} resolved.`);
+  };
+
   /* ----------------------------------------------------
      1. SALES DASHBOARD (Command Center)
   ---------------------------------------------------- */
@@ -121,36 +254,204 @@ export const SalesViews: React.FC<SalesProps> = ({
   }
 
   /* ----------------------------------------------------
-     4. SALES ORDER LIST
+     4. REDESIGNED SALES ORDER MODULE
   ---------------------------------------------------- */
-  if (view === 'soList' || view === 'salesOrders') {
+  if (
+    view === 'soList' ||
+    view === 'salesOrders' ||
+    view === 'soDashboard' ||
+    view === 'soWizard' ||
+    view === 'soCreate' ||
+    view === 'monthlyPlanOrders' ||
+    view === 'dailyQuickEntry' ||
+    view === 'monthlyReconciliation'
+  ) {
+    const currentSub =
+      view === 'soDashboard'
+        ? 'dashboard'
+        : view === 'soWizard' || view === 'soCreate'
+        ? 'wizard'
+        : view === 'monthlyPlanOrders'
+        ? 'plans'
+        : view === 'dailyQuickEntry'
+        ? 'quickEntry'
+        : view === 'monthlyReconciliation'
+        ? 'reconciliation'
+        : salesSubNav;
+
     return (
-      <SalesOrderListView
-        sos={sos}
-        customers={customers}
-        onNavigate={onNavigate}
-        onCreateSO={onCreateSO}
-        onUpdateSO={onUpdateSO}
-        openDrawer={openDrawer}
-        closeDrawer={closeDrawer}
-        showToast={showToast}
-      />
+      <div className="space-y-4">
+        {/* Top Module Sub-Navigation Bar */}
+        <div className="bg-white p-2.5 rounded-xl border border-gray-200 shadow-sm flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              onClick={() => setSalesSubNav('dashboard')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                currentSub === 'dashboard'
+                  ? 'bg-[#14213D] text-white shadow-2xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              Command Center
+            </button>
+            <button
+              onClick={() => setSalesSubNav('list')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                currentSub === 'list'
+                  ? 'bg-[#14213D] text-white shadow-2xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              Order Register
+            </button>
+            <button
+              onClick={() => setSalesSubNav('wizard')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                currentSub === 'wizard'
+                  ? 'bg-[#0F8B8D] text-white shadow-2xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              + Create Order (6-Step)
+            </button>
+            <button
+              onClick={() => setSalesSubNav('plans')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                currentSub === 'plans'
+                  ? 'bg-[#14213D] text-white shadow-2xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              Monthly Plan Orders
+            </button>
+            <button
+              onClick={() => setSalesSubNav('quickEntry')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                currentSub === 'quickEntry'
+                  ? 'bg-[#14213D] text-white shadow-2xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              Daily Quick Entry
+            </button>
+            <button
+              onClick={() => setSalesSubNav('reconciliation')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                currentSub === 'reconciliation'
+                  ? 'bg-[#14213D] text-white shadow-2xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              Monthly vs Daily Reconciliation
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onNavigate('deliverySchedule')}
+              className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shadow-2xs"
+            >
+              🚚 Deliveries & Dispatch &rarr;
+            </button>
+          </div>
+        </div>
+
+        {/* Sub-view switcher */}
+        {currentSub === 'dashboard' && (
+          <SalesOrderDashboard
+            orders={plasticSalesOrders}
+            monthlyPlans={monthlyPlans}
+            deliveries={deliveries}
+            exceptions={exceptions}
+            onNavigate={onNavigate}
+            onQuickAction={(action) => {
+              if (action === 'newOrder') setSalesSubNav('wizard');
+              if (action === 'quickEntry') setSalesSubNav('quickEntry');
+              if (action === 'newPlan') setSalesSubNav('plans');
+              if (action === 'dispatch') onNavigate('deliverySchedule');
+              if (action === 'compliance') onNavigate('complianceDashboard');
+            }}
+          />
+        )}
+
+        {currentSub === 'list' && (
+          <SalesOrderList
+            orders={plasticSalesOrders}
+            onSelectOrder={(orderId) => {
+              setSelectedPlasticSoId(orderId);
+              onNavigate('soDetail', { id: orderId });
+            }}
+            onCreateOrder={() => setSalesSubNav('wizard')}
+            onNavigate={onNavigate}
+            showToast={showToast}
+          />
+        )}
+
+        {currentSub === 'wizard' && (
+          <SalesOrderWizard
+            monthlyPlans={monthlyPlans}
+            onSave={handleSaveOrder}
+            onCancel={() => setSalesSubNav('list')}
+            showToast={showToast}
+          />
+        )}
+
+        {currentSub === 'plans' && (
+          <MonthlyPlanOrdersView
+            monthlyPlans={monthlyPlans}
+            dailyOrders={plasticSalesOrders}
+            onNavigate={onNavigate}
+            showToast={showToast}
+          />
+        )}
+
+        {currentSub === 'quickEntry' && (
+          <DailyOrderQuickEntry
+            onSaveOrder={(order, autoDelivery) => {
+              handleSaveOrder(order);
+              if (autoDelivery) {
+                onNavigate('deliverySchedule');
+              }
+            }}
+            onCancel={() => setSalesSubNav('list')}
+            showToast={showToast}
+          />
+        )}
+
+        {currentSub === 'reconciliation' && (
+          <MonthlyDailyReconciliation
+            monthlyPlans={monthlyPlans}
+            dailyOrders={plasticSalesOrders}
+            relationships={relationships}
+            onUpdateRelationships={(newRels) => {
+              setRelationships(newRels);
+              showToast('Demand reconciliation mappings saved successfully.');
+            }}
+            showToast={showToast}
+          />
+        )}
+      </div>
     );
   }
 
   /* ----------------------------------------------------
-     5. SALES ORDER DETAIL
+     5. REDESIGNED SALES ORDER DETAIL (10 TABS)
   ---------------------------------------------------- */
   if (view === 'soDetail') {
+    const activeOrder =
+      plasticSalesOrders.find((o) => o.id === (selectedId || selectedPlasticSoId)) ||
+      plasticSalesOrders[0];
+
     return (
-      <SalesOrderDetailView
-        soId={selectedId || sos[0]?.id || 'SO-5001'}
-        sos={sos}
-        customers={customers}
+      <SalesOrderDetail
+        order={activeOrder}
+        monthlyPlans={monthlyPlans}
+        deliveries={deliveries}
+        batches={batches}
+        eInvoices={eInvoices}
+        eWayBills={eWayBills}
+        onBack={() => onNavigate('soList')}
         onNavigate={onNavigate}
-        onUpdateSO={onUpdateSO}
-        openDrawer={openDrawer}
-        closeDrawer={closeDrawer}
         showToast={showToast}
       />
     );
@@ -178,15 +479,215 @@ export const SalesViews: React.FC<SalesProps> = ({
   }
 
   /* ----------------------------------------------------
-     8. DELIVERY SCHEDULE & SHIPPING
+     8. REDESIGNED DELIVERIES & DISPATCH SUITE
   ---------------------------------------------------- */
-  if (view === 'deliverySchedule' || view === 'salesDeliveries') {
+  if (
+    view === 'deliverySchedule' ||
+    view === 'salesDeliveries' ||
+    view === 'dispatch' ||
+    view === 'dispatchDash' ||
+    view === 'deliveryChallan' ||
+    view === 'deliveryChallans' ||
+    view === 'createChallan' ||
+    view === 'challanDetail' ||
+    view === 'gatePass' ||
+    view === 'eWayBillMgmt' ||
+    view === 'eWayBills' ||
+    view === 'eInvoiceMgmt' ||
+    view === 'eInvoices' ||
+    view === 'complianceDashboard' ||
+    view === 'complianceExceptions'
+  ) {
+    // If viewing single challan detail
+    if (view === 'challanDetail' || selectedDelivery) {
+      const activeDelivery =
+        selectedDelivery ||
+        deliveries.find((d) => d.id === selectedId) ||
+        deliveries[0];
+
+      return (
+        <DeliveryChallanDetail
+          delivery={activeDelivery}
+          onBack={() => {
+            setSelectedDelivery(null);
+            onNavigate('deliverySchedule');
+          }}
+          onNavigate={onNavigate}
+          showToast={showToast}
+        />
+      );
+    }
+
+    // Determine current sub-view
+    const currentSub =
+      view === 'createChallan'
+        ? 'createChallan'
+        : view === 'deliveryChallans' || view === 'deliveryChallan'
+        ? 'challans'
+        : view === 'gatePass'
+        ? 'gatePass'
+        : view === 'eWayBillMgmt' || view === 'eWayBills'
+        ? 'ewb'
+        : view === 'eInvoiceMgmt' || view === 'eInvoices'
+        ? 'eInvoice'
+        : view === 'complianceDashboard' || view === 'complianceExceptions'
+        ? 'compliance'
+        : dispatchSubNav;
+
     return (
-      <SalesDeliveryScheduleView
-        sos={sos}
-        onNavigate={onNavigate}
-        showToast={showToast}
-      />
+      <div className="space-y-4">
+        {/* Top Module Sub-Navigation Bar */}
+        <div className="bg-white p-2.5 rounded-xl border border-gray-200 shadow-sm flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              onClick={() => setDispatchSubNav('dashboard')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                currentSub === 'dashboard'
+                  ? 'bg-[#14213D] text-white shadow-2xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              Dispatch Command Center
+            </button>
+            <button
+              onClick={() => setDispatchSubNav('challans')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                currentSub === 'challans'
+                  ? 'bg-[#14213D] text-white shadow-2xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              Delivery Notes / Challans
+            </button>
+            <button
+              onClick={() => setDispatchSubNav('createChallan')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                currentSub === 'createChallan'
+                  ? 'bg-[#0F8B8D] text-white shadow-2xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              + Create Challan (Wizard)
+            </button>
+            <button
+              onClick={() => setDispatchSubNav('gatePass')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                currentSub === 'gatePass'
+                  ? 'bg-[#14213D] text-white shadow-2xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              Security Gate Pass
+            </button>
+            <button
+              onClick={() => setDispatchSubNav('ewb')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                currentSub === 'ewb'
+                  ? 'bg-[#14213D] text-white shadow-2xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              E-Way Bill Hub
+            </button>
+            <button
+              onClick={() => setDispatchSubNav('eInvoice')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                currentSub === 'eInvoice'
+                  ? 'bg-[#14213D] text-white shadow-2xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              E-Invoice Portal
+            </button>
+            <button
+              onClick={() => setDispatchSubNav('compliance')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                currentSub === 'compliance'
+                  ? 'bg-red-700 text-white shadow-2xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              Compliance & Exceptions
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onNavigate('soList')}
+              className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shadow-2xs"
+            >
+              📦 Sales Orders &rarr;
+            </button>
+          </div>
+        </div>
+
+        {/* Sub-view switcher */}
+        {currentSub === 'dashboard' && (
+          <DispatchDashboard
+            deliveries={deliveries}
+            eInvoices={eInvoices}
+            eWayBills={eWayBills}
+            gatePasses={gatePasses}
+            exceptions={exceptions}
+            onNavigate={onNavigate}
+            showToast={showToast}
+          />
+        )}
+
+        {currentSub === 'challans' && (
+          <DeliveryChallanManagement
+            deliveries={deliveries}
+            onSelectDelivery={(deliv) => setSelectedDelivery(deliv)}
+            onNavigate={onNavigate}
+            showToast={showToast}
+          />
+        )}
+
+        {currentSub === 'createChallan' && (
+          <CreateDeliveryChallan
+            salesOrders={plasticSalesOrders}
+            onSaveDelivery={handleSaveDelivery}
+            onCancel={() => setDispatchSubNav('challans')}
+            showToast={showToast}
+          />
+        )}
+
+        {currentSub === 'gatePass' && (
+          <GatePassVerification
+            gatePasses={gatePasses}
+            deliveries={deliveries}
+            onApproveGateOut={handleApproveGateOut}
+            onHoldGatePass={handleHoldGatePass}
+            showToast={showToast}
+          />
+        )}
+
+        {currentSub === 'ewb' && (
+          <EWayBillManagement
+            eWayBills={eWayBills}
+            onUpdateEwb={handleUpdateEwb}
+            showToast={showToast}
+          />
+        )}
+
+        {currentSub === 'eInvoice' && (
+          <EInvoiceManagement
+            eInvoices={eInvoices}
+            onGenerateIrn={handleGenerateIrn}
+            onCancelIrn={handleCancelIrn}
+            showToast={showToast}
+          />
+        )}
+
+        {currentSub === 'compliance' && (
+          <ComplianceExceptionsDashboard
+            exceptions={exceptions}
+            onResolveException={handleResolveException}
+            onNavigate={onNavigate}
+            showToast={showToast}
+          />
+        )}
+      </div>
     );
   }
 

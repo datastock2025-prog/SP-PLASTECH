@@ -32,8 +32,15 @@ import {
   Boxes,
   FileText,
   ExternalLink,
+  ShieldCheck,
+  ShieldAlert,
+  Eye,
+  EyeOff,
+  Lock,
 } from 'lucide-react';
-import { NAVIGATION_GROUPS, NavItemDef } from '../data/sidebarNavigationData';
+import { NAVIGATION_GROUPS, NavGroupDef, NavItemDef } from '../data/sidebarNavigationData';
+import { useWorkspaceRbac } from '../hooks/useWorkspaceRbac';
+import { AuthUser } from '../types';
 
 interface HomeViewProps {
   onNavigate: (view: string, param?: any) => void;
@@ -41,6 +48,7 @@ interface HomeViewProps {
   activeWOCount: number;
   lowStockCount: number;
   openPOCount: number;
+  currentUser?: AuthUser | null;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
@@ -49,10 +57,32 @@ export const HomeView: React.FC<HomeViewProps> = ({
   activeWOCount,
   lowStockCount,
   openPOCount,
+  currentUser,
 }) => {
   const handleOpenGuide = openArchitectureGuide || (() => onNavigate('architectureGuide'));
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+
+  // RBAC Workspace Access Hook
+  const {
+    roles,
+    normalizeRoleKey,
+    isWorkspaceVisible,
+    quarantinedScreens,
+    pendingCount,
+  } = useWorkspaceRbac();
+
+  // Active user canonical role
+  const canonicalRole = normalizeRoleKey(currentUser?.role || currentUser?.roleType);
+  const userRoleDef = roles.find((r) => r.id === canonicalRole) || roles[0];
+  const isAdminUser = canonicalRole === 'admin';
+
+  // Admin filter simulation state
+  const [adminBypass, setAdminBypass] = useState(false);
+  const [rolePreviewOverride, setRolePreviewOverride] = useState<string>(canonicalRole);
+
+  const effectiveRole = isAdminUser && !adminBypass ? rolePreviewOverride : canonicalRole;
+  const effectiveRoleDef = roles.find((r) => r.id === effectiveRole) || userRoleDef;
 
   const categories = [
     { id: 'ALL', label: 'All Modules' },
@@ -67,35 +97,98 @@ export const HomeView: React.FC<HomeViewProps> = ({
     { id: 'ADMINISTRATION', label: 'Administration' },
   ];
 
+  // Combined groups including approved/quarantined screens
+  const combinedGroups = useMemo(() => {
+    const groups: NavGroupDef[] = JSON.parse(JSON.stringify(NAVIGATION_GROUPS || []));
+
+    // Incorporate quarantined / new screens
+    (quarantinedScreens || []).forEach((qs) => {
+      let target = groups.find((g) => g.id === qs.groupId);
+      if (!target) {
+        target = {
+          id: qs.groupId,
+          title: qs.groupTitle,
+          icon: 'Layers',
+          defaultExpanded: true,
+          items: [],
+        };
+        groups.push(target);
+      }
+
+      if (!target.items.some((it) => it.view === qs.view)) {
+        target.items.push({
+          id: `nav-${qs.view}`,
+          label: qs.title,
+          view: qs.view,
+          icon: 'Sparkles',
+          subGroup: qs.subGroup,
+          badge: qs.status === 'PENDING_APPROVAL' ? 'Restricted' : 'Approved',
+          badgeColor: qs.status === 'PENDING_APPROVAL' ? 'bg-amber-500' : 'bg-emerald-600',
+          tooltip: qs.description,
+        });
+      }
+    });
+
+    return groups;
+  }, [quarantinedScreens]);
+
+  // Calculate total vs visible count for effective role
+  const totalGovernedModulesCount = useMemo(() => {
+    return combinedGroups.reduce((acc, g) => acc + (g?.items?.length || 0), 0);
+  }, [combinedGroups]);
+
+  const visibleModulesCountForRole = useMemo(() => {
+    let count = 0;
+    combinedGroups.forEach((g) => {
+      (g?.items || []).forEach((it) => {
+        if (adminBypass || isWorkspaceVisible(effectiveRole, it.view)) {
+          count++;
+        }
+      });
+    });
+    return count;
+  }, [combinedGroups, effectiveRole, adminBypass, isWorkspaceVisible]);
+
+  const hiddenModulesCount = totalGovernedModulesCount - visibleModulesCountForRole;
+
   // Flatten all items with group context
   const allItems = useMemo(() => {
-    return NAVIGATION_GROUPS.flatMap((group) =>
-      group.items.map((item) => ({
+    return (combinedGroups || []).flatMap((group) =>
+      (group?.items || []).map((item) => ({
         ...item,
-        groupId: group.id,
-        groupTitle: group.title,
+        groupId: group?.id || '',
+        groupTitle: group?.title || '',
       }))
     );
-  }, []);
+  }, [combinedGroups]);
 
-  // Filter items by search query and category
+  // Filter items by search query, category, and RBAC role visibility
   const filteredGroups = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
+    const q = searchQuery ? searchQuery.toLowerCase().trim() : '';
 
-    return NAVIGATION_GROUPS.map((group) => {
+    return (combinedGroups || []).map((group) => {
+      if (!group) return null;
       // Category check
       if (selectedCategory !== 'ALL' && group.id !== selectedCategory) {
         return null;
       }
 
-      // Items filter
-      const matchingItems = group.items.filter((item) => {
+      // Items filter: must match search query AND role visibility
+      const matchingItems = (group?.items || []).filter((item) => {
+        if (!item) return false;
+
+        // RBAC Visibility Check: checked = visible, unchecked = hidden
+        const isAllowedByRole = adminBypass ? true : isWorkspaceVisible(effectiveRole, item.view);
+        if (!isAllowedByRole) {
+          return false;
+        }
+
         if (!q) return true;
         return (
-          item.label.toLowerCase().includes(q) ||
-          item.subGroup?.toLowerCase().includes(q) ||
-          group.title.toLowerCase().includes(q) ||
-          item.view.toLowerCase().includes(q)
+          (item.label && item.label.toLowerCase().includes(q)) ||
+          (item.subGroup && item.subGroup.toLowerCase().includes(q)) ||
+          (group.title && group.title.toLowerCase().includes(q)) ||
+          (item.view && item.view.toLowerCase().includes(q))
         );
       });
 
@@ -106,7 +199,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         items: matchingItems,
       };
     }).filter(Boolean) as typeof NAVIGATION_GROUPS;
-  }, [searchQuery, selectedCategory]);
+  }, [combinedGroups, searchQuery, selectedCategory, effectiveRole, adminBypass, isWorkspaceVisible]);
 
   return (
     <div className="space-y-5 sm:space-y-6 w-full max-w-[1600px] mx-auto pb-12 min-w-0">
@@ -207,6 +300,109 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
+      </div>
+
+      {/* RBAC Role-Based Module Visibility Governance Bar */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-4 sm:p-5 space-y-3">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-teal-50 border border-teal-200 text-[#0F8B8D] flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Role-Based Module Visibility (RBAC)
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#0F8B8D]/10 text-[#0F8B8D] border border-[#0F8B8D]/20">
+                  Active for {effectiveRoleDef.name}
+                </span>
+                {hiddenModulesCount > 0 && !adminBypass && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                    {hiddenModulesCount} Modules Hidden for this Role
+                  </span>
+                )}
+                {adminBypass && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                    Admin Superuser Bypass Active
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Showing <strong className="text-slate-800">{visibleModulesCountForRole}</strong> of{' '}
+                <strong className="text-slate-800">{totalGovernedModulesCount}</strong> modules authorized for your profile. Modules not granted by Admin in RBAC are hidden.
+              </p>
+            </div>
+          </div>
+
+          {/* Admin Controls */}
+          <div className="flex items-center gap-2.5 flex-wrap self-end lg:self-center">
+            {isAdminUser && (
+              <>
+                {/* Role Switcher Preview */}
+                <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs">
+                  <span className="text-[11px] font-medium text-slate-500">Preview as:</span>
+                  <select
+                    value={rolePreviewOverride}
+                    onChange={(e) => {
+                      setRolePreviewOverride(e.target.value);
+                      setAdminBypass(false);
+                    }}
+                    className="bg-transparent font-semibold text-slate-800 focus:outline-none cursor-pointer"
+                  >
+                    {roles.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Admin Bypass Toggle */}
+                <label className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 cursor-pointer hover:bg-slate-50 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={adminBypass}
+                    onChange={(e) => setAdminBypass(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded text-[#0F8B8D] focus:ring-[#0F8B8D] border-slate-300"
+                  />
+                  <span>Show All (Bypass)</span>
+                </label>
+              </>
+            )}
+
+            <button
+              onClick={() => onNavigate('adminWorkspaceRbac')}
+              className="px-3 py-1.5 rounded-lg bg-[#0F8B8D] hover:bg-[#0c7274] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>Admin Visibility Controls</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Quarantined Screen Banner (Alert) */}
+        {pendingCount > 0 && (
+          <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2.5">
+              <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+              <div>
+                <span className="font-bold text-amber-900">
+                  Zero-Trust Screen Quarantine Active:
+                </span>{' '}
+                <span className="text-amber-800">
+                  {pendingCount} newly discovered application screen{pendingCount > 1 ? 's are' : ' is'} restricted in the quarantine area awaiting Admin security approval.
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => onNavigate('adminWorkspaceRbac')}
+              className="px-2.5 py-1 rounded-md bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] shrink-0 transition-colors"
+            >
+              Review in RBAC &rarr;
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Module Finder & Category Filters */}

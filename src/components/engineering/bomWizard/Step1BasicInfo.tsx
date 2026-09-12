@@ -20,6 +20,7 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({ state, items = [], onChan
     const newBomCode = state.isCustomCode ? state.bomCode : `BOM-${item.code}-V${cleanVer}`;
     const newCycleTime = item.standardCycleTime || 14.5;
     const estHours = Number(((newCycleTime * state.batchSize) / 3600).toFixed(2));
+    const netWeight = (item as any).netWeightGrams || (item.weight ? item.weight * 1000 : 45.2);
 
     onChange({
       parentItem: item,
@@ -28,6 +29,8 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({ state, items = [], onChan
       description: `Standard manufacturing bill of materials for ${item.name}.`,
       batchUOM: item.baseUOM || 'PCS',
       standardCycleTimeSec: newCycleTime,
+      itemNetWeightGrams: netWeight,
+      totalShotWeightGrams: Number((netWeight + (state.runnerWeightGrams || 8.5)).toFixed(1)),
       estimatedProductionTimeHours: estHours,
       defaultFgLocation: item.wh || 'FG-WH1-B02',
     });
@@ -105,12 +108,14 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({ state, items = [], onChan
                   <span className="font-mono text-gray-700">{parentItem.wh}</span>
                 </div>
               )}
-              {parentItem.standardCycleTime !== undefined && (
+                <div className="bg-white p-2.5 rounded-lg border border-[#E4E0D6]">
+                  <span className="text-[10px] text-gray-500 uppercase font-semibold block">Item Net Weight</span>
+                  <span className="font-mono text-blue-700 font-bold">{state.itemNetWeightGrams || 45.2} g</span>
+                </div>
                 <div className="bg-white p-2.5 rounded-lg border border-[#E4E0D6]">
                   <span className="text-[10px] text-gray-500 uppercase font-semibold block">Std Cycle Time</span>
-                  <span className="font-mono text-emerald-700 font-bold">{parentItem.standardCycleTime}s</span>
+                  <span className="font-mono text-emerald-700 font-bold">{state.standardCycleTimeSec || 14.5}s</span>
                 </div>
-              )}
               {(parentItem.standardCost || parentItem.cost) && (
                 <div className="bg-white p-2.5 rounded-lg border border-[#E4E0D6]">
                   <span className="text-[10px] text-gray-500 uppercase font-semibold block">Unit Standard Cost</span>

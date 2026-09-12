@@ -85,6 +85,7 @@ export const AdminViews: React.FC<AdminViewsProps> = ({
     { id: 'adminUserGroups', label: 'User Groups & Crews', icon: Users, category: 'Org & Workflow' },
     { id: 'adminUsers', label: 'User Directory', icon: Users, category: 'Org & Workflow' },
     { id: 'adminRoles', label: 'RBAC Matrix & Simulator', icon: ShieldCheck, category: 'Org & Workflow' },
+    { id: 'adminWorkspaceRbac', label: 'Workspace RBAC & Screen Approvals', icon: Sliders, category: 'Org & Workflow' },
     { id: 'adminMultiContextSecurity', label: 'RBAC Security & Multi-Context', icon: ShieldAlert, category: 'Security & Integrations' },
     { id: 'adminApprovalWorkflowConfig', label: 'Approval Workflows', icon: GitFork, category: 'Org & Workflow' },
     { id: 'adminNumbering', label: 'Numbering Series', icon: Hash, category: 'Org & Workflow' },
@@ -201,7 +202,10 @@ export const AdminViews: React.FC<AdminViewsProps> = ({
       case 'adminUsers':
         return <AdminUsersView showToast={showToast} />;
       case 'adminRoles':
-        return <AdminRolesView showToast={showToast} />;
+        return <AdminRolesView showToast={showToast} onNavigate={onNavigate} />;
+      case 'adminWorkspaceRbac':
+      case 'adminWorkspaceVisibility':
+        return <AdminRolesView showToast={showToast} initialTab="workspace_access" onNavigate={onNavigate} />;
       case 'adminPlants':
         return <AdminCompanyPlantsView showToast={showToast} />;
       case 'adminNumbering':

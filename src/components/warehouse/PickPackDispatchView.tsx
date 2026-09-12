@@ -102,6 +102,12 @@ export const PickPackDispatchView: React.FC<Props> = ({
 
         <div className="flex items-center gap-2">
           <button
+            onClick={() => onNavigate('deliverySchedule')}
+            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-sm transition"
+          >
+            <Truck className="w-3.5 h-3.5" /> Deliveries &amp; Dispatch Hub
+          </button>
+          <button
             onClick={() => onNavigate('labelPrint')}
             className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold shadow-sm transition"
           >

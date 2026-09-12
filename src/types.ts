@@ -86,6 +86,8 @@ export interface ItemMaster {
   cost?: number;
   scrapRate?: number;
   defaultLocation?: string;
+  weight?: number;
+  netWeightGrams?: number;
 }
 
 export interface BomLine {
@@ -177,6 +179,9 @@ export interface BomMaster {
   machineGroup?: string;
   cycleTimeSec?: number;
   cavities?: number;
+  itemNetWeightGrams?: number;
+  runnerWeightGrams?: number;
+  totalShotWeightGrams?: number;
   rejectReason?: string;
   isLocked?: boolean;
   notes?: string;

@@ -6,27 +6,119 @@ Welcome to the **Reboot ERP** frontend workspace reference. This document provid
 
 ## Table of Contents
 
-1. [Frontend Workspace Architecture Overview](#1-frontend-workspace-architecture-overview)
-2. [Summary of Added Features & Capabilities](#2-summary-of-added-features--capabilities)
-   - [Feature 1: Streaming UI (`<StreamingText />`)](#feature-1-streaming-ui-streamingtext-)
-   - [Feature 2: Modular Prompt Builder (`<PromptBuilder />`)](#feature-2-modular-prompt-builder-promptbuilder-)
-   - [Feature 3: Token Management & BFF Pattern](#feature-3-token-management--bff-pattern)
-   - [Feature 4: XSS Prevention (`<SanitizedHtml />`)](#feature-4-xss-prevention-sanitizedhtml-)
-   - [Feature 5: Role-Based UI Guard (`<RequireAuth />`)](#feature-5-role-based-ui-guard-requireauth-)
-   - [Feature 6: Strict Content Security Policy (CSP) Awareness](#feature-6-strict-content-security-policy-csp-awareness)
-3. [Step-by-Step Backend Implementation Guide](#3-step-by-step-backend-implementation-guide)
+1. [Changelog — Today's Updates & Completed Enhancements](#1-changelog--todays-updates--completed-enhancements)
+2. [Frontend Workspace Architecture Overview](#2-frontend-workspace-architecture-overview)
+3. [Summary of Added Features & Capabilities](#3-summary-of-added-features--capabilities)
+   - [Feature 1: Dual-Matrix Workspace & Sidebar RBAC Engine](#feature-1-dual-matrix-workspace--sidebar-rbac-engine)
+   - [Feature 2: Autonomous Screen Discovery & Auto-Sync](#feature-2-autonomous-screen-discovery--auto-sync)
+   - [Feature 3: Zero-Trust Screen Quarantine & Clearance Flow](#feature-3-zero-trust-screen-quarantine--clearance-flow)
+   - [Feature 4: Industrial HR Command Center & Workforce Suite](#feature-4-industrial-hr-command-center--workforce-suite)
+   - [Feature 5: Multi-Plant Stock Transfer & Transit Logistics](#feature-5-multi-plant-stock-transfer--transit-logistics)
+   - [Feature 6: Dispatch Execution, E-Way Bill & Gate Pass](#feature-6-dispatch-execution-e-way-bill--gate-pass)
+   - [Feature 7: Quality Assurance & IATF 16949 / SPC Portal](#feature-7-quality-assurance--iatf-16949--spc-portal)
+   - [Feature 8: Streaming UI (`<StreamingText />`)](#feature-8-streaming-ui-streamingtext-)
+   - [Feature 9: Modular Prompt Builder (`<PromptBuilder />`)](#feature-9-modular-prompt-builder-promptbuilder-)
+   - [Feature 10: Token Management & BFF Pattern](#feature-10-token-management--bff-pattern)
+   - [Feature 11: XSS Prevention (`<SanitizedHtml />`)](#feature-11-xss-prevention-sanitizedhtml-)
+   - [Feature 12: Role-Based UI Guard (`<RequireAuth />`)](#feature-12-role-based-ui-guard-requireauth-)
+   - [Feature 13: Strict Content Security Policy (CSP) Awareness](#feature-13-strict-content-security-policy-csp-awareness)
+4. [Step-by-Step Backend Implementation Guide](#4-step-by-step-backend-implementation-guide)
    - [Step 1: Session & Authentication Service (BFF + HttpOnly Cookies)](#step-1-session--authentication-service-bff--httponly-cookies)
    - [Step 2: Server-Sent Events (SSE) AI Token Streaming Endpoint](#step-2-server-sent-events-sse-ai-token-streaming-endpoint)
    - [Step 3: WebSocket Streaming Alternative](#step-3-websocket-streaming-alternative)
    - [Step 4: Prompt Analysis & AI Gateway Endpoints](#step-4-prompt-analysis--ai-gateway-endpoints)
    - [Step 5: Backend Role-Based Access Control (RBAC)](#step-5-backend-role-based-access-control-rbac)
    - [Step 6: Strict CSP HTTP Headers Configuration](#step-6-strict-csp-http-headers-configuration)
-4. [API Contract & Schema Reference](#4-api-contract--schema-reference)
-5. [Frontend File Structure](#5-frontend-file-structure)
+5. [API Contract & Schema Reference](#5-api-contract--schema-reference)
+6. [Frontend File Structure](#6-frontend-file-structure)
 
 ---
 
-## 1. Frontend Workspace Architecture Overview
+## 1. Changelog — Today's Updates & Completed Enhancements
+
+### 🎯 Key Accomplishments Completed Today
+
+| Domain / Module | Key Enhancements Completed Today | Impact & Status |
+| :--- | :--- | :--- |
+| **Workspace & Sidebar RBAC Governance** | Built dual-matrix visibility engine allowing independent toggling of modules for **Home Workspace** (tile cards) and **Sidebar Navigation Menu** per role. | ✅ Fully Operational |
+| **Screen Auto-Discovery & Live Sync** | Implemented autonomous route discovery engine that indexes screens across navigation groups and synchronizes with admin console. | ✅ Live & Audited |
+| **Zero-Trust Quarantine & Restriction** | New screens/routes are held in quarantine until an admin reviews and assigns independent Home/Sidebar role access. | ✅ Zero-Trust Active |
+| **Industrial HR Command Center** | Complete industrial workforce management suite featuring 12 operational sub-views (Roster, Attendance, Payroll, PPE, Skills). | ✅ Production Ready |
+| **Multi-Plant Stock Transfer Logistics** | Transfer wizard, Inbound Goods Receipt (GRN), Returnable DC, and asset/mold transfer tracking with audit drawers. | ✅ Production Ready |
+| **Dispatch & Gate Pass Execution** | Dispatch management, vehicle load optimization, direct E-Way Bill & E-Invoice generation, and security gate pass checks. | ✅ Production Ready |
+| **Quality & Compliance Suite** | Non-conformance reporting (8D NCR), CAPA management, SPC X-bar/R control charts, and Certificate of Analysis (COA). | ✅ Production Ready |
+| **Enterprise Administration Hub** | Multi-plant settings, warehouse locations, custom approval workflow engine, machine telemetry mappings, and audit logs. | ✅ Production Ready |
+
+---
+
+### Detailed Breakdown of Today's Changes:
+
+#### 1. Dual-Matrix Workspace & Sidebar Access Control Engine
+- **Independent Dual-Scope Matrix**:
+  - Administrators can now control access to any module separately for the **Home Workspace** (interactive dashboard cards) and the **Sidebar Navigation Menu** (tree navigation) across all enterprise roles (`admin`, `plant_manager`, `quality_manager`, `operator`, `maintenance_lead`, `inventory_clerk`, `finance_controller`, `hr_manager`, `compliance_auditor`, `supply_chain_lead`).
+  - Added dedicated status badges for each screen: **Both Visible**, **Home Only**, **Sidebar Only**, or **Hidden**.
+- **Unified Administration Console (`/src/components/admin/WorkspaceModuleRbacView.tsx`)**:
+  - **Cards View**: Grouped by operational domain (Operations, Front Office, Quality, etc.) with dual-category toggle actions (`Show All`, `Hide All` for Home and Sidebar independently).
+  - **Table Matrix View**: High-density spreadsheet grid displaying checkbox controls for Home Workspace and Sidebar Navigation, domain categorization, and route slugs.
+  - **Role Mirroring Utilities**: Fast synchronization buttons including **Sidebar → Home**, **Home → Sidebar**, **Unhide Both**, **Hide Both**, and **Clone Role Configuration**.
+- **Application Shell Synchronization**:
+  - Updated `Sidebar.tsx` to read `isSidebarVisible(role, view)` so that users only see authorized screens in their navigation menu, with automatic grouping for dynamic approved screens.
+  - Updated `HomeView.tsx` to read `isWorkspaceVisible(role, view)` so that unassigned modules are completely excluded from the dashboard cards, count tallies, and search filters.
+
+#### 2. Autonomous Screen Discovery & Synchronization Engine (`workspaceRbacService.ts`)
+- **Live Route Auto-Discovery**:
+  - Automatically scans navigation manifests and registers every module, including dynamic routes.
+  - Generates comprehensive sync reports detailing total governed screens, domain counts, and last sync timestamp.
+- **On-Demand Auto-Sync**:
+  - Added an interactive **Auto-Sync Screens** trigger in the admin workspace to re-index all routes and confirm zero-trust coverage.
+
+#### 3. Zero-Trust Screen Quarantine & Dual Approval Workflow
+- **Restriction Holding Area**:
+  - Any new screen or route created or registered is intercepted and quarantined until explicit administrative clearance.
+- **Granular Approval Modal**:
+  - Administrators can review the screen metadata (route ID, security level, domain) and assign allowed roles for the **Home Workspace** and the **Sidebar Menu** separately (or link both with a single click).
+- **Governance Audit Trail**:
+  - Immutable audit logging for visibility toggles, quarantine clearances, role clonings, and sync events with operator stamps and timestamps.
+
+#### 4. Complete Industrial HR Workforce Suite (`/src/components/hr/*`, `/src/features/hr/*`)
+- Implemented the complete 12-subview Industrial HR Suite:
+  - **HR Command Center (`HrCommandCenter.tsx`)**: Real-time workforce metrics, shift summaries, and compliance alerts.
+  - **Employee Management (`HrEmployeeListView.tsx`, `HrEmployeeDetailView.tsx`)**: Profile management, statutory IDs, emergency contacts, and skill tags.
+  - **Organization Hierarchy (`HrOrgStructureView.tsx`)**: Interactive tree view of reporting lines and departments.
+  - **Shift Roster & Scheduling (`HrShiftRosterView.tsx`)**: Plant shift rotation planner and roster generation.
+  - **Attendance Tracking (`HrAttendanceView.tsx`)**: Biometric clock timestamps, geofencing, and shift deviations.
+  - **Leave & Overtime (`HrLeaveOvertimeView.tsx`)**: Leave approvals, balance ledgers, and overtime authorizations.
+  - **Payroll & Wage Slips (`HrPayrollView.tsx`)**: Factory payroll engine with PF/ESI calculations and payslip downloads.
+  - **Safety & PPE Management (`HrSafetyPpeView.tsx`)**: Safety gear issuance logs, inspection audits, and incident reports.
+  - **Skills & IATF Training (`HrSkillsTrainingView.tsx`)**: Competency matrices and certification records for audit readiness.
+  - **Contract & Compliance (`HrComplianceContractView.tsx`)**: Labor law compliance, apprentice records, and contractor renewals.
+  - **Onboarding / Offboarding (`HrOnboardingOffboardingView.tsx`)**: New hire onboarding checklists and asset return clearance.
+  - **Reports & Analytics (`HrReportsAnalyticsView.tsx`)**: Attrition, overtime trends, and workforce efficiency analytics.
+
+#### 5. Multi-Plant Stock Transfer & Transit Logistics (`/src/components/stockTransfer/*`)
+- Multi-step Transfer Wizard with item selection, barcode validation, and carrier routing.
+- Inbound Goods Receipt (GRN) verification with discrepancy reporting.
+- Returnable Delivery Challan (RDC) tracking with aging alerts and return reconciliation.
+- Asset & Mold/Tooling Logistics with temperature and vibration transit logs.
+- Inter-plant GST & E-Way Bill compliance checking.
+- Real-time transit audit drawer with step-by-step milestone progression.
+
+#### 6. Dispatch Execution, E-Way Bill & Gate Pass Portal (`/src/components/dispatch/*`)
+- Dispatch Dashboard with vehicle allocation, dock status, and delivery schedules.
+- Delivery Challan Management with packing list validation and dispatch authorizations.
+- Direct E-Way Bill & E-Invoice generation compliant with national logistics standards.
+- Digital Gate Pass Verification with security post clearance workflows.
+
+#### 7. Quality Assurance & Compliance Suite (`/src/components/quality/*`)
+- Non-Conformance Reporting (8D NCR) with root cause investigation and containment actions.
+- Corrective & Preventive Action (CAPA) tracking with verification milestones.
+- Statistical Process Control (SPC) with real-time X-bar and R-charts.
+- Certificate of Analysis (COA) generation with digital sign-off and batch testing records.
+- Document Control & Audit Readiness portal for IATF 16949 / ISO 9001 certifications.
+
+---
+
+## 2. Frontend Workspace Architecture Overview
 
 Reboot ERP is built as a **Domain-Driven Modular Monolith** using modern React 19, TypeScript, and Tailwind CSS. The system decouples business domains (MES, WMS, Quality, MEP, Procurement, Finance) while centralizing shared infrastructure in `/src/shared/`.
 
@@ -38,7 +130,7 @@ Reboot ERP is built as a **Domain-Driven Modular Monolith** using modern React 1
 
 ---
 
-## 2. Summary of Added Features & Capabilities
+## 3. Summary of Added Features & Capabilities
 
 ### Feature 1: Streaming UI (`<StreamingText />`)
 **Location:** `/src/shared/components/StreamingText.tsx`
@@ -142,7 +234,7 @@ The frontend workspace has been audited and hardened for strict CSP environments
 
 ---
 
-## 3. Step-by-Step Backend Implementation Guide
+## 4. Step-by-Step Backend Implementation Guide
 
 Follow these steps to implement the corresponding backend services (Node.js/Express, Python/FastAPI, or Go) to interact with the Reboot ERP frontend.
 
@@ -475,7 +567,7 @@ add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" alway
 
 ---
 
-## 4. API Contract & Schema Reference
+## 5. API Contract & Schema Reference
 
 ### Auth Schemas (`/src/features/auth/types/authSchemas.ts`)
 ```typescript
@@ -488,6 +580,24 @@ export interface AuthUser {
   initials?: string;
   plantId?: string;
   badgeId?: string;
+}
+```
+
+### Workspace RBAC Schemas (`/src/types/workspaceRbac.ts`)
+```typescript
+export interface ScreenSyncReport {
+  totalDiscovered: number;
+  newScreensCount: number;
+  unassignedScreensCount: number;
+  quarantinedCount: number;
+  lastSyncTime: string;
+}
+
+export interface WorkspaceRolePermission {
+  roleId: string;
+  workspaceVisible: boolean;
+  sidebarVisible: boolean;
+  canExecute?: boolean;
 }
 ```
 
@@ -508,14 +618,59 @@ export interface PromptBuilderFormValues {
 
 ---
 
-## 5. Frontend File Structure
+## 6. Frontend File Structure
 
 ```text
 /src
-├── core/                                # Application Shell
-│   ├── Topbar.tsx                       # Global header with plant selector & user avatar
-│   ├── Sidebar.tsx                      # Modular domain navigation with role badges
-│   └── ConfirmModal.tsx                 # Modal dialogs
+├── components/                          # Domain Feature Components
+│   ├── admin/                           # Administration & RBAC Hub
+│   │   ├── WorkspaceModuleRbacView.tsx  # Dual-matrix Home & Sidebar governance & sync console
+│   │   ├── AdminRbacSecurityMultiContextView.tsx
+│   │   ├── AdminCompanyPlantsView.tsx   # Multi-plant & branch configs
+│   │   ├── AdminApprovalWorkflowConfigView.tsx # Dynamic multi-tier workflow engine
+│   │   ├── AdminMachineWorkCentersView.tsx     # Work center & telemetry mapping
+│   │   └── ...                          # Master data, numbering, security audit views
+│   ├── hr/                              # Industrial HR Suite (12 Sub-views)
+│   │   ├── HrCommandCenter.tsx          # Real-time workforce operational dashboard
+│   │   ├── HrEmployeeListView.tsx       # Worker records, statutory IDs & emergency contacts
+│   │   ├── HrShiftRosterView.tsx        # Shift rotation & overtime planner
+│   │   ├── HrAttendanceView.tsx         # Clock-in / clock-out & geofence validation
+│   │   ├── HrPayrollView.tsx            # Industrial wage calculation & payslips
+│   │   ├── HrSafetyPpeView.tsx          # Safety audits, PPE logs & incident tracking
+│   │   ├── HrSkillsTrainingView.tsx     # IATF 16949 competency & qualification matrix
+│   │   └── ...                          # Org tree, leave/OT, onboarding, compliance
+│   ├── stockTransfer/                   # Multi-Plant Stock Transfer & Logistics
+│   │   ├── StockTransferManager.tsx     # Master view & transfer router
+│   │   ├── CreateTransferWizard.tsx     # Multi-step outbound shipment generator
+│   │   ├── InboundReceiptScreen.tsx     # Inbound GRN with barcode verification
+│   │   ├── ReturnableDCScreen.tsx       # Returnable delivery challan & aging alerts
+│   │   ├── AssetMoldTransferScreen.tsx  # High-value tooling logistics & environmental logs
+│   │   ├── InterPlantTaxComplianceScreen.tsx # GST & E-Way Bill reconciliation
+│   │   └── TransferTrackingAuditDrawer.tsx   # Milestone transit progression drawer
+│   ├── dispatch/                        # Dispatch & Logistics Execution
+│   │   ├── DispatchDashboard.tsx        # Logistics console & dock optimization
+│   │   ├── DeliveryChallanManagement.tsx# Multi-pack list validation & dispatch signs
+│   │   ├── EWayBillManagement.tsx       # Direct government portal E-Way Bill sync
+│   │   ├── EInvoiceManagement.tsx       # QR-verified GST e-Invoicing
+│   │   └── GatePassVerification.tsx     # Security booth physical verification checkpoints
+│   ├── quality/                         # Quality & IATF 16949 Compliance
+│   │   ├── QualityDashboardView.tsx     # PPM defect rates, scrap % & inspection gauges
+│   │   ├── NcrManagementView.tsx        # 8D Non-conformance containment workflow
+│   │   ├── CapaManagementView.tsx       # Corrective action verification stages
+│   │   ├── SpcMonitorView.tsx           # Real-time X-bar & R control charts
+│   │   ├── CoaManagementView.tsx        # Certificate of Analysis generation
+│   │   └── InspectionPlansView.tsx      # Sampling plans & tolerance thresholds
+│   ├── Sidebar.tsx                      # Dynamic sidebar with RBAC filtering & quarantine groups
+│   ├── HomeView.tsx                     # Workspace tile dashboard with RBAC card filtering
+│   └── Topbar.tsx                       # Global header with plant selector & user avatar
+├── services/
+│   └── workspaceRbacService.ts          # Auto-discovery engine, dual-matrix storage & audit trails
+├── hooks/
+│   └── useWorkspaceRbac.ts              # Reactive hook for isWorkspaceVisible & isSidebarVisible
+├── types/
+│   ├── workspaceRbac.ts                 # Dual-matrix permissions & sync report schemas
+│   ├── stockTransferTypes.ts            # Stock transfer, DC & transit data models
+│   └── ...
 ├── shared/                              # Cross-Cutting Infrastructure
 │   ├── api/
 │   │   └── client.ts                    # Centralized Axios client (BFF, withCredentials)
@@ -525,21 +680,15 @@ export interface PromptBuilderFormValues {
 │   │   ├── StreamingText.tsx            # SSE / WebSocket AI text typewriter
 │   │   ├── PromptBuilder.tsx            # Industrial prompt constructor container
 │   │   └── prompt-builder/              # Modular sub-components
-│   │       ├── ContextSelector.tsx      # Domain context picker
-│   │       ├── ToneSlider.tsx           # Temperature & tone scale
-│   │       ├── SystemPersonaSelector.tsx# Expert persona presets
-│   │       ├── ContextInjectionToggles.tsx # Telemetry/BOM injection flags
-│   │       ├── PromptVariableChips.tsx  # Pre-engineered tokens
-│   │       └── CompiledPromptViewer.tsx # Compiled token inspector
 │   └── layouts/
 │       ├── AppLayout.tsx                # Authenticated application shell layout
 │       └── AuthLayout.tsx               # Unauthenticated login screen layout
 └── features/                            # Bounded Context Modules
     ├── auth/                            # Login, PIN verification, session hook
-    ├── ai/                              # AI prompt analysis & streaming APIs
+    ├── hr/                              # HR domain schemas, APIs & hooks
     ├── manufacturing/                   # Production dispatch, machines, OEE
     ├── quality/                         # IATF 16949, SPC, NCRs, inspections
-    └── ...
+    └── ai/                              # AI prompt analysis & streaming APIs
 ```
 
 ---

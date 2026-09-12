@@ -247,6 +247,9 @@ export const App: React.FC = () => {
       binMap: ['Stock & Warehouse', '2D Bin Location Map'],
       putaway: ['Stock & Warehouse', 'Putaway Management'],
       picking: ['Stock & Warehouse', 'Pick & Pack Fulfillment'],
+      stockTransfer: ['Stock & Warehouse', 'Stock Transfer & Movement'],
+      stockTransfers: ['Stock & Warehouse', 'Stock Transfer & Movement'],
+      transferDashboard: ['Stock & Warehouse', 'Stock Transfer & Movement'],
       cycleCount: ['Stock & Warehouse', 'Cycle Count Audits'],
       quarantine: ['Stock & Warehouse', 'Quarantine & Quality Hold'],
       regrindScrap: ['Stock & Warehouse', 'Closed-Loop Regrind Recycling'],
@@ -462,6 +465,8 @@ export const App: React.FC = () => {
     'materialIssuing',
     'moldTooling',
     'createWoGrid',
+    'wipOperations',
+    'wip',
   ].includes(currentView);
   const isProcurement = [
     'procurementDash',
@@ -522,6 +527,9 @@ export const App: React.FC = () => {
     'subcontractDetail',
     'putaway',
     'picking',
+    'stockTransfer',
+    'stockTransfers',
+    'transferDashboard',
     'cycleCount',
     'quarantine',
     'regrindScrap',
@@ -538,11 +546,30 @@ export const App: React.FC = () => {
     'newQuote',
     'soList',
     'salesOrders',
+    'soDashboard',
+    'soWizard',
+    'soCreate',
+    'monthlyPlanOrders',
+    'dailyQuickEntry',
+    'monthlyReconciliation',
     'soDetail',
     'soConfirm',
     'soPrint',
     'deliverySchedule',
     'salesDeliveries',
+    'dispatch',
+    'dispatchDash',
+    'deliveryChallan',
+    'deliveryChallans',
+    'createChallan',
+    'challanDetail',
+    'gatePass',
+    'eWayBillMgmt',
+    'eWayBills',
+    'eInvoiceMgmt',
+    'eInvoices',
+    'complianceDashboard',
+    'complianceExceptions',
     'rmaList',
     'rmaDetail',
     'returnsRMA',
@@ -727,6 +754,7 @@ export const App: React.FC = () => {
               activeWOCount={activeWOCount}
               lowStockCount={lowStockCount}
               openPOCount={openPOCount}
+              currentUser={currentUser}
             />
           )}
 

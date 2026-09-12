@@ -14,26 +14,27 @@ import {
   FileSpreadsheet,
   CheckCircle2,
   X,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { InventoryStockItem, InventoryStockLot } from '../../types/warehouse';
 import { WarehouseStatusBadge } from './WarehouseStatusBadge';
 import { PaginationBar } from '../common/PaginationBar';
 
 interface Props {
-  stockItems: InventoryStockItem[];
-  onNavigate: (view: string, param?: any) => void;
-  openDrawer: (title: string, content: React.ReactNode, footer?: React.ReactNode) => void;
-  closeDrawer: () => void;
-  showToast: (msg: string) => void;
+  stockItems?: InventoryStockItem[];
+  onNavigate?: (view: string, param?: any) => void;
+  openDrawer?: (title: string, content: React.ReactNode, footer?: React.ReactNode) => void;
+  closeDrawer?: () => void;
+  showToast?: (msg: string) => void;
   onUpdateItem?: (updated: InventoryStockItem) => void;
 }
 
 export const StockLedgerListView: React.FC<Props> = ({
-  stockItems,
-  onNavigate,
-  openDrawer,
-  closeDrawer,
-  showToast,
+  stockItems = [],
+  onNavigate = (_view?: string, _param?: any) => {},
+  openDrawer = (_title?: string, _content?: React.ReactNode, _footer?: React.ReactNode) => {},
+  closeDrawer = () => {},
+  showToast = (_msg?: string) => {},
   onUpdateItem,
 }) => {
   const [search, setSearch] = useState('');
@@ -46,7 +47,7 @@ export const StockLedgerListView: React.FC<Props> = ({
   const categories = ['ALL', 'Virgin Polymer', 'Masterbatch', 'Regrind Polymer', 'Molded Part (FG)'];
 
   const filteredItems = useMemo(() => {
-    return stockItems.filter((item) => {
+    return (stockItems || []).filter((item) => {
       const matchSearch =
         item.sku.toLowerCase().includes(search.toLowerCase()) ||
         item.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -197,6 +198,12 @@ export const StockLedgerListView: React.FC<Props> = ({
             className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold shadow-sm transition"
           >
             <Download className="w-3.5 h-3.5" /> Export CSV
+          </button>
+          <button
+            onClick={() => onNavigate('stockTransfer')}
+            className="flex items-center gap-1.5 px-3 py-2 bg-[#0F8B8D] hover:bg-[#0d787a] text-white rounded-lg text-xs font-bold shadow-sm transition"
+          >
+            <ArrowLeftRight className="w-3.5 h-3.5" /> Stock Transfer &amp; Movement
           </button>
           <button
             onClick={() => onNavigate('binMap')}

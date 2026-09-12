@@ -11,6 +11,8 @@ import {
   HelpCircle,
   TrendingDown,
   TrendingUp,
+  Scale,
+  Zap,
 } from 'lucide-react';
 
 interface Step3Props {
@@ -230,6 +232,141 @@ export const Step3BatchOutput: React.FC<Step3Props> = ({ state, onChange, errors
                 (~{(state.estimatedProductionTimeHours * 60).toFixed(0)} mins)
               </span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Part Weight & Shot Metrics */}
+      <div className="bg-white border border-[#E4E0D6] rounded-xl p-5 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-[#E4E0D6] pb-2">
+          <h4 className="text-xs font-bold text-[#14213D] uppercase tracking-wider flex items-center gap-1.5">
+            <Scale className="w-4 h-4 text-[#0F8B8D]" />
+            Item Weight &amp; Tooling Shot Analysis
+          </h4>
+          <span className="text-xs text-gray-500">Links part net weight with runner system and polymer consumption</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+          <div className="field mb-0">
+            <label className="text-xs font-bold text-[#14213D] block mb-1">
+              Item Net Weight (Grams / Pc) <span className="text-rose-500">*</span>
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                step="0.1"
+                min="0.1"
+                value={state.itemNetWeightGrams || 45.2}
+                onChange={(e) => {
+                  const net = parseFloat(e.target.value) || 0;
+                  const cav = state.moldCavities || 4;
+                  const runner = state.runnerWeightGrams || 8.5;
+                  const shot = Number((net * cav + runner).toFixed(1));
+                  onChange({
+                    itemNetWeightGrams: net,
+                    totalShotWeightGrams: shot,
+                    batchWeightKg: Number(((net * state.batchSize) / 1000).toFixed(2)),
+                  });
+                }}
+                className="w-full font-mono font-bold text-xs py-2 px-3 border border-[#E4E0D6] rounded-lg"
+              />
+              <span className="absolute right-3 top-2 text-[10px] text-gray-400 font-bold">grams</span>
+            </div>
+            <span className="text-[10px] text-gray-500 mt-1 block">Finished molded part weight without gate</span>
+          </div>
+
+          <div className="field mb-0">
+            <label className="text-xs font-bold text-[#14213D] block mb-1">Mold Cavities Count</label>
+            <input
+              type="number"
+              min="1"
+              max="64"
+              value={state.moldCavities || 4}
+              onChange={(e) => {
+                const cav = parseInt(e.target.value) || 1;
+                const net = state.itemNetWeightGrams || 45.2;
+                const runner = state.runnerWeightGrams || 8.5;
+                const shot = Number((net * cav + runner).toFixed(1));
+                onChange({
+                  moldCavities: cav,
+                  totalShotWeightGrams: shot,
+                });
+              }}
+              className="w-full font-mono font-bold text-xs py-2 px-3 border border-[#E4E0D6] rounded-lg"
+            />
+            <span className="text-[10px] text-gray-500 mt-1 block">Number of live active impressions</span>
+          </div>
+
+          <div className="field mb-0">
+            <label className="text-xs font-bold text-[#14213D] block mb-1">Cold Runner &amp; Sprue (Grams)</label>
+            <div className="relative">
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                value={state.runnerWeightGrams || 8.5}
+                onChange={(e) => {
+                  const runner = parseFloat(e.target.value) || 0;
+                  const net = state.itemNetWeightGrams || 45.2;
+                  const cav = state.moldCavities || 4;
+                  const shot = Number((net * cav + runner).toFixed(1));
+                  onChange({
+                    runnerWeightGrams: runner,
+                    totalShotWeightGrams: shot,
+                  });
+                }}
+                className="w-full font-mono font-bold text-xs py-2 px-3 border border-[#E4E0D6] rounded-lg"
+              />
+              <span className="absolute right-3 top-2 text-[10px] text-gray-400 font-bold">g/shot</span>
+            </div>
+            <span className="text-[10px] text-gray-500 mt-1 block">Recyclable regrind runner per cycle</span>
+          </div>
+
+          <div className="field mb-0">
+            <label className="text-xs font-bold text-[#14213D] block mb-1">Total Shot Weight</label>
+            <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between">
+              <div>
+                <span className="text-base font-mono font-bold text-emerald-900">
+                  {(state.totalShotWeightGrams || ((state.itemNetWeightGrams || 45.2) * (state.moldCavities || 4) + (state.runnerWeightGrams || 8.5))).toFixed(1)}
+                </span>
+                <span className="text-[10px] text-emerald-700 ml-1 font-bold">g/shot</span>
+              </div>
+              <span className="text-[10px] text-emerald-700 bg-emerald-100/60 px-1.5 py-0.5 rounded font-medium">
+                {state.moldCavities || 4} Parts + Runner
+              </span>
+            </div>
+            <span className="text-[10px] text-gray-500 mt-1 block">Barrel plasticizing dosage per cycle</span>
+          </div>
+        </div>
+
+        {/* Live Calculation KPI bar */}
+        <div className="bg-[#FAF9F5] border border-[#E4E0D6] rounded-lg p-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div>
+            <span className="text-[10px] text-gray-500 uppercase font-semibold block">Hourly Shot Rate</span>
+            <span className="font-mono font-bold text-[#14213D]">
+              {state.standardCycleTimeSec > 0 ? (3600 / state.standardCycleTimeSec).toFixed(0) : 0} shots/hr
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] text-gray-500 uppercase font-semibold block">Hourly Piece Output</span>
+            <span className="font-mono font-bold text-emerald-700">
+              {state.standardCycleTimeSec > 0 ? ((3600 / state.standardCycleTimeSec) * (state.moldCavities || 4)).toFixed(0) : 0} pcs/hr
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] text-gray-500 uppercase font-semibold block">Plastic Throughput Rate</span>
+            <span className="font-mono font-bold text-[#0F8B8D]">
+              {state.standardCycleTimeSec > 0
+                ? (((state.totalShotWeightGrams || 53.7) * (3600 / state.standardCycleTimeSec)) / 1000).toFixed(2)
+                : 0}{' '}
+              kg/hr
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] text-gray-500 uppercase font-semibold block">Total Batch Net Resin</span>
+            <span className="font-mono font-bold text-indigo-700">
+              {(((state.itemNetWeightGrams || 45.2) * state.batchSize) / 1000).toFixed(2)} kg
+            </span>
           </div>
         </div>
       </div>

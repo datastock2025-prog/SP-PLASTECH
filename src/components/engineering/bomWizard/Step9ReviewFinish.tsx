@@ -244,7 +244,7 @@ export const Step9ReviewFinish: React.FC<Step9Props> = ({
             </div>
           </div>
           {openSections.batch && (
-            <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
               <div>
                 <span className="text-gray-400 text-[10px] uppercase font-semibold block">Expected FG Qty</span>
                 <span className="font-mono font-bold text-emerald-700">
@@ -252,8 +252,16 @@ export const Step9ReviewFinish: React.FC<Step9Props> = ({
                 </span>
               </div>
               <div>
-                <span className="text-gray-400 text-[10px] uppercase font-semibold block">Cycle Time / Piece</span>
+                <span className="text-gray-400 text-[10px] uppercase font-semibold block">Cycle Time</span>
                 <span className="font-mono font-bold text-amber-700">{state.standardCycleTimeSec}s</span>
+              </div>
+              <div>
+                <span className="text-gray-400 text-[10px] uppercase font-semibold block">Part Net Weight</span>
+                <span className="font-mono font-bold text-blue-700">{state.itemNetWeightGrams || 45.2}g</span>
+              </div>
+              <div>
+                <span className="text-gray-400 text-[10px] uppercase font-semibold block">Total Shot Wt</span>
+                <span className="font-mono font-bold text-purple-700">{state.totalShotWeightGrams || 53.7}g</span>
               </div>
               <div>
                 <span className="text-gray-400 text-[10px] uppercase font-semibold block">Run Time / Batch</span>

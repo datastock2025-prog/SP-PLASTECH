@@ -37,6 +37,7 @@ import { RegrindScrapClosedLoopView } from './warehouse/RegrindScrapClosedLoopVi
 import { SubcontractingManagementView } from './warehouse/SubcontractingManagementView';
 import { BarcodeScannerSimulatorView } from './warehouse/BarcodeScannerSimulatorView';
 import { LabelPrintingGeneratorView } from './warehouse/LabelPrintingGeneratorView';
+import { StockTransferManager } from './stockTransfer/StockTransferManager';
 
 interface WarehouseProps {
   view: string;
@@ -152,6 +153,15 @@ export const WarehouseViews: React.FC<WarehouseProps> = ({
         onUpdateTask={(task) => {
           setPickTasks((prev) => prev.map((t) => (t.id === task.id ? task : t)));
         }}
+      />
+    );
+  }
+
+  // 5b. Stock Transfer & Movement (Intra-Plant, Inter-Plant, Returnable DC, Asset/Mold)
+  if (view === 'stockTransfer' || view === 'stockTransfers' || view === 'transferDashboard') {
+    return (
+      <StockTransferManager
+        onBackToWarehouse={() => onNavigate('stockList')}
       />
     );
   }

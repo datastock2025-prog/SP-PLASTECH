@@ -57,6 +57,10 @@ export interface ManufacturingBomWizardState {
   scrapPct: number;
   cycleTimeSource: 'Item Master' | 'Routing' | 'Machine/Mold Specific' | 'Manual';
   standardCycleTimeSec: number;
+  itemNetWeightGrams: number;
+  runnerWeightGrams: number;
+  totalShotWeightGrams: number;
+  moldCavities: number;
   estimatedProductionTimeHours: number;
   defaultInputLocation: string;
   defaultWipLocation: string;
