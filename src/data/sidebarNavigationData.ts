@@ -133,6 +133,7 @@ export const NAVIGATION_GROUPS: NavGroupDef[] = [
       { id: 'nav-crm-feedback', label: 'Complaints & Claims', view: 'crmFeedback', icon: 'MessageSquare', subGroup: 'CRM' },
       // Sales
       { id: 'nav-sales-dash', label: 'Sales Dashboard', view: 'salesDash', icon: 'TrendingUp', subGroup: 'Sales' },
+      { id: 'nav-so-dashboard', label: 'Order Command Center', view: 'soDashboard', icon: 'Layers', badge: '15 KPIs', badgeColor: 'bg-[#0F8B8D]', subGroup: 'Sales' },
       { id: 'nav-sales-quotes', label: 'Quotations', view: 'quoteList', icon: 'FileText', subGroup: 'Sales' },
       { id: 'nav-sales-orders', label: 'Sales Orders', view: 'soList', icon: 'ShoppingBag', badge: 'Redesigned', badgeColor: 'bg-indigo-600', subGroup: 'Sales' },
       { id: 'nav-monthly-plans', label: 'Monthly Plan Orders', view: 'monthlyPlanOrders', icon: 'Calendar', subGroup: 'Sales' },

@@ -143,8 +143,8 @@ export const SalesOrderDetail: React.FC<SalesOrderDetailProps> = ({
         </div>
         <div className="p-2">
           <div className="text-[10px] uppercase font-bold text-gray-400">Credit Status</div>
-          <div className={`text-xs font-bold ${order.creditStatus === 'Approved' ? 'text-emerald-700' : 'text-red-700'}`}>
-            {order.creditStatus.toUpperCase()}
+          <div className={`text-xs font-bold ${order?.creditStatus === 'Approved' ? 'text-emerald-700' : 'text-red-700'}`}>
+            {(order?.creditStatus || 'Approved').toUpperCase()}
           </div>
         </div>
         <div className="p-2">

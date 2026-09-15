@@ -108,6 +108,60 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
     editItem?.safetyStock ? parseInt(editItem.safetyStock) : 6000
   );
 
+  // Post-Molding Routing Destination Checkboxes: DOL, ASSEMPLY, DEFLASH
+  // DOL -> directly to FG-STORE
+  // ASSEMPLY -> assembly inventory store (ASSEMBLY-STORE)
+  // DEFLASH -> deflash inventory (DEFLASH-STORE)
+  const initialRouting: 'DOL' | 'ASSEMBLY' | 'DEFLASH' = editItem?.routingDestination ||
+    (editItem?.isDeflash ? 'DEFLASH' : editItem?.isAssembly ? 'ASSEMBLY' : editItem?.isDol ? 'DOL' : 'DOL');
+
+  const [routingDestination, setRoutingDestination] = useState<'DOL' | 'ASSEMBLY' | 'DEFLASH'>(initialRouting);
+  const [isDol, setIsDol] = useState<boolean>(editItem?.isDol ?? (initialRouting === 'DOL'));
+  const [isAssembly, setIsAssembly] = useState<boolean>(editItem?.isAssembly ?? (initialRouting === 'ASSEMBLY'));
+  const [isDeflash, setIsDeflash] = useState<boolean>(editItem?.isDeflash ?? (initialRouting === 'DEFLASH'));
+
+  const handleToggleDol = (checked: boolean) => {
+    if (checked) {
+      setIsDol(true);
+      setIsAssembly(false);
+      setIsDeflash(false);
+      setRoutingDestination('DOL');
+      if (defaultWarehouse === 'RM-WH-01' && selectedType === 'Finished Good') {
+        setDefaultWarehouse('FG-WH-01');
+      }
+    } else {
+      setIsDol(false);
+      setIsDeflash(true);
+      setRoutingDestination('DEFLASH');
+    }
+  };
+
+  const handleToggleAssembly = (checked: boolean) => {
+    if (checked) {
+      setIsDol(false);
+      setIsAssembly(true);
+      setIsDeflash(false);
+      setRoutingDestination('ASSEMBLY');
+    } else {
+      setIsAssembly(false);
+      setIsDol(true);
+      setRoutingDestination('DOL');
+    }
+  };
+
+  const handleToggleDeflash = (checked: boolean) => {
+    if (checked) {
+      setIsDol(false);
+      setIsAssembly(false);
+      setIsDeflash(true);
+      setRoutingDestination('DEFLASH');
+    } else {
+      setIsDeflash(false);
+      setIsDol(true);
+      setRoutingDestination('DOL');
+    }
+  };
+
   // Step 6: Quality Settings
   const [iqcMandatory, setIqcMandatory] = useState<boolean>(editItem?.qc ?? true);
   const [coaRequired, setCoaRequired] = useState<boolean>(true);
@@ -266,6 +320,10 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       supplier: preferredSupplier,
       hsCode: hsnCode,
       moistureSensitive,
+      routingDestination,
+      isDol,
+      isAssembly,
+      isDeflash,
     };
     onSaveItem(draftItem);
     showToast(`Draft item ${draftItem.code} saved successfully.`);
@@ -308,6 +366,10 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       supplier: preferredSupplier,
       hsCode: hsnCode,
       moistureSensitive,
+      routingDestination,
+      isDol,
+      isAssembly,
+      isDeflash,
     };
 
     onSaveItem(finalItem);
@@ -947,6 +1009,172 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                       />
                     </div>
                   </div>
+
+                  {/* Post-Production Routing & Store Destination (DOL, ASSEMPLY, DEFLASH) */}
+                  <div className="pt-3 border-t border-slate-200 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                          <span>Post-Molding Routing Destination Checkboxes</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold border border-blue-200 uppercase tracking-wide">
+                            Daily Production Direct Routing
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Select the destination store for this item. When daily production entry is saved, output is automatically routed to this store.
+                        </p>
+                      </div>
+                      <div className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 flex items-center gap-1.5">
+                        <span className="text-slate-500">Destination:</span>
+                        <span className={`font-bold ${
+                          routingDestination === 'DOL' ? 'text-emerald-700' :
+                          routingDestination === 'ASSEMBLY' ? 'text-purple-700' : 'text-amber-700'
+                        }`}>
+                          {routingDestination === 'DOL' ? 'FG-STORE (Direct to FG)' :
+                           routingDestination === 'ASSEMBLY' ? 'ASSEMBLY-STORE (Assembly Store)' :
+                           'DEFLASH-STORE (Deflash Store)'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 3 Checkbox Cards: DOL, ASSEMPLY, DEFLASH */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                      {/* 1. DOL Checkbox */}
+                      <label className={`relative flex flex-col justify-between p-3.5 rounded-xl border-2 cursor-pointer transition-all select-none ${
+                        isDol
+                          ? 'border-emerald-600 bg-emerald-50/70 shadow-xs'
+                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+                      }`}>
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-1.5">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={isDol}
+                                onChange={(e) => handleToggleDol(e.target.checked)}
+                                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                              />
+                              <span className="font-bold text-slate-900 text-sm">DOL</span>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              isDol ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-200'
+                            }`}>
+                              &rarr; FG-STORE
+                            </span>
+                          </div>
+                          <div className="text-[11px] font-semibold text-emerald-800">
+                            Direct On Line &rarr; FG-store
+                          </div>
+                          <p className="mt-1.5 text-[11px] text-slate-600 leading-snug">
+                            When <strong>DOL</strong> is checked, daily production entry directly deposits finished output into <strong>FG-STORE</strong> (Finished Goods), bypassing secondary finishing.
+                          </p>
+                        </div>
+                        <div className="mt-2.5 pt-2 border-t border-emerald-200/60 flex items-center justify-between text-[10px]">
+                          <span className="text-emerald-700 font-medium">Status: {isDol ? 'Active Target Store' : 'Inactive'}</span>
+                          <span className="font-mono text-emerald-900 font-bold">Store: FG-STORE</span>
+                        </div>
+                      </label>
+
+                      {/* 2. ASSEMPLY Checkbox */}
+                      <label className={`relative flex flex-col justify-between p-3.5 rounded-xl border-2 cursor-pointer transition-all select-none ${
+                        isAssembly
+                          ? 'border-purple-600 bg-purple-50/70 shadow-xs'
+                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+                      }`}>
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-1.5">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={isAssembly}
+                                onChange={(e) => handleToggleAssembly(e.target.checked)}
+                                className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer accent-purple-600"
+                              />
+                              <span className="font-bold text-slate-900 text-sm">ASSEMPLY</span>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              isAssembly ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-200'
+                            }`}>
+                              &rarr; ASSEMBLY-STORE
+                            </span>
+                          </div>
+                          <div className="text-[11px] font-semibold text-purple-800">
+                            Assembly &rarr; Assembly Inventory Store
+                          </div>
+                          <p className="mt-1.5 text-[11px] text-slate-600 leading-snug">
+                            When <strong>ASSEMPLY</strong> is checked, daily production entry routes output to <strong>ASSEMBLY-STORE</strong> for secondary inserts, fittings, or multi-component assembly.
+                          </p>
+                        </div>
+                        <div className="mt-2.5 pt-2 border-t border-purple-200/60 flex items-center justify-between text-[10px]">
+                          <span className="text-purple-700 font-medium">Status: {isAssembly ? 'Active Target Store' : 'Inactive'}</span>
+                          <span className="font-mono text-purple-900 font-bold">Store: ASSEMBLY-STORE</span>
+                        </div>
+                      </label>
+
+                      {/* 3. DEFLASH Checkbox */}
+                      <label className={`relative flex flex-col justify-between p-3.5 rounded-xl border-2 cursor-pointer transition-all select-none ${
+                        isDeflash
+                          ? 'border-amber-600 bg-amber-50/70 shadow-xs'
+                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+                      }`}>
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-1.5">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={isDeflash}
+                                onChange={(e) => handleToggleDeflash(e.target.checked)}
+                                className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer accent-amber-600"
+                              />
+                              <span className="font-bold text-slate-900 text-sm">DEFLASH</span>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              isDeflash ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-200'
+                            }`}>
+                              &rarr; DEFLASH-STORE
+                            </span>
+                          </div>
+                          <div className="text-[11px] font-semibold text-amber-800">
+                            Deflash &rarr; Deflash Inventory Store
+                          </div>
+                          <p className="mt-1.5 text-[11px] text-slate-600 leading-snug">
+                            When <strong>DEFLASH</strong> is checked, daily production entry routes output to <strong>DEFLASH-STORE</strong> for runner gate cutting, burr deburring, or flame polishing.
+                          </p>
+                        </div>
+                        <div className="mt-2.5 pt-2 border-t border-amber-200/60 flex items-center justify-between text-[10px]">
+                          <span className="text-amber-700 font-medium">Status: {isDeflash ? 'Active Target Store' : 'Inactive'}</span>
+                          <span className="font-mono text-amber-900 font-bold">Store: DEFLASH-STORE</span>
+                        </div>
+                      </label>
+                    </div>
+
+                    {/* Routing Visual Process Path */}
+                    <div className={`p-3 rounded-xl border text-xs flex items-center justify-between flex-wrap gap-2 ${
+                      routingDestination === 'DOL' ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950' :
+                      routingDestination === 'ASSEMBLY' ? 'bg-purple-50/90 border-purple-300 text-purple-950' :
+                      'bg-amber-50/90 border-amber-300 text-amber-950'
+                    }`}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold uppercase tracking-wider text-[10px] px-1.5 py-0.5 rounded bg-white border shadow-2xs">
+                          Direct Flow
+                        </span>
+                        <span className="font-medium text-slate-700">Molding Production</span>
+                        <span className="text-slate-400">&rarr;</span>
+                        <span className="font-medium text-slate-700">Daily Production Entry</span>
+                        <span className="text-slate-400">&rarr;</span>
+                        <span className="px-2 py-0.5 rounded-md font-bold bg-white shadow-xs border text-slate-900">
+                          {routingDestination === 'DOL' && 'Directly Received in FG-STORE (Finished Goods)'}
+                          {routingDestination === 'ASSEMBLY' && 'Received in ASSEMBLY-STORE (Assembly Inventory)'}
+                          {routingDestination === 'DEFLASH' && 'Received in DEFLASH-STORE (Deflash Inventory)'}
+                        </span>
+                      </div>
+                      <div className="text-[11px] font-bold">
+                        {routingDestination === 'DOL' && '✓ Bypasses WIP staging directly to customer dispatch ready'}
+                        {routingDestination === 'ASSEMBLY' && '⚡ Queued for assembly hardware & packaging lines'}
+                        {routingDestination === 'DEFLASH' && '⚡ Queued for secondary deflashing & gate trimming'}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1268,6 +1496,16 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-1">
                       <div className="text-[10px] uppercase font-bold text-slate-400">Inventory &amp; Quality</div>
                       <div className="text-slate-800">Warehouse: <strong>{defaultWarehouse}</strong> ({defaultBin})</div>
+                      <div className="text-slate-800">
+                        Routing: <strong className={
+                          routingDestination === 'DOL' ? 'text-emerald-700 font-bold' :
+                          routingDestination === 'ASSEMBLY' ? 'text-purple-700 font-bold' : 'text-amber-700 font-bold'
+                        }>
+                          {routingDestination === 'DOL' ? 'DOL (FG-STORE)' :
+                           routingDestination === 'ASSEMBLY' ? 'ASSEMPLY (ASSEMBLY-STORE)' :
+                           'DEFLASH (DEFLASH-STORE)'}
+                        </strong>
+                      </div>
                       <div className="text-slate-800">Reorder: <strong>{reorderLevel.toLocaleString()} {baseUOM}</strong></div>
                       <div className="text-emerald-700 text-[11px] font-semibold">IQC Mandatory &bull; COA Required</div>
                     </div>

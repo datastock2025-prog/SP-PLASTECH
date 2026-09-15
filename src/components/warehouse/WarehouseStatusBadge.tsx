@@ -50,7 +50,8 @@ export const WarehouseStatusBadge: React.FC<Props> = ({ status, size = 'sm' }) =
   };
 
   const formatText = (st: string) => {
-    return st
+    if (!st) return 'Unknown';
+    return String(st)
       .replace(/_/g, ' ')
       .replace(/\b\w/g, (c) => c.toUpperCase());
   };

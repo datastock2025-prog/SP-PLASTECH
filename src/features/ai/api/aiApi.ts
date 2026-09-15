@@ -16,7 +16,7 @@ export const aiApi = {
     } catch {
       // Fallback deterministic analysis
       return {
-        analysis: `Parametric analysis completed for ${payload.config.domainContext.toUpperCase()}.\nAll tolerances verified within 3-sigma limits.`,
+        analysis: `Parametric analysis completed for ${(payload?.config?.domainContext || 'manufacturing').toUpperCase()}.\nAll tolerances verified within 3-sigma limits.`,
         recommendations: [
           'Verify mold cavity thermocouple calibration',
           'Inspect hopper desiccator dew point (-40°C target)',

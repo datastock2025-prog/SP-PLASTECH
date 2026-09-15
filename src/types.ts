@@ -88,6 +88,10 @@ export interface ItemMaster {
   defaultLocation?: string;
   weight?: number;
   netWeightGrams?: number;
+  routingDestination?: 'DOL' | 'ASSEMBLY' | 'DEFLASH';
+  isDol?: boolean;
+  isAssembly?: boolean;
+  isDeflash?: boolean;
 }
 
 export interface BomLine {

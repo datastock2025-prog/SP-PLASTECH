@@ -36,6 +36,7 @@ import {
   getSyntheticRecipeForPart,
 } from './jitCalculations';
 import { JitMachineRecipeConsolidation } from './JitMachineRecipeConsolidation';
+import { JitConsolidatedScheduleWorkOrders } from './JitConsolidatedScheduleWorkOrders';
 
 interface Props {
   selectedDate: string;
@@ -79,7 +80,7 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
   // Expanded job row IDs to inspect Work Order & Item completion details
   const [expandedJobIds, setExpandedJobIds] = useState<Record<string, boolean>>({});
   const [copiedScheduleNo, setCopiedScheduleNo] = useState<boolean>(false);
-  const [activeSubView, setActiveSubView] = useState<'schedule_grid' | 'recipe_consolidation'>('schedule_grid');
+  const [activeSubView, setActiveSubView] = useState<'schedule_grid' | 'recipe_consolidation' | 'consolidated_schedules'>('schedule_grid');
 
   // Filter jobs for the selected dynamic date
   const dateJobs = jobs.filter((j) => (j.planDate || selectedDate) === selectedDate);
@@ -361,13 +362,13 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* View Switcher: Single Schedule Grid vs Consolidated Machine Recipe Demand */}
+      {/* View Switcher: Single Schedule Grid vs Consolidated Machine Recipe Demand vs Consolidated Schedules */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-slate-200 rounded-xl p-2.5 shadow-2xs">
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center flex-wrap gap-1.5">
           <button
             type="button"
             onClick={() => setActiveSubView('schedule_grid')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
               activeSubView === 'schedule_grid'
                 ? 'bg-indigo-600 text-white shadow-xs'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -389,7 +390,7 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
           <button
             type="button"
             onClick={() => setActiveSubView('recipe_consolidation')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
               activeSubView === 'recipe_consolidation'
                 ? 'bg-indigo-600 text-white shadow-xs'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -407,15 +408,41 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
               Each Machine Demand
             </span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSubView('consolidated_schedules')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activeSubView === 'consolidated_schedules'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Consolidated Schedule & Work Orders</span>
+            <span
+              className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                activeSubView === 'consolidated_schedules'
+                  ? 'bg-indigo-700 text-white'
+                  : 'bg-indigo-50 text-indigo-700'
+              }`}
+            >
+              Schedule # & Date Wise
+            </span>
+          </button>
         </div>
 
         <div className="text-xs text-slate-500 font-medium">
           {activeSubView === 'schedule_grid' ? (
             <span>💡 Click any machine row to view Work Order specs & material availability</span>
-          ) : (
+          ) : activeSubView === 'recipe_consolidation' ? (
             <span>
               💡 Showing per-machine recipe dosage (Resin KG, Masterbatch KG, boxes) for{' '}
               <strong>{selectedDate}</strong>
+            </span>
+          ) : (
+            <span>
+              💡 Click any schedule row or schedule number to drill into all work orders for that date
             </span>
           )}
         </div>
@@ -432,6 +459,27 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
           molds={molds}
           boms={boms}
           stores={stores}
+        />
+      ) : activeSubView === 'consolidated_schedules' ? (
+        <JitConsolidatedScheduleWorkOrders
+          jobs={jobs}
+          machines={machines}
+          items={items}
+          molds={molds}
+          boms={boms}
+          stores={stores}
+          workOrders={workOrders}
+          activeScheduleDate={selectedDate}
+          onSelectScheduleDate={(date) => onChangeDate(date)}
+          onNavigateToScheduleGrid={(date) => {
+            onChangeDate(date);
+            setActiveSubView('schedule_grid');
+          }}
+          onReleaseSingleJob={onReleaseSingleJob}
+          onReleaseSchedule={onReleaseSchedule}
+          onViewRecipe={onViewRecipe}
+          onExportExcel={onExportExcel}
+          onExportCsv={onExportCsv}
         />
       ) : (
         /* SINGLE MASTER GRID: Listed out on this particular date under Schedule Number */

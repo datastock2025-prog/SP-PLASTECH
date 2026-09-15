@@ -42,7 +42,7 @@ export const ScmRbacView: React.FC<ScmRbacViewProps> = ({ onNavigate, showToast 
         return r;
       })
     );
-    showToast(`Updated ${permKey.toUpperCase()} permission for ${moduleName}`);
+    showToast(`Updated ${(permKey || '').toUpperCase()} permission for ${moduleName}`);
   };
 
   return (

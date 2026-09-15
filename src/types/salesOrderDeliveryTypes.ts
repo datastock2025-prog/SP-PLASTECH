@@ -497,26 +497,36 @@ export interface ConsolidatedEwbRecord {
 }
 
 export interface GatePassRecord {
+  id?: string;
   gatePassNumber: string;
   deliveryNoteNumber: string;
-  invoiceOrChallanNumber: string;
+  deliveryNoteId?: string;
+  invoiceOrChallanNumber?: string;
   vehicleNumber: string;
   driverName: string;
-  driverMobile: string;
-  transporter: string;
+  driverMobile?: string;
+  driverPhone?: string;
+  transporter?: string;
+  transporterName?: string;
+  gateNumber?: string;
+  ewbNumber?: string;
   lrNumber: string;
   sealNumber: string;
   packageCount: number;
+  totalPackages?: number;
   grossWeightKg: number;
-  departureTime: string;
-  securityVerifiedBy: string;
-  dispatchApprovedBy: string;
+  departureTime?: string;
+  securityVerifiedBy?: string;
+  dispatchApprovedBy?: string;
   status: GatePassStatus;
+  securityCheckStatus?: 'Pending' | 'Cleared' | 'Security Hold' | string;
   vehiclePhotoCaptured: boolean;
   sealPhotoCaptured: boolean;
   ewbQrScanned: boolean;
   eInvoiceQrVerified: boolean;
   remarks?: string;
+  gateOutTimestamp?: string;
+  holdReason?: string;
 }
 
 export interface ComplianceExceptionRecord {

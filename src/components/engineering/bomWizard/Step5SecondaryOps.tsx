@@ -70,7 +70,7 @@ export const Step5SecondaryOps: React.FC<Step5Props> = ({ state, items, onChange
     setEditingIndex(null);
     const op = presetType || 'Trimming';
     setOperationType(op);
-    setPartCode(`SEC-${op.toUpperCase().slice(0, 4)}-${secondaryOperations.length + 1}`);
+    setPartCode(`SEC-${(op || '').toUpperCase().slice(0, 4)}-${secondaryOperations.length + 1}`);
     setPartName(`${op} for ${parentItem.name}`);
     setDescription(`Standard post-molding ${op.toLowerCase()} step.`);
     setInputItem(parentItem.code);

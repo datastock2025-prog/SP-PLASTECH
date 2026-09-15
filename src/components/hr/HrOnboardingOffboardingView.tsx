@@ -79,7 +79,7 @@ export const HrOnboardingOffboardingView: React.FC<HrOnboardingOffboardingViewPr
         shift: formData.shift,
         supervisor: formData.supervisor,
         mobile: formData.mobile || '+91 98220 12345',
-        email: formData.email || `${formData.firstName.toLowerCase() || 'rahul'}.${formData.lastName.toLowerCase() || 'shinde'}@plasticserp.internal`,
+        email: formData.email || `${(formData.firstName || 'rahul').toLowerCase()}.${(formData.lastName || 'shinde').toLowerCase()}@plasticserp.internal`,
         nationalIdMasked: formData.nationalId,
         bankAccountMasked: formData.bankAccount,
         emergencyContact: {

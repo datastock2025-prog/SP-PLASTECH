@@ -80,7 +80,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, lastLoggedOut
         const shiftObj = SHIFTS.find(s => s.id === selectedShift);
         const customUser: AuthUser = {
           id: `USR-${Date.now().toString().slice(-4)}`,
-          name: email.split('@')[0].replace('.', ' ').toUpperCase(),
+          name: (email.split('@')[0] || 'User').replace('.', ' ').toUpperCase(),
           email: email.trim(),
           role: 'Plant System Engineer',
           roleType: 'admin',
@@ -91,7 +91,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, lastLoggedOut
           badgeId: `OPR-${Math.floor(100 + Math.random() * 900)}`,
           pin: '1234',
           avatarColor: 'from-[#0F8B8D] to-[#14213D]',
-          initials: email.slice(0, 2).toUpperCase(),
+          initials: (email || 'US').slice(0, 2).toUpperCase(),
           permissions: ['all', 'admin', 'mfg', 'qc', 'wh', 'finance']
         };
         setIsLoading(false);
@@ -504,7 +504,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, lastLoggedOut
                   >
                     {DEMO_USERS.map((u) => (
                       <option key={u.id} value={u.id}>
-                        {u.name} ({u.roleType.toUpperCase()} - {u.badgeId})
+                        {u.name} ({(u.roleType || 'user').toUpperCase()} - {u.badgeId})
                       </option>
                     ))}
                   </select>

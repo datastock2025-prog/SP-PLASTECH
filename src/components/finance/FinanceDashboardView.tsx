@@ -192,7 +192,18 @@ export const FinanceDashboardView: React.FC<Props> = ({
       </div>
 
       {/* Quick Navigation Action Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+        <button
+          onClick={() => onNavigate('jeList')}
+          className="p-3 bg-white rounded-xl border border-[#E4E0D6] hover:border-[#0F8B8D] hover:bg-[#F6F4EF] text-left transition-all group"
+        >
+          <div className="p-2 w-fit rounded-lg bg-indigo-50 text-indigo-600 mb-2 group-hover:scale-105 transition-transform">
+            <BookOpen className="w-4 h-4" />
+          </div>
+          <div className="text-xs font-bold text-[#14213D]">General Ledger</div>
+          <div className="text-[10px] text-[#6B7280]">Journal &amp; Audit</div>
+        </button>
+
         <button
           onClick={() => onNavigate('apDash')}
           className="p-3 bg-white rounded-xl border border-[#E4E0D6] hover:border-[#0F8B8D] hover:bg-[#F6F4EF] text-left transition-all group"

@@ -41,6 +41,8 @@ import {
   WipInventoryRecord,
   PlantStoreInventoryItem,
   MaterialTransferRecord,
+  OperationalStoreType,
+  WipQcStatus,
 } from '../types/operationsWipTypes';
 
 interface ManufacturingProps {
@@ -114,6 +116,161 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
   const handleExcelImportCommit = (importedOrders: WorkOrder[]) => {
     importedOrders.forEach((wo) => onCreateWO(wo));
     showToast(`Imported ${importedOrders.length} work orders from Excel schedule.`);
+  };
+
+  // Synchronization handler when Daily Production Entry is logged
+  // Logic:
+  // - If item has DOL checked (or isDol / routingDestination === 'DOL'): routes directly to 'FG-STORE'
+  // - If item has ASSEMPLY checked (or isAssembly / routingDestination === 'ASSEMBLY'): routes to 'ASSEMBLY-STORE'
+  // - If item has DEFLASH checked (or isDeflash / routingDestination === 'DEFLASH'): routes to 'DEFLASH-STORE'
+  const handleSyncWipLot = (wo: WorkOrder, source: 'grid_entry' | 'excel_csv_upload', notes?: string) => {
+    const targetItem = items.find((i) => i.code === wo.item);
+
+    let targetStore: OperationalStoreType = 'FG-STORE';
+    let targetStage: 'FG Inventory' | 'Assembly' | 'Deflashing' = 'FG Inventory';
+    let qcStatus: WipQcStatus = 'moved_to_fg';
+    let requiresDeflash = false;
+    let requiresAssembly = false;
+
+    if (targetItem?.isDeflash || targetItem?.routingDestination === 'DEFLASH') {
+      targetStore = 'DEFLASH-STORE';
+      targetStage = 'Deflashing';
+      qcStatus = 'transferred_deflash';
+      requiresDeflash = true;
+    } else if (targetItem?.isAssembly || targetItem?.routingDestination === 'ASSEMBLY') {
+      targetStore = 'ASSEMBLY-STORE';
+      targetStage = 'Assembly';
+      qcStatus = 'transferred_assembly';
+      requiresAssembly = true;
+    } else {
+      // DOL (Direct On Line) -> directly to FG-STORE
+      targetStore = 'FG-STORE';
+      targetStage = 'FG Inventory';
+      qcStatus = 'moved_to_fg';
+    }
+
+    const goodQty = wo.completed ?? wo.qty ?? 1000;
+    const scrapQty = wo.scrap ?? 0;
+    const runnerKg = wo.runnerQty ?? 0;
+    const lumpsKg = wo.lumbesQty ?? 0;
+    const dedupKey = `${wo.id}_${wo.shift || 'Shift A'}_${wo.planDate || wo.dueDate || '2026-08-21'}`;
+
+    setWipRecords((prev) => {
+      const existingIdx = prev.findIndex((r) => r.deduplicationKey === dedupKey || r.workOrderId === wo.id);
+      if (existingIdx !== -1) {
+        const existing = prev[existingIdx];
+        const updated: WipInventoryRecord = {
+          ...existing,
+          producedQty: goodQty + scrapQty,
+          goodQty,
+          scrapQty,
+          runnerKg,
+          lumpsKg,
+          operator: wo.operator || existing.operator,
+          currentStore: targetStore,
+          currentStage: targetStage,
+          qcStatus: existing.qcStatus === 'pending_qc' ? qcStatus : existing.qcStatus,
+          requiresDeflash,
+          requiresAssembly,
+          lastUpdated: new Date().toISOString(),
+          history: [
+            {
+              event: `Daily production entry updated [${source === 'excel_csv_upload' ? 'Excel Import' : 'Grid Entry'}]`,
+              time: 'Just now',
+              by: wo.operator || 'Operator',
+              store: targetStore,
+              details: `Output routed to ${targetStore} (${targetItem?.routingDestination || (requiresDeflash ? 'DEFLASH' : requiresAssembly ? 'ASSEMPLY' : 'DOL')}). Good Qty: ${goodQty} PCS, Scrap: ${scrapQty} PCS.`,
+            },
+            ...existing.history,
+          ],
+        };
+        const nextList = [...prev];
+        nextList[existingIdx] = updated;
+        return nextList;
+      } else {
+        const newRecord: WipInventoryRecord = {
+          id: `WIP-LOT-${wo.id}-${Date.now().toString().slice(-4)}`,
+          workOrderId: wo.id,
+          batchLotNo: `LOT-${wo.item}-${(wo.planDate || '20260821').replace(/-/g, '')}-${(wo.shift || 'A').slice(0, 1)}`,
+          itemCode: wo.item,
+          itemName: targetItem?.name || wo.item,
+          bomId: wo.bomId || `BOM-${wo.item}`,
+          plantId: 'PLANT-01',
+          plantName: 'Plant 01 - Pune (Injection Molding Unit)',
+          machineId: wo.machine || 'IMM-250T-03',
+          shift: wo.shift || 'Shift A (06:00 - 14:00)',
+          productionDate: wo.planDate || wo.dueDate || '2026-08-21',
+          operator: wo.operator || 'Floor Operator',
+          source,
+          deduplicationKey: dedupKey,
+          producedQty: goodQty + scrapQty,
+          goodQty,
+          scrapQty,
+          runnerKg,
+          lumpsKg,
+          currentStore: targetStore,
+          currentStage: targetStage,
+          qcStatus,
+          requiresDeflash,
+          requiresAssembly,
+          deflashStatus: requiresDeflash ? 'pending' : undefined,
+          assemblyStatus: requiresAssembly ? 'pending' : undefined,
+          lastUpdated: new Date().toISOString(),
+          history: [
+            {
+              event: `Daily production entry logged [${source === 'excel_csv_upload' ? 'Excel Import' : 'Grid Entry'}]`,
+              time: 'Just now',
+              by: wo.operator || 'Operator',
+              store: targetStore,
+              details: `Auto-routed to ${targetStore} based on Item Master (${targetItem?.routingDestination || (requiresDeflash ? 'DEFLASH' : requiresAssembly ? 'ASSEMPLY' : 'DOL')}). Good Qty: ${goodQty} PCS.`,
+            },
+          ],
+        };
+        return [newRecord, ...prev];
+      }
+    });
+
+    // Also update plant store inventory balances so the store reflects the stock
+    setPlantStoreItems((prev) => {
+      const idx = prev.findIndex((p) => p.itemCode === wo.item && p.storeCode === targetStore);
+      if (idx !== -1) {
+        const existing = prev[idx];
+        const next = [...prev];
+        next[idx] = {
+          ...existing,
+          currentBalance: existing.currentBalance + goodQty,
+          availableBalance: existing.availableBalance + goodQty,
+          lastMovementDate: 'Today',
+        };
+        return next;
+      } else {
+        const newStoreItem: PlantStoreInventoryItem = {
+          id: `PSI-${Date.now()}-${targetStore}`,
+          plantId: 'PLANT-01',
+          storeCode: targetStore,
+          storeName: targetStore === 'FG-STORE' ? 'Finished Goods Handover Store' :
+                     targetStore === 'ASSEMBLY-STORE' ? 'Assembly Floor Store' :
+                     'Deflash Floor Store',
+          itemCode: wo.item,
+          itemName: targetItem?.name || wo.item,
+          category: targetItem?.cat || 'Finished Goods',
+          currentBalance: goodQty,
+          availableBalance: goodQty,
+          holdBalance: 0,
+          uom: 'PCS',
+          minLevel: 1000,
+          maxLevel: 50000,
+          lastMovementDate: 'Today',
+        };
+        return [newStoreItem, ...prev];
+      }
+    });
+
+    // Update WorkOrder locOutput so traveler shows the routed store
+    onUpdateWO({
+      ...wo,
+      locOutput: targetStore,
+    });
   };
 
   return (
@@ -217,6 +374,7 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
           openDrawer={openDrawer}
           closeDrawer={closeDrawer}
           showToast={showToast}
+          onSyncWipLot={handleSyncWipLot}
         />
       )}
 

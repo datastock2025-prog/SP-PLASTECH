@@ -134,12 +134,13 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
         lastLoginIp: '—',
         createdDate: new Date().toISOString().split('T')[0],
         avatarColor: 'from-[#0F8B8D] to-[#E8622C]',
-        initials: formData.fullName
+        initials: (formData.fullName || '')
           .split(' ')
+          .filter(Boolean)
           .map((n) => n[0])
           .join('')
           .toUpperCase()
-          .slice(0, 2),
+          .slice(0, 2) || 'US',
         failedLoginAttempts: 0,
       };
       setUsers([newUser, ...users]);

@@ -43,6 +43,20 @@ export const DeliveryChallanDetail: React.FC<DeliveryChallanDetailProps> = ({
   const [activeTab, setActiveTab] = useState('Overview');
   const [showJson, setShowJson] = useState(false);
 
+  if (!delivery) {
+    return (
+      <div className="bg-white p-8 rounded-xl border border-gray-200 text-center space-y-3">
+        <p className="text-sm text-gray-500 font-medium">Delivery Challan record not found or unselected.</p>
+        <button
+          onClick={onBack}
+          className="px-4 py-2 bg-[#14213D] hover:bg-[#1f335e] text-white text-xs font-semibold rounded-lg shadow-2xs"
+        >
+          Return to Delivery Register
+        </button>
+      </div>
+    );
+  }
+
   const tabs = [
     'Overview',
     'Dispatched Items',
@@ -53,6 +67,16 @@ export const DeliveryChallanDetail: React.FC<DeliveryChallanDetailProps> = ({
     'Documents',
     'Audit Trail',
   ];
+
+  const grossWeight = delivery.grossWeightKg ?? 0;
+  const netWeight = delivery.netWeightKg ?? 0;
+  const tareWeight = delivery.tareWeightKg ?? (grossWeight > netWeight ? grossWeight - netWeight : 0);
+  const distanceKm = delivery.estimatedDistanceKm ?? delivery.approxDistanceKm ?? 0;
+  const deliveryDateFormatted = delivery.deliveryDate || delivery.dispatchDate || delivery.date || '-';
+  const driverContact = delivery.driverMobile || delivery.driverPhone || 'N/A';
+  const safeItems = delivery.items || [];
+  const safePackages = delivery.packages || [];
+  const safeAudit = delivery.auditTrail || [];
 
   return (
     <div className="space-y-4">
@@ -170,7 +194,7 @@ export const DeliveryChallanDetail: React.FC<DeliveryChallanDetailProps> = ({
               </div>
               <div>
                 <span className="text-gray-400">Dispatch Date:</span>
-                <div className="font-semibold text-gray-900">{delivery.date}</div>
+                <div className="font-semibold text-gray-900">{deliveryDateFormatted}</div>
               </div>
               <div>
                 <span className="text-gray-400">Customer Legal Entity:</span>
@@ -207,15 +231,15 @@ export const DeliveryChallanDetail: React.FC<DeliveryChallanDetailProps> = ({
               </div>
               <div>
                 <span className="text-gray-400">Driver Details:</span>
-                <div className="text-gray-900">{delivery.driverName} ({delivery.driverPhone})</div>
+                <div className="text-gray-900">{delivery.driverName || 'Driver Assigned'} ({driverContact})</div>
               </div>
               <div>
                 <span className="text-gray-400">LR / Bilty #:</span>
-                <div className="font-mono font-bold text-gray-900">{delivery.lrNumber}</div>
+                <div className="font-mono font-bold text-gray-900">{delivery.lrNumber || 'N/A'}</div>
               </div>
               <div>
                 <span className="text-gray-400">Distance:</span>
-                <div className="font-bold text-gray-900">{delivery.approxDistanceKm} KM</div>
+                <div className="font-bold text-gray-900">{distanceKm} KM</div>
               </div>
               <div>
                 <span className="text-gray-400">Gate Pass:</span>
@@ -232,20 +256,22 @@ export const DeliveryChallanDetail: React.FC<DeliveryChallanDetailProps> = ({
             <div className="grid grid-cols-3 gap-2">
               <div className="bg-gray-50 p-2 rounded-lg">
                 <span className="text-gray-500">Gross Weight:</span>
-                <div className="font-mono font-bold text-gray-900 text-sm mt-0.5">{delivery.grossWeightKg} Kg</div>
+                <div className="font-mono font-bold text-gray-900 text-sm mt-0.5">{grossWeight} Kg</div>
               </div>
               <div className="bg-gray-50 p-2 rounded-lg">
                 <span className="text-gray-500">Tare Weight:</span>
-                <div className="font-mono font-bold text-gray-900 text-sm mt-0.5">{delivery.tareWeightKg} Kg</div>
+                <div className="font-mono font-bold text-gray-900 text-sm mt-0.5">{tareWeight} Kg</div>
               </div>
               <div className="bg-emerald-50 p-2 rounded-lg text-emerald-900">
                 <span className="text-emerald-700">Net Weight:</span>
-                <div className="font-mono font-bold text-sm mt-0.5">{delivery.netWeightKg} Kg</div>
+                <div className="font-mono font-bold text-sm mt-0.5">{netWeight} Kg</div>
               </div>
             </div>
             <div className="border-t pt-2">
               <span className="text-gray-400">Packaging Protocol:</span>
-              <div className="text-gray-800 mt-0.5">{delivery.packagingType} ({delivery.packageCount} units)</div>
+              <div className="text-gray-800 mt-0.5">
+                {delivery.packagingType || (safePackages[0]?.packageType) || 'Palletized Corrugated Cartons'} ({delivery.packageCount ?? safePackages.length ?? 0} units)
+              </div>
             </div>
           </div>
 
@@ -257,23 +283,31 @@ export const DeliveryChallanDetail: React.FC<DeliveryChallanDetailProps> = ({
             <div className="space-y-1">
               <div className="flex justify-between text-gray-600">
                 <span>Taxable Amount:</span>
-                <span className="font-mono font-semibold text-gray-900">₹{delivery.taxableAmount.toLocaleString()}</span>
+                <span className="font-mono font-semibold text-gray-900">
+                  ₹{(delivery.taxableValue ?? delivery.taxableAmount ?? 0).toLocaleString()}
+                </span>
               </div>
               <div className="flex justify-between text-gray-600">
                 <span>CGST (9%):</span>
-                <span className="font-mono font-semibold text-gray-900">₹{delivery.cgstTotal.toLocaleString()}</span>
+                <span className="font-mono font-semibold text-gray-900">
+                  ₹{(delivery.cgstAmount ?? delivery.cgstTotal ?? 0).toLocaleString()}
+                </span>
               </div>
               <div className="flex justify-between text-gray-600">
                 <span>SGST (9%):</span>
-                <span className="font-mono font-semibold text-gray-900">₹{delivery.sgstTotal.toLocaleString()}</span>
+                <span className="font-mono font-semibold text-gray-900">
+                  ₹{(delivery.sgstAmount ?? delivery.sgstTotal ?? 0).toLocaleString()}
+                </span>
               </div>
               <div className="flex justify-between text-gray-600">
                 <span>IGST (18%):</span>
-                <span className="font-mono font-semibold text-gray-900">₹{delivery.igstTotal.toLocaleString()}</span>
+                <span className="font-mono font-semibold text-gray-900">
+                  ₹{(delivery.igstAmount ?? delivery.igstTotal ?? 0).toLocaleString()}
+                </span>
               </div>
               <div className="border-t pt-1.5 flex justify-between font-bold text-sm text-[#14213D]">
                 <span>Total Invoice Value:</span>
-                <span className="font-mono">₹{delivery.invoiceValue.toLocaleString()}</span>
+                <span className="font-mono">₹{(delivery.invoiceValue ?? 0).toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -297,20 +331,39 @@ export const DeliveryChallanDetail: React.FC<DeliveryChallanDetailProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {delivery.items.map((it) => (
-                <tr key={it.lineNumber} className="hover:bg-gray-50">
-                  <td className="p-2.5 font-mono text-gray-500">{it.lineNumber}</td>
-                  <td className="p-2.5 font-semibold text-gray-900">{it.itemName}</td>
-                  <td className="p-2.5 font-mono text-gray-600">{it.hsn}</td>
-                  <td className="p-2.5 text-right font-bold text-gray-900">{it.dispatchedQty.toLocaleString()} {it.uom}</td>
-                  <td className="p-2.5 font-mono text-[11px]">
-                    {it.allocatedBatches.map((b) => `${b.batchNumber} (${b.allocatedQty})`).join(', ')}
-                  </td>
-                  <td className="p-2.5 font-mono text-emerald-700 font-semibold">{it.coaNumber}</td>
-                  <td className="p-2.5 text-right font-mono">₹{it.unitPrice}</td>
-                  <td className="p-2.5 text-right font-mono font-bold text-gray-900">₹{it.taxableValue.toLocaleString()}</td>
-                </tr>
-              ))}
+              {safeItems.map((it, idx) => {
+                const qty = it.deliveredQty ?? it.packedQty ?? it.pickedQty ?? it.requestedQty ?? it.orderedQty ?? 0;
+                const lineNum = it.soLineNumber ?? (idx + 1);
+                const taxable = it.taxableValue ?? it.lineTotal ?? (qty * (it.unitPrice || 0));
+                const batchDisplay = it.batchLot
+                  ? `${it.batchLot} (${it.locationCode || 'Warehouse Store'})`
+                  : it.allocatedBatches && Array.isArray(it.allocatedBatches)
+                  ? it.allocatedBatches.map((b: any) => `${b.batchNumber} (${b.allocatedQty})`).join(', ')
+                  : 'Batch Assigned';
+                const coaDisplay = it.coaNumber || (it.batchLot ? `COA-${it.batchLot.replace('B-', '')}` : 'Certified Passed');
+
+                return (
+                  <tr key={it.soLineNumber || idx} className="hover:bg-gray-50">
+                    <td className="p-2.5 font-mono text-gray-500">{lineNum}</td>
+                    <td className="p-2.5">
+                      <div className="font-semibold text-gray-900">{it.itemName}</div>
+                      <div className="font-mono text-[10px] text-gray-400">{it.itemCode}</div>
+                    </td>
+                    <td className="p-2.5 font-mono text-gray-600">{it.hsn || '39269099'}</td>
+                    <td className="p-2.5 text-right font-bold text-gray-900">
+                      {qty.toLocaleString()} {it.uom}
+                    </td>
+                    <td className="p-2.5 font-mono text-[11px] text-gray-700">
+                      {batchDisplay}
+                    </td>
+                    <td className="p-2.5 font-mono text-emerald-700 font-semibold">{coaDisplay}</td>
+                    <td className="p-2.5 text-right font-mono">₹{(it.unitPrice || 0).toLocaleString()}</td>
+                    <td className="p-2.5 text-right font-mono font-bold text-gray-900">
+                      ₹{taxable.toLocaleString()}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -515,7 +568,7 @@ export const DeliveryChallanDetail: React.FC<DeliveryChallanDetailProps> = ({
           </h3>
 
           <div className="space-y-3">
-            {delivery.auditTrail.map((log, idx) => (
+            {safeAudit.map((log, idx) => (
               <div key={idx} className="flex items-start gap-3">
                 <div className="w-2 h-2 rounded-full bg-[#0F8B8D] mt-1.5 shrink-0"></div>
                 <div>

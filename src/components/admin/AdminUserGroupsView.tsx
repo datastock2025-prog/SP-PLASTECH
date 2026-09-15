@@ -58,7 +58,7 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
     const created: UserGroup = {
       id: `GRP-0${groups.length + 1}`,
       name: newGroupForm.name,
-      code: newGroupForm.code.toUpperCase(),
+      code: (newGroupForm.code || '').toUpperCase(),
       department: newGroupForm.department,
       description: newGroupForm.description,
       membersCount: 1,

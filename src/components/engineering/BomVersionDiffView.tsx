@@ -751,7 +751,7 @@ export const BomVersionDiffView: React.FC<BomVersionDiffViewProps> = ({
     ];
 
     const rows = diffRows.map((r) => [
-      r.changeType.toUpperCase(),
+      (r.changeType || '').toUpperCase(),
       `"${r.itemCode}"`,
       `"${r.itemName}"`,
       `"${r.category}"`,

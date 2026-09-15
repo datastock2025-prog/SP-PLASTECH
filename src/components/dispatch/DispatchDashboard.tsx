@@ -19,6 +19,7 @@ import {
   AlertOctagon,
   UploadCloud,
   FileSpreadsheet,
+  X,
 } from 'lucide-react';
 import {
   DeliveryNoteChallan,
@@ -35,6 +36,7 @@ interface DispatchDashboardProps {
   gatePasses?: GatePassRecord[];
   exceptions?: ComplianceExceptionRecord[];
   onNavigate?: (view: string, param?: any) => void;
+  onIssueGatePass?: (pass: GatePassRecord, deliveryId?: string) => void;
   showToast?: (msg: string) => void;
 }
 
@@ -45,15 +47,72 @@ export const DispatchDashboard: React.FC<DispatchDashboardProps> = ({
   gatePasses = [],
   exceptions = [],
   onNavigate = (_view?: string, _param?: any) => {},
+  onIssueGatePass,
   showToast = (_msg?: string) => {},
 }) => {
   const [activeFilter, setActiveFilter] = useState('All');
+  const [isIssuePassModalOpen, setIsIssuePassModalOpen] = useState(false);
+  const [selectedDeliveryId, setSelectedDeliveryId] = useState<string>('');
+  const [selectedGate, setSelectedGate] = useState('Plant 1 Gate 2');
+  const [bayNumber, setBayNumber] = useState('Bay 2 - Dispatch Deck');
+  const [sealNumber, setSealNumber] = useState('SL-90812');
+  const [driverContact, setDriverContact] = useState('+91 98220 19281');
 
   const safeDeliveries = deliveries || [];
   const safeEInvoices = eInvoices || [];
   const safeEWayBills = eWayBills || [];
   const safeGatePasses = gatePasses || [];
   const safeExceptions = exceptions || [];
+
+  // Selected delivery for gate pass modal
+  const targetDelivery = safeDeliveries.find((d) => d.id === selectedDeliveryId) || safeDeliveries[0];
+
+  const handleCreateAndIssueGatePass = () => {
+    if (!targetDelivery) {
+      showToast('Please select a delivery challan first.');
+      return;
+    }
+
+    const passNumber = `GP-2026-0${Math.floor(100 + Math.random() * 900)}`;
+    const newPass: GatePassRecord = {
+      id: passNumber,
+      gatePassNumber: passNumber,
+      deliveryId: targetDelivery.id,
+      deliveryNumber: targetDelivery.id,
+      salesOrderId: targetDelivery.salesOrderId,
+      customerName: targetDelivery.customer,
+      vehicleNumber: targetDelivery.vehicleNumber,
+      driverName: targetDelivery.driverName || 'Driver Assigned',
+      driverContact: driverContact || targetDelivery.driverContact || '+91 98220 19281',
+      transporterName: targetDelivery.transporterName,
+      ewbNumber: targetDelivery.ewbNumber,
+      invoiceNumber: targetDelivery.invoiceNumber,
+      invoiceValue: targetDelivery.invoiceValue,
+      packageCount: targetDelivery.packageCount || 10,
+      grossWeightKg: targetDelivery.grossWeightKg || 1250,
+      tareWeightKg: targetDelivery.tareWeightKg || 350,
+      netWeightKg: targetDelivery.netWeightKg || 900,
+      securityCheckStatus: 'Cleared',
+      vehicleInspection: {
+        physicalDamageChecked: true,
+        sealIntact: true,
+        sealNumber: sealNumber,
+        driverLicenseVerified: true,
+        weighmentMatched: true,
+      },
+      gateOutTimestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+      securityOfficerName: 'S. Deshmukh (SEC-104)',
+      notes: `Gate pass issued from dispatch desk for bay ${bayNumber}.`,
+    };
+
+    if (onIssueGatePass) {
+      onIssueGatePass(newPass, targetDelivery.id);
+    } else {
+      showToast(`Gate Pass ${passNumber} generated successfully!`);
+    }
+
+    setIsIssuePassModalOpen(false);
+  };
 
   // Metrics
   const todayDispatches = safeDeliveries.length;
@@ -99,14 +158,14 @@ export const DispatchDashboard: React.FC<DispatchDashboardProps> = ({
 
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => onNavigate('createDelivery')}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg text-xs font-semibold shadow-sm"
+            onClick={() => onNavigate('createChallan')}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg text-xs font-semibold shadow-sm transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" /> New Delivery Note
           </button>
           <button
-            onClick={() => onNavigate('gatePass')}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-[#14213D] hover:bg-[#1f335e] text-white rounded-lg text-xs font-semibold shadow-sm"
+            onClick={() => setIsIssuePassModalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-[#14213D] hover:bg-[#1f335e] text-white rounded-lg text-xs font-semibold shadow-sm transition-colors cursor-pointer"
           >
             <ShieldCheck className="w-4 h-4 text-emerald-400" /> Issue Gate Pass
           </button>
@@ -191,32 +250,38 @@ export const DispatchDashboard: React.FC<DispatchDashboardProps> = ({
       <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex flex-wrap items-center gap-2 text-xs">
         <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mr-2">Quick Actions:</span>
         <button
-          onClick={() => onNavigate('createDelivery')}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg font-semibold"
+          onClick={() => onNavigate('createChallan')}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg font-semibold transition-colors cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5 text-[#0F8B8D]" /> New Delivery Note
         </button>
         <button
+          onClick={() => setIsIssuePassModalOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg font-semibold transition-colors cursor-pointer"
+        >
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Issue Gate Pass
+        </button>
+        <button
+          onClick={() => onNavigate('gatePass')}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg font-semibold transition-colors cursor-pointer"
+        >
+          <ShieldCheck className="w-3.5 h-3.5 text-blue-600" /> Gate Security Check
+        </button>
+        <button
           onClick={() => onNavigate('eWayBillMgmt')}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg font-semibold"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg font-semibold transition-colors cursor-pointer"
         >
           <FileText className="w-3.5 h-3.5 text-amber-600" /> Generate E-Way Bill
         </button>
         <button
           onClick={() => onNavigate('eInvoiceMgmt')}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg font-semibold"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg font-semibold transition-colors cursor-pointer"
         >
           <FileCheck className="w-3.5 h-3.5 text-indigo-600" /> Generate E-Invoice
         </button>
         <button
-          onClick={() => onNavigate('gatePass')}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg font-semibold"
-        >
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Gate Security Check
-        </button>
-        <button
           onClick={() => onNavigate('exceptions')}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-800 border border-red-200 rounded-lg font-semibold"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-800 border border-red-200 rounded-lg font-semibold transition-colors cursor-pointer"
         >
           <AlertTriangle className="w-3.5 h-3.5 text-red-600" /> Compliance Exceptions ({activeAlerts})
         </button>
@@ -369,6 +434,157 @@ export const DispatchDashboard: React.FC<DispatchDashboardProps> = ({
           ))}
         </div>
       </div>
+
+      {/* ISSUE GATE PASS INTERACTIVE MODAL */}
+      {isIssuePassModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-[#14213D] text-white">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                <div>
+                  <h3 className="font-bold text-sm">Issue Security Gate Pass (Outward)</h3>
+                  <p className="text-[11px] text-gray-300">Security clearance authorization for vehicle gate exit</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsIssuePassModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 overflow-y-auto text-xs">
+              {/* Delivery Challan Selection */}
+              <div>
+                <label className="font-bold text-gray-700 block mb-1 text-[11px] uppercase tracking-wider">
+                  Select Delivery Note / Challan
+                </label>
+                <select
+                  value={selectedDeliveryId || targetDelivery?.id}
+                  onChange={(e) => setSelectedDeliveryId(e.target.value)}
+                  className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg font-semibold text-gray-900 focus:ring-2 focus:ring-[#0F8B8D] focus:outline-hidden"
+                >
+                  {safeDeliveries.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.id} &bull; {d.customer} &bull; Veh: {d.vehicleNumber} ({d.status})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {targetDelivery && (
+                <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono font-bold text-blue-950 text-sm">{targetDelivery.id}</span>
+                    <span className="font-bold text-blue-800 text-[11px]">₹{(targetDelivery.invoiceValue || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-gray-700 text-[11px]">
+                    <div>Customer: <strong className="text-gray-900 block truncate">{targetDelivery.customer}</strong></div>
+                    <div>Vehicle: <strong className="font-mono text-gray-900 block">{targetDelivery.vehicleNumber}</strong></div>
+                    <div>Transporter: <strong className="text-gray-900 block truncate">{targetDelivery.transporterName}</strong></div>
+                    <div>E-Way Bill: <strong className="font-mono text-emerald-700 block">{targetDelivery.ewbNumber || 'Generated'}</strong></div>
+                  </div>
+                </div>
+              )}
+
+              {/* Gate & Bay Configuration */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-gray-700 block mb-1">Exit Security Gate</label>
+                  <select
+                    value={selectedGate}
+                    onChange={(e) => setSelectedGate(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg text-xs"
+                  >
+                    <option value="Plant 1 Gate 1">Plant 1 Gate 1 (Main Entrance)</option>
+                    <option value="Plant 1 Gate 2">Plant 1 Gate 2 (Heavy Dispatch)</option>
+                    <option value="Plant 2 Gate 1">Plant 2 Gate 1 (FMCG Dock)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-semibold text-gray-700 block mb-1">Loading Bay / Deck</label>
+                  <select
+                    value={bayNumber}
+                    onChange={(e) => setBayNumber(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg text-xs"
+                  >
+                    <option value="Bay 1 - FMCG Pallet Dock">Bay 1 - FMCG Pallet Dock</option>
+                    <option value="Bay 2 - Automotive Dock">Bay 2 - Automotive Dock</option>
+                    <option value="Bay 3 - Chemical & Bulk">Bay 3 - Chemical & Bulk</option>
+                    <option value="Bay 4 - Export Dock">Bay 4 - Export Dock</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Security Seal & Driver Contact */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-gray-700 block mb-1">Container / Truck Seal #</label>
+                  <input
+                    type="text"
+                    value={sealNumber}
+                    onChange={(e) => setSealNumber(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg font-mono text-xs"
+                    placeholder="e.g. SL-90812"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-gray-700 block mb-1">Driver Contact #</label>
+                  <input
+                    type="text"
+                    value={driverContact}
+                    onChange={(e) => setDriverContact(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg font-mono text-xs"
+                    placeholder="+91 98220 19281"
+                  />
+                </div>
+              </div>
+
+              {/* Weight verification summary */}
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-600" />
+                  <span className="text-gray-700">Weighbridge Status:</span>
+                </div>
+                <div className="flex items-center gap-4 text-gray-800 font-mono">
+                  <span>Tare: <strong>{targetDelivery?.tareWeightKg || 350} kg</strong></span>
+                  <span>Gross: <strong>{targetDelivery?.grossWeightKg || 1250} kg</strong></span>
+                  <span className="text-emerald-700 font-bold">Net: {targetDelivery?.netWeightKg || 900} kg</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
+              <button
+                onClick={() => {
+                  setIsIssuePassModalOpen(false);
+                  onNavigate('gatePass');
+                }}
+                className="text-gray-600 hover:text-gray-900 font-semibold text-xs flex items-center gap-1"
+              >
+                Open Gate Pass Terminal &rarr;
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsIssuePassModalOpen(false)}
+                  className="px-3.5 py-1.5 border border-gray-300 hover:bg-gray-100 rounded-lg text-xs font-semibold text-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateAndIssueGatePass}
+                  className="px-4 py-2 bg-[#14213D] hover:bg-[#1f335e] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm"
+                >
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" /> Generate & Issue Gate Pass
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

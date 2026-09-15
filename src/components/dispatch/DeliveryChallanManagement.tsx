@@ -47,8 +47,8 @@ export const DeliveryChallanManagement: React.FC<DeliveryChallanManagementProps>
 
   // Metrics
   const totalCount = safeDeliveries.length;
-  const totalValue = safeDeliveries.reduce((sum, d) => sum + d.invoiceValue, 0);
-  const challansToday = safeDeliveries.filter((d) => d.date === '2026-09-12').length;
+  const totalValue = safeDeliveries.reduce((sum, d) => sum + (d.invoiceValue || 0), 0);
+  const challansToday = safeDeliveries.filter((d) => (d.deliveryDate === '2026-09-12' || d.dispatchDate === '2026-09-12' || d.date === '2026-09-12')).length;
   const inTransitCount = safeDeliveries.filter((d) => d.status === 'In-Transit').length;
   const pendingGatePass = safeDeliveries.filter((d) => !d.gatePassNumber).length;
   const ewbPending = safeDeliveries.filter((d) => d.ewbStatus === 'Pending').length;
@@ -116,8 +116,8 @@ export const DeliveryChallanManagement: React.FC<DeliveryChallanManagementProps>
         </div>
 
         <button
-          onClick={() => onNavigate('createDelivery')}
-          className="flex items-center gap-1.5 px-4 py-2 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg text-xs font-semibold shadow-sm self-start sm:self-auto"
+          onClick={() => onNavigate('createChallan')}
+          className="flex items-center gap-1.5 px-4 py-2 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg text-xs font-semibold shadow-sm self-start sm:self-auto transition-colors cursor-pointer"
         >
           <Plus className="w-4 h-4" /> Create Delivery Note
         </button>
@@ -255,7 +255,7 @@ export const DeliveryChallanManagement: React.FC<DeliveryChallanManagementProps>
                   {/* Delivery # & Date */}
                   <td className="p-2.5">
                     <div className="font-mono font-bold text-[#0F8B8D]">{d.id}</div>
-                    <div className="text-[10px] text-gray-400">{d.date}</div>
+                    <div className="text-[10px] text-gray-400">{d.deliveryDate || d.dispatchDate || d.date || '-'}</div>
                   </td>
 
                   {/* Type & SO # */}
@@ -274,21 +274,21 @@ export const DeliveryChallanManagement: React.FC<DeliveryChallanManagementProps>
 
                   {/* Plant & Store */}
                   <td className="p-2.5 text-gray-600">
-                    <div>{d.plant.split('-')[0]}</div>
+                    <div>{d.plant ? d.plant.split('-')[0].trim() : '-'}</div>
                     <div className="text-[10px] text-gray-400">{d.fgStore}</div>
                   </td>
 
                   {/* Items & Qty */}
                   <td className="p-2.5 text-right">
                     <div className="font-bold text-gray-900">
-                      {d.items.reduce((s, i) => s + i.dispatchedQty, 0).toLocaleString()} PCS
+                      {(d.items || []).reduce((s, i) => s + (i.deliveredQty ?? i.packedQty ?? i.pickedQty ?? i.requestedQty ?? i.orderedQty ?? 0), 0).toLocaleString()} PCS
                     </div>
-                    <div className="text-[10px] text-gray-400">{d.items.length} product(s)</div>
+                    <div className="text-[10px] text-gray-400">{(d.items || []).length} product(s)</div>
                   </td>
 
                   {/* Value */}
                   <td className="p-2.5 text-right font-mono font-bold text-gray-900">
-                    ₹{d.invoiceValue.toLocaleString()}
+                    ₹{(d.invoiceValue ?? 0).toLocaleString()}
                   </td>
 
                   {/* Vehicle & Transporter */}

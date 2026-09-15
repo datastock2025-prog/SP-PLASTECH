@@ -238,6 +238,10 @@ export const INITIAL_ITEMS: ItemMaster[] = [
     approval: 'approved',
     createdOn: '01 Jan 2026',
     locationCode: 'FG-WH-01-A1',
+    routingDestination: 'DOL',
+    isDol: true,
+    isAssembly: false,
+    isDeflash: false,
     cycleTimeHistory: [
       { old: '—', new: 12.0, by: 'A. Sharma', date: '01 Jan 2026', reason: 'Initial time study', effective: '01 Jan 2026', source: 'Manual' }
     ],
@@ -263,6 +267,10 @@ export const INITIAL_ITEMS: ItemMaster[] = [
     approval: 'approved',
     createdOn: '05 Jan 2026',
     locationCode: 'FG-WH-01-A1',
+    routingDestination: 'ASSEMBLY',
+    isDol: false,
+    isAssembly: true,
+    isDeflash: false,
   },
   {
     code: 'PK-CTN-021',
@@ -372,6 +380,10 @@ export const INITIAL_ITEMS: ItemMaster[] = [
     approval: 'approved',
     createdOn: '12 Jan 2026',
     locationCode: 'FG-WH-01-A1',
+    routingDestination: 'DEFLASH',
+    isDol: false,
+    isAssembly: false,
+    isDeflash: true,
   },
   {
     code: 'FG-PET-030',
@@ -391,6 +403,10 @@ export const INITIAL_ITEMS: ItemMaster[] = [
     approval: 'approved',
     createdOn: '15 Jan 2026',
     locationCode: 'FG-WH-01-A1',
+    routingDestination: 'DOL',
+    isDol: true,
+    isAssembly: false,
+    isDeflash: false,
   },
 ];
 

@@ -724,7 +724,7 @@ export const LegacyBomBuilderView: React.FC<LegacyBomBuilderViewProps> = ({
     setCurrentBom(updatedBom);
     setIsApprovalModalOpen(false);
     setStageToApproveIndex(null);
-    showToast(`Stage approval recorded. Status updated to ${newStatus.toUpperCase()}`);
+    showToast(`Stage approval recorded. Status updated to ${(newStatus || '').toUpperCase()}`);
   };
 
   // Export formulation sheet to CSV

@@ -8,6 +8,7 @@ import { Sidebar, Topbar, Drawer, ConfirmModal } from './core';
 import { AuthLayout } from './shared/layouts/AuthLayout';
 import { RequireAuth, AuthContext } from './shared/components/RequireAuth';
 import { PromptBuilder } from './shared/components/PromptBuilder';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 // Domain Feature Modules (Bounded Contexts)
 import {
@@ -307,9 +308,33 @@ export const App: React.FC = () => {
       quoteList: ['Sales & Customers', 'Quotations'],
       quoteDetail: ['Sales & Customers', 'Quotations', viewParams.id || 'Detail'],
       soList: ['Sales & Customers', 'Sales Orders'],
+      soDashboard: ['Sales & Customers', 'Sales Order & Demand Command Center'],
+      soWizard: ['Sales & Customers', 'Sales Order Creation Wizard'],
+      soCreate: ['Sales & Customers', 'Sales Order Creation Wizard'],
+      monthlyPlanOrders: ['Sales & Customers', 'Monthly Plan Orders & Forecasts'],
+      monthlyPlan: ['Sales & Customers', 'Monthly Plan Orders & Forecasts'],
+      dailyQuickEntry: ['Sales & Customers', 'Daily Sales Order Quick Entry'],
+      monthlyReconciliation: ['Sales & Customers', 'Monthly vs Daily Demand Reconciliation'],
+      reconciliation: ['Sales & Customers', 'Monthly vs Daily Demand Reconciliation'],
       soDetail: ['Sales & Customers', 'Sales Orders', viewParams.id || 'Detail'],
       soConfirm: ['Sales & Customers', 'Sales Orders', 'Order Confirmation Document'],
       deliverySchedule: ['Sales & Customers', 'Delivery Schedule & Dispatches'],
+      deliveryChallan: ['Sales & Customers', 'Delivery Challans & Dispatch'],
+      deliveryChallans: ['Sales & Customers', 'Delivery Challans & Dispatch'],
+      createChallan: ['Sales & Customers', 'Create Delivery Challan (Dispatch Note)'],
+      createDelivery: ['Sales & Customers', 'Create Delivery Challan (Dispatch Note)'],
+      challanDetail: ['Sales & Customers', 'Delivery Challan Detail', viewParams.id || 'Detail'],
+      gatePass: ['Sales & Customers', 'Security Gate Pass Verification'],
+      gatePassMgmt: ['Sales & Customers', 'Security Gate Pass Verification'],
+      issueGatePass: ['Sales & Customers', 'Issue Security Gate Pass'],
+      deliveryTracking: ['Sales & Customers', 'Vehicle Dispatch Tracking & GPS'],
+      eWayBillMgmt: ['Sales & Customers', 'E-Way Bill Compliance Management'],
+      eWayBills: ['Sales & Customers', 'E-Way Bill Compliance Management'],
+      eInvoiceMgmt: ['Sales & Customers', 'GST E-Invoice & IRN Portal'],
+      eInvoices: ['Sales & Customers', 'GST E-Invoice & IRN Portal'],
+      complianceDashboard: ['Sales & Customers', 'GST & Dispatch Compliance Exceptions'],
+      complianceExceptions: ['Sales & Customers', 'GST & Dispatch Compliance Exceptions'],
+      exceptions: ['Sales & Customers', 'GST & Dispatch Compliance Exceptions'],
       rmaList: ['Sales & Customers', 'Customer Returns (RMA)'],
       creditControl: ['Sales & Customers', 'Customer Credit Control & Exposure'],
       billingStatus: ['Sales & Customers', 'Sales Billing & Invoicing Status'],
@@ -550,8 +575,10 @@ export const App: React.FC = () => {
     'soWizard',
     'soCreate',
     'monthlyPlanOrders',
+    'monthlyPlan',
     'dailyQuickEntry',
     'monthlyReconciliation',
+    'reconciliation',
     'soDetail',
     'soConfirm',
     'soPrint',
@@ -562,14 +589,20 @@ export const App: React.FC = () => {
     'deliveryChallan',
     'deliveryChallans',
     'createChallan',
+    'createDelivery',
     'challanDetail',
+    'deliveryDetail',
     'gatePass',
+    'gatePassMgmt',
+    'issueGatePass',
+    'deliveryTracking',
     'eWayBillMgmt',
     'eWayBills',
     'eInvoiceMgmt',
     'eInvoices',
     'complianceDashboard',
     'complianceExceptions',
+    'exceptions',
     'rmaList',
     'rmaDetail',
     'returnsRMA',
@@ -747,6 +780,7 @@ export const App: React.FC = () => {
 
         {/* View Container */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 min-w-0 transition-all w-full max-w-full">
+          <ErrorBoundary key={currentView}>
           {currentView === 'home' && (
             <HomeView
               onNavigate={handleNavigate}
@@ -786,7 +820,7 @@ export const App: React.FC = () => {
             <div className="max-w-5xl mx-auto space-y-6 pb-12">
               <PromptBuilder
                 onSubmitPrompt={(values, compiled) => {
-                  showToast(`AI Prompt compiled for ${values.domainContext.toUpperCase()}!`);
+                  showToast(`AI Prompt compiled for ${(values?.domainContext || 'Context').toUpperCase()}!`);
                 }}
               />
             </div>
@@ -1067,6 +1101,7 @@ export const App: React.FC = () => {
               showToast={showToast}
             />
           )}
+          </ErrorBoundary>
         </main>
       </div>
 

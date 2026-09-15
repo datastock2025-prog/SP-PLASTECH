@@ -200,6 +200,17 @@ export const DailyProductionGrid: React.FC<ProductionGridProps> = ({
     setDirtyRowIds((prev) => new Set(prev).add(id));
   };
 
+  const getItemStoreDestination = (itemCode: string) => {
+    const itm = items.find((i) => i.code === itemCode);
+    if (itm?.isDeflash || itm?.routingDestination === 'DEFLASH') {
+      return { code: 'DEFLASH-STORE', label: 'DEFLASH (Deflash Store)', type: 'deflash' };
+    }
+    if (itm?.isAssembly || itm?.routingDestination === 'ASSEMBLY') {
+      return { code: 'ASSEMBLY-STORE', label: 'ASSEMPLY (Assembly Store)', type: 'assembly' };
+    }
+    return { code: 'FG-STORE', label: 'DOL (Direct to FG-Store)', type: 'dol' };
+  };
+
   const handleSaveRow = (id: string) => {
     const row = gridData.find((r) => r.id === id);
     if (row) {
@@ -210,7 +221,8 @@ export const DailyProductionGrid: React.FC<ProductionGridProps> = ({
         next.delete(id);
         return next;
       });
-      showToast(`Work Order ${id} saved & synced to WIP Inventory`);
+      const dest = getItemStoreDestination(row.item);
+      showToast(`Work Order ${id} saved & routed to ${dest.code} [${dest.label}]`);
     }
   };
 
@@ -224,7 +236,7 @@ export const DailyProductionGrid: React.FC<ProductionGridProps> = ({
       }
     });
     setDirtyRowIds(new Set());
-    showToast(`Saved and synced ${count} production records to WIP Inventory.`);
+    showToast(`Saved and auto-routed ${count} production records to their destination inventory stores.`);
   };
 
   // Rejection Modal Callback
@@ -1072,6 +1084,37 @@ export const DailyProductionGrid: React.FC<ProductionGridProps> = ({
                           {itemName(row.item)}
                         </div>
                         <div className="text-[10px] font-mono text-[#6B7280] truncate max-w-[170px]">{row.item}</div>
+                        {(() => {
+                          const dest = getItemStoreDestination(row.item);
+                          return (
+                            <div className="mt-0.5">
+                              {dest.type === 'dol' && (
+                                <span
+                                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  title="DOL: Direct On Line to FG-STORE"
+                                >
+                                  DOL &rarr; FG-Store
+                                </span>
+                              )}
+                              {dest.type === 'assembly' && (
+                                <span
+                                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-50 text-purple-700 border border-purple-200"
+                                  title="ASSEMPLY: Routed to ASSEMBLY-STORE"
+                                >
+                                  ASSEMPLY &rarr; Assembly Store
+                                </span>
+                              )}
+                              {dest.type === 'deflash' && (
+                                <span
+                                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-200"
+                                  title="DEFLASH: Routed to DEFLASH-STORE"
+                                >
+                                  DEFLASH &rarr; Deflash Store
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Machine Bay Select */}

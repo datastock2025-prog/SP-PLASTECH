@@ -178,7 +178,7 @@ export const ComplianceExceptionsDashboard: React.FC<ComplianceExceptionsDashboa
                         : 'bg-blue-100 text-blue-800'
                     }`}
                   >
-                    {exc.severity.toUpperCase()}
+                    {(exc.severity || 'WARNING').toUpperCase()}
                   </span>
                   <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-700">
                     {exc.category}

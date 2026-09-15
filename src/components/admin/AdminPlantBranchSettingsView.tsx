@@ -131,7 +131,7 @@ export const AdminPlantBranchSettingsView: React.FC<AdminPlantBranchSettingsView
     }
     const created: PlantBranch = {
       id: `PLANT-0${plants.length + 1}`,
-      code: newPlant.code.toUpperCase(),
+      code: (newPlant.code || '').toUpperCase(),
       name: newPlant.name,
       type: newPlant.type,
       address: `Industrial Sector 4, ${newPlant.city}`,

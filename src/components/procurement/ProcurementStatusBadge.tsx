@@ -158,9 +158,11 @@ export const ProcurementStatusBadge: React.FC<Props> = ({
 
   const displayLabel =
     label ||
-    status
-      .replace(/_/g, ' ')
-      .replace(/\b\w/g, (c) => c.toUpperCase());
+    (status
+      ? String(status)
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, (c) => c.toUpperCase())
+      : 'Unknown');
 
   return (
     <span

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   SalesOrder,
   SalesQuotation,
@@ -31,6 +31,7 @@ import { SalesOrderDetail } from './sales/redesign/SalesOrderDetail';
 import { MonthlyPlanOrdersView } from './sales/redesign/MonthlyPlanOrdersView';
 import { DailyOrderQuickEntry } from './sales/redesign/DailyOrderQuickEntry';
 import { MonthlyDailyReconciliation } from './sales/redesign/MonthlyDailyReconciliation';
+import { FgStockModal } from './sales/redesign/FgStockModal';
 
 import { DispatchDashboard } from './dispatch/DispatchDashboard';
 import { DeliveryChallanManagement } from './dispatch/DeliveryChallanManagement';
@@ -122,10 +123,71 @@ export const SalesViews: React.FC<SalesProps> = ({
   const [exceptions, setExceptions] = useState<ComplianceExceptionRecord[]>(INITIAL_COMPLIANCE_EXCEPTIONS);
 
   // Sub-navigation states
-  const [salesSubNav, setSalesSubNav] = useState<'list' | 'dashboard' | 'wizard' | 'plans' | 'quickEntry' | 'reconciliation'>('list');
-  const [dispatchSubNav, setDispatchSubNav] = useState<'dashboard' | 'challans' | 'createChallan' | 'gatePass' | 'ewb' | 'eInvoice' | 'compliance'>('dashboard');
+  const [salesSubNav, setSalesSubNav] = useState<'list' | 'dashboard' | 'wizard' | 'plans' | 'quickEntry' | 'reconciliation'>(() => {
+    if (view === 'soDashboard') return 'dashboard';
+    if (view === 'soWizard' || view === 'soCreate') return 'wizard';
+    if (view === 'monthlyPlanOrders' || view === 'monthlyPlan') return 'plans';
+    if (view === 'dailyQuickEntry') return 'quickEntry';
+    if (view === 'monthlyReconciliation' || view === 'reconciliation') return 'reconciliation';
+    if (view === 'soList' || view === 'salesOrders') return 'list';
+    return 'dashboard';
+  });
+  const [dispatchSubNav, setDispatchSubNav] = useState<'dashboard' | 'challans' | 'createChallan' | 'gatePass' | 'ewb' | 'eInvoice' | 'compliance'>(() => {
+    if (view === 'createChallan' || view === 'createDelivery') return 'createChallan';
+    if (view === 'deliveryChallans' || view === 'deliveryChallan') return 'challans';
+    if (view === 'gatePass' || view === 'gatePassMgmt' || view === 'issueGatePass') return 'gatePass';
+    if (view === 'eWayBillMgmt' || view === 'eWayBills') return 'ewb';
+    if (view === 'eInvoiceMgmt' || view === 'eInvoices') return 'eInvoice';
+    if (view === 'complianceDashboard' || view === 'complianceExceptions' || view === 'exceptions') return 'compliance';
+    return 'dashboard';
+  });
   const [selectedPlasticSoId, setSelectedPlasticSoId] = useState<string>(selectedId || 'SO-5001');
   const [selectedDelivery, setSelectedDelivery] = useState<DeliveryNoteChallan | null>(null);
+  const [isFgStockModalOpen, setIsFgStockModalOpen] = useState(false);
+  const [isCreatePlanModalOpen, setIsCreatePlanModalOpen] = useState(false);
+  const [wizardDefaultType, setWizardDefaultType] = useState<'Daily Sales Order' | 'Monthly Plan Order' | 'Blanket/Contract Order'>('Daily Sales Order');
+
+  // Synchronize internal views with route view prop
+  useEffect(() => {
+    if (view === 'soDashboard') {
+      setSalesSubNav('dashboard');
+    } else if (view === 'soList' || view === 'salesOrders') {
+      setSalesSubNav('list');
+    } else if (view === 'soWizard' || view === 'soCreate') {
+      setSalesSubNav('wizard');
+    } else if (view === 'monthlyPlanOrders' || view === 'monthlyPlan') {
+      setSalesSubNav('plans');
+    } else if (view === 'dailyQuickEntry') {
+      setSalesSubNav('quickEntry');
+    } else if (view === 'monthlyReconciliation' || view === 'reconciliation') {
+      setSalesSubNav('reconciliation');
+    } else if (view === 'createChallan' || view === 'createDelivery') {
+      setDispatchSubNav('createChallan');
+      setSelectedDelivery(null);
+    } else if (view === 'deliveryChallans' || view === 'deliveryChallan' || view === 'challanDetail' || view === 'deliveryDetail') {
+      setDispatchSubNav('challans');
+    } else if (view === 'gatePass' || view === 'gatePassMgmt' || view === 'issueGatePass') {
+      setDispatchSubNav('gatePass');
+      setSelectedDelivery(null);
+    } else if (view === 'eWayBillMgmt' || view === 'eWayBills') {
+      setDispatchSubNav('ewb');
+      setSelectedDelivery(null);
+    } else if (view === 'eInvoiceMgmt' || view === 'eInvoices') {
+      setDispatchSubNav('eInvoice');
+      setSelectedDelivery(null);
+    } else if (view === 'complianceDashboard' || view === 'complianceExceptions' || view === 'exceptions') {
+      setDispatchSubNav('compliance');
+      setSelectedDelivery(null);
+    } else if (
+      view === 'deliverySchedule' ||
+      view === 'salesDeliveries' ||
+      view === 'dispatch' ||
+      view === 'dispatchDash'
+    ) {
+      setDispatchSubNav('dashboard');
+      setSelectedDelivery(null);
+    }
+  }, [view]);
 
   // Business Action Handlers
   const handleSaveOrder = (newOrder: PlasticSalesOrder) => {
@@ -134,10 +196,29 @@ export const SalesViews: React.FC<SalesProps> = ({
     showToast(`Sales Order ${newOrder.id} successfully saved & confirmed.`);
   };
 
-  const handleSaveDelivery = (newDeliv: DeliveryNoteChallan) => {
+  const handleSaveMonthlyPlan = (newPlan: MonthlyPlanOrder) => {
+    setMonthlyPlans((prev) => [newPlan, ...prev]);
+    showToast(`Monthly Plan Order ${newPlan.id} successfully committed.`);
+  };
+
+  const handleSaveDelivery = (
+    newDeliv: DeliveryNoteChallan,
+    newEInv?: EInvoiceRecord,
+    newEwb?: EWayBillRecord,
+    newGatePass?: GatePassRecord
+  ) => {
     setDeliveries((prev) => [newDeliv, ...prev]);
+    if (newEInv) {
+      setEInvoices((prev) => [newEInv, ...prev.filter((x) => x.invoiceNumber !== newEInv.invoiceNumber)]);
+    }
+    if (newEwb) {
+      setEWayBills((prev) => [newEwb, ...prev.filter((x) => x.ewbNumber !== newEwb.ewbNumber)]);
+    }
+    if (newGatePass) {
+      setGatePasses((prev) => [newGatePass, ...prev.filter((x) => x.gatePassNumber !== newGatePass.gatePassNumber)]);
+    }
     setDispatchSubNav('challans');
-    showToast(`Delivery Challan ${newDeliv.id} created. E-Way Bill & Gate Pass staged.`);
+    showToast(`Delivery Challan ${newDeliv.id} created. All-in-One E-Invoice, E-Way Bill & Gate Pass generated!`);
   };
 
   const handleApproveGateOut = (passId: string) => {
@@ -160,6 +241,72 @@ export const SalesViews: React.FC<SalesProps> = ({
       )
     );
     showToast(`Vehicle held at gate: ${reason}`);
+  };
+
+  const handleIssueGatePass = (newGatePass: GatePassRecord, deliveryId?: string) => {
+    setGatePasses((prev) => [
+      newGatePass,
+      ...prev.filter((g) => (g.id || g.gatePassNumber) !== (newGatePass.id || newGatePass.gatePassNumber)),
+    ]);
+    if (deliveryId) {
+      setDeliveries((prev) =>
+        prev.map((d) =>
+          d.id === deliveryId
+            ? {
+                ...d,
+                gatePassNumber: newGatePass.gatePassNumber || newGatePass.id,
+                gatePassStatus: 'Generated',
+                status: d.status === 'Delivered' ? 'Delivered' : 'Gate Pass Issued',
+              }
+            : d
+        )
+      );
+    }
+    showToast(`Gate Pass ${newGatePass.gatePassNumber || newGatePass.id} issued successfully for vehicle ${newGatePass.vehicleNumber}.`);
+  };
+
+  const handleDispatchNavigate = (targetView: string, param?: any) => {
+    if (targetView === 'challanDetail' || targetView === 'deliveryDetail') {
+      if (param?.delivery) {
+        setSelectedDelivery(param.delivery);
+      } else if (param?.deliveryId) {
+        const found = deliveries.find((d) => d.id === param.deliveryId);
+        if (found) setSelectedDelivery(found);
+      }
+      setDispatchSubNav('challans');
+      onNavigate(targetView, param);
+      return;
+    }
+
+    if (targetView === 'createDelivery' || targetView === 'createChallan') {
+      setSelectedDelivery(null);
+      setDispatchSubNav('createChallan');
+    } else if (targetView === 'gatePass' || targetView === 'gatePassMgmt' || targetView === 'issueGatePass') {
+      setSelectedDelivery(null);
+      setDispatchSubNav('gatePass');
+    } else if (targetView === 'deliveryChallans' || targetView === 'deliveryChallan' || targetView === 'challans') {
+      setSelectedDelivery(null);
+      setDispatchSubNav('challans');
+    } else if (targetView === 'eWayBillMgmt' || targetView === 'eWayBills' || targetView === 'ewb') {
+      setSelectedDelivery(null);
+      setDispatchSubNav('ewb');
+    } else if (targetView === 'eInvoiceMgmt' || targetView === 'eInvoices' || targetView === 'eInvoice') {
+      setSelectedDelivery(null);
+      setDispatchSubNav('eInvoice');
+    } else if (targetView === 'complianceDashboard' || targetView === 'complianceExceptions' || targetView === 'exceptions') {
+      setSelectedDelivery(null);
+      setDispatchSubNav('compliance');
+    } else if (
+      targetView === 'dispatchDash' ||
+      targetView === 'dashboard' ||
+      targetView === 'deliverySchedule' ||
+      targetView === 'salesDeliveries' ||
+      targetView === 'dispatch'
+    ) {
+      setSelectedDelivery(null);
+      setDispatchSubNav('dashboard');
+    }
+    onNavigate(targetView, param);
   };
 
   const handleGenerateIrn = (invNum: string) => {
@@ -263,21 +410,12 @@ export const SalesViews: React.FC<SalesProps> = ({
     view === 'soWizard' ||
     view === 'soCreate' ||
     view === 'monthlyPlanOrders' ||
+    view === 'monthlyPlan' ||
     view === 'dailyQuickEntry' ||
-    view === 'monthlyReconciliation'
+    view === 'monthlyReconciliation' ||
+    view === 'reconciliation'
   ) {
-    const currentSub =
-      view === 'soDashboard'
-        ? 'dashboard'
-        : view === 'soWizard' || view === 'soCreate'
-        ? 'wizard'
-        : view === 'monthlyPlanOrders'
-        ? 'plans'
-        : view === 'dailyQuickEntry'
-        ? 'quickEntry'
-        : view === 'monthlyReconciliation'
-        ? 'reconciliation'
-        : salesSubNav;
+    const currentSub = salesSubNav;
 
     return (
       <div className="space-y-4">
@@ -285,7 +423,10 @@ export const SalesViews: React.FC<SalesProps> = ({
         <div className="bg-white p-2.5 rounded-xl border border-gray-200 shadow-sm flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-1.5">
             <button
-              onClick={() => setSalesSubNav('dashboard')}
+              onClick={() => {
+                setSalesSubNav('dashboard');
+                onNavigate('soDashboard');
+              }}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                 currentSub === 'dashboard'
                   ? 'bg-[#14213D] text-white shadow-2xs'
@@ -295,7 +436,10 @@ export const SalesViews: React.FC<SalesProps> = ({
               Command Center
             </button>
             <button
-              onClick={() => setSalesSubNav('list')}
+              onClick={() => {
+                setSalesSubNav('list');
+                onNavigate('soList');
+              }}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                 currentSub === 'list'
                   ? 'bg-[#14213D] text-white shadow-2xs'
@@ -305,7 +449,11 @@ export const SalesViews: React.FC<SalesProps> = ({
               Order Register
             </button>
             <button
-              onClick={() => setSalesSubNav('wizard')}
+              onClick={() => {
+                setWizardDefaultType('Daily Sales Order');
+                setSalesSubNav('wizard');
+                onNavigate('soWizard');
+              }}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                 currentSub === 'wizard'
                   ? 'bg-[#0F8B8D] text-white shadow-2xs'
@@ -315,7 +463,10 @@ export const SalesViews: React.FC<SalesProps> = ({
               + Create Order (6-Step)
             </button>
             <button
-              onClick={() => setSalesSubNav('plans')}
+              onClick={() => {
+                setSalesSubNav('plans');
+                onNavigate('monthlyPlanOrders');
+              }}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                 currentSub === 'plans'
                   ? 'bg-[#14213D] text-white shadow-2xs'
@@ -325,7 +476,10 @@ export const SalesViews: React.FC<SalesProps> = ({
               Monthly Plan Orders
             </button>
             <button
-              onClick={() => setSalesSubNav('quickEntry')}
+              onClick={() => {
+                setSalesSubNav('quickEntry');
+                onNavigate('dailyQuickEntry');
+              }}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                 currentSub === 'quickEntry'
                   ? 'bg-[#14213D] text-white shadow-2xs'
@@ -335,7 +489,10 @@ export const SalesViews: React.FC<SalesProps> = ({
               Daily Quick Entry
             </button>
             <button
-              onClick={() => setSalesSubNav('reconciliation')}
+              onClick={() => {
+                setSalesSubNav('reconciliation');
+                onNavigate('monthlyReconciliation');
+              }}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                 currentSub === 'reconciliation'
                   ? 'bg-[#14213D] text-white shadow-2xs'
@@ -363,13 +520,50 @@ export const SalesViews: React.FC<SalesProps> = ({
             monthlyPlans={monthlyPlans}
             deliveries={deliveries}
             exceptions={exceptions}
-            onNavigate={onNavigate}
+            onNavigate={(targetView, param) => {
+              if (targetView === 'soList' || targetView === 'salesOrders') {
+                setSalesSubNav('list');
+              } else if (targetView === 'monthlyPlan' || targetView === 'monthlyPlanOrders') {
+                setSalesSubNav('plans');
+              } else if (targetView === 'dailyQuickEntry') {
+                setSalesSubNav('quickEntry');
+              } else if (targetView === 'reconciliation' || targetView === 'monthlyReconciliation') {
+                setSalesSubNav('reconciliation');
+              } else if (targetView === 'soWizard' || targetView === 'soCreate') {
+                setWizardDefaultType('Daily Sales Order');
+                setSalesSubNav('wizard');
+              } else if (targetView === 'createChallan') {
+                setDispatchSubNav('createChallan');
+              } else if (targetView === 'gatePass' || targetView === 'gatePassMgmt') {
+                setDispatchSubNav('gatePass');
+              } else if (targetView === 'eWayBillMgmt' || targetView === 'eWayBills') {
+                setDispatchSubNav('ewb');
+              } else if (targetView === 'eInvoiceMgmt' || targetView === 'eInvoices') {
+                setDispatchSubNav('eInvoice');
+              } else if (targetView === 'complianceExceptions' || targetView === 'complianceDashboard') {
+                setDispatchSubNav('compliance');
+              }
+              onNavigate(targetView, param);
+            }}
             onQuickAction={(action) => {
-              if (action === 'newOrder') setSalesSubNav('wizard');
-              if (action === 'quickEntry') setSalesSubNav('quickEntry');
-              if (action === 'newPlan') setSalesSubNav('plans');
-              if (action === 'dispatch') onNavigate('deliverySchedule');
-              if (action === 'compliance') onNavigate('complianceDashboard');
+              if (action === 'createDailySo' || action === 'newOrder') {
+                setWizardDefaultType('Daily Sales Order');
+                setSalesSubNav('wizard');
+              } else if (action === 'createMonthlyPlan' || action === 'newPlan') {
+                setWizardDefaultType('Monthly Plan Order');
+                setSalesSubNav('plans');
+                setIsCreatePlanModalOpen(true);
+              } else if (action === 'createDelivery' || action === 'dispatch') {
+                setDispatchSubNav('createChallan');
+                onNavigate('createChallan');
+              } else if (action === 'checkStock') {
+                setIsFgStockModalOpen(true);
+              } else if (action === 'quickEntry') {
+                setSalesSubNav('quickEntry');
+              } else if (action === 'compliance') {
+                setDispatchSubNav('compliance');
+                onNavigate('complianceExceptions');
+              }
             }}
           />
         )}
@@ -381,7 +575,10 @@ export const SalesViews: React.FC<SalesProps> = ({
               setSelectedPlasticSoId(orderId);
               onNavigate('soDetail', { id: orderId });
             }}
-            onCreateOrder={() => setSalesSubNav('wizard')}
+            onCreateOrder={() => {
+              setWizardDefaultType('Daily Sales Order');
+              setSalesSubNav('wizard');
+            }}
             onNavigate={onNavigate}
             showToast={showToast}
           />
@@ -389,6 +586,7 @@ export const SalesViews: React.FC<SalesProps> = ({
 
         {currentSub === 'wizard' && (
           <SalesOrderWizard
+            defaultOrderType={wizardDefaultType}
             monthlyPlans={monthlyPlans}
             onSave={handleSaveOrder}
             onCancel={() => setSalesSubNav('list')}
@@ -401,6 +599,9 @@ export const SalesViews: React.FC<SalesProps> = ({
             monthlyPlans={monthlyPlans}
             dailyOrders={plasticSalesOrders}
             onNavigate={onNavigate}
+            onCreatePlan={handleSaveMonthlyPlan}
+            initialCreateOpen={isCreatePlanModalOpen}
+            onCloseCreateModal={() => setIsCreatePlanModalOpen(false)}
             showToast={showToast}
           />
         )}
@@ -430,6 +631,28 @@ export const SalesViews: React.FC<SalesProps> = ({
             showToast={showToast}
           />
         )}
+
+        {/* FG Batch Stock & FEFO Modal */}
+        <FgStockModal
+          isOpen={isFgStockModalOpen}
+          onClose={() => setIsFgStockModalOpen(false)}
+          batches={batches}
+          onNavigate={(targetView, param) => {
+            if (targetView === 'stockList') {
+              onNavigate('stockList', param);
+            } else {
+              onNavigate(targetView, param);
+            }
+          }}
+          onCreateOrderForItem={(itemCode) => {
+            setWizardDefaultType('Daily Sales Order');
+            setSalesSubNav('wizard');
+          }}
+          onCreateDelivery={() => {
+            setDispatchSubNav('createChallan');
+            onNavigate('createChallan');
+          }}
+        />
       </div>
     );
   }
@@ -489,17 +712,38 @@ export const SalesViews: React.FC<SalesProps> = ({
     view === 'deliveryChallan' ||
     view === 'deliveryChallans' ||
     view === 'createChallan' ||
+    view === 'createDelivery' ||
     view === 'challanDetail' ||
     view === 'gatePass' ||
+    view === 'gatePassMgmt' ||
+    view === 'issueGatePass' ||
+    view === 'deliveryTracking' ||
     view === 'eWayBillMgmt' ||
     view === 'eWayBills' ||
     view === 'eInvoiceMgmt' ||
     view === 'eInvoices' ||
     view === 'complianceDashboard' ||
-    view === 'complianceExceptions'
+    view === 'complianceExceptions' ||
+    view === 'exceptions'
   ) {
-    // If viewing single challan detail
-    if (view === 'challanDetail' || selectedDelivery) {
+    // Determine current sub-view
+    const currentSub =
+      view === 'createChallan' || view === 'createDelivery'
+        ? 'createChallan'
+        : view === 'deliveryChallans' || view === 'deliveryChallan'
+        ? 'challans'
+        : view === 'gatePass' || view === 'gatePassMgmt' || view === 'issueGatePass'
+        ? 'gatePass'
+        : view === 'eWayBillMgmt' || view === 'eWayBills'
+        ? 'ewb'
+        : view === 'eInvoiceMgmt' || view === 'eInvoices'
+        ? 'eInvoice'
+        : view === 'complianceDashboard' || view === 'complianceExceptions' || view === 'exceptions'
+        ? 'compliance'
+        : dispatchSubNav;
+
+    // If viewing single challan detail (ONLY when explicitly in challans or challanDetail)
+    if (view === 'challanDetail' || (selectedDelivery && currentSub === 'challans')) {
       const activeDelivery =
         selectedDelivery ||
         deliveries.find((d) => d.id === selectedId) ||
@@ -510,29 +754,16 @@ export const SalesViews: React.FC<SalesProps> = ({
           delivery={activeDelivery}
           onBack={() => {
             setSelectedDelivery(null);
-            onNavigate('deliverySchedule');
+            setDispatchSubNav('challans');
+            if (view === 'challanDetail') {
+              onNavigate('deliveryChallans');
+            }
           }}
-          onNavigate={onNavigate}
+          onNavigate={handleDispatchNavigate}
           showToast={showToast}
         />
       );
     }
-
-    // Determine current sub-view
-    const currentSub =
-      view === 'createChallan'
-        ? 'createChallan'
-        : view === 'deliveryChallans' || view === 'deliveryChallan'
-        ? 'challans'
-        : view === 'gatePass'
-        ? 'gatePass'
-        : view === 'eWayBillMgmt' || view === 'eWayBills'
-        ? 'ewb'
-        : view === 'eInvoiceMgmt' || view === 'eInvoices'
-        ? 'eInvoice'
-        : view === 'complianceDashboard' || view === 'complianceExceptions'
-        ? 'compliance'
-        : dispatchSubNav;
 
     return (
       <div className="space-y-4">
@@ -540,7 +771,10 @@ export const SalesViews: React.FC<SalesProps> = ({
         <div className="bg-white p-2.5 rounded-xl border border-gray-200 shadow-sm flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-1.5">
             <button
-              onClick={() => setDispatchSubNav('dashboard')}
+              onClick={() => {
+                setSelectedDelivery(null);
+                setDispatchSubNav('dashboard');
+              }}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                 currentSub === 'dashboard'
                   ? 'bg-[#14213D] text-white shadow-2xs'
@@ -550,7 +784,10 @@ export const SalesViews: React.FC<SalesProps> = ({
               Dispatch Command Center
             </button>
             <button
-              onClick={() => setDispatchSubNav('challans')}
+              onClick={() => {
+                setSelectedDelivery(null);
+                setDispatchSubNav('challans');
+              }}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                 currentSub === 'challans'
                   ? 'bg-[#14213D] text-white shadow-2xs'
@@ -560,7 +797,10 @@ export const SalesViews: React.FC<SalesProps> = ({
               Delivery Notes / Challans
             </button>
             <button
-              onClick={() => setDispatchSubNav('createChallan')}
+              onClick={() => {
+                setSelectedDelivery(null);
+                setDispatchSubNav('createChallan');
+              }}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                 currentSub === 'createChallan'
                   ? 'bg-[#0F8B8D] text-white shadow-2xs'
@@ -570,7 +810,10 @@ export const SalesViews: React.FC<SalesProps> = ({
               + Create Challan (Wizard)
             </button>
             <button
-              onClick={() => setDispatchSubNav('gatePass')}
+              onClick={() => {
+                setSelectedDelivery(null);
+                setDispatchSubNav('gatePass');
+              }}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                 currentSub === 'gatePass'
                   ? 'bg-[#14213D] text-white shadow-2xs'
@@ -580,7 +823,10 @@ export const SalesViews: React.FC<SalesProps> = ({
               Security Gate Pass
             </button>
             <button
-              onClick={() => setDispatchSubNav('ewb')}
+              onClick={() => {
+                setSelectedDelivery(null);
+                setDispatchSubNav('ewb');
+              }}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                 currentSub === 'ewb'
                   ? 'bg-[#14213D] text-white shadow-2xs'
@@ -590,7 +836,10 @@ export const SalesViews: React.FC<SalesProps> = ({
               E-Way Bill Hub
             </button>
             <button
-              onClick={() => setDispatchSubNav('eInvoice')}
+              onClick={() => {
+                setSelectedDelivery(null);
+                setDispatchSubNav('eInvoice');
+              }}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                 currentSub === 'eInvoice'
                   ? 'bg-[#14213D] text-white shadow-2xs'
@@ -600,7 +849,10 @@ export const SalesViews: React.FC<SalesProps> = ({
               E-Invoice Portal
             </button>
             <button
-              onClick={() => setDispatchSubNav('compliance')}
+              onClick={() => {
+                setSelectedDelivery(null);
+                setDispatchSubNav('compliance');
+              }}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                 currentSub === 'compliance'
                   ? 'bg-red-700 text-white shadow-2xs'
@@ -629,18 +881,30 @@ export const SalesViews: React.FC<SalesProps> = ({
             eWayBills={eWayBills}
             gatePasses={gatePasses}
             exceptions={exceptions}
-            onNavigate={onNavigate}
+            onNavigate={handleDispatchNavigate}
+            onIssueGatePass={handleIssueGatePass}
             showToast={showToast}
           />
         )}
 
         {currentSub === 'challans' && (
-          <DeliveryChallanManagement
-            deliveries={deliveries}
-            onSelectDelivery={(deliv) => setSelectedDelivery(deliv)}
-            onNavigate={onNavigate}
-            showToast={showToast}
-          />
+          selectedDelivery ? (
+            <DeliveryChallanDetail
+              delivery={selectedDelivery}
+              onBack={() => setSelectedDelivery(null)}
+              onNavigate={handleDispatchNavigate}
+              showToast={showToast}
+            />
+          ) : (
+            <DeliveryChallanManagement
+              deliveries={deliveries}
+              onSelectDelivery={(deliv) => {
+                setSelectedDelivery(deliv);
+              }}
+              onNavigate={handleDispatchNavigate}
+              showToast={showToast}
+            />
+          )
         )}
 
         {currentSub === 'createChallan' && (
@@ -658,6 +922,8 @@ export const SalesViews: React.FC<SalesProps> = ({
             deliveries={deliveries}
             onApproveGateOut={handleApproveGateOut}
             onHoldGatePass={handleHoldGatePass}
+            onIssueGatePass={handleIssueGatePass}
+            onNavigate={handleDispatchNavigate}
             showToast={showToast}
           />
         )}
@@ -683,7 +949,7 @@ export const SalesViews: React.FC<SalesProps> = ({
           <ComplianceExceptionsDashboard
             exceptions={exceptions}
             onResolveException={handleResolveException}
-            onNavigate={onNavigate}
+            onNavigate={handleDispatchNavigate}
             showToast={showToast}
           />
         )}

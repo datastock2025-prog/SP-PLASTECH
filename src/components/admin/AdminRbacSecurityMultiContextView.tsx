@@ -178,7 +178,7 @@ export const AdminRbacSecurityMultiContextView: React.FC<AdminRbacSecurityMultiC
 
     const req: BreakGlassRequest = {
       id: `BG-${Date.now().toString().slice(-4)}`,
-      ticketNumber: newBreakGlass.ticketNumber.trim().toUpperCase(),
+      ticketNumber: (newBreakGlass.ticketNumber || '').trim().toUpperCase(),
       requestedBy: newBreakGlass.requestedBy || 'Amitabh Joshi (Current Admin)',
       roleElevatedTo: newBreakGlass.roleElevatedTo,
       reason: newBreakGlass.reason.trim(),

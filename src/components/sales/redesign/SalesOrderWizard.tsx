@@ -28,6 +28,7 @@ import {
 
 interface SalesOrderWizardProps {
   initialOrder?: Partial<PlasticSalesOrder>;
+  defaultOrderType?: SalesOrderType;
   monthlyPlans: MonthlyPlanOrder[];
   onSave: (order: PlasticSalesOrder) => void;
   onCancel: () => void;
@@ -36,6 +37,7 @@ interface SalesOrderWizardProps {
 
 export const SalesOrderWizard: React.FC<SalesOrderWizardProps> = ({
   initialOrder,
+  defaultOrderType,
   monthlyPlans,
   onSave,
   onCancel,
@@ -45,7 +47,7 @@ export const SalesOrderWizard: React.FC<SalesOrderWizardProps> = ({
 
   // Step 1: Order Type & Customer Selection
   const [orderType, setOrderType] = useState<SalesOrderType>(
-    initialOrder?.orderType || 'Daily Sales Order'
+    initialOrder?.orderType || defaultOrderType || 'Daily Sales Order'
   );
   const [customer, setCustomer] = useState(
     initialOrder?.customer || 'Tata Motors Passenger Vehicles Ltd'

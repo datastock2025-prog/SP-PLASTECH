@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Calendar,
   Layers,
@@ -15,6 +15,7 @@ import {
   Clock,
   Building2,
   Package,
+  X,
 } from 'lucide-react';
 import {
   MonthlyPlanOrder,
@@ -25,6 +26,9 @@ interface MonthlyPlanOrdersViewProps {
   monthlyPlans: MonthlyPlanOrder[];
   dailyOrders: PlasticSalesOrder[];
   onNavigate: (view: string, param?: any) => void;
+  onCreatePlan?: (plan: MonthlyPlanOrder) => void;
+  initialCreateOpen?: boolean;
+  onCloseCreateModal?: () => void;
   showToast: (msg: string) => void;
 }
 
@@ -32,11 +36,32 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
   monthlyPlans,
   dailyOrders,
   onNavigate,
+  onCreatePlan,
+  initialCreateOpen = false,
+  onCloseCreateModal,
   showToast,
 }) => {
   const [activeTab, setActiveTab] = useState<string>('All Plans');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(initialCreateOpen);
+
+  useEffect(() => {
+    if (initialCreateOpen) {
+      setIsCreateModalOpen(true);
+    }
+  }, [initialCreateOpen]);
+
+  // Form State for creating a new plan
+  const [newPlanCustomer, setNewPlanCustomer] = useState('Tata Motors Passenger Vehicles Ltd');
+  const [newPlanMonth, setNewPlanMonth] = useState('October 2026');
+  const [newPlanType, setNewPlanType] = useState<'Monthly supply plan' | 'Forecast' | 'Rate contract' | 'Billable monthly order'>('Monthly supply plan');
+  const [newPlanPlant, setNewPlanPlant] = useState('Plant 1 - Pimpri Auto-Hub');
+  const [newPlanItemCode, setNewPlanItemCode] = useState('FG-AUTO-012');
+  const [newPlanItemName, setNewPlanItemName] = useState('ABS Dashboard Trim Bezel (Matte Black)');
+  const [newPlanQty, setNewPlanQty] = useState('25000');
+  const [newPlanRate, setNewPlanRate] = useState('42.50');
+  const [newPlanNotes, setNewPlanNotes] = useState('Committed monthly call-off schedule based on OEM production forecasts.');
 
   // Summary Metrics
   const totalActivePlans = monthlyPlans.filter((p) => !['Closed', 'Expired'].includes(p.status)).length;
@@ -172,8 +197,14 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
             />
           </div>
           <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="px-3 py-1.5 bg-[#14213D] hover:bg-[#1f335e] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors whitespace-nowrap"
+          >
+            <Plus className="w-3.5 h-3.5" /> Create Monthly Plan
+          </button>
+          <button
             onClick={() => onNavigate('reconciliation')}
-            className="px-3 py-1.5 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg text-xs font-semibold flex items-center gap-1"
+            className="px-3 py-1.5 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg text-xs font-semibold flex items-center gap-1 shadow-2xs transition-colors whitespace-nowrap"
           >
             <Layers className="w-3.5 h-3.5" /> Reconcile Hub
           </button>
@@ -356,6 +387,262 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Create Monthly Plan Modal */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="p-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-[#14213D] text-white rounded-xl">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">
+                    Create Monthly Plan Order (Demand Forecast)
+                  </h3>
+                  <p className="text-[11px] text-gray-500">
+                    Supply commitment & customer forecast schedule. Not auto-deducted by daily dispatches.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsCreateModalOpen(false);
+                  if (onCloseCreateModal) onCloseCreateModal();
+                }}
+                className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 overflow-y-auto space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Target Customer</label>
+                  <select
+                    value={newPlanCustomer}
+                    onChange={(e) => setNewPlanCustomer(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg p-2 focus:ring-1 focus:ring-[#14213D] focus:outline-none"
+                  >
+                    <option value="Tata Motors Passenger Vehicles Ltd">Tata Motors Passenger Vehicles Ltd</option>
+                    <option value="Marico Consumer Goods Ltd">Marico Consumer Goods Ltd</option>
+                    <option value="Bajaj Auto Ltd">Bajaj Auto Ltd</option>
+                    <option value="Mahindra Automotive Div">Mahindra Automotive Div</option>
+                    <option value="Motherson Sumi Systems">Motherson Sumi Systems</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Plan Month Period</label>
+                  <input
+                    type="text"
+                    value={newPlanMonth}
+                    onChange={(e) => setNewPlanMonth(e.target.value)}
+                    placeholder="e.g. October 2026"
+                    className="w-full border border-gray-300 rounded-lg p-2 focus:ring-1 focus:ring-[#14213D] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Manufacturing Plant</label>
+                  <select
+                    value={newPlanPlant}
+                    onChange={(e) => setNewPlanPlant(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg p-2 focus:ring-1 focus:ring-[#14213D] focus:outline-none"
+                  >
+                    <option value="Plant 1 - Pimpri Auto-Hub">Plant 1 - Pimpri Auto-Hub</option>
+                    <option value="Plant 2 - Chakan Moulding">Plant 2 - Chakan Moulding</option>
+                    <option value="Plant 3 - Sanand Polymers">Plant 3 - Sanand Polymers</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">Plan Classification</label>
+                  <select
+                    value={newPlanType}
+                    onChange={(e) => setNewPlanType(e.target.value as any)}
+                    className="w-full border border-gray-300 rounded-lg p-2 focus:ring-1 focus:ring-[#14213D] focus:outline-none"
+                  >
+                    <option value="Monthly supply plan">Monthly supply plan</option>
+                    <option value="Forecast">Forecast</option>
+                    <option value="Rate contract">Rate contract</option>
+                    <option value="Billable monthly order">Billable monthly order</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Item Details */}
+              <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
+                <div className="font-bold text-gray-800 flex items-center justify-between">
+                  <span>Planned Line Item</span>
+                  <span className="text-[11px] font-normal text-gray-500">Auto-calculated value</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-gray-600 mb-1">Item Code</label>
+                    <select
+                      value={newPlanItemCode}
+                      onChange={(e) => {
+                        setNewPlanItemCode(e.target.value);
+                        if (e.target.value === 'FG-AUTO-012') {
+                          setNewPlanItemName('ABS Dashboard Trim Bezel (Matte Black)');
+                          setNewPlanRate('42.50');
+                        } else if (e.target.value === 'FG-AUTO-045') {
+                          setNewPlanItemName('PP Air Duct Housing - Front Left');
+                          setNewPlanRate('28.75');
+                        } else if (e.target.value === 'FG-CAP-28-WHT') {
+                          setNewPlanItemName('28mm Flip-Top Oil Dispenser Cap (White)');
+                          setNewPlanRate('3.40');
+                        } else if (e.target.value === 'FG-BTL-HDPE-500') {
+                          setNewPlanItemName('500ml HDPE Shampoo Bottle Container');
+                          setNewPlanRate('12.80');
+                        }
+                      }}
+                      className="w-full border border-gray-300 rounded-lg p-2 bg-white"
+                    >
+                      <option value="FG-AUTO-012">FG-AUTO-012 (Dashboard Trim Bezel)</option>
+                      <option value="FG-AUTO-045">FG-AUTO-045 (Air Duct Housing)</option>
+                      <option value="FG-CAP-28-WHT">FG-CAP-28-WHT (28mm Flip-Top Cap)</option>
+                      <option value="FG-BTL-HDPE-500">FG-BTL-HDPE-500 (500ml HDPE Bottle)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-600 mb-1">Item Description</label>
+                    <input
+                      type="text"
+                      value={newPlanItemName}
+                      onChange={(e) => setNewPlanItemName(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg p-2"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-600 mb-1">Planned Quantity (PCS)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={newPlanQty}
+                      onChange={(e) => setNewPlanQty(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg p-2"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-600 mb-1">Unit Rate (₹)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={newPlanRate}
+                      onChange={(e) => setNewPlanRate(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg p-2"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-gray-200 flex items-center justify-between text-xs">
+                  <span className="text-gray-600 font-medium">Estimated Monthly Commitment Value:</span>
+                  <span className="text-base font-extrabold text-[#14213D]">
+                    ₹{((parseFloat(newPlanQty) || 0) * (parseFloat(newPlanRate) || 0)).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">Commitment Notes & Call-off Rules</label>
+                <textarea
+                  rows={2}
+                  value={newPlanNotes}
+                  onChange={(e) => setNewPlanNotes(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg p-2"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-gray-200 bg-gray-50 flex items-center justify-end gap-2">
+              <button
+                onClick={() => {
+                  setIsCreateModalOpen(false);
+                  if (onCloseCreateModal) onCloseCreateModal();
+                }}
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const qty = parseInt(newPlanQty, 10) || 10000;
+                  const rate = parseFloat(newPlanRate) || 35;
+                  const totalVal = qty * rate;
+                  const randomSuffix = Math.floor(10 + Math.random() * 90);
+                  const generatedId = `PLN-2026-10-${randomSuffix}`;
+
+                  const newPlanObj: MonthlyPlanOrder = {
+                    id: generatedId,
+                    customer: newPlanCustomer,
+                    customerGstin: '27AAACG0943A1ZX',
+                    monthPeriod: newPlanMonth || 'October 2026',
+                    planType: newPlanType,
+                    consumptionMode: 'Manual reconciliation',
+                    billingMode: 'Reconciliation only',
+                    status: 'Published',
+                    plant: newPlanPlant,
+                    fgStore: 'FG-Automotive Cell',
+                    createdDate: '2026-09-15',
+                    items: [
+                      {
+                        itemCode: newPlanItemCode,
+                        itemName: newPlanItemName,
+                        hsn: '39269099',
+                        plannedQty: qty,
+                        deliveredQty: 0,
+                        invoicedQty: 0,
+                        remainingQty: qty,
+                        rate,
+                        uom: 'PCS',
+                        plant: newPlanPlant,
+                        fgStore: 'FG-Automotive Cell',
+                      },
+                    ],
+                    totalPlannedQty: qty,
+                    totalDailySuppliedQty: 0,
+                    remainingPlanQty: qty,
+                    varianceQty: -qty,
+                    variancePct: -100,
+                    totalPlannedValue: totalVal,
+                    notes: newPlanNotes,
+                    auditTrail: [
+                      {
+                        action: 'Monthly Plan Created',
+                        user: 'Supply Planning Executive',
+                        timestamp: '2026-09-15 11:30',
+                        note: 'Created via Monthly Demand Planning Center',
+                      },
+                    ],
+                  };
+
+                  if (onCreatePlan) {
+                    onCreatePlan(newPlanObj);
+                  }
+                  showToast(`Monthly Plan Order ${generatedId} created successfully.`);
+                  setIsCreateModalOpen(false);
+                  if (onCloseCreateModal) onCloseCreateModal();
+                }}
+                className="px-4 py-2 bg-[#14213D] hover:bg-[#1f335e] text-white rounded-lg font-semibold shadow-sm transition-colors"
+              >
+                Confirm & Create Plan
+              </button>
             </div>
           </div>
         </div>

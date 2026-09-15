@@ -94,11 +94,11 @@ export const CapaManagementView: React.FC<Props> = ({
       stage: nextStage,
       history: [
         ...currentCapa.history,
-        { event: `CAPA advanced to stage ${nextStage.toUpperCase()}`, time: 'Just now' },
+        { event: `CAPA advanced to stage ${(nextStage || '').toUpperCase()}`, time: 'Just now' },
       ],
     };
     onUpdateCAPA(updatedCapa);
-    showToast(`CAPA ${currentCapa.id} moved to stage: ${nextStage.toUpperCase()}`);
+    showToast(`CAPA ${currentCapa.id} moved to stage: ${(nextStage || '').toUpperCase()}`);
   };
 
   const handleOpenCreateDrawer = () => {
@@ -435,7 +435,7 @@ export const CapaManagementView: React.FC<Props> = ({
                             : 'bg-[#F6F4EF] border-[#E4E0D6] text-[#6B7280]'
                         }`}
                       >
-                        <div className="text-[10px] font-bold uppercase">{s.key.toUpperCase()}</div>
+                        <div className="text-[10px] font-bold uppercase">{(s.key || '').toUpperCase()}</div>
                         <div className="text-xs font-semibold truncate">{s.label.split(':')[1]}</div>
                       </div>
                     );

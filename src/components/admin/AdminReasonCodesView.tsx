@@ -119,7 +119,7 @@ export const AdminReasonCodesView: React.FC<AdminReasonCodesViewProps> = ({
     }
     const created: ReasonCodeItem = {
       id: `RC-CUSTOM-${Date.now()}`,
-      code: newReason.code.toUpperCase(),
+      code: (newReason.code || '').toUpperCase(),
       title: newReason.title,
       department: newReason.department,
       subCategory: newReason.subCategory,

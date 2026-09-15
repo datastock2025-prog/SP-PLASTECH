@@ -48,6 +48,12 @@ Welcome to the **Reboot ERP** frontend workspace reference. This document provid
 | **Dispatch & Gate Pass Execution** | Dispatch management, vehicle load optimization, direct E-Way Bill & E-Invoice generation, and security gate pass checks. | ✅ Production Ready |
 | **Quality & Compliance Suite** | Non-conformance reporting (8D NCR), CAPA management, SPC X-bar/R control charts, and Certificate of Analysis (COA). | ✅ Production Ready |
 | **Enterprise Administration Hub** | Multi-plant settings, warehouse locations, custom approval workflow engine, machine telemetry mappings, and audit logs. | ✅ Production Ready |
+| **Enterprise Finance Subsystem (GL & Journal)** | Redesigned Journal Entries & Ledger Command Center with multi-tab COA inspector, real-time debit/credit auto-balancing, SOX-compliant audit drawer, and one-click reversal. | ✅ Production Ready |
+| **Procure-to-Pay (3-Way Matching AP)** | Redesigned Accounts Payable subsystem with automated 3-way matching (PO + GRN + Invoice), OCR intake simulation, tolerance rules, and line-level manual variance check workspace. | ✅ Production Ready |
+| **Order-to-Cash (AR & Advance Check)** | Redesigned Accounts Receivable & Priority Collections Workbench featuring real-time Advance Check, credit limit monitoring, and interactive advance application. | ✅ Production Ready |
+| **JIT Production Planner (Consolidated Schedule & Work Orders)** | Added 3rd tab adjacent to Consolidated Recipe with schedule-number and date-wise matrix, single-click row expansion, complete work order drilldown, and individual Release WO actions. | ✅ Production Ready |
+| **Item Master Wizard (Inventory Settings Routing)** | Added Step 5 checkboxes for DOL (Direct to FG-STORE), ASSEMPLY (Assembly Store), and DEFLASH (Deflash Store) with visual flow indicator and review persistence. | ✅ Production Ready |
+| **Daily Production Entry (Automated Store Routing)** | Automatic inventory routing engine mapping daily production output to FG-STORE, ASSEMBLY-STORE, or DEFLASH-STORE based on item flags, with grid badges and balance sync. | ✅ Production Ready |
 
 ---
 
@@ -115,6 +121,89 @@ Welcome to the **Reboot ERP** frontend workspace reference. This document provid
 - Statistical Process Control (SPC) with real-time X-bar and R-charts.
 - Certificate of Analysis (COA) generation with digital sign-off and batch testing records.
 - Document Control & Audit Readiness portal for IATF 16949 / ISO 9001 certifications.
+
+#### 8. Enterprise Journal Entries & General Ledger Subsystem (`/src/components/finance/JournalEntriesView.tsx`)
+- **Multi-Tab Enterprise Navigation**:
+  - **JE Dashboard & KPIs**: Total Posted, Pending Approvals, Discrepancies, and Segregation of Duties metrics.
+  - **Journal Entries Registry**: Complete listing with multi-status tabs (All, Draft, Pending Approval, Posted, Reversed), filter controls, and CSV export.
+  - **Create / Edit Entry Workspace**: Real-time debit/credit auto-balancing indicators, one-click Auto-Balance Line button, recurring entry configurations, and attachment dropzones.
+  - **Ledger Inquiry Workspace**: Real-time running balances, debit/credit totals, and drill-down into original source journals.
+  - **Chart of Accounts (COA) Inspector**: Tree hierarchy with account types, active indicators, and balance summaries.
+- **Enterprise Controls & Compliance**:
+  - Segregation of Duties: Strict validation enforcing that creator != approver != poster.
+  - One-click Journal Reversal with auto-generated reversing reference and audit record.
+  - SOX-compliant immutable audit drawer (`FinanceAuditDrawer.tsx`) with actor timestamps and CSV export.
+
+#### 9. Accounts Payable & 3-Way Matching Subsystem (`/src/components/finance/AccountsPayableDashView.tsx`)
+- **AP Dashboard & Executive KPIs**:
+  - 10 core metrics: Total Open AP, Overdue AP, Invoices Pending Match, Early Payment Discounts, DPO, and tolerance exception alerts.
+  - Interactive AP Aging buckets (Current, 1-30, 31-60 days) and 3-way match funnel analysis.
+- **Automated 3-Way Matching Intake Engine**:
+  - Simulated drag-and-drop intake for supplier invoice documents (PDF/EDI/XML) with AI OCR confidence scoring.
+  - Tolerance rule enforcement: Price variance tolerance (±1.0% or max ₹500), Quantity variance tolerance (0% for discrete parts), and GSTIN verification.
+- **3-Way Match Workspace & Manual Review**:
+  - Three-panel side-by-side comparison: Purchase Order (PO) vs Goods Receipt Note (GRN) vs Supplier Invoice.
+  - Line-level variance inspection highlighting price and quantity deviations with authorization code overrides.
+- **AP Exception Resolution Center**:
+  - Structured categorization across 12 exception types (Missing PO, Missing GRN, Price Variance, Tax Mismatch, Duplicate Invoices) with severity indicators and buyer routing.
+
+#### 10. Accounts Receivable, Advance Check & Priority Collections (`/src/components/finance/AccountsReceivableDashView.tsx`)
+- **Real-Time Advance Check Option**:
+  - 11-field analytical panel inspecting total advances received, allocated balances, available balance, and order-specific vs general advance categorizations.
+  - Distinct status badges: *Advance Available*, *Partially Used*, *Fully Used*, *Advance Exceeded*, and *No Advance*.
+  - Overdue invoice prioritization warnings to prevent unearned credit release.
+- **Interactive Apply Advance Modal**:
+  - Allows finance operators to apply unallocated customer advances directly against outstanding invoices with live balance deduction.
+- **Collection Workbench & Surveillance**:
+  - Split-screen priority queue displaying customer credit limit utilization, overdue balances, and broken payment promise alerts.
+  - Communication history timeline for call logs, reminder dispatches, and Statement of Account delivery.
+- **Customer Advance History Ledger**:
+  - Dedicated receipts journal tracking unallocated amounts, proforma settlements, and refund logs.
+
+#### 11. JIT Production Planner — Consolidated Schedule Number & Date-Wise Work Order Matrix (`/src/components/manufacturing/JitProductionPlanner.tsx`)
+- **New Dedicated Tab Near Consolidated Recipe by Machine**:
+  - Added a 3rd tab: **"Consolidated Schedule & Work Orders"** positioned adjacent to "Consolidated Recipe by Machine".
+  - Consolidates work orders by unique `Schedule Number` and `Plan Date`, providing production planners with an aggregated view of shop-floor commitments.
+- **Aggregated Directory Grid**:
+  - High-density columns: Schedule Number, Schedule Date, Total Work Orders, Total Planned Qty (PCS), Completed Qty, Scrap Qty, Machine Bays assigned, Shift allocations, Operating Teams, and Overall Release Status.
+  - KPI summary metric cards displaying Total Active Schedules, Scheduled Dates, Planned Production Volume, and Work Order counts.
+- **Single-Click Row Drilldown**:
+  - Clicking any row smoothly expands an inline detailed drawer/table displaying every Work Order belonging to that specific schedule number and date.
+  - Each work order row displays: Work Order ID, Item Code, Item Description, Machine Bay, Shift, Planned Quantity, Completed Units, Scrap Count, Mold ID, Priority Level, Traveler Status, and an action button to **Release WO** directly.
+- **Search, Date Filtering & Export**:
+  - Real-time search across Schedule Number, Work Order ID, Item Name, or Machine Bay.
+  - Specific plan date filter picker to inspect schedules for any given production day.
+  - One-click CSV export of consolidated schedules.
+
+#### 12. Item Master Creation Wizard — Post-Molding Routing Destination Checkboxes (`/src/components/masterdata/CreateItemWizardModal.tsx`)
+- **Interactive Routing Checkboxes in Step 5 (Inventory Settings)**:
+  - Added three specialized post-molding routing checkboxes:
+    1. **DOL (Direct On Line)**: Automatically sets post-molding destination to **FG-STORE** (Finished Goods Store). Finished parts immediately move to FG stock without intermediate WIP staging.
+    2. **ASSEMPLY**: Automatically sets post-molding destination to **ASSEMBLY-STORE** (Assembly Inventory Store) for secondary hardware insertion, fittings, and multi-component assembly.
+    3. **DEFLASH**: Automatically sets post-molding destination to **DEFLASH-STORE** (Deflash Inventory Store) for runner gate cutting, deburring, and flame polishing.
+- **Interactive Routing Feedback & State Management**:
+  - Built single-selection toggle handlers (`handleToggleDol`, `handleToggleAssembly`, `handleToggleDeflash`) that switch the active destination while ensuring unambiguous routing.
+  - Visual direct flow path indicator showing: `Molding Production → Daily Production Entry → [Target Store]`.
+  - Step 10 (Review & Approval Workflow) displays the chosen post-production routing destination in the Inventory & Quality review card.
+  - Persisted `routingDestination`, `isDol`, `isAssembly`, and `isDeflash` across draft saves and final approvals in `ItemMaster`.
+
+#### 13. Daily Production Entry — Automated Inventory Store Routing Engine (`/src/components/manufacturing/DailyProductionGrid.tsx`, `ManufacturingViews.tsx`)
+- **Automated Routing Execution on Entry Save**:
+  - When shop floor operators log daily production (via single row save or batch save all), the system inspects the molded item's master data routing flags.
+  - Automatically calculates and deposits good quantities, scrap, runner kg, and lumps kg into the designated target store:
+    - `DOL` &rarr; `FG-STORE` (Direct to Finished Goods Handover Store)
+    - `ASSEMPLY` &rarr; `ASSEMBLY-STORE` (Assembly Floor Store)
+    - `DEFLASH` &rarr; `DEFLASH-STORE` (Deflash Floor Store)
+- **Live Inventory Ledger & Balance Synchronization**:
+  - Automatically updates `PlantStoreInventoryItem` on-hand and available balances for the recipient store.
+  - Generates an immutable WIP lot lifecycle record (`WipInventoryRecord`) with full audit history recording the exact routing destination and timestamp.
+  - Updates the work order traveler output location (`locOutput`) to mirror the routed store.
+- **Floor Visual Clarity & Notification Toasts**:
+  - Added color-coded routing badges directly under the Product Item column in `DailyProductionGrid.tsx` (`DOL → FG-Store`, `ASSEMPLY → Assembly Store`, `DEFLASH → Deflash Store`).
+  - Enhanced toast notifications on row save and batch save confirming the exact destination store and quantity routed.
+- **Catalog & Inventory Visibility**:
+  - Updated the Item Master catalog list table to display post-molding routing tags on item rows.
+  - Added a dedicated Default Post-Molding Store Routing indicator banner in the Item Detail view (Inventory tab).
 
 ---
 

@@ -221,7 +221,7 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
         return role;
       })
     );
-    showToast(`Bulk ${enable ? 'granted' : 'revoked'} "${action.toUpperCase()}" privilege for ${selectedRole.name}.`);
+    showToast(`Bulk ${enable ? 'granted' : 'revoked'} "${(action || '').toUpperCase()}" privilege for ${selectedRole.name}.`);
   };
 
   const handleGrantAll = () => {
@@ -332,7 +332,7 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
     const newRole: AdminRole = {
       id: `ROLE-${Date.now().toString().slice(-4)}`,
       name: newRoleData.name.trim(),
-      code: newRoleData.code.trim().toUpperCase() || `ROLE_${newRoleData.name.replace(/\s+/g, '_').toUpperCase()}`,
+      code: (newRoleData.code || '').trim().toUpperCase() || `ROLE_${(newRoleData.name || '').replace(/\s+/g, '_').toUpperCase()}`,
       description: newRoleData.description.trim() || 'Custom plant operational profile',
       isSystemRole: false,
       userCount: 0,
@@ -441,11 +441,11 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
         policyPath = 'Policy: COMMERCIAL_THRESHOLD_MATRIX -> Tier 2 Approval Rule';
       } else if (hasActionPerm) {
         verdict = 'PERMIT';
-        reason = `Action "${simAction.toUpperCase()}" on module "${simModule}" is explicitly permitted under role assignment.`;
+        reason = `Action "${(simAction || '').toUpperCase()}" on module "${simModule}" is explicitly permitted under role assignment.`;
         policyPath = `Policy: RBAC_MATRIX_RULE -> Role [${targetRoles.map((r) => r.code).join(', ')}] -> ${simModule}.${simAction}`;
       } else {
         verdict = 'DENY';
-        reason = `Action "${simAction.toUpperCase()}" is revoked or not granted for resource "${simResource}" in module "${simModule}".`;
+        reason = `Action "${(simAction || '').toUpperCase()}" is revoked or not granted for resource "${simResource}" in module "${simModule}".`;
         policyPath = `Policy: RBAC_DEFAULT_DENY -> Missing privilege ${simModule}.${simAction}`;
       }
 
@@ -453,7 +453,7 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
         {
           name: 'RBAC Privilege Check',
           passed: hasSuperAdmin || hasActionPerm,
-          detail: `Module: ${simModule} | Action: ${simAction.toUpperCase()} | Granted in role definition: ${hasActionPerm ? 'YES' : 'NO'}`,
+          detail: `Module: ${simModule} | Action: ${(simAction || '').toUpperCase()} | Granted in role definition: ${hasActionPerm ? 'YES' : 'NO'}`,
         },
         {
           name: 'Plant Context & Geofence Fencing',
@@ -1660,7 +1660,7 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
                     <ul className="list-disc list-inside text-slate-500">
                       {rule.conflictingActions.map((act, i) => (
                         <li key={i}>
-                          {act.module} &rarr; <span className="font-mono font-bold">{act.action.toUpperCase()}</span>
+                          {act.module} &rarr; <span className="font-mono font-bold">{(act.action || '').toUpperCase()}</span>
                         </li>
                       ))}
                     </ul>

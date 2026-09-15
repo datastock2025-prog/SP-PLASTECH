@@ -492,7 +492,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-indigo-50 text-slate-700 group-hover:text-indigo-600 flex items-center justify-center font-bold text-xs transition-colors shrink-0">
-                            {item.subGroup ? item.subGroup.slice(0, 2).toUpperCase() : group.title.slice(0, 2).toUpperCase()}
+                            {(item.subGroup || group?.title || 'NA').slice(0, 2).toUpperCase()}
                           </div>
                           <div>
                             {item.subGroup && (

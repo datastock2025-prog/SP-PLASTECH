@@ -89,7 +89,7 @@ export const PromptBuilder: React.FC<PromptBuilderProps> = ({
     const lines = [
       `[SYSTEM INSTRUCTION]`,
       `Role: ${values.systemPersona}`,
-      `Domain Context: ${values.domainContext.toUpperCase()}`,
+      `Domain Context: ${(values.domainContext || '').toUpperCase()}`,
       `Tone Mode: ${values.tone}`,
       `Model Temperature: ${values.temperature}`,
       `Active Plant Context: ${values.includePlantContext ? 'ENABLED (Unit 1 Hosūr Polymer Extrusion, Shift A)' : 'DISABLED'}`,
@@ -145,7 +145,7 @@ export const PromptBuilder: React.FC<PromptBuilderProps> = ({
       setStreamIteration((prev) => prev + 1);
       setTestStreamingText(
         `[AI GATEWAY STREAMING DISPATCH]\n` +
-          `Context Target: ${domainContext.toUpperCase()} | Persona: ${systemPersona}\n` +
+          `Context Target: ${(domainContext || '').toUpperCase()} | Persona: ${systemPersona}\n` +
           `Tone: ${tone} (Temperature: ${temperature.toFixed(2)})\n\n` +
           `EMPIRICAL FINDINGS & CONTAINMENT:\n` +
           `1. Parameter Correlation: Sensor telemetry and screw RPM indicate intermittent shear heating in barrel zone 3.\n` +

@@ -403,7 +403,24 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                           <div className="font-bold text-[#14213D] flex items-center gap-1">
                             <span>{item.icon}</span> <span>{item.name}</span>
                           </div>
-                          <div className="text-[11px] text-[#6B7280]">{item.cat}</div>
+                          <div className="text-[11px] text-[#6B7280] flex items-center gap-1.5 flex-wrap mt-0.5">
+                            <span>{item.cat}</span>
+                            {(item.isDol || item.routingDestination === 'DOL') && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                DOL &rarr; FG
+                              </span>
+                            )}
+                            {(item.isAssembly || item.routingDestination === 'ASSEMBLY') && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                ASSEMPLY &rarr; Assembly
+                              </span>
+                            )}
+                            {(item.isDeflash || item.routingDestination === 'DEFLASH') && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                DEFLASH &rarr; Deflash
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="p-3">
                           <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#F6F4EF] text-[#14213D] border border-[#E4E0D6]">
@@ -808,6 +825,42 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
         {/* Tab 2: Inventory */}
         {activeTab === 'Inventory' && (
           <div className="space-y-4">
+            {/* Post-Production Routing Destination Banner */}
+            <div className={`p-4 rounded-xl border flex items-center justify-between flex-wrap gap-3 ${
+              (item.isDeflash || item.routingDestination === 'DEFLASH')
+                ? 'bg-amber-50/80 border-amber-200 text-amber-900'
+                : (item.isAssembly || item.routingDestination === 'ASSEMBLY')
+                ? 'bg-purple-50/80 border-purple-200 text-purple-900'
+                : 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+            }`}>
+              <div>
+                <div className="text-xs font-bold flex items-center gap-2">
+                  <span>Default Post-Molding Store Routing:</span>
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-white border shadow-2xs">
+                    {(item.isDeflash || item.routingDestination === 'DEFLASH')
+                      ? 'DEFLASH &rarr; DEFLASH-STORE'
+                      : (item.isAssembly || item.routingDestination === 'ASSEMBLY')
+                      ? 'ASSEMPLY &rarr; ASSEMBLY-STORE'
+                      : 'DOL &rarr; FG-STORE'}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-600 mt-1">
+                  {(item.isDeflash || item.routingDestination === 'DEFLASH')
+                    ? 'Configured in Item Wizard Step 5 (DEFLASH checked): After daily production entry is saved, output routes directly to DEFLASH-STORE for gate trimming and deburring.'
+                    : (item.isAssembly || item.routingDestination === 'ASSEMBLY')
+                    ? 'Configured in Item Wizard Step 5 (ASSEMPLY checked): After daily production entry is saved, output routes directly to ASSEMBLY-STORE for secondary assembly.'
+                    : 'Configured in Item Wizard Step 5 (DOL checked): Direct On Line production drops directly into FG-STORE (Finished Goods), bypassing secondary staging.'}
+                </div>
+              </div>
+              <div className="text-xs font-mono font-bold px-3 py-1.5 rounded-lg bg-white border">
+                Target Store: {(item.isDeflash || item.routingDestination === 'DEFLASH')
+                  ? 'DEFLASH-STORE'
+                  : (item.isAssembly || item.routingDestination === 'ASSEMBLY')
+                  ? 'ASSEMBLY-STORE'
+                  : 'FG-STORE'}
+              </div>
+            </div>
+
             <div className="panel">
               <div className="panel-head"><h3>Warehouse Stock by Lot</h3></div>
               <div className="panel-body p-0">

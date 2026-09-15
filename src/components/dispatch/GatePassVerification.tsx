@@ -15,6 +15,8 @@ import {
   FileText,
   Building2,
   Lock,
+  Plus,
+  X,
 } from 'lucide-react';
 import {
   GatePassRecord,
@@ -26,6 +28,8 @@ interface GatePassVerificationProps {
   deliveries: DeliveryNoteChallan[];
   onApproveGateOut: (passId: string) => void;
   onHoldGatePass: (passId: string, reason: string) => void;
+  onIssueGatePass?: (pass: GatePassRecord, deliveryId?: string) => void;
+  onNavigate?: (view: string, param?: any) => void;
   showToast: (msg: string) => void;
 }
 
@@ -34,11 +38,13 @@ export const GatePassVerification: React.FC<GatePassVerificationProps> = ({
   deliveries,
   onApproveGateOut,
   onHoldGatePass,
+  onIssueGatePass,
+  onNavigate = (_view?: string, _param?: any) => {},
   showToast,
 }) => {
   const [viewMode, setViewMode] = useState<'Security Gate' | 'Dispatch Desk'>('Security Gate');
   const [searchCode, setSearchCode] = useState('GP-2026-0891');
-  const [selectedPassId, setSelectedPassId] = useState('GP-2026-0891');
+  const [selectedPassId, setSelectedPassId] = useState(gatePasses[0]?.id || gatePasses[0]?.gatePassNumber || 'GP-6001');
 
   // Security Checklist State
   const [vehicleMatched, setVehicleMatched] = useState(true);
@@ -51,11 +57,47 @@ export const GatePassVerification: React.FC<GatePassVerificationProps> = ({
   const [holdReason, setHoldReason] = useState('');
   const [showHoldModal, setShowHoldModal] = useState(false);
 
-  const activePass = gatePasses.find((g) => g.id === selectedPassId) || gatePasses[0];
+  // Issue Gate Pass Modal state
+  const [showIssueModal, setShowIssueModal] = useState(false);
+  const [modalDeliveryId, setModalDeliveryId] = useState(deliveries[0]?.id || '');
+  const [modalGate, setModalGate] = useState('Plant 1 Gate 2');
+  const [modalBay, setModalBay] = useState('Bay 2 - Dispatch Deck');
+  const [modalSeal, setModalSeal] = useState('SL-90812');
+  const [modalDriverContact, setModalDriverContact] = useState('+91 98220 19281');
+
+  const activePass =
+    gatePasses.find((g) => (g.id || g.gatePassNumber) === selectedPassId) ||
+    gatePasses[0] ||
+    ({
+      id: 'GP-6001',
+      gatePassNumber: 'GP-6001',
+      deliveryNoteNumber: 'DN-4001',
+      deliveryNoteId: 'DN-4001',
+      deliveryId: 'DN-4001',
+      vehicleNumber: 'MH-14-GH-8821',
+      driverName: 'Suresh More',
+      driverPhone: '+91 98220 44192',
+      driverContact: '+91 98220 44192',
+      transporterName: 'VRL Logistics Ltd',
+      gateNumber: 'Gate 2 (Outward Loading Bay)',
+      ewbNumber: '241088910245',
+      lrNumber: 'LR-VRL-99214',
+      sealNumber: 'SEAL-PIM-88401',
+      packageCount: 170,
+      totalPackages: 170,
+      grossWeightKg: 1840,
+      status: 'Verified',
+      securityCheckStatus: 'Cleared',
+      vehiclePhotoCaptured: true,
+      sealPhotoCaptured: true,
+      ewbQrScanned: true,
+      eInvoiceQrVerified: true,
+    } as GatePassRecord);
 
   const handleApprove = () => {
-    onApproveGateOut(activePass.id);
-    showToast(`Gate Pass ${activePass.id} cleared for Gate-Out. Boom barrier open.`);
+    const pId = activePass.id || activePass.gatePassNumber;
+    onApproveGateOut(pId);
+    showToast(`Gate Pass ${pId} cleared for Gate-Out. Boom barrier open.`);
   };
 
   const handleHold = () => {
@@ -63,9 +105,60 @@ export const GatePassVerification: React.FC<GatePassVerificationProps> = ({
       showToast('Please specify a security hold reason.');
       return;
     }
-    onHoldGatePass(activePass.id, holdReason);
+    const pId = activePass.id || activePass.gatePassNumber;
+    onHoldGatePass(pId, holdReason);
     setShowHoldModal(false);
-    showToast(`Vehicle ${activePass.vehicleNumber} placed on Security Hold: ${holdReason}`);
+    showToast(`Vehicle ${activePass.vehicleNumber || 'Vehicle'} placed on Security Hold: ${holdReason}`);
+  };
+
+  const handleCreateNewPass = () => {
+    const targetDeliv = deliveries.find((d) => d.id === modalDeliveryId) || deliveries[0];
+    const passNumber = `GP-2026-0${Math.floor(100 + Math.random() * 900)}`;
+
+    const newPass: GatePassRecord = {
+      id: passNumber,
+      gatePassNumber: passNumber,
+      deliveryId: targetDeliv?.id || 'DN-4001',
+      deliveryNumber: targetDeliv?.id || 'DN-4001',
+      deliveryNoteId: targetDeliv?.id || 'DN-4001',
+      salesOrderId: targetDeliv?.salesOrderId || 'SO-5001',
+      customerName: targetDeliv?.customer || 'Customer Entity',
+      vehicleNumber: targetDeliv?.vehicleNumber || 'MH-14-GH-8821',
+      driverName: targetDeliv?.driverName || 'Driver Assigned',
+      driverContact: modalDriverContact,
+      driverPhone: modalDriverContact,
+      transporterName: targetDeliv?.transporterName || 'Express Logistics',
+      ewbNumber: targetDeliv?.ewbNumber || '241088492019',
+      invoiceNumber: targetDeliv?.invoiceNumber || 'INV-2026-001',
+      invoiceValue: targetDeliv?.invoiceValue || 150000,
+      packageCount: targetDeliv?.packageCount || 10,
+      totalPackages: targetDeliv?.packageCount || 10,
+      grossWeightKg: targetDeliv?.grossWeightKg || 1250,
+      tareWeightKg: targetDeliv?.tareWeightKg || 350,
+      netWeightKg: targetDeliv?.netWeightKg || 900,
+      gateNumber: modalGate,
+      sealNumber: modalSeal,
+      securityCheckStatus: 'Cleared',
+      vehicleInspection: {
+        physicalDamageChecked: true,
+        sealIntact: true,
+        sealNumber: modalSeal,
+        driverLicenseVerified: true,
+        weighmentMatched: true,
+      },
+      gateOutTimestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+      securityOfficerName: 'S. Deshmukh (SEC-104)',
+      notes: `Issued at ${modalGate} for ${modalBay}.`,
+    };
+
+    if (onIssueGatePass) {
+      onIssueGatePass(newPass, targetDeliv?.id);
+    } else {
+      showToast(`Gate Pass ${passNumber} generated.`);
+    }
+
+    setSelectedPassId(passNumber);
+    setShowIssueModal(false);
   };
 
   return (
@@ -86,27 +179,36 @@ export const GatePassVerification: React.FC<GatePassVerificationProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => setViewMode('Security Gate')}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
-              viewMode === 'Security Gate'
-                ? 'bg-[#14213D] text-white shadow-2xs'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
+            onClick={() => setShowIssueModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg text-xs font-bold transition-colors shadow-xs"
           >
-            Security Gate Terminal
+            <Plus className="w-3.5 h-3.5" /> Issue Gate Pass
           </button>
-          <button
-            onClick={() => setViewMode('Dispatch Desk')}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
-              viewMode === 'Dispatch Desk'
-                ? 'bg-[#14213D] text-white shadow-2xs'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Dispatch Desk Register
-          </button>
+
+          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+            <button
+              onClick={() => setViewMode('Security Gate')}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
+                viewMode === 'Security Gate'
+                  ? 'bg-[#14213D] text-white shadow-2xs'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Security Gate Terminal
+            </button>
+            <button
+              onClick={() => setViewMode('Dispatch Desk')}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${
+                viewMode === 'Dispatch Desk'
+                  ? 'bg-[#14213D] text-white shadow-2xs'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Dispatch Desk Register
+            </button>
+          </div>
         </div>
       </div>
 
@@ -139,18 +241,20 @@ export const GatePassVerification: React.FC<GatePassVerificationProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xl font-bold font-mono text-[#0F8B8D]">{activePass.id}</span>
+                  <span className="text-xl font-bold font-mono text-[#0F8B8D]">
+                    {activePass.id || activePass.gatePassNumber}
+                  </span>
                   <span className="text-gray-400">&bull;</span>
                   <span className="font-mono text-base font-bold text-gray-900">
                     {activePass.vehicleNumber}
                   </span>
                   <span className="px-2.5 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800">
-                    {activePass.securityCheckStatus.toUpperCase()}
+                    {(activePass.securityCheckStatus || activePass.status || 'PENDING').toUpperCase()}
                   </span>
                 </div>
                 <div className="text-xs text-gray-600 mt-1">
-                  Transporter: <strong>{activePass.transporterName}</strong> &bull; Gate:{' '}
-                  <strong>{activePass.gateNumber}</strong>
+                  Transporter: <strong>{activePass.transporterName || activePass.transporter || 'Self'}</strong> &bull; Gate:{' '}
+                  <strong>{activePass.gateNumber || 'Gate 1'}</strong>
                 </div>
               </div>
 
@@ -170,7 +274,7 @@ export const GatePassVerification: React.FC<GatePassVerificationProps> = ({
                 <CheckCircle className="w-6 h-6 text-emerald-600 shrink-0" />
                 <div>
                   <div className="text-xs font-bold text-emerald-950">E-Way Bill Verified</div>
-                  <div className="text-[11px] font-mono text-emerald-700">{activePass.ewbNumber} (Valid 38h)</div>
+                  <div className="text-[11px] font-mono text-emerald-700">{activePass.ewbNumber || '241088492019'} (Valid 38h)</div>
                 </div>
               </div>
 
@@ -186,7 +290,9 @@ export const GatePassVerification: React.FC<GatePassVerificationProps> = ({
                 <CheckCircle className="w-6 h-6 text-emerald-600 shrink-0" />
                 <div>
                   <div className="text-xs font-bold text-emerald-950">Delivery Challan Linked</div>
-                  <div className="text-[11px] font-mono text-emerald-700">{activePass.deliveryNoteId}</div>
+                  <div className="text-[11px] font-mono text-emerald-700">
+                    {activePass.deliveryNoteId || activePass.deliveryId || activePass.deliveryNoteNumber || 'DN-4001'}
+                  </div>
                 </div>
               </div>
             </div>
@@ -202,7 +308,7 @@ export const GatePassVerification: React.FC<GatePassVerificationProps> = ({
                 <label className="flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-gray-50/70 cursor-pointer">
                   <div>
                     <span className="font-semibold text-gray-900">1. Vehicle Number Plate Match</span>
-                    <div className="text-[11px] text-gray-500 font-mono">Expected: {activePass.vehicleNumber}</div>
+                    <div className="text-[11px] text-gray-500 font-mono">Expected: {activePass.vehicleNumber || 'MH-14-GH-8821'}</div>
                   </div>
                   <input
                     type="checkbox"
@@ -216,7 +322,9 @@ export const GatePassVerification: React.FC<GatePassVerificationProps> = ({
                 <label className="flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-gray-50/70 cursor-pointer">
                   <div>
                     <span className="font-semibold text-gray-900">2. Driver Identity & License Check</span>
-                    <div className="text-[11px] text-gray-500">{activePass.driverName} ({activePass.driverPhone})</div>
+                    <div className="text-[11px] text-gray-500">
+                      {activePass.driverName || 'Driver'} ({activePass.driverPhone || activePass.driverContact || '+91 98220 19281'})
+                    </div>
                   </div>
                   <input
                     type="checkbox"
@@ -230,7 +338,9 @@ export const GatePassVerification: React.FC<GatePassVerificationProps> = ({
                 <label className="flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-gray-50/70 cursor-pointer">
                   <div>
                     <span className="font-semibold text-gray-900">3. Physical Box / Pallet Count</span>
-                    <div className="text-[11px] text-gray-500">Expected: {activePass.totalPackages} units</div>
+                    <div className="text-[11px] text-gray-500">
+                      Expected: {activePass.totalPackages ?? activePass.packageCount ?? 170} units
+                    </div>
                   </div>
                   <input
                     type="checkbox"
@@ -244,7 +354,9 @@ export const GatePassVerification: React.FC<GatePassVerificationProps> = ({
                 <label className="flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-gray-50/70 cursor-pointer">
                   <div>
                     <span className="font-semibold text-gray-900">4. Container Security Seal Intact</span>
-                    <div className="text-[11px] text-gray-500 font-mono">Seal: {activePass.sealNumber}</div>
+                    <div className="text-[11px] text-gray-500 font-mono">
+                      Seal: {activePass.sealNumber || (activePass.vehicleInspection?.sealNumber) || 'SEAL-PIM-88401'}
+                    </div>
                   </div>
                   <input
                     type="checkbox"
@@ -313,39 +425,39 @@ export const GatePassVerification: React.FC<GatePassVerificationProps> = ({
             <tbody className="divide-y divide-gray-100">
               {gatePasses.map((gp) => (
                 <tr
-                  key={gp.id}
+                  key={gp.id || gp.gatePassNumber}
                   onClick={() => {
-                    setSelectedPassId(gp.id);
+                    setSelectedPassId(gp.id || gp.gatePassNumber);
                     setViewMode('Security Gate');
                   }}
                   className="hover:bg-gray-50 cursor-pointer"
                 >
-                  <td className="p-3 font-mono font-bold text-[#0F8B8D]">{gp.id}</td>
-                  <td className="p-3 font-mono text-gray-900">{gp.deliveryNoteId}</td>
+                  <td className="p-3 font-mono font-bold text-[#0F8B8D]">{gp.id || gp.gatePassNumber}</td>
+                  <td className="p-3 font-mono text-gray-900">{gp.deliveryNoteId || gp.deliveryNoteNumber}</td>
                   <td className="p-3 font-mono font-bold text-gray-900">{gp.vehicleNumber}</td>
-                  <td className="p-3 text-gray-700">{gp.transporterName}</td>
-                  <td className="p-3 text-gray-600">{gp.driverName} ({gp.driverPhone})</td>
+                  <td className="p-3 text-gray-700">{gp.transporterName || gp.transporter}</td>
+                  <td className="p-3 text-gray-600">{gp.driverName} ({gp.driverPhone || gp.driverMobile || 'N/A'})</td>
                   <td className="p-3 text-gray-600">
-                    <div>{gp.gateNumber}</div>
+                    <div>{gp.gateNumber || 'Gate 1'}</div>
                     <div className="font-mono text-[10px] text-gray-400">Seal: {gp.sealNumber}</div>
                   </td>
                   <td className="p-3">
                     <span
                       className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                        gp.securityCheckStatus === 'Cleared'
+                        (gp.securityCheckStatus || gp.status) === 'Cleared' || (gp.securityCheckStatus || gp.status) === 'Verified'
                           ? 'bg-emerald-100 text-emerald-800'
-                          : gp.securityCheckStatus === 'Security Hold'
+                          : (gp.securityCheckStatus || gp.status) === 'Security Hold'
                           ? 'bg-red-100 text-red-800'
                           : 'bg-amber-100 text-amber-800'
                       }`}
                     >
-                      {gp.securityCheckStatus}
+                      {gp.securityCheckStatus || gp.status || 'Pending'}
                     </span>
                   </td>
                   <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => {
-                        setSelectedPassId(gp.id);
+                        setSelectedPassId(gp.id || gp.gatePassNumber);
                         setViewMode('Security Gate');
                       }}
                       className="text-xs font-semibold text-[#0F8B8D] hover:underline"
@@ -397,6 +509,112 @@ export const GatePassVerification: React.FC<GatePassVerificationProps> = ({
                 className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded font-bold"
               >
                 Confirm Hold
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Issue Gate Pass Modal */}
+      {showIssueModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-5 space-y-4 shadow-2xl text-xs">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">Issue Security Gate Pass</h3>
+                  <p className="text-[11px] text-gray-500">Generate outward gate pass for dispatch vehicle</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowIssueModal(false)}
+                className="text-gray-400 hover:text-gray-700 p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="font-bold text-gray-700 block mb-1">Select Delivery Challan</label>
+                <select
+                  value={modalDeliveryId}
+                  onChange={(e) => setModalDeliveryId(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-lg text-xs"
+                >
+                  {deliveries.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.id} &bull; {d.customer} &bull; {d.vehicleNumber} ({d.status})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-gray-700 block mb-1">Security Gate</label>
+                  <select
+                    value={modalGate}
+                    onChange={(e) => setModalGate(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg text-xs"
+                  >
+                    <option value="Plant 1 Gate 1">Plant 1 Gate 1 (Main Entrance)</option>
+                    <option value="Plant 1 Gate 2">Plant 1 Gate 2 (Heavy Dispatch)</option>
+                    <option value="Plant 2 Gate 1">Plant 2 Gate 1 (FMCG Dock)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-semibold text-gray-700 block mb-1">Loading Bay</label>
+                  <select
+                    value={modalBay}
+                    onChange={(e) => setModalBay(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg text-xs"
+                  >
+                    <option value="Bay 1 - FMCG Pallet Dock">Bay 1 - FMCG Pallet Dock</option>
+                    <option value="Bay 2 - Automotive Dock">Bay 2 - Automotive Dock</option>
+                    <option value="Bay 3 - Chemical & Bulk">Bay 3 - Chemical & Bulk</option>
+                    <option value="Bay 4 - Export Dock">Bay 4 - Export Dock</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-gray-700 block mb-1">Security Seal #</label>
+                  <input
+                    type="text"
+                    value={modalSeal}
+                    onChange={(e) => setModalSeal(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg font-mono text-xs"
+                    placeholder="SL-90812"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-gray-700 block mb-1">Driver Phone #</label>
+                  <input
+                    type="text"
+                    value={modalDriverContact}
+                    onChange={(e) => setModalDriverContact(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg font-mono text-xs"
+                    placeholder="+91 98220 19281"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t">
+              <button
+                onClick={() => setShowIssueModal(false)}
+                className="px-3 py-1.5 border border-gray-300 rounded text-gray-700 font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateNewPass}
+                className="px-4 py-2 bg-[#14213D] hover:bg-[#1f335e] text-white rounded-lg font-bold flex items-center gap-1.5 shadow-sm"
+              >
+                <ShieldCheck className="w-4 h-4 text-emerald-400" /> Issue Gate Pass
               </button>
             </div>
           </div>

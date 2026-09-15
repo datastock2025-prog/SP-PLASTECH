@@ -156,7 +156,7 @@ export const SupplierDetailView: React.FC<Props> = ({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-start gap-4">
             <div className="w-14 h-14 rounded-2xl bg-[#14213D] text-white flex items-center justify-center font-bold text-xl font-['Space_Grotesk'] shadow">
-              {supplier.name.slice(0, 2).toUpperCase()}
+              {(supplier.name || 'SP').slice(0, 2).toUpperCase()}
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">

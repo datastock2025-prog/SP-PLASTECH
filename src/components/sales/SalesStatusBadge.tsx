@@ -105,7 +105,7 @@ export const SalesStatusBadge: React.FC<Props> = ({
       ? 'px-3 py-1 text-xs font-semibold'
       : 'px-2 py-0.5 text-[11px] font-medium';
 
-  const displayLabel = label || status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  const displayLabel = label || (status ? String(status).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'Unknown');
 
   return (
     <span
