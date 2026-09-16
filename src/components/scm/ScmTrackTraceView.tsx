@@ -28,15 +28,17 @@ export const ScmTrackTraceView: React.FC<ScmTrackTraceViewProps> = ({ onNavigate
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    const query = searchQuery.toLowerCase();
     const found = mockTraceabilityRecords.find(
       (r) =>
-        r.lotNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.finishedGoodLot.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.itemCode.toLowerCase().includes(searchQuery.toLowerCase())
+        r.referenceId?.toLowerCase().includes(query) ||
+        r.lotNumber?.toLowerCase().includes(query) ||
+        r.finishedGoodLot?.toLowerCase().includes(query) ||
+        r.itemCode?.toLowerCase().includes(query)
     );
     if (found) {
       setSelectedRecord(found);
-      showToast(`Found 360° Geneaology Trail for ${found.lotNumber}`);
+      showToast(`Found 360° Geneaology Trail for ${found.lotNumber || found.referenceId}`);
     } else {
       showToast(`No traceability records found matching "${searchQuery}"`);
     }

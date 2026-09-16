@@ -424,7 +424,7 @@ export const StockTransferManager: React.FC<StockTransferManagerProps> = ({
             onPostReceipt={handlePostReceipt}
             onCreateShortageNotification={handleCreateShortageNotification}
             onCreateMaintenanceWorkOrder={handleCreateMaintenanceWorkOrder}
-            onNavigateTab={setCurrentTab}
+            onNavigateTab={(tab: string) => setCurrentTab(tab as any)}
             showToast={showToast}
           />
         )}

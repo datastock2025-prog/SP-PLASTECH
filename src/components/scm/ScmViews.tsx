@@ -51,6 +51,18 @@ interface ScmViewsProps {
   showToast: (msg: string) => void;
 }
 
+interface ScmNavItem {
+  id: string;
+  label: string;
+  icon: any;
+  badge?: string;
+}
+
+interface ScmNavGroup {
+  group: string;
+  items: ScmNavItem[];
+}
+
 export const ScmViews: React.FC<ScmViewsProps> = ({
   activeSubView = 'scmControlTower',
   onNavigate,
@@ -70,7 +82,7 @@ export const ScmViews: React.FC<ScmViewsProps> = ({
     onNavigate(view, param);
   };
 
-  const navGroups = [
+  const navGroups: ScmNavGroup[] = [
     {
       group: 'Command & Planning',
       items: [

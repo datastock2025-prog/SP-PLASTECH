@@ -97,7 +97,7 @@ export const ROLE_DEFAULT_FAVORITES: Record<string, string[]> = {
   warehouse: ['home', 'stockList', 'grnList', 'putaway', 'picking', 'stockTransfer', 'quarantine'],
   quality: ['home', 'qualityDash', 'inspectionPlanList', 'ncrList', 'capaList', 'qcoaList', 'spcMonitor'],
   maintenance: ['home', 'mepDash', 'machineList', 'toolMolds', 'pmSchedules', 'sparesInventory'],
-  finance: ['home', 'financeDash', 'coaList', 'apDash', 'arDash', 'billingStatus', 'finReports'],
+  finance: ['home', 'unifiedLedger', 'financeDash', 'coaList', 'apDash', 'arDash', 'billingStatus', 'finReports'],
   hr: ['home', 'hrCommandCenter', 'hrEmployeeList', 'hrAttendance', 'hrShiftRoster', 'hrPayroll'],
   sales: ['home', 'salesDash', 'quoteList', 'soList', 'deliverySchedule', 'customerList', 'creditControl'],
   procurement: ['home', 'supplierList', 'purchaseReqList', 'rfqList', 'poList', 'grnList', 'supplierScorecard'],
@@ -236,6 +236,7 @@ export const NAVIGATION_GROUPS: NavGroupDef[] = [
     icon: 'Landmark',
     defaultExpanded: false,
     items: [
+      { id: 'nav-unified-ledger', label: 'Operations-to-Ledger Workspace', view: 'unifiedLedger', icon: 'BookOpen', badge: '11 Tabs', badgeColor: 'bg-[#E8622C]', subGroup: 'Accounting', tooltip: 'Unified Stock, PO, GRN, QC, Dispatch, Invoicing & GL Engine' },
       { id: 'nav-fin-dash', label: 'Finance Command Center', view: 'financeDash', icon: 'Landmark', subGroup: 'Accounting' },
       { id: 'nav-coa-list', label: 'Chart of Accounts (COA)', view: 'coaList', icon: 'FolderTree', subGroup: 'Accounting' },
       { id: 'nav-je-list', label: 'Journal Entries & Ledger', view: 'jeList', icon: 'BookOpen', subGroup: 'Accounting' },

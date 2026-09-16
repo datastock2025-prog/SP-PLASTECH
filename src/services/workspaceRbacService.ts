@@ -186,7 +186,7 @@ function buildDefaultVisibilityMatrix(): Record<string, Record<string, boolean>>
           isAllowed = [
             'jitBoard', 'woList', 'mfgDash', 'oeeDash', 'scrapDowntime', 'genealogy', 'traceabilityQR',
             'stockList', 'qualityDash', 'ncrList', 'capaList', 'mepDash', 'machineList', 'toolMolds',
-            'hrShiftRoster', 'analyticsDash', 'maintenanceReports', 'wipOperations'
+            'hrShiftRoster', 'analyticsDash', 'maintenanceReports', 'wipOperations', 'unifiedLedger'
           ].includes(viewKey);
           break;
 
@@ -213,7 +213,7 @@ function buildDefaultVisibilityMatrix(): Record<string, Record<string, boolean>>
 
         case 'finance':
           isAllowed = [
-            'financeDash', 'coaList', 'jeList', 'apDash', 'arDash', 'billingStatus', 'paymentRun',
+            'financeDash', 'unifiedLedger', 'coaList', 'jeList', 'apDash', 'arDash', 'billingStatus', 'paymentRun',
             'productCosting', 'budgetList', 'finReports', 'assetRegister', 'taxWorkbench', 'creditControl', 'pricingMgmt'
           ].includes(viewKey);
           break;

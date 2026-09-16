@@ -1137,17 +1137,35 @@ tbody tr:last-child td {
 
 /* Scrollbars */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #D9D5C9;
+  background: rgba(160, 160, 160, 0.25);
   border-radius: 99px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #C4C0B4;
+  background: rgba(160, 160, 160, 0.45);
+}
+
+/* Hide scrollbar completely while maintaining scroll functionality */
+.scrollbar-none::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.scrollbar-none,
+.no-scrollbar {
+  -ms-overflow-style: none !important; /* IE and Edge */
+  scrollbar-width: none !important; /* Firefox */
 }
 
 .empty-mini {

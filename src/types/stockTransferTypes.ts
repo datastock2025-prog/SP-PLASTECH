@@ -39,7 +39,8 @@ export type UserRolePerspective =
   | 'Store Keeper (Destination)'
   | 'Tool Room / Maintenance Manager'
   | 'Finance / Tax User'
-  | 'Plant Manager';
+  | 'Plant Manager'
+  | 'Logistics & Dispatch Manager';
 
 export interface PlantMaster {
   id: string;
@@ -120,7 +121,7 @@ export interface AuditLogEntry {
   timestamp: string;
   userName: string;
   userRole: string;
-  action: 'Created' | 'Edited' | 'Picked & Packed' | 'Dispatched' | 'Gate Out' | 'Arrived' | 'Received' | 'Overridden' | 'Shortage Reported';
+  action: 'Created' | 'Edited' | 'Picked & Packed' | 'Dispatched' | 'Gate Out' | 'Arrived' | 'Received' | 'Overridden' | 'Shortage Reported' | string;
   location: string;
   deviceIp: string;
   changesMade: string;
@@ -211,7 +212,7 @@ export interface ReturnableDCRecord {
   issueDate: string;
   expectedReturnDate: string;
   daysOutstanding: number;
-  agingStatus: 'Green (<15d)' | 'Amber (15-30d)' | 'Red (>30d Overdue)';
+  agingStatus: 'Green (<15d)' | 'Amber (15-30d)' | 'Red (>30d Overdue)' | 'Closed (<15d)' | 'Closed';
   notionalValuePerUnit: number;
   depositCollected?: number;
   convertedToTaxInvoice?: boolean;

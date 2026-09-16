@@ -22,6 +22,7 @@ import { ProductCostingView } from './finance/ProductCostingView';
 import { ProductionVarianceView } from './finance/ProductionVarianceView';
 import { PeriodCloseView } from './finance/PeriodCloseView';
 import { FixedAssetsView } from './finance/FixedAssetsView';
+import { UnifiedLedgerWorkspace } from './ledger/UnifiedLedgerWorkspace';
 
 interface FinanceProps {
   view: string;
@@ -209,6 +210,12 @@ export const FinanceViews: React.FC<FinanceProps> = ({
           showToast={showToast}
         />
       );
+
+    case 'unifiedLedger':
+    case 'operationsLedger':
+    case 'ledgerWorkspace':
+    case 'controlTower':
+      return <UnifiedLedgerWorkspace />;
 
     default:
       return (

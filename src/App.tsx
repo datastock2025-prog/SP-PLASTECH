@@ -9,6 +9,9 @@ import { AuthLayout } from './shared/layouts/AuthLayout';
 import { RequireAuth, AuthContext } from './shared/components/RequireAuth';
 import { PromptBuilder } from './shared/components/PromptBuilder';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { UnauthorizedScreen } from './components/common/UnauthorizedScreen';
+import { ROLE_DEFAULT_VIEW } from './data/roleDefaultViews';
+import { workspaceRbacService, normalizeRoleKey } from './services/workspaceRbacService';
 
 // Domain Feature Modules (Bounded Contexts)
 import {
@@ -158,16 +161,77 @@ export const App: React.FC = () => {
     }
   };
 
+  const isViewAuthorizedForRole = (canonicalRole: string, view: string): boolean => {
+    if (canonicalRole === 'admin') return true;
+
+    // Universal workspace views accessible to all roles
+    const universalViews = [
+      'home',
+      'tasks',
+      'approvals',
+      'notifications',
+      'savedViews',
+      'recentRecords',
+      'architectureGuide',
+      'aiPromptBuilder',
+      'promptBuilder',
+      'aiAssistant',
+    ];
+    if (universalViews.includes(view)) return true;
+
+    // Direct check against workspace RBAC service
+    if (workspaceRbacService.isScreenVisible(canonicalRole, view)) {
+      return true;
+    }
+
+    // Detail view mapping to parent list views
+    const detailToParentMap: Record<string, string> = {
+      itemDetail: 'itemList',
+      bomDetail: 'bomList',
+      woDetail: 'woList',
+      soDetail: 'soList',
+      poDetail: 'poList',
+      ncrDetail: 'ncrList',
+      customerDetail: 'customerList',
+      supplierDetail: 'supplierList',
+      quoteDetail: 'quoteList',
+      jeDetail: 'jeList',
+      accountDetail: 'coaList',
+      machineDetail: 'machineList',
+      capaDetail: 'capaList',
+      coaDetail: 'qcoaList',
+      rmaDetail: 'rmaList',
+    };
+
+    const parentView = detailToParentMap[view];
+    if (parentView && workspaceRbacService.isScreenVisible(canonicalRole, parentView)) {
+      return true;
+    }
+
+    return false;
+  };
+
   const handleRoleChange = (newRole: string) => {
     if (currentUser) {
-      const updatedUser = { ...currentUser, role: newRole };
+      const canonicalRole = normalizeRoleKey(newRole);
+      const updatedUser = { ...currentUser, role: newRole, roleType: canonicalRole as any };
       setCurrentUser(updatedUser);
+      const defaultLanding = ROLE_DEFAULT_VIEW[canonicalRole] || 'home';
+      if (!isViewAuthorizedForRole(canonicalRole, currentView)) {
+        setCurrentView(defaultLanding);
+      }
+      showToast(`Role switched to ${newRole}. Workspace screens authorized.`);
     }
   };
 
   const handleLogin = (user: AuthUser, plantId: string, shiftId: string) => {
     setCurrentUser(user);
-    showToast(`Authenticated as ${user.name} (${user.role}) — ${user.plantId}`);
+    const canonicalRole = normalizeRoleKey(user.role || user.roleType);
+    const defaultLanding = ROLE_DEFAULT_VIEW[canonicalRole] || 'home';
+    if (canonicalRole !== 'admin') {
+      setCurrentView(defaultLanding);
+    }
+    showToast(`Authenticated & Authorized as ${user.name} (${user.role}) — ${plantId}`);
   };
 
   const handleLogout = () => {
@@ -346,6 +410,9 @@ export const App: React.FC = () => {
       contractDetail: ['Sales & Customers', 'Sales Contracts', viewParams.id || 'Detail'],
       customerList: ['Sales & Customers', 'Customer Master Directory'],
       customerDetail: ['Sales & Customers', 'Customer 360° Profile', viewParams.id || 'Detail'],
+      unifiedLedger: ['Finance & Accounting', 'Operations-to-Ledger Workspace'],
+      operationsLedger: ['Finance & Accounting', 'Operations-to-Ledger Workspace'],
+      ledgerWorkspace: ['Finance & Accounting', 'Operations-to-Ledger Workspace'],
       financeDash: ['Finance & Accounting', 'Finance Command Center'],
       coaList: ['Finance & Accounting', 'Chart of Accounts'],
       jeList: ['Finance & Accounting', 'General Ledger Journal Entries'],
@@ -631,6 +698,9 @@ export const App: React.FC = () => {
     'customer360',
   ].includes(currentView);
   const isFinance = [
+    'unifiedLedger',
+    'operationsLedger',
+    'ledgerWorkspace',
     'financeDash',
     'coaList',
     'jeList',
@@ -781,6 +851,18 @@ export const App: React.FC = () => {
         {/* View Container */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 min-w-0 transition-all w-full max-w-full">
           <ErrorBoundary key={currentView}>
+          {!isViewAuthorizedForRole(
+            currentUser ? normalizeRoleKey(currentUser.role || currentUser.roleType) : 'admin',
+            currentView
+          ) ? (
+            <UnauthorizedScreen
+              currentView={currentView}
+              currentUser={currentUser}
+              onNavigate={handleNavigate}
+              onSwitchUser={handleSwitchUser}
+            />
+          ) : (
+            <>
           {currentView === 'home' && (
             <HomeView
               onNavigate={handleNavigate}
@@ -1100,6 +1182,8 @@ export const App: React.FC = () => {
               onNavigate={handleNavigate}
               showToast={showToast}
             />
+          )}
+            </>
           )}
           </ErrorBoundary>
         </main>

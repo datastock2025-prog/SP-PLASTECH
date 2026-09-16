@@ -12,7 +12,7 @@ import { AuthUser } from '../../types';
 interface AppLayoutProps {
   currentUser: AuthUser | null;
   onLogout: () => void;
-  onSwitchUser?: (user: AuthUser) => void;
+  onSwitchUser?: () => void;
   onRoleChange?: (role: string) => void;
   currentView: string;
   onNavigate: (view: string, param?: any) => void;
@@ -131,8 +131,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           isOpen={drawerState.isOpen}
           onClose={closeDrawer}
           title={drawerState.title}
-          subtitle={drawerState.subtitle}
-          size={drawerState.size || 'lg'}
         >
           {drawerState.content}
         </Drawer>
@@ -144,19 +142,21 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           title={confirmModalState.title}
           message={confirmModalState.message}
           confirmLabel={confirmModalState.confirmLabel}
-          cancelLabel={confirmModalState.cancelLabel}
-          variant={confirmModalState.variant}
+          isDanger={confirmModalState.variant === 'danger'}
         />
 
-        <QuickActionModal
-          isOpen={isQuickActionOpen}
-          onClose={() => setQuickActionOpen(false)}
-          onNavigate={(v, p) => {
-            setQuickActionOpen(false);
-            onNavigate(v, p);
-          }}
-          showToast={showToast}
-        />
+        {isQuickActionOpen && (
+          <QuickActionModal
+            isOpen={isQuickActionOpen}
+            onClose={() => setQuickActionOpen(false)}
+            action={null}
+            onSuccess={(msg) => {
+              setQuickActionOpen(false);
+              showToast(msg);
+            }}
+            currentUser={currentUser}
+          />
+        )}
       </div>
     </RequireAuth>
   );

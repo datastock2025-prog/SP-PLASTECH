@@ -446,4 +446,13 @@ export interface TraceabilityRecord {
     timestamp: string;
     details: string;
   }>;
+  // Aliases & Extended Traceability Fields
+  productionBatch?: string;
+  machineNumber?: string;
+  finishedGoodLot?: string;
+  qcInspectionStatus?: string;
+  customer?: string;
+  dispatchInvoice?: string;
+  lotNumber?: string;
+  itemCode?: string;
 }

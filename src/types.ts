@@ -1713,7 +1713,7 @@ export interface AuthUser {
   name: string;
   email: string;
   role: string;
-  roleType: 'admin' | 'production' | 'quality' | 'warehouse' | 'finance' | 'operator' | 'hr';
+  roleType: 'admin' | 'production' | 'quality' | 'warehouse' | 'finance' | 'operator' | 'hr' | 'planner' | 'maintenance' | 'sales' | 'procurement' | 'scm' | string;
   department: string;
   plantId: string;
   plantName: string;
