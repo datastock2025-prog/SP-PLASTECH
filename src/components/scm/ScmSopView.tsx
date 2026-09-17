@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { mockSopScenarios } from '../../data/mockScmData';
 import { SOPScenario } from '../../types/scm';
+import { PaginationBar } from '../common/PaginationBar';
+import { usePagination } from '../../hooks/usePagination';
 
 interface ScmSopViewProps {
   onNavigate: (view: string, param?: any) => void;
@@ -27,6 +29,11 @@ export const ScmSopView: React.FC<ScmSopViewProps> = ({ onNavigate, showToast })
   const [scenarios, setScenarios] = useState<SOPScenario[]>(mockSopScenarios);
   const [activeScenarioId, setActiveScenarioId] = useState<string>('SCEN-01');
   const [activeSection, setActiveSection] = useState<'overview' | 'capacity' | 'financials' | 'scenarios'>('overview');
+
+  const { paginatedData: paginatedScenarios, paginationProps } = usePagination(scenarios, {
+    initialPageSize: 10,
+    pageSizeOptions: [10, 25, 50],
+  });
 
   const selectedScenario = scenarios.find((s) => s.id === activeScenarioId) || scenarios[0];
 
@@ -302,7 +309,7 @@ export const ScmSopView: React.FC<ScmSopViewProps> = ({ onNavigate, showToast })
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {scenarios.map((scen) => (
+                {paginatedScenarios.map((scen) => (
                   <tr
                     key={scen.id}
                     className={`hover:bg-slate-50 transition ${
@@ -349,6 +356,10 @@ export const ScmSopView: React.FC<ScmSopViewProps> = ({ onNavigate, showToast })
                 ))}
               </tbody>
             </table>
+            <PaginationBar
+              {...paginationProps}
+              itemName="scenarios"
+            />
           </div>
         </div>
       )}

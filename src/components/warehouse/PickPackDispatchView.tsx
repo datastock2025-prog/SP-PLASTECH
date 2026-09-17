@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { PickPackTask, PickPackLine } from '../../types/warehouse';
 import { WarehouseStatusBadge } from './WarehouseStatusBadge';
+import { usePagination } from '../../hooks/usePagination';
+import { PaginationBar } from '../common/PaginationBar';
 
 interface Props {
   tasks: PickPackTask[];
@@ -35,6 +37,11 @@ export const PickPackDispatchView: React.FC<Props> = ({
 }) => {
   const [pickList, setPickList] = useState<PickPackTask[]>(tasks);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(tasks[0]?.id || null);
+
+  const { paginatedData: pagedPickList, paginationProps } = usePagination(pickList, {
+    initialPageSize: 5,
+    pageSizeOptions: [5, 10, 20],
+  });
 
   const toggleLinePicked = (taskId: string, lineId: string) => {
     setPickList((prev) =>
@@ -122,21 +129,23 @@ export const PickPackDispatchView: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Task Cards List */}
-      <div className="space-y-4">
-        {pickList.map((task) => {
+      {/* Active Tasks Feed */}
+      <div className="space-y-3">
+        {pagedPickList.map((task) => {
           const isExpanded = expandedTaskId === task.id;
-          const isAllPicked = task.pickedLines === task.totalLines;
+          const isAllPicked = task.lines.every((l) => l.isPicked);
 
           return (
             <div
               key={task.id}
-              className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition"
+              className={`bg-white rounded-2xl border transition-all duration-200 overflow-hidden shadow-sm ${
+                isExpanded ? 'border-[#0F8B8D] ring-2 ring-[#0F8B8D]/10' : 'border-slate-200'
+              }`}
             >
-              {/* Task Header Bar */}
+              {/* Task Header Row */}
               <div
                 onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
-                className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer hover:bg-slate-50/70 transition"
+                className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-slate-50/70 select-none"
               >
                 <div className="flex items-center gap-3">
                   <div
@@ -267,6 +276,9 @@ export const PickPackDispatchView: React.FC<Props> = ({
             </div>
           );
         })}
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <PaginationBar {...paginationProps} itemName="tasks" />
+        </div>
       </div>
     </div>
   );

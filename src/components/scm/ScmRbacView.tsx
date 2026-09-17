@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { mockScmRbac } from '../../data/mockScmData';
 import { ScmRolePermission } from '../../types/scm';
+import { PaginationBar } from '../common/PaginationBar';
+import { usePagination } from '../../hooks/usePagination';
 
 interface ScmRbacViewProps {
   onNavigate: (view: string, param?: any) => void;
@@ -21,6 +23,11 @@ interface ScmRbacViewProps {
 export const ScmRbacView: React.FC<ScmRbacViewProps> = ({ onNavigate, showToast }) => {
   const [roles, setRoles] = useState<ScmRolePermission[]>(mockScmRbac);
   const [selectedRole, setSelectedRole] = useState<ScmRolePermission>(mockScmRbac[0]);
+
+  const { paginatedData: paginatedModules, paginationProps } = usePagination(selectedRole.modules, {
+    initialPageSize: 10,
+    pageSizeOptions: [10, 25, 50],
+  });
 
   const handleTogglePermission = (moduleName: string, permKey: 'view' | 'edit' | 'approve' | 'export') => {
     setRoles((prev) =>
@@ -131,7 +138,7 @@ export const ScmRbacView: React.FC<ScmRbacViewProps> = ({ onNavigate, showToast 
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {selectedRole.modules.map((m) => (
+                {paginatedModules.map((m) => (
                   <tr key={m.moduleName} className="hover:bg-slate-50 transition">
                     <td className="p-3 font-semibold text-slate-900">{m.moduleName}</td>
                     <td className="p-3 text-center">
@@ -170,6 +177,10 @@ export const ScmRbacView: React.FC<ScmRbacViewProps> = ({ onNavigate, showToast 
                 ))}
               </tbody>
             </table>
+            <PaginationBar
+              {...paginationProps}
+              itemName="modules"
+            />
           </div>
         </div>
       </div>

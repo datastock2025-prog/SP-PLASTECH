@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { mockMrpSuggestions } from '../../data/mockScmData';
 import { MRPSuggestion } from '../../types/scm';
+import { PaginationBar } from '../common/PaginationBar';
+import { usePagination } from '../../hooks/usePagination';
 
 interface ScmMrpViewProps {
   onNavigate: (view: string, param?: any) => void;
@@ -71,6 +73,11 @@ export const ScmMrpView: React.FC<ScmMrpViewProps> = ({ onNavigate, showToast })
     const matchesType = supplyTypeFilter === 'All' || s.supplyType === supplyTypeFilter;
     const matchesPriority = priorityFilter === 'All' || s.priority === priorityFilter;
     return matchesSearch && matchesType && matchesPriority;
+  });
+
+  const { paginatedData: paginatedSuggestions, paginationProps } = usePagination(filteredSuggestions, {
+    initialPageSize: 10,
+    pageSizeOptions: [10, 25, 50],
   });
 
   return (
@@ -214,96 +221,108 @@ export const ScmMrpView: React.FC<ScmMrpViewProps> = ({ onNavigate, showToast })
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filteredSuggestions.map((sug) => (
-                <tr key={sug.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="p-3">
-                    <div className="font-bold text-slate-900">{sug.itemCode}</div>
-                    <div className="text-[11px] text-slate-500">{sug.itemName}</div>
-                    {sug.exceptionAlerts && sug.exceptionAlerts.length > 0 && (
-                      <div className="flex items-center gap-1 text-[10px] text-rose-600 font-semibold mt-0.5">
-                        <AlertTriangle className="w-3 h-3 shrink-0" />
-                        <span>{sug.exceptionAlerts[0]}</span>
-                      </div>
-                    )}
-                  </td>
-                  <td className="p-3 font-mono font-bold text-slate-900">{sug.requiredDate}</td>
-                  <td className="p-3 text-right font-mono font-bold text-rose-600">
-                    {sug.projectedShortage.toLocaleString()} {sug.uom}
-                  </td>
-                  <td className="p-3 text-right font-mono font-bold text-slate-900">
-                    {sug.suggestedOrderQty.toLocaleString()} {sug.uom}
-                    <span className="block text-[10px] text-slate-400 font-normal">
-                      MOQ: {sug.moq.toLocaleString()}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        sug.supplyType === 'Purchase'
-                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      }`}
-                    >
-                      {sug.supplyType}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <div className="text-slate-800 font-medium">{sug.preferredSupplier}</div>
-                    <div className="text-[10px] text-slate-400">Lead Time: {sug.leadTimeDays} Days</div>
-                  </td>
-                  <td className="p-3 text-right font-mono text-slate-900 font-bold">
-                    ₹{sug.estimatedCost.toLocaleString()}
-                  </td>
-                  <td className="p-3">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        sug.priority === 'Critical'
-                          ? 'bg-rose-100 text-rose-800'
-                          : sug.priority === 'High'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-slate-100 text-slate-700'
-                      }`}
-                    >
-                      {sug.priority}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        sug.status === 'Converted'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : sug.status === 'Ignored'
-                          ? 'bg-slate-100 text-slate-500'
-                          : 'bg-blue-50 text-blue-700'
-                      }`}
-                    >
-                      {sug.status}
-                    </span>
-                  </td>
-                  <td className="p-3 text-right space-x-1">
-                    {sug.status !== 'Converted' && sug.status !== 'Ignored' ? (
-                      <>
-                        <button
-                          onClick={() => handleConvertSuggestion(sug.id, sug.supplyType)}
-                          className="px-2.5 py-1 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded text-[11px] font-bold transition cursor-pointer"
-                        >
-                          Convert
-                        </button>
-                        <button
-                          onClick={() => handleIgnoreSuggestion(sug.id)}
-                          className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded text-[11px] font-semibold transition cursor-pointer"
-                        >
-                          Ignore
-                        </button>
-                      </>
-                    ) : (
-                      <span className="text-[11px] text-slate-400 font-mono">Completed</span>
-                    )}
+              {paginatedSuggestions.length > 0 ? (
+                paginatedSuggestions.map((sug) => (
+                  <tr key={sug.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="p-3">
+                      <div className="font-bold text-slate-900">{sug.itemCode}</div>
+                      <div className="text-[11px] text-slate-500">{sug.itemName}</div>
+                      {sug.exceptionAlerts && sug.exceptionAlerts.length > 0 && (
+                        <div className="flex items-center gap-1 text-[10px] text-rose-600 font-semibold mt-0.5">
+                          <AlertTriangle className="w-3 h-3 shrink-0" />
+                          <span>{sug.exceptionAlerts[0]}</span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="p-3 font-mono font-bold text-slate-900">{sug.requiredDate}</td>
+                    <td className="p-3 text-right font-mono font-bold text-rose-600">
+                      {sug.projectedShortage.toLocaleString()} {sug.uom}
+                    </td>
+                    <td className="p-3 text-right font-mono font-bold text-slate-900">
+                      {sug.suggestedOrderQty.toLocaleString()} {sug.uom}
+                      <span className="block text-[10px] text-slate-400 font-normal">
+                        MOQ: {sug.moq.toLocaleString()}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          sug.supplyType === 'Purchase'
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        }`}
+                      >
+                        {sug.supplyType}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <div className="text-slate-800 font-medium">{sug.preferredSupplier}</div>
+                      <div className="text-[10px] text-slate-400">Lead Time: {sug.leadTimeDays} Days</div>
+                    </td>
+                    <td className="p-3 text-right font-mono text-slate-900 font-bold">
+                      ₹{sug.estimatedCost.toLocaleString()}
+                    </td>
+                    <td className="p-3">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          sug.priority === 'Critical'
+                            ? 'bg-rose-100 text-rose-800'
+                            : sug.priority === 'High'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-slate-100 text-slate-700'
+                        }`}
+                      >
+                        {sug.priority}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          sug.status === 'Converted'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : sug.status === 'Ignored'
+                            ? 'bg-slate-100 text-slate-500'
+                            : 'bg-blue-50 text-blue-700'
+                        }`}
+                      >
+                        {sug.status}
+                      </span>
+                    </td>
+                    <td className="p-3 text-right space-x-1">
+                      {sug.status !== 'Converted' && sug.status !== 'Ignored' ? (
+                        <>
+                          <button
+                            onClick={() => handleConvertSuggestion(sug.id, sug.supplyType)}
+                            className="px-2.5 py-1 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded text-[11px] font-bold transition cursor-pointer"
+                          >
+                            Convert
+                          </button>
+                          <button
+                            onClick={() => handleIgnoreSuggestion(sug.id)}
+                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded text-[11px] font-semibold transition cursor-pointer"
+                          >
+                            Ignore
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-[11px] text-slate-400 font-mono">Completed</span>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={10} className="p-8 text-center text-slate-400">
+                    No MRP suggestions found matching search filters.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
+          <PaginationBar
+            {...paginationProps}
+            itemName="suggestions"
+          />
         </div>
       </div>
     </div>

@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { mockDemandPlan } from '../../data/mockScmData';
 import { DemandPlanItem } from '../../types/scm';
+import { PaginationBar } from '../common/PaginationBar';
+import { usePagination } from '../../hooks/usePagination';
 
 interface ScmDemandPlanningViewProps {
   onNavigate: (view: string, param?: any) => void;
@@ -42,6 +44,11 @@ export const ScmDemandPlanningView: React.FC<ScmDemandPlanningViewProps> = ({ on
     const matchesGroup = customerGroupFilter === 'All' || p.customerGroup === customerGroupFilter;
     const matchesStatus = statusFilter === 'All' || p.status === statusFilter;
     return matchesSearch && matchesGroup && matchesStatus;
+  });
+
+  const { paginatedData: paginatedPlans, paginationProps } = usePagination(filteredPlans, {
+    initialPageSize: 10,
+    pageSizeOptions: [10, 25, 50],
   });
 
   const totalConsensusDemand = plans.reduce((acc, curr) => acc + curr.consensusDemandQty, 0);
@@ -246,110 +253,122 @@ export const ScmDemandPlanningView: React.FC<ScmDemandPlanningViewProps> = ({ on
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {filteredPlans.map((plan) => (
-                  <tr key={plan.id} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="p-3 font-mono font-medium text-slate-900">{plan.period}</td>
-                    <td className="p-3">
-                      <div className="font-bold text-slate-900">{plan.customer}</div>
-                      <div className="text-[11px] text-slate-500">{plan.customerGroup} · {plan.salesperson}</div>
-                    </td>
-                    <td className="p-3">
-                      <div className="font-bold text-slate-900">{plan.itemCode}</div>
-                      <div className="text-[11px] text-slate-500">{plan.itemName}</div>
-                      <div className="text-[10px] text-[#0F8B8D] font-mono">{plan.resinGrade}</div>
-                    </td>
-                    <td className="p-3 text-right font-mono text-slate-600">
-                      {plan.forecastQty.toLocaleString()} {plan.uom}
-                    </td>
-                    <td className="p-3 text-right font-mono text-slate-600">
-                      {plan.orderQty.toLocaleString()} {plan.uom}
-                    </td>
-                    <td className="p-3 text-right font-mono">
-                      {editingId === plan.id ? (
-                        <div className="flex items-center justify-end gap-1">
-                          <input
-                            type="number"
-                            value={adjustedQty}
-                            onChange={(e) => setAdjustedQty(Number(e.target.value))}
-                            className="w-24 px-2 py-1 bg-white border border-[#0F8B8D] rounded text-right font-mono text-xs focus:outline-none"
-                          />
-                          <button
-                            onClick={() => handleSaveEdit(plan.id)}
-                            className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700"
-                            title="Save"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="font-bold text-slate-900">
-                          {plan.consensusDemandQty.toLocaleString()} {plan.uom}
-                        </div>
-                      )}
-                    </td>
-                    <td className="p-3 text-right font-mono">
-                      <span
-                        className={`font-bold ${
-                          plan.variancePct > 0
-                            ? 'text-emerald-600'
-                            : plan.variancePct < 0
-                            ? 'text-rose-600'
-                            : 'text-slate-600'
-                        }`}
-                      >
-                        {plan.variancePct > 0 ? `+${plan.variancePct}%` : `${plan.variancePct}%`}
-                      </span>
-                    </td>
-                    <td className="p-3 text-right font-mono font-bold text-slate-800">
-                      {plan.forecastAccuracyPct}%
-                    </td>
-                    <td className="p-3">
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          plan.status === 'Locked'
-                            ? 'bg-slate-100 text-slate-800 border border-slate-300'
-                            : plan.status === 'Approved'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}
-                      >
-                        {plan.status}
-                      </span>
-                    </td>
-                    <td className="p-3 text-right space-x-1">
-                      {plan.status !== 'Locked' ? (
-                        <>
-                          <button
-                            onClick={() => handleStartEdit(plan)}
-                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold transition"
-                          >
-                            Adjust
-                          </button>
-                          {plan.status !== 'Approved' && (
+                {paginatedPlans.length > 0 ? (
+                  paginatedPlans.map((plan) => (
+                    <tr key={plan.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="p-3 font-mono font-medium text-slate-900">{plan.period}</td>
+                      <td className="p-3">
+                        <div className="font-bold text-slate-900">{plan.customer}</div>
+                        <div className="text-[11px] text-slate-500">{plan.customerGroup} · {plan.salesperson}</div>
+                      </td>
+                      <td className="p-3">
+                        <div className="font-bold text-slate-900">{plan.itemCode}</div>
+                        <div className="text-[11px] text-slate-500">{plan.itemName}</div>
+                        <div className="text-[10px] text-[#0F8B8D] font-mono">{plan.resinGrade}</div>
+                      </td>
+                      <td className="p-3 text-right font-mono text-slate-600">
+                        {plan.forecastQty.toLocaleString()} {plan.uom}
+                      </td>
+                      <td className="p-3 text-right font-mono text-slate-600">
+                        {plan.orderQty.toLocaleString()} {plan.uom}
+                      </td>
+                      <td className="p-3 text-right font-mono">
+                        {editingId === plan.id ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <input
+                              type="number"
+                              value={adjustedQty}
+                              onChange={(e) => setAdjustedQty(Number(e.target.value))}
+                              className="w-24 px-2 py-1 bg-white border border-[#0F8B8D] rounded text-right font-mono text-xs focus:outline-none"
+                            />
                             <button
-                              onClick={() => handleApprovePlan(plan.id)}
-                              className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[11px] font-semibold transition"
+                              onClick={() => handleSaveEdit(plan.id)}
+                              className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700"
+                              title="Save"
                             >
-                              Approve
+                              <CheckCircle2 className="w-3.5 h-3.5" />
                             </button>
-                          )}
-                          <button
-                            onClick={() => handleLockPlan(plan.id)}
-                            className="px-2 py-1 bg-[#14213D] hover:bg-[#1C2B4D] text-white rounded text-[11px] font-semibold transition"
-                            title="Lock for MRP Run"
-                          >
-                            <Lock className="w-3 h-3 inline mr-1" />
-                            Lock
-                          </button>
-                        </>
-                      ) : (
-                        <span className="text-[11px] text-slate-400 font-mono">MRP Locked</span>
-                      )}
+                          </div>
+                        ) : (
+                          <div className="font-bold text-slate-900">
+                            {plan.consensusDemandQty.toLocaleString()} {plan.uom}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-3 text-right font-mono">
+                        <span
+                          className={`font-bold ${
+                            plan.variancePct > 0
+                              ? 'text-emerald-600'
+                              : plan.variancePct < 0
+                              ? 'text-rose-600'
+                              : 'text-slate-600'
+                          }`}
+                        >
+                          {plan.variancePct > 0 ? `+${plan.variancePct}%` : `${plan.variancePct}%`}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right font-mono font-bold text-slate-800">
+                        {plan.forecastAccuracyPct}%
+                      </td>
+                      <td className="p-3">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            plan.status === 'Locked'
+                              ? 'bg-slate-100 text-slate-800 border border-slate-300'
+                              : plan.status === 'Approved'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}
+                        >
+                          {plan.status}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right space-x-1">
+                        {plan.status !== 'Locked' ? (
+                          <>
+                            <button
+                              onClick={() => handleStartEdit(plan)}
+                              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold transition"
+                            >
+                              Adjust
+                            </button>
+                            {plan.status !== 'Approved' && (
+                              <button
+                                onClick={() => handleApprovePlan(plan.id)}
+                                className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[11px] font-semibold transition"
+                              >
+                                Approve
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleLockPlan(plan.id)}
+                              className="px-2 py-1 bg-[#14213D] hover:bg-[#1C2B4D] text-white rounded text-[11px] font-semibold transition"
+                              title="Lock for MRP Run"
+                            >
+                              <Lock className="w-3 h-3 inline mr-1" />
+                              Lock
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 font-mono">MRP Locked</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={10} className="p-8 text-center text-slate-400">
+                      No demand plans found matching current filters.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
+            <PaginationBar
+              {...paginationProps}
+              itemName="demand plans"
+            />
           </div>
         ) : (
           /* Analytics & Accuracy Charts View */

@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { mockSalesForecasts } from '../../data/mockScmData';
 import { SalesForecastEntry } from '../../types/scm';
+import { PaginationBar } from '../common/PaginationBar';
+import { usePagination } from '../../hooks/usePagination';
 
 interface ScmSalesForecastViewProps {
   onNavigate: (view: string, param?: any) => void;
@@ -27,6 +29,21 @@ export const ScmSalesForecastView: React.FC<ScmSalesForecastViewProps> = ({ onNa
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedForecast, setSelectedForecast] = useState<SalesForecastEntry | null>(mockSalesForecasts[0]);
+
+  const filteredForecasts = forecasts.filter((fc) => {
+    const q = searchQuery.toLowerCase();
+    return (
+      fc.customer.toLowerCase().includes(q) ||
+      fc.itemCode.toLowerCase().includes(q) ||
+      fc.itemName.toLowerCase().includes(q) ||
+      fc.id.toLowerCase().includes(q)
+    );
+  });
+
+  const { paginatedData: paginatedForecasts, paginationProps } = usePagination(filteredForecasts, {
+    initialPageSize: 10,
+    pageSizeOptions: [10, 25, 50],
+  });
 
   // Form State
   const [formData, setFormData] = useState({
@@ -135,58 +152,70 @@ export const ScmSalesForecastView: React.FC<ScmSalesForecastViewProps> = ({ onNa
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {forecasts.map((fc) => (
-                  <tr
-                    key={fc.id}
-                    onClick={() => setSelectedForecast(fc)}
-                    className={`hover:bg-slate-50/80 transition cursor-pointer ${
-                      selectedForecast?.id === fc.id ? 'bg-[#0F8B8D]/5' : ''
-                    }`}
-                  >
-                    <td className="p-3 font-mono font-bold text-slate-900">{fc.id}</td>
-                    <td className="p-3">
-                      <div className="font-bold text-slate-900">{fc.customer}</div>
-                      <div className="text-[11px] text-slate-500">{fc.itemCode} - {fc.itemName}</div>
-                    </td>
-                    <td className="p-3 font-mono text-slate-700">{fc.periodValue}</td>
-                    <td className="p-3 text-right font-mono font-bold text-slate-900">
-                      {fc.forecastQty.toLocaleString()} {fc.uom}
-                    </td>
-                    <td className="p-3">
-                      <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-medium border border-slate-200">
-                        {fc.source}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          fc.status === 'Approved'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}
-                      >
-                        {fc.status}
-                      </span>
-                    </td>
-                    <td className="p-3 text-right">
-                      {fc.status !== 'Approved' ? (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleApprove(fc.id);
-                          }}
-                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold transition"
+                {paginatedForecasts.length > 0 ? (
+                  paginatedForecasts.map((fc) => (
+                    <tr
+                      key={fc.id}
+                      onClick={() => setSelectedForecast(fc)}
+                      className={`hover:bg-slate-50/80 transition cursor-pointer ${
+                        selectedForecast?.id === fc.id ? 'bg-[#0F8B8D]/5' : ''
+                      }`}
+                    >
+                      <td className="p-3 font-mono font-bold text-slate-900">{fc.id}</td>
+                      <td className="p-3">
+                        <div className="font-bold text-slate-900">{fc.customer}</div>
+                        <div className="text-[11px] text-slate-500">{fc.itemCode} - {fc.itemName}</div>
+                      </td>
+                      <td className="p-3 font-mono text-slate-700">{fc.periodValue}</td>
+                      <td className="p-3 text-right font-mono font-bold text-slate-900">
+                        {fc.forecastQty.toLocaleString()} {fc.uom}
+                      </td>
+                      <td className="p-3">
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-medium border border-slate-200">
+                          {fc.source}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            fc.status === 'Approved'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}
                         >
-                          Approve
-                        </button>
-                      ) : (
-                        <span className="text-[11px] text-emerald-600 font-semibold">✓ Locked</span>
-                      )}
+                          {fc.status}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right">
+                        {fc.status !== 'Approved' ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleApprove(fc.id);
+                            }}
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold transition"
+                          >
+                            Approve
+                          </button>
+                        ) : (
+                          <span className="text-[11px] text-emerald-600 font-semibold">✓ Locked</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-slate-400">
+                      No forecasts found matching search.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
+            <PaginationBar
+              {...paginationProps}
+              itemName="forecasts"
+            />
           </div>
         </div>
 

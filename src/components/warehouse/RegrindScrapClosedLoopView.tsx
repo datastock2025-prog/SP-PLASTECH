@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { RegrindScrapRun } from '../../types/warehouse';
 import { WarehouseStatusBadge } from './WarehouseStatusBadge';
+import { usePagination } from '../../hooks/usePagination';
+import { PaginationBar } from '../common/PaginationBar';
 
 interface Props {
   runs: RegrindScrapRun[];
@@ -31,6 +33,11 @@ export const RegrindScrapClosedLoopView: React.FC<Props> = ({
   onCreateRun,
 }) => {
   const [runList, setRunList] = useState<RegrindScrapRun[]>(runs);
+
+  const { paginatedData: pagedRuns, paginationProps } = usePagination(runList, {
+    initialPageSize: 10,
+    pageSizeOptions: [5, 10, 20],
+  });
 
   const totalProcessedKg = runList.reduce((a, b) => a + b.outputRegrindWeightKg, 0);
   const avgYieldPct = (runList.reduce((a, b) => a + b.yieldPct, 0) / (runList.length || 1)).toFixed(1);
@@ -243,7 +250,7 @@ export const RegrindScrapClosedLoopView: React.FC<Props> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {runList.map((run) => (
+              {pagedRuns.map((run) => (
                 <tr key={run.id} className="hover:bg-slate-50">
                   <td className="py-2.5 px-3 font-mono font-bold text-[#0F8B8D]">{run.batchNumber}</td>
                   <td className="py-2.5 px-3">
@@ -268,6 +275,7 @@ export const RegrindScrapClosedLoopView: React.FC<Props> = ({
             </tbody>
           </table>
         </div>
+        <PaginationBar {...paginationProps} itemName="runs" />
       </div>
     </div>
   );

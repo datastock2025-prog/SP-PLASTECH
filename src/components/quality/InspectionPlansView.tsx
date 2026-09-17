@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { InspectionPlan } from '../../types';
+import { usePagination } from '../../hooks/usePagination';
+import { useDebounce } from '../../hooks/useDebounce';
+import { PaginationBar } from '../common/PaginationBar';
 import {
   Ruler,
   Plus,
@@ -42,16 +45,28 @@ export const InspectionPlansView: React.FC<Props> = ({
   const [filterType, setFilterType] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
 
-  const filteredPlans = plans.filter((p) => {
-    const matchesType = filterType === 'all' || p.type.toLowerCase() === filterType.toLowerCase();
-    const matchesSearch =
-      p.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.item.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesType && matchesSearch;
+  const debouncedSearch = useDebounce(searchTerm, 300);
+
+  const filteredPlans = useMemo(() => {
+    return plans.filter((p) => {
+      const matchesType = filterType === 'all' || p.type.toLowerCase() === filterType.toLowerCase();
+      const matchesSearch =
+        debouncedSearch === '' ||
+        p.id.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        p.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        p.item.toLowerCase().includes(debouncedSearch.toLowerCase());
+      return matchesType && matchesSearch;
+    });
+  }, [plans, filterType, debouncedSearch]);
+
+  const { paginatedData: pagedPlans, paginationProps } = usePagination(filteredPlans, {
+    initialPageSize: 5,
+    pageSizeOptions: [5, 10, 20],
   });
 
-  const currentPlan = plans.find((p) => p.id === activePlanId) || filteredPlans[0] || plans[0];
+  const currentPlan = useMemo(() => {
+    return plans.find((p) => p.id === activePlanId) || filteredPlans[0] || plans[0];
+  }, [plans, activePlanId, filteredPlans]);
 
   const handleOpenCreateDrawer = () => {
     let id = `QPL-${Date.now().toString().slice(-4)}`;
@@ -269,7 +284,7 @@ export const InspectionPlansView: React.FC<Props> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left List Column */}
         <div className="lg:col-span-5 space-y-3">
-          {filteredPlans.map((plan) => {
+          {pagedPlans.map((plan) => {
             const isSelected = plan.id === currentPlan?.id;
             return (
               <div
@@ -313,6 +328,9 @@ export const InspectionPlansView: React.FC<Props> = ({
               </div>
             );
           })}
+          <div className="bg-white rounded-xl border border-[#E4E0D6] overflow-hidden">
+            <PaginationBar {...paginationProps} itemName="plans" />
+          </div>
         </div>
 
         {/* Right Detail Inspector */}

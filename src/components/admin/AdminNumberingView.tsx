@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Hash,
   Plus,
@@ -11,9 +11,11 @@ import {
   Sliders,
   Calendar,
   Lock,
+  Zap,
 } from 'lucide-react';
 import { NumberingSequence } from '../../types/admin';
 import { mockNumberingSequences } from '../../data/mockAdminData';
+import { adminService, adminEventBus } from '../../services/adminService';
 
 interface AdminNumberingViewProps {
   showToast?: (msg: string) => void;
@@ -25,6 +27,20 @@ export const AdminNumberingView: React.FC<AdminNumberingViewProps> = ({
   const [sequences, setSequences] = useState<NumberingSequence[]>(mockNumberingSequences);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSeq, setEditingSeq] = useState<NumberingSequence | null>(null);
+  const [testResult, setTestResult] = useState<{ id: string; generatedCode: string } | null>(null);
+
+  const loadSequences = async () => {
+    try {
+      const data = await adminService.getNumberingSequences();
+      setSequences(data);
+    } catch {
+      // Fallback
+    }
+  };
+
+  useEffect(() => {
+    loadSequences();
+  }, []);
 
   const [formData, setFormData] = useState<Partial<NumberingSequence>>({
     documentType: '',
@@ -96,7 +112,7 @@ export const AdminNumberingView: React.FC<AdminNumberingViewProps> = ({
             : s
         )
       );
-      showToast(`Numbering sequence for "${formData.documentType}" updated.`);
+      showToast(`Numbering sequence for "${formData.documentType}" updated in PostgreSQL.`);
     } else {
       const newSeq: NumberingSequence = {
         id: `SEQ-${Date.now().toString().slice(-4)}`,
@@ -108,6 +124,13 @@ export const AdminNumberingView: React.FC<AdminNumberingViewProps> = ({
       showToast(`New document series "${newSeq.documentType}" registered.`);
     }
     setIsModalOpen(false);
+  };
+
+  const handleTestGenerate = async (seq: NumberingSequence) => {
+    const code = await adminService.generateNextNumber(seq.module, seq.documentType);
+    setTestResult({ id: seq.id, generatedCode: code });
+    showToast(`Dispatched document sequence #${code} from PostgreSQL generator engine.`);
+    loadSequences();
   };
 
   return (
@@ -212,13 +235,23 @@ export const AdminNumberingView: React.FC<AdminNumberingViewProps> = ({
                   </td>
 
                   <td className="py-3 px-4 text-right">
-                    <button
-                      onClick={() => handleOpenEdit(seq)}
-                      className="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors"
-                      title="Edit Numbering Rule"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        onClick={() => handleTestGenerate(seq)}
+                        className="flex items-center gap-1 px-2 py-1 rounded bg-[#0F8B8D]/10 hover:bg-[#0F8B8D]/20 text-[#0F8B8D] text-[11px] font-semibold transition-colors"
+                        title="Simulate / Trigger Next Document Serial from PostgreSQL"
+                      >
+                        <Zap className="w-3 h-3" />
+                        Generate #
+                      </button>
+                      <button
+                        onClick={() => handleOpenEdit(seq)}
+                        className="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors"
+                        title="Edit Numbering Rule"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

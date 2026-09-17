@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sliders,
   Save,
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { SystemParameter } from '../../types/admin';
 import { mockSystemParameters } from '../../data/mockAdminData';
+import { adminService } from '../../services/adminService';
 
 interface AdminSystemParametersViewProps {
   showToast?: (msg: string) => void;
@@ -24,6 +25,10 @@ export const AdminSystemParametersView: React.FC<AdminSystemParametersViewProps>
 }) => {
   const [parameters, setParameters] = useState<SystemParameter[]>(mockSystemParameters);
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
+
+  useEffect(() => {
+    adminService.getParameters().then(setParameters);
+  }, []);
 
   // Custom User Defined Fields (UDFs) State
   const [customFields, setCustomFields] = useState([
@@ -46,24 +51,32 @@ export const AdminSystemParametersView: React.FC<AdminSystemParametersViewProps>
     'Finance & Valuation',
     'Quality & AQL',
     'General System',
+    'Security',
+    'Database',
+    'Scheduling',
   ];
 
   const filteredParams = parameters.filter(
     (p) => activeCategory === 'ALL' || p.category === activeCategory
   );
 
-  const handleToggleBoolean = (paramId: string) => {
+  const handleToggleBoolean = async (paramId: string) => {
+    const target = parameters.find((p) => p.id === paramId);
+    if (!target) return;
+    const newVal = !target.currentValue;
+    await adminService.updateParameter(paramId, String(newVal));
     setParameters((prev) =>
       prev.map((p) => {
         if (p.id === paramId) {
-          return { ...p, currentValue: !p.currentValue };
+          return { ...p, currentValue: newVal };
         }
         return p;
       })
     );
   };
 
-  const handleUpdateValue = (paramId: string, val: any) => {
+  const handleUpdateValue = async (paramId: string, val: any) => {
+    await adminService.updateParameter(paramId, String(val));
     setParameters((prev) =>
       prev.map((p) => (p.id === paramId ? { ...p, currentValue: val } : p))
     );
@@ -144,9 +157,25 @@ export const AdminSystemParametersView: React.FC<AdminSystemParametersViewProps>
 
         <div className="divide-y divide-slate-100">
           {filteredParams.map((param) => {
-            const isBool = param.valueType === 'boolean';
-            const isSelect = param.valueType === 'select';
-            const isNumber = param.valueType === 'number';
+            const isBool =
+              param.dataType === 'boolean' ||
+              (param as any).valueType === 'boolean' ||
+              param.currentValue === 'true' ||
+              param.currentValue === 'false' ||
+              typeof param.currentValue === 'boolean';
+
+            const isBoolTrue =
+              param.currentValue === true || param.currentValue === 'true';
+
+            const isNumber =
+              param.dataType === 'number' ||
+              (param as any).valueType === 'number' ||
+              (!isNaN(Number(param.currentValue)) && typeof param.currentValue !== 'boolean');
+
+            const isSelect =
+              (param.dataType as string) === 'select' ||
+              (param.dataType as string) === 'enum' ||
+              (param as any).valueType === 'select';
 
             return (
               <div
@@ -162,7 +191,7 @@ export const AdminSystemParametersView: React.FC<AdminSystemParametersViewProps>
                     <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-teal-50 text-teal-700">
                       {param.category}
                     </span>
-                    {param.requiresServerRestart && (
+                    {param.requiresRestart && (
                       <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-50 text-amber-700">
                         Requires Restart
                       </span>
@@ -176,13 +205,13 @@ export const AdminSystemParametersView: React.FC<AdminSystemParametersViewProps>
                     <button
                       type="button"
                       onClick={() => handleToggleBoolean(param.id)}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                        param.currentValue === true
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                        isBoolTrue
                           ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                     >
-                      {param.currentValue === true ? (
+                      {isBoolTrue ? (
                         <>
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                           Enabled
@@ -191,13 +220,13 @@ export const AdminSystemParametersView: React.FC<AdminSystemParametersViewProps>
                         'Disabled'
                       )}
                     </button>
-                  ) : isSelect && param.options ? (
+                  ) : isSelect && (param as any).options ? (
                     <select
                       value={param.currentValue}
                       onChange={(e) => handleUpdateValue(param.id, e.target.value)}
                       className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
                     >
-                      {param.options.map((opt) => (
+                      {(param as any).options.map((opt: string) => (
                         <option key={opt} value={opt}>
                           {opt}
                         </option>
@@ -213,7 +242,6 @@ export const AdminSystemParametersView: React.FC<AdminSystemParametersViewProps>
                         }
                         className="w-32 px-3 py-1.5 rounded-lg border border-slate-300 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
                       />
-                      {param.unit && <span className="text-xs text-slate-500 font-mono">{param.unit}</span>}
                     </div>
                   )}
                 </div>

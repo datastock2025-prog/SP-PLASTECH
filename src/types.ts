@@ -88,6 +88,11 @@ export interface ItemMaster {
   defaultLocation?: string;
   weight?: number;
   netWeightGrams?: number;
+  cycleTime?: number;
+  partWeightGrams?: number;
+  cavityCount?: number;
+  runnerWeightGrams?: number;
+  shotWeightGrams?: number;
   routingDestination?: 'DOL' | 'ASSEMBLY' | 'DEFLASH';
   isDol?: boolean;
   isAssembly?: boolean;

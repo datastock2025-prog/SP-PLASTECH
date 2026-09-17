@@ -23,6 +23,8 @@ import {
   UserRolePerspective,
 } from '../../types/stockTransferTypes';
 import { MASTER_MOLDS_CATALOG } from '../../data/stockTransferData';
+import { usePagination } from '../../hooks/usePagination';
+import { PaginationBar } from '../common/PaginationBar';
 
 interface AssetMoldTransferScreenProps {
   transfers?: StockTransferRecord[];
@@ -47,6 +49,14 @@ export const AssetMoldTransferScreen: React.FC<AssetMoldTransferScreenProps> = (
   // Filter asset transfers
   const safeTransfers = transfers || [];
   const assetTransfers = safeTransfers.filter((t) => t.transferType === 'ASSET_MOLD');
+
+  const { paginatedData: pagedMolds, paginationProps: moldPaginationProps } = usePagination(
+    MASTER_MOLDS_CATALOG,
+    { initialPageSize: 6, pageSizeOptions: [3, 6, 12] }
+  );
+
+  const { paginatedData: pagedAssetTransfers, paginationProps: transferPaginationProps } =
+    usePagination(assetTransfers, { initialPageSize: 10, pageSizeOptions: [5, 10, 20] });
 
   return (
     <div className="space-y-6">
@@ -98,125 +108,130 @@ export const AssetMoldTransferScreen: React.FC<AssetMoldTransferScreenProps> = (
 
       {activeTab === 'REGISTRY' ? (
         /* Registry & Mold Passports Grid */
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {MASTER_MOLDS_CATALOG.map((mold) => {
-            const isSelected = selectedMold.assetId === mold.assetId;
-            const shotLifePct = Math.round((mold.currentShotCount / mold.ratedShotLife) * 100);
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {pagedMolds.map((mold) => {
+              const isSelected = selectedMold.assetId === mold.assetId;
+              const shotLifePct = Math.round((mold.currentShotCount / mold.ratedShotLife) * 100);
 
-            return (
-              <div
-                key={mold.assetId}
-                onClick={() => setSelectedMold(mold)}
-                className={`bg-white rounded-2xl border-2 transition-all cursor-pointer overflow-hidden shadow-sm flex flex-col justify-between ${
-                  isSelected ? 'border-purple-600 ring-2 ring-purple-100' : 'border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <div>
-                  {/* Mold Image / Hero */}
-                  <div className="relative h-40 bg-slate-100 overflow-hidden">
-                    <img
-                      src={mold.imageThumbnail}
-                      alt={mold.moldName}
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20" />
-                    <div className="absolute top-3 left-3">
-                      <span className="font-mono text-xs font-black text-white bg-black/60 backdrop-blur-xs px-2.5 py-1 rounded-lg border border-white/20">
-                        {mold.assetId}
-                      </span>
-                    </div>
-                    <div className="absolute top-3 right-3">
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          mold.maintenanceStatus === 'OK'
-                            ? 'bg-emerald-500 text-white'
-                            : mold.maintenanceStatus === 'Needs Service'
-                            ? 'bg-amber-500 text-white'
-                            : 'bg-rose-500 text-white'
-                        }`}
-                      >
-                        {mold.maintenanceStatus}
-                      </span>
-                    </div>
-                    <div className="absolute bottom-3 left-3 right-3 text-white">
-                      <h3 className="text-sm font-bold truncate">{mold.moldName}</h3>
-                      <div className="text-[11px] text-slate-300 font-mono">SN: {mold.serialNumber}</div>
-                    </div>
-                  </div>
-
-                  {/* Mold Passport Specs */}
-                  <div className="p-4 space-y-3 text-xs">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
-                        <span className="text-slate-500 text-[11px]">Cavities / Type:</span>
-                        <div className="font-bold text-slate-900 mt-0.5">
-                          {mold.cavities} Cavities ({mold.assetType})
-                        </div>
-                      </div>
-                      <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
-                        <span className="text-slate-500 text-[11px]">Required Tonnage:</span>
-                        <div className="font-bold text-slate-900 mt-0.5">{mold.tonnageRequired}</div>
-                      </div>
-                    </div>
-
-                    {/* Shot Count Progress Bar */}
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-[11px]">
-                        <span className="text-slate-500">Recorded Tool Shot Count:</span>
-                        <span className="font-mono font-bold text-slate-800">
-                          {mold.currentShotCount.toLocaleString()} / {mold.ratedShotLife.toLocaleString()} ({shotLifePct}%)
+              return (
+                <div
+                  key={mold.assetId}
+                  onClick={() => setSelectedMold(mold)}
+                  className={`bg-white rounded-2xl border-2 transition-all cursor-pointer overflow-hidden shadow-sm flex flex-col justify-between ${
+                    isSelected ? 'border-purple-600 ring-2 ring-purple-100' : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div>
+                    {/* Mold Image / Hero */}
+                    <div className="relative h-40 bg-slate-100 overflow-hidden">
+                      <img
+                        src={mold.imageThumbnail}
+                        alt={mold.moldName}
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20" />
+                      <div className="absolute top-3 left-3">
+                        <span className="font-mono text-xs font-black text-white bg-black/60 backdrop-blur-xs px-2.5 py-1 rounded-lg border border-white/20">
+                          {mold.assetId}
                         </span>
                       </div>
-                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${
-                            shotLifePct > 80 ? 'bg-amber-500' : 'bg-purple-600'
+                      <div className="absolute top-3 right-3">
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            mold.maintenanceStatus === 'OK'
+                              ? 'bg-emerald-500 text-white'
+                              : mold.maintenanceStatus === 'Needs Service'
+                              ? 'bg-amber-500 text-white'
+                              : 'bg-rose-500 text-white'
                           }`}
-                          style={{ width: `${shotLifePct}%` }}
-                        />
+                        >
+                          {mold.maintenanceStatus}
+                        </span>
+                      </div>
+                      <div className="absolute bottom-3 left-3 right-3 text-white">
+                        <h3 className="text-sm font-bold truncate">{mold.moldName}</h3>
+                        <div className="text-[11px] text-slate-300 font-mono">SN: {mold.serialNumber}</div>
                       </div>
                     </div>
 
-                    <div className="text-[11px] text-slate-600 space-y-1 pt-1">
-                      <div>
-                        <strong>Compatible Presses:</strong> {mold.compatibleMachines.join(', ')}
+                    {/* Mold Passport Specs */}
+                    <div className="p-4 space-y-3 text-xs">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                          <span className="text-slate-500 text-[11px]">Cavities / Type:</span>
+                          <div className="font-bold text-slate-900 mt-0.5">
+                            {mold.cavities} Cavities ({mold.assetType})
+                          </div>
+                        </div>
+                        <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                          <span className="text-slate-500 text-[11px]">Required Tonnage:</span>
+                          <div className="font-bold text-slate-900 mt-0.5">{mold.tonnageRequired}</div>
+                        </div>
                       </div>
-                      <div>
-                        <strong>Insurance Declared:</strong> ₹{(mold.insuranceDeclaredValue / 100000).toFixed(1)} Lakh
-                      </div>
-                      <div>
-                        <strong>Last Maintenance:</strong> {mold.lastMaintenanceDate}
-                      </div>
-                    </div>
 
-                    <div className="p-2 bg-purple-50 rounded-lg border border-purple-100 text-[11px] text-purple-900">
-                      <strong>Rigging Note:</strong> {mold.transportInstructions}
+                      {/* Shot Count Progress Bar */}
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[11px]">
+                          <span className="text-slate-500">Recorded Tool Shot Count:</span>
+                          <span className="font-mono font-bold text-slate-800">
+                            {mold.currentShotCount.toLocaleString()} / {mold.ratedShotLife.toLocaleString()} ({shotLifePct}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${
+                              shotLifePct > 80 ? 'bg-amber-500' : 'bg-purple-600'
+                            }`}
+                            style={{ width: `${shotLifePct}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="text-[11px] text-slate-600 space-y-1 pt-1">
+                        <div>
+                          <strong>Compatible Presses:</strong> {mold.compatibleMachines.join(', ')}
+                        </div>
+                        <div>
+                          <strong>Insurance Declared:</strong> ₹{(mold.insuranceDeclaredValue / 100000).toFixed(1)} Lakh
+                        </div>
+                        <div>
+                          <strong>Last Maintenance:</strong> {mold.lastMaintenanceDate}
+                        </div>
+                      </div>
+
+                      <div className="p-2 bg-purple-50 rounded-lg border border-purple-100 text-[11px] text-purple-900">
+                        <strong>Rigging Note:</strong> {mold.transportInstructions}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Card Footer Actions */}
-                <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                  <button
-                    onClick={() => {
-                      setSelectedMold(mold);
-                      setShowPassportModal(true);
-                    }}
-                    className="text-xs text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1"
-                  >
-                    <Eye className="w-3.5 h-3.5" /> Full Passport
-                  </button>
-                  <button
-                    onClick={() => onInitiateAssetTransfer(mold)}
-                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold transition-colors shadow-2xs"
-                  >
-                    Transfer Asset &rarr;
-                  </button>
+                  {/* Card Footer Actions */}
+                  <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                    <button
+                      onClick={() => {
+                        setSelectedMold(mold);
+                        setShowPassportModal(true);
+                      }}
+                      className="text-xs text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1"
+                    >
+                      <Eye className="w-3.5 h-3.5" /> Full Passport
+                    </button>
+                    <button
+                      onClick={() => onInitiateAssetTransfer(mold)}
+                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold transition-colors shadow-2xs"
+                    >
+                      Transfer Asset &rarr;
+                    </button>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            <PaginationBar {...moldPaginationProps} itemName="molds" />
+          </div>
         </div>
       ) : (
         /* Active Asset Transfers Table */
@@ -242,7 +257,7 @@ export const AssetMoldTransferScreen: React.FC<AssetMoldTransferScreenProps> = (
                   </td>
                 </tr>
               ) : (
-                assetTransfers.map((t) => (
+                pagedAssetTransfers.map((t) => (
                   <tr key={t.id} className="hover:bg-slate-50">
                     <td className="py-3 px-3.5 font-mono font-bold text-purple-700">{t.id}</td>
                     <td className="py-3 px-3">
@@ -299,6 +314,7 @@ export const AssetMoldTransferScreen: React.FC<AssetMoldTransferScreenProps> = (
               )}
             </tbody>
           </table>
+          <PaginationBar {...transferPaginationProps} itemName="asset transfers" />
         </div>
       )}
 

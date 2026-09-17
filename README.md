@@ -1,29 +1,36 @@
 # Reboot ERP — Frontend Architecture & Backend Integration Guide
 
-Welcome to the **Reboot ERP** frontend workspace reference. This document provides a complete, step-by-step breakdown of the newly added frontend features, security architectures, and instructions on how the backend services must be implemented to support them.
+Welcome to the **Reboot ERP** frontend workspace reference. This document provides a complete, step-by-step breakdown of newly added frontend features, enterprise security architectures, interactive workflows, and backend/middleware/database integration blueprints.
 
 ---
 
 ## Table of Contents
 
 1. [Changelog — Today's Updates & Completed Enhancements](#1-changelog--todays-updates--completed-enhancements)
-2. [Frontend Workspace Architecture Overview](#2-frontend-workspace-architecture-overview)
-3. [Summary of Added Features & Capabilities](#3-summary-of-added-features--capabilities)
-   - [Feature 1: Streaming UI (`<StreamingText />`)](#feature-1-streaming-ui-streamingtext-)
-   - [Feature 2: Modular Prompt Builder (`<PromptBuilder />`)](#feature-2-modular-prompt-builder-promptbuilder-)
-   - [Feature 3: Token Management & BFF Pattern](#feature-3-token-management--bff-pattern)
-   - [Feature 4: XSS Prevention (`<SanitizedHtml />`)](#feature-4-xss-prevention-sanitizedhtml-)
-   - [Feature 5: Role-Based UI Guard (`<RequireAuth />`)](#feature-5-role-based-ui-guard-requireauth-)
-   - [Feature 6: Strict Content Security Policy (CSP) Awareness](#feature-6-strict-content-security-policy-csp-awareness)
-4. [Step-by-Step Backend Implementation Guide](#4-step-by-step-backend-implementation-guide)
-   - [Step 1: Session & Authentication Service (BFF + HttpOnly Cookies)](#step-1-session--authentication-service-bff--httponly-cookies)
-   - [Step 2: Server-Sent Events (SSE) AI Token Streaming Endpoint](#step-2-server-sent-events-sse-ai-token-streaming-endpoint)
-   - [Step 3: WebSocket Streaming Alternative](#step-3-websocket-streaming-alternative)
-   - [Step 4: Prompt Analysis & AI Gateway Endpoints](#step-4-prompt-analysis--ai-gateway-endpoints)
-   - [Step 5: Backend Role-Based Access Control (RBAC)](#step-5-backend-role-based-access-control-rbac)
-   - [Step 6: Strict CSP HTTP Headers Configuration](#step-6-strict-csp-http-headers-configuration)
-5. [API Contract & Schema Reference](#5-api-contract--schema-reference)
-6. [Frontend File Structure](#6-frontend-file-structure)
+2. [Frontend Security Architecture Overview (8 Enterprise Layers)](#2-frontend-security-architecture-overview-8-enterprise-layers)
+3. [Workflows & Sequence Diagrams for Middleware & Backend DB](#3-workflows--sequence-diagrams-for-middleware--backend-db)
+   - [Workflow 1: In-Memory Authentication & 401 Silent Token Refresh](#workflow-1-in-memory-authentication--401-silent-token-refresh)
+   - [Workflow 2: Multi-Tenant Context & RBAC Authorization Pipeline](#workflow-2-multi-tenant-context--rbac-authorization-pipeline)
+   - [Workflow 3: Inactivity Idle Monitoring & 30s Countdown Warning](#workflow-3-inactivity-idle-monitoring--30s-countdown-warning)
+   - [Workflow 4: Step-Up MFA Challenge for Sensitive Operations](#workflow-4-step-up-mfa-challenge-for-sensitive-operations)
+   - [Workflow 5: Forensic Watermarking & Secure Data Export](#workflow-5-forensic-watermarking--secure-data-export)
+   - [Workflow 6: Client Security Telemetry & Audit Event Streaming](#workflow-6-client-security-telemetry--audit-event-streaming)
+   - [Workflow 7: Secure WSS Telemetry & Keepalive Heartbeat](#workflow-7-secure-wss-telemetry--keepalive-heartbeat)
+4. [Backend Database Schemas & Data Model Blueprints](#4-backend-database-schemas--data-model-blueprints)
+   - [Schema 1: Active User Sessions & Multi-Device Control](#schema-1-active-user-sessions--multi-device-control)
+   - [Schema 2: Immutable Security Audit Trail & Forensics](#schema-2-immutable-security-audit-trail--forensics)
+   - [Schema 3: MFA Secrets & Emergency Recovery Codes](#schema-3-mfa-secrets--emergency-recovery-codes)
+   - [Schema 4: Multi-Tenant Isolation & Role-Permission Matrix](#schema-4-multi-tenant-isolation--role-permission-matrix)
+   - [Schema 5: GDPR Portability & Right-To-Be-Forgotten Requests](#schema-5-gdpr-portability--right-to-be-forgotten-requests)
+5. [Backend Middleware Implementation Guide](#5-backend-middleware-implementation-guide)
+   - [Middleware 1: CSRF Double-Submit Verification](#middleware-1-csrf-double-submit-verification)
+   - [Middleware 2: Multi-Tenant Header & RBAC Scoping Guard](#middleware-2-multi-tenant-header--rbac-scoping-guard)
+   - [Middleware 3: Inactivity Session Invalidation & Device Revocation](#middleware-3-inactivity-session-invalidation--device-revocation)
+   - [Middleware 4: Sensitive Data Masking & Decryption Audit](#middleware-4-sensitive-data-masking--decryption-audit)
+   - [Middleware 5: Security Event Batch Ingestion Endpoint](#middleware-5-security-event-batch-ingestion-endpoint)
+   - [Middleware 6: Strict Content Security Policy (CSP) Headers](#middleware-6-strict-content-security-policy-csp-headers)
+6. [Frontend Security Modules Directory Structure](#6-frontend-security-modules-directory-structure)
+7. [Verification & Production Build Status](#7-verification--production-build-status)
 
 ---
 
@@ -31,874 +38,637 @@ Welcome to the **Reboot ERP** frontend workspace reference. This document provid
 
 ### 🎯 Key Accomplishments Completed Today
 
-| Domain / Module | Key Enhancements Completed Today | Impact & Status |
+| Domain / Layer | Key Enhancements Completed Today | Impact & Status |
 | :--- | :--- | :--- |
-| **Workspace & Sidebar RBAC Governance** | Built dual-matrix visibility engine allowing independent toggling of modules for **Home Workspace** (tile cards) and **Sidebar Navigation Menu** per role. | ✅ Fully Operational |
-| **Screen Auto-Discovery & Live Sync** | Implemented autonomous route discovery engine that indexes screens across navigation groups and synchronizes with admin console. | ✅ Live & Audited |
-| **Zero-Trust Quarantine & Restriction** | New screens/routes are held in quarantine until an admin reviews and assigns independent Home/Sidebar role access. | ✅ Zero-Trust Active |
-| **Industrial HR Command Center** | Complete industrial workforce management suite featuring 12 operational sub-views (Roster, Attendance, Payroll, PPE, Skills). | ✅ Production Ready |
-| **Multi-Plant Stock Transfer Logistics** | Transfer wizard, Inbound Goods Receipt (GRN), Returnable DC, and asset/mold transfer tracking with audit drawers. | ✅ Production Ready |
-| **Dispatch & Gate Pass Execution** | Dispatch management, vehicle load optimization, direct E-Way Bill & E-Invoice generation, and security gate pass checks. | ✅ Production Ready |
-| **Quality & Compliance Suite** | Non-conformance reporting (8D NCR), CAPA management, SPC X-bar/R control charts, and Certificate of Analysis (COA). | ✅ Production Ready |
-| **Enterprise Administration Hub** | Multi-plant settings, warehouse locations, custom approval workflow engine, machine telemetry mappings, and audit logs. | ✅ Production Ready |
-| **Enterprise Finance Subsystem (GL & Journal)** | Redesigned Journal Entries & Ledger Command Center with multi-tab COA inspector, real-time debit/credit auto-balancing, SOX-compliant audit drawer, and one-click reversal. | ✅ Production Ready |
-| **Procure-to-Pay (3-Way Matching AP)** | Redesigned Accounts Payable subsystem with automated 3-way matching (PO + GRN + Invoice), OCR intake simulation, tolerance rules, and line-level manual variance check workspace. | ✅ Production Ready |
-| **Order-to-Cash (AR & Advance Check)** | Redesigned Accounts Receivable & Priority Collections Workbench featuring real-time Advance Check, credit limit monitoring, and interactive advance application. | ✅ Production Ready |
-| **JIT Production Planner (Consolidated Schedule & Work Orders)** | Added 3rd tab adjacent to Consolidated Recipe with schedule-number and date-wise matrix, single-click row expansion, complete work order drilldown, and individual Release WO actions. | ✅ Production Ready |
-| **Item Master Wizard (Inventory Settings Routing)** | Added Step 5 checkboxes for DOL (Direct to FG-STORE), ASSEMPLY (Assembly Store), and DEFLASH (Deflash Store) with visual flow indicator and review persistence. | ✅ Production Ready |
-| **Daily Production Entry (Automated Store Routing)** | Automatic inventory routing engine mapping daily production output to FG-STORE, ASSEMBLY-STORE, or DEFLASH-STORE based on item flags, with grid badges and balance sync. | ✅ Production Ready |
-| **Enterprise Goods Receipt Note (GRN) Redesign** | Comprehensive inward dock receiving suite: Gate Entry logging, PO Receiving Queue, weighbridge gross/tare, bag tally, batch lot/expiry capture, QC routing, FEFO putaway, debit notes, mobile scanning & thermal labels. | ✅ Production Ready |
-| **Enterprise Smart Login & Operator Terminal Redesign** | Multi-device responsive access hub: 1-Tap Persona selector with department filters, Gloves-Ready Operator touch pad with tactile Web Audio tone & haptic vibration, RFID/Barcode scan simulator, auto-detected shift context, and corporate SSO. | ✅ Production Ready |
-| **Persona Security Verification & Password Challenge** | Dedicated credential verification modal on persona card selection requiring PIN/corporate password with 1-click Quick-Fill testing and role clearance. | ✅ Production Ready |
-| **Zero-Latency Login Tab Switching** | Decoupled Web Audio API tone synthesis via `requestAnimationFrame` and singleton audio context, eliminating UI thread locking on tab toggling. | ✅ Zero Latency |
-| **Role-Based Landing Views & 403 Authorization Guard** | Automatic role-based workspace landing (`ROLE_DEFAULT_VIEW`), route validation (`isViewAuthorizedForRole`), and modern `UnauthorizedScreen` gate. | ✅ Active & Enforced |
-| **Scrollbar-Free Clean Screen Experience** | Removed intrusive sliding bars/scrollbars from the login screen persona grid and filter pills with cross-browser zero-scrollbar styling. | ✅ Polished UI |
+| **Complete 8-Layer Security Architecture** | Implemented the master Frontend Security Architecture across 8 core layers (Auth, RBAC, Sanitization, Privacy, Network, UI Security, Logging, GDPR Compliance). | ✅ Production Ready |
+| **In-Memory Token Store & Double-Submit CSRF** | Tokens reside strictly in memory to defeat XSS token theft; automatic double-submit `X-CSRF-Token` headers attached to all mutating requests. | ✅ Active & Enforced |
+| **15-Min Inactivity & 30s Countdown Warning** | Real-time idle listener across keyboard/mouse events with visual 30s warning modal, extend session trigger, and auto-logout. | ✅ Active & Enforced |
+| **Enterprise MFA & Step-Up Verification** | Integrated TOTP 6-digit codes, SMS OTP fallback, emergency recovery codes, and step-up challenge modals for high-risk actions. | ✅ Production Ready |
+| **Component RBAC & Multi-Tenant Isolation** | `<RequirePermission>`, `<RequireRole>`, multi-tenant context boundary enforcement, route guards, and 403 Access Denied screens. | ✅ Zero DOM Leakage |
+| **Input Sanitization & Anti-Injection Suite** | DOMPurify HTML sanitizer, anti-SQL injection and anti-XSS heuristics, prototype pollution-free JSON parser, and file upload scanner with magic bytes. | ✅ Immune to Injection |
+| **PII Data Masking & Forensic Watermarking** | Dynamic masking for SSN, PAN, Bank, Salary with 30s auto-hide countdown; tamper-evident watermarked XLSX/CSV exports. | ✅ Compliant (GDPR/SOC2) |
+| **Network Security & 401 Refresh Queue** | Axios client with concurrent 401 request queuing during token refresh; Secure WSS WebSocket with schema validation and ping/pong keepalive. | ✅ Zero Dropped Requests |
+| **Security UI & Active Device Management** | Live Topbar indicators (256-bit TLS badge, session timer, active tenant badge), multi-device active session list with remote revocation, and phrase-match destructive confirmation modal. | ✅ Verified |
+| **Security Error Boundary & Telemetry Logger** | Global React error boundary obfuscating internal stack traces with `INC-XXXX` reference IDs; client-side security event bus with periodic flushing. | ✅ Zero Recon Leakage |
+| **GDPR Compliance & Cookie Consent** | GDPR Article 20 JSON data portability export, Article 17 Right-to-be-Forgotten request pipeline, and ePrivacy cookie banner with granular controls. | ✅ Compliant |
+| **Clean Production Build Verification** | Executed `npm run build` with Vite — compiled with zero TypeScript or bundling errors. | ✅ 100% Type-Safe |
 
 ---
 
-### Detailed Breakdown of Today's Changes:
+## 2. Frontend Security Architecture Overview (8 Enterprise Layers)
 
-#### 1. Dual-Matrix Workspace & Sidebar Access Control Engine
-- **Independent Dual-Scope Matrix**:
-  - Administrators can now control access to any module separately for the **Home Workspace** (interactive dashboard cards) and the **Sidebar Navigation Menu** (tree navigation) across all enterprise roles (`admin`, `plant_manager`, `quality_manager`, `operator`, `maintenance_lead`, `inventory_clerk`, `finance_controller`, `hr_manager`, `compliance_auditor`, `supply_chain_lead`).
-  - Added dedicated status badges for each screen: **Both Visible**, **Home Only**, **Sidebar Only**, or **Hidden**.
-- **Unified Administration Console (`/src/components/admin/WorkspaceModuleRbacView.tsx`)**:
-  - **Cards View**: Grouped by operational domain (Operations, Front Office, Quality, etc.) with dual-category toggle actions (`Show All`, `Hide All` for Home and Sidebar independently).
-  - **Table Matrix View**: High-density spreadsheet grid displaying checkbox controls for Home Workspace and Sidebar Navigation, domain categorization, and route slugs.
-  - **Role Mirroring Utilities**: Fast synchronization buttons including **Sidebar → Home**, **Home → Sidebar**, **Unhide Both**, **Hide Both**, and **Clone Role Configuration**.
-- **Application Shell Synchronization**:
-  - Updated `Sidebar.tsx` to read `isSidebarVisible(role, view)` so that users only see authorized screens in their navigation menu, with automatic grouping for dynamic approved screens.
-  - Updated `HomeView.tsx` to read `isWorkspaceVisible(role, view)` so that unassigned modules are completely excluded from the dashboard cards, count tallies, and search filters.
-
-#### 2. Autonomous Screen Discovery & Synchronization Engine (`workspaceRbacService.ts`)
-- **Live Route Auto-Discovery**:
-  - Automatically scans navigation manifests and registers every module, including dynamic routes.
-  - Generates comprehensive sync reports detailing total governed screens, domain counts, and last sync timestamp.
-- **On-Demand Auto-Sync**:
-  - Added an interactive **Auto-Sync Screens** trigger in the admin workspace to re-index all routes and confirm zero-trust coverage.
-
-#### 3. Zero-Trust Screen Quarantine & Dual Approval Workflow
-- **Restriction Holding Area**:
-  - Any new screen or route created or registered is intercepted and quarantined until explicit administrative clearance.
-- **Granular Approval Modal**:
-  - Administrators can review the screen metadata (route ID, security level, domain) and assign allowed roles for the **Home Workspace** and the **Sidebar Menu** separately (or link both with a single click).
-- **Governance Audit Trail**:
-  - Immutable audit logging for visibility toggles, quarantine clearances, role clonings, and sync events with operator stamps and timestamps.
-
-#### 4. Complete Industrial HR Workforce Suite (`/src/components/hr/*`, `/src/features/hr/*`)
-- Implemented the complete 12-subview Industrial HR Suite:
-  - **HR Command Center (`HrCommandCenter.tsx`)**: Real-time workforce metrics, shift summaries, and compliance alerts.
-  - **Employee Management (`HrEmployeeListView.tsx`, `HrEmployeeDetailView.tsx`)**: Profile management, statutory IDs, emergency contacts, and skill tags.
-  - **Organization Hierarchy (`HrOrgStructureView.tsx`)**: Interactive tree view of reporting lines and departments.
-  - **Shift Roster & Scheduling (`HrShiftRosterView.tsx`)**: Plant shift rotation planner and roster generation.
-  - **Attendance Tracking (`HrAttendanceView.tsx`)**: Biometric clock timestamps, geofencing, and shift deviations.
-  - **Leave & Overtime (`HrLeaveOvertimeView.tsx`)**: Leave approvals, balance ledgers, and overtime authorizations.
-  - **Payroll & Wage Slips (`HrPayrollView.tsx`)**: Factory payroll engine with PF/ESI calculations and payslip downloads.
-  - **Safety & PPE Management (`HrSafetyPpeView.tsx`)**: Safety gear issuance logs, inspection audits, and incident reports.
-  - **Skills & IATF Training (`HrSkillsTrainingView.tsx`)**: Competency matrices and certification records for audit readiness.
-  - **Contract & Compliance (`HrComplianceContractView.tsx`)**: Labor law compliance, apprentice records, and contractor renewals.
-  - **Onboarding / Offboarding (`HrOnboardingOffboardingView.tsx`)**: New hire onboarding checklists and asset return clearance.
-  - **Reports & Analytics (`HrReportsAnalyticsView.tsx`)**: Attrition, overtime trends, and workforce efficiency analytics.
-
-#### 5. Multi-Plant Stock Transfer & Transit Logistics (`/src/components/stockTransfer/*`)
-- Multi-step Transfer Wizard with item selection, barcode validation, and carrier routing.
-- Inbound Goods Receipt (GRN) verification with discrepancy reporting.
-- Returnable Delivery Challan (RDC) tracking with aging alerts and return reconciliation.
-- Asset & Mold/Tooling Logistics with temperature and vibration transit logs.
-- Inter-plant GST & E-Way Bill compliance checking.
-- Real-time transit audit drawer with step-by-step milestone progression.
-
-#### 6. Dispatch Execution, E-Way Bill & Gate Pass Portal (`/src/components/dispatch/*`)
-- Dispatch Dashboard with vehicle allocation, dock status, and delivery schedules.
-- Delivery Challan Management with packing list validation and dispatch authorizations.
-- Direct E-Way Bill & E-Invoice generation compliant with national logistics standards.
-- Digital Gate Pass Verification with security post clearance workflows.
-
-#### 7. Quality Assurance & Compliance Suite (`/src/components/quality/*`)
-- Non-Conformance Reporting (8D NCR) with root cause investigation and containment actions.
-- Corrective & Preventive Action (CAPA) tracking with verification milestones.
-- Statistical Process Control (SPC) with real-time X-bar and R-charts.
-- Certificate of Analysis (COA) generation with digital sign-off and batch testing records.
-- Document Control & Audit Readiness portal for IATF 16949 / ISO 9001 certifications.
-
-#### 8. Enterprise Journal Entries & General Ledger Subsystem (`/src/components/finance/JournalEntriesView.tsx`)
-- **Multi-Tab Enterprise Navigation**:
-  - **JE Dashboard & KPIs**: Total Posted, Pending Approvals, Discrepancies, and Segregation of Duties metrics.
-  - **Journal Entries Registry**: Complete listing with multi-status tabs (All, Draft, Pending Approval, Posted, Reversed), filter controls, and CSV export.
-  - **Create / Edit Entry Workspace**: Real-time debit/credit auto-balancing indicators, one-click Auto-Balance Line button, recurring entry configurations, and attachment dropzones.
-  - **Ledger Inquiry Workspace**: Real-time running balances, debit/credit totals, and drill-down into original source journals.
-  - **Chart of Accounts (COA) Inspector**: Tree hierarchy with account types, active indicators, and balance summaries.
-- **Enterprise Controls & Compliance**:
-  - Segregation of Duties: Strict validation enforcing that creator != approver != poster.
-  - One-click Journal Reversal with auto-generated reversing reference and audit record.
-  - SOX-compliant immutable audit drawer (`FinanceAuditDrawer.tsx`) with actor timestamps and CSV export.
-
-#### 9. Accounts Payable & 3-Way Matching Subsystem (`/src/components/finance/AccountsPayableDashView.tsx`)
-- **AP Dashboard & Executive KPIs**:
-  - 10 core metrics: Total Open AP, Overdue AP, Invoices Pending Match, Early Payment Discounts, DPO, and tolerance exception alerts.
-  - Interactive AP Aging buckets (Current, 1-30, 31-60 days) and 3-way match funnel analysis.
-- **Automated 3-Way Matching Intake Engine**:
-  - Simulated drag-and-drop intake for supplier invoice documents (PDF/EDI/XML) with AI OCR confidence scoring.
-  - Tolerance rule enforcement: Price variance tolerance (±1.0% or max ₹500), Quantity variance tolerance (0% for discrete parts), and GSTIN verification.
-- **3-Way Match Workspace & Manual Review**:
-  - Three-panel side-by-side comparison: Purchase Order (PO) vs Goods Receipt Note (GRN) vs Supplier Invoice.
-  - Line-level variance inspection highlighting price and quantity deviations with authorization code overrides.
-- **AP Exception Resolution Center**:
-  - Structured categorization across 12 exception types (Missing PO, Missing GRN, Price Variance, Tax Mismatch, Duplicate Invoices) with severity indicators and buyer routing.
-
-#### 10. Accounts Receivable, Advance Check & Priority Collections (`/src/components/finance/AccountsReceivableDashView.tsx`)
-- **Real-Time Advance Check Option**:
-  - 11-field analytical panel inspecting total advances received, allocated balances, available balance, and order-specific vs general advance categorizations.
-  - Distinct status badges: *Advance Available*, *Partially Used*, *Fully Used*, *Advance Exceeded*, and *No Advance*.
-  - Overdue invoice prioritization warnings to prevent unearned credit release.
-- **Interactive Apply Advance Modal**:
-  - Allows finance operators to apply unallocated customer advances directly against outstanding invoices with live balance deduction.
-- **Collection Workbench & Surveillance**:
-  - Split-screen priority queue displaying customer credit limit utilization, overdue balances, and broken payment promise alerts.
-  - Communication history timeline for call logs, reminder dispatches, and Statement of Account delivery.
-- **Customer Advance History Ledger**:
-  - Dedicated receipts journal tracking unallocated amounts, proforma settlements, and refund logs.
-
-#### 11. JIT Production Planner — Consolidated Schedule Number & Date-Wise Work Order Matrix (`/src/components/manufacturing/JitProductionPlanner.tsx`)
-- **New Dedicated Tab Near Consolidated Recipe by Machine**:
-  - Added a 3rd tab: **"Consolidated Schedule & Work Orders"** positioned adjacent to "Consolidated Recipe by Machine".
-  - Consolidates work orders by unique `Schedule Number` and `Plan Date`, providing production planners with an aggregated view of shop-floor commitments.
-- **Aggregated Directory Grid**:
-  - High-density columns: Schedule Number, Schedule Date, Total Work Orders, Total Planned Qty (PCS), Completed Qty, Scrap Qty, Machine Bays assigned, Shift allocations, Operating Teams, and Overall Release Status.
-  - KPI summary metric cards displaying Total Active Schedules, Scheduled Dates, Planned Production Volume, and Work Order counts.
-- **Single-Click Row Drilldown**:
-  - Clicking any row smoothly expands an inline detailed drawer/table displaying every Work Order belonging to that specific schedule number and date.
-  - Each work order row displays: Work Order ID, Item Code, Item Description, Machine Bay, Shift, Planned Quantity, Completed Units, Scrap Count, Mold ID, Priority Level, Traveler Status, and an action button to **Release WO** directly.
-- **Search, Date Filtering & Export**:
-  - Real-time search across Schedule Number, Work Order ID, Item Name, or Machine Bay.
-  - Specific plan date filter picker to inspect schedules for any given production day.
-  - One-click CSV export of consolidated schedules.
-
-#### 12. Item Master Creation Wizard — Post-Molding Routing Destination Checkboxes (`/src/components/masterdata/CreateItemWizardModal.tsx`)
-- **Interactive Routing Checkboxes in Step 5 (Inventory Settings)**:
-  - Added three specialized post-molding routing checkboxes:
-    1. **DOL (Direct On Line)**: Automatically sets post-molding destination to **FG-STORE** (Finished Goods Store). Finished parts immediately move to FG stock without intermediate WIP staging.
-    2. **ASSEMPLY**: Automatically sets post-molding destination to **ASSEMBLY-STORE** (Assembly Inventory Store) for secondary hardware insertion, fittings, and multi-component assembly.
-    3. **DEFLASH**: Automatically sets post-molding destination to **DEFLASH-STORE** (Deflash Inventory Store) for runner gate cutting, deburring, and flame polishing.
-- **Interactive Routing Feedback & State Management**:
-  - Built single-selection toggle handlers (`handleToggleDol`, `handleToggleAssembly`, `handleToggleDeflash`) that switch the active destination while ensuring unambiguous routing.
-  - Visual direct flow path indicator showing: `Molding Production → Daily Production Entry → [Target Store]`.
-  - Step 10 (Review & Approval Workflow) displays the chosen post-production routing destination in the Inventory & Quality review card.
-  - Persisted `routingDestination`, `isDol`, `isAssembly`, and `isDeflash` across draft saves and final approvals in `ItemMaster`.
-
-#### 13. Daily Production Entry — Automated Inventory Store Routing Engine (`/src/components/manufacturing/DailyProductionGrid.tsx`, `ManufacturingViews.tsx`)
-- **Automated Routing Execution on Entry Save**:
-  - When shop floor operators log daily production (via single row save or batch save all), the system inspects the molded item's master data routing flags.
-  - Automatically calculates and deposits good quantities, scrap, runner kg, and lumps kg into the designated target store:
-    - `DOL` &rarr; `FG-STORE` (Direct to Finished Goods Handover Store)
-    - `ASSEMPLY` &rarr; `ASSEMBLY-STORE` (Assembly Floor Store)
-    - `DEFLASH` &rarr; `DEFLASH-STORE` (Deflash Floor Store)
-- **Live Inventory Ledger & Balance Synchronization**:
-  - Automatically updates `PlantStoreInventoryItem` on-hand and available balances for the recipient store.
-  - Generates an immutable WIP lot lifecycle record (`WipInventoryRecord`) with full audit history recording the exact routing destination and timestamp.
-  - Updates the work order traveler output location (`locOutput`) to mirror the routed store.
-- **Floor Visual Clarity & Notification Toasts**:
-  - Added color-coded routing badges directly under the Product Item column in `DailyProductionGrid.tsx` (`DOL → FG-Store`, `ASSEMPLY → Assembly Store`, `DEFLASH → Deflash Store`).
-  - Enhanced toast notifications on row save and batch save confirming the exact destination store and quantity routed.
-- **Catalog & Inventory Visibility**:
-  - Updated the Item Master catalog list table to display post-molding routing tags on item rows.
-  - Added a dedicated Default Post-Molding Store Routing indicator banner in the Item Detail view (Inventory tab).
-
-#### 14. Enterprise Goods Receipt Note (GRN) & Inward Receiving Redesign (`/src/components/procurement/GoodsReceiptNoteView.tsx`, `/src/components/procurement/grn/*`)
-- **Architecture & Workflow Modules**:
-  1. **GRN Operations Dashboard (`GrnDashboardTab.tsx`)**:
-     - Metric cards for Today's Inward Receipts, Open Confirmed POs, Pending Quality Clearance, and Putaway Tasks Pending.
-     - Live Dock Arrivals feed, active QC quarantine watchlist, quick access actions, and plant receiving KPIs.
-  2. **Confirmed PO Receiving Queue (`ConfirmedPoQueueTab.tsx`)**:
-     - Filters by Item Category (Raw Material, Packaging, Masterbatch, Additives), Dock, Plant, and Supplier.
-     - Live receiving status chips, open PO quantities vs arrived quantities, one-click "Create GRN" and PO viewer navigation.
-  3. **Live Unloading & GRN Entry Modal (`LiveGrnEntryModal.tsx`)**:
-     - Gate & Logistics Header: Gate Entry No, Arrival timestamp, Carrier, Driver, Truck No, Delivery Challan, Supplier Invoice Ref.
-     - Real-Time Quantity Reconciliation: Ordered Qty, Previous Receipts, Arrived Qty, Unloaded/Counted Qty, Current Received Qty, Remaining PO Balance.
-     - Bag Tally & Weighbridge Difference: Bag count calculator (e.g. 1000 bags @ 25KG = 25,000 KG), Gross Weight, Tare Weight, Net Weighbridge variance.
-     - Over/Under-Receipt Tolerance Engine: Configurable +5% / -10% threshold warnings with supervisor override password authorization.
-     - Inspection Mode Selection: `QC_BEFORE_GRN` (dock sample & hold), `QC_AFTER_GRN` (quarantine bin), and `NO_QC` (direct receipt).
-  4. **Lot / Batch Number Capture Modal (`LotBatchCaptureModal.tsx`)**:
-     - Internal Lot Number auto-generation (`LOT-PLANT01-2026-XXXX`).
-     - Supplier Heat/Batch Number, Manufacturing Date, Expiry Date, Total Shelf Life Days, Remaining Days, Storage Condition, and Packaging Specification.
-  5. **10-Tab GRN Drilldown Console (`GrnDetailModal.tsx`)**:
-     - Deep inspection across 10 specialized views:
-       1. *Overview*: Summary, gate pass, carrier, receiver.
-       2. *Line Items*: High-density items table with unit rates and values.
-       3. *Lot & Batch Traceability*: Polymer heat numbers, expiry, storage conditions.
-       4. *Weighbridge & Tally*: Gross/tare slips, bag tally calculations.
-       5. *QC & Lab Clearance*: Melt Flow Index (MFI), Density, Moisture %, Visual pellet test, ASTM standards.
-       6. *Putaway & Bins*: Forklift bay allocations and storage bin routing.
-       7. *Exceptions & Rejections*: Damaged packaging logs, wet material, debit notes.
-       8. *Financials & AP Liability*: 3-way match preview and accrued liability ledger.
-       9. *Audit Trail*: Immutable timestamped ledger with actor IDs and change logs.
-       10. *Documents & Attachments*: Delivery challans, gate passes, COA certificates.
-  6. **Quality Inspection Console (`QualityInspectionConsole.tsx`)**:
-     - Lab worksheet for raw material testing (MFI ASTM D1238, Density ASTM D792, Moisture ASTM D6980, Pellet Color & Contamination).
-     - Disposition actions: Accept & Release to Stock, Reject & Return to Supplier, or Accept with Concession.
-  7. **Warehouse Putaway & Bin Management (`PutawayInventoryPostingTab.tsx`)**:
-     - FEFO (First-Expired, First-Out) shelf-life priority routing.
-     - Recommended warehouse zones (`Standard Resin Bay`, `Bulk Silo`, `Masterbatch Storage`, `Additive Controlled Room`).
-     - 1-click Putaway confirmation updating bin locations and inventory balances.
-  8. **Material Exceptions & Supplier Debit Notes (`ExceptionsAndReturnsModal.tsx`)**:
-     - Logs transit damages, contaminated resin, and off-spec lab failures.
-     - Generates official Debit Note draft (`DN-2026-XXX`) with unit price deduction against supplier invoice.
-  9. **GRN Reversal & Correction (`GrnReversalModal.tsx`)**:
-     - Reversal workflow with mandatory supervisor PIN authorization, stock deduction warnings, and audit logging.
-  10. **Mobile / Barcode Receiving Terminal (`MobileBarcodeReceivingModal.tsx`)**:
-      - Mobile handheld dock screen (simulated Zebra TC52 scanner).
-      - 2D DataMatrix / QR laser scan simulation, touch steppers, and 1-click dock posting.
-  11. **Print Documents & Thermal Labels (`GrnPrintViewModal.tsx`)**:
-      - Official Goods Receipt Note (GRN) voucher with legal company details, gate entry, signatures.
-      - 4x6" Thermal Pallet Labels with GS1-128 / QR codes for warehouse racking.
-      - Forklift Putaway Slips for staging transfer.
-  12. **Plant-Wide Tolerances & Policies (`GrnSettingsModal.tsx`)**:
-      - Configurable allowed over-receipt %, under-receipt %, default QC routing mode, and quarantine bin codes.
-
-#### 15. Enterprise Smart Login & Operator Terminal Redesign (`/src/components/LoginScreen.tsx`)
-- **Cross-Device Responsive Architecture**:
-  - Re-architected for smartphones, rugged shop-floor tablets, operator touch consoles, and desktop monitors with fluid responsive breakpoints (`sm:`, `md:`, `lg:`).
-  - High-contrast industrial design adhering strictly to Anti-Slop principles with a dark navy canvas (`#0B1120`), slate cards (`#111C35`), and high-visibility status accents (`#0F8B8D` teal & `#E8622C` safety orange).
-- **Three Specialized Access Modes**:
-  1. **1-Tap Persona (Quick Roles)**:
-     - Real-time search across name, role, badge ID, and department.
-     - Department filter pills (`All`, `Executive`, `Manufacturing`, `Quality`, `Supply`, `Finance`, `Shop`, `Human`).
-     - Instant 1-tap demo sign-in for evaluators and managers with full RBAC permission assignment.
-  2. **Operator Touch Terminal**:
-     - Gloves-ready oversized touch buttons (48px–52px height) exceeding WCAG AA minimum 44px touch targets.
-     - 4-digit PIN verification with live visual status circles and demo PIN guide.
-     - Interactive numeric keypad with Web Audio API tactile acoustic tones and mobile haptic vibration feedback.
-     - **RFID / Barcode Badge Scan Simulator**: 1-click "Tap Badge" reading simulation for instant hands-free shop floor login.
-  3. **Corporate Credentials & SSO**:
-     - Email and password input with eye-icon visibility toggle.
-     - Caps Lock detection indicator warning.
-     - Remember workstation preference and TLS 1.3 / 256-bit encryption indicator.
-- **Context Awareness & Smart Shift Detection**:
-  - Live system clock continuously calculating and suggesting the current shift (`Shift A` 06:00–14:00, `Shift B` 14:00–22:00, `Shift C` 22:00–06:00).
-  - Floating Workstation Context modal to switch manufacturing plants (`Plant 01 Pune Hub`, `Plant 02 Sanand Precision`, `Plant 03 Chennai Unit`) or shift rosters on demand.
-  - Live plant telemetry summary displaying IMM press online status (8/8 active), shift OEE (89.2%), open work orders queue, and IATF 16949 / Euromap compliance badges.
-  - Sound effect toggle in universal header to enable or mute keypad acoustic feedback.
-  - 1-click **Instant Director Bypass** shortcut in footer for instant reviewer navigation.
-
-#### 16. Persona Security & Role Password Challenge Flow (`RoleSecurityVerificationModal`)
-- **Direct Persona Verification Challenge**:
-  - Selecting any persona card from the 1-Tap Quick Roles view prompts an inline **Role Security Verification** dialog rather than logging in unauthenticated.
-  - Enforces role-based credential verification via either the individual's 4-digit PIN or company master password (`Reboot2026!#`).
-- **Ergonomic Testing Utilities**:
-  - Includes a convenient **Quick-Fill PIN** button allowing testers and evaluators to autofill the persona's credentials with one click.
-  - Features password visibility toggling, clear error status banners, keyboard `Enter` submission, and clean cancellation/back navigation.
-
-#### 17. Zero-Latency Login Tab Switching & Sound Synthesis Decoupling
-- **Decoupled Audio Generation**:
-  - Identified and eliminated synchronous `AudioContext` generation on user interaction that caused tab switching stutter.
-  - Refactored Web Audio oscillator triggers to execute asynchronously inside `requestAnimationFrame` with a persistent singleton audio context.
-- **Immediate Visual Response**:
-  - Switching between **1-Tap Quick Roles**, **Shopfloor Operator PIN**, and **Corporate Credentials** now executes in zero milliseconds without UI lag or frame dropping.
-
-#### 18. Automatic Role-Based Landing Views & Full-Screen 403 Authorization Barrier
-- **Intelligent Landing Workspace Routing (`ROLE_DEFAULT_VIEW`)**:
-  - Upon authentication, users are automatically routed to their canonical role's primary operational workspace:
-    - *Shop Floor Operator* &rarr; `dailyProductionEntry`
-    - *Quality Assurance Lead / Inspector* &rarr; `qualityDashboard`
-    - *Warehouse & Logistics Lead* &rarr; `stockTransferHub`
-    - *Production Planner & MRP Lead* &rarr; `jitProductionPlanner`
-    - *Maintenance & Tooling Engineer* &rarr; `mepDashboard`
-    - *Financial Controller & Cost Lead* &rarr; `financeDashboard`
-    - *Procurement Officer* &rarr; `procurementDashboard`
-    - *HR Manager* &rarr; `hrCommandCenter`
-    - *Executive / Plant Director / Admin* &rarr; `home`
-- **Strict Route Authorization Guard (`isViewAuthorizedForRole` in `App.tsx`)**:
-  - All views mounted inside `<main>` are checked in real-time against `workspaceRbacService.isScreenVisible(role, view)` and universal view lists.
-  - Automatically handles detail-to-parent view inheritance (e.g. `itemDetail` inherits permissions from `itemList`).
-- **Industrial 403 Unauthorized Screen (`UnauthorizedScreen.tsx`)**:
-  - If a user attempts to access an unauthorized screen or route, the application renders a specialized 403 access control screen.
-  - Displays the user's active role, explains the permission policy, and offers immediate 1-click navigation back to their authorized default workspace or user switcher.
-
-#### 19. Scrollbar-Free Clean Screen Experience ("Remove Sliding Bar")
-- **Eliminated Sliding Bars in Persona Grid**:
-  - Removed browser scrollbars from the login screen's persona card grid using `.scrollbar-none`, `.no-scrollbar`, `scrollbar-width: none`, and `-ms-overflow-style: none`.
-  - Preserved full mouse wheel and touch scroll capability without visible scroll tracks.
-- **Refined Filter Pills Row**:
-  - Ensured horizontal department filter pills scroll seamlessly without an unsightly horizontal scrollbar track.
-- **Global Dark Mode Scrollbar Overhaul**:
-  - Updated global styles in `index.css` to replace solid light cream scrollbars with subtle, semi-transparent modern dark tracks across all dashboard panels.
-
----
-
-## 2. Frontend Workspace Architecture Overview
-
-Reboot ERP is built as a **Domain-Driven Modular Monolith** using modern React 19, TypeScript, and Tailwind CSS. The system decouples business domains (MES, WMS, Quality, MEP, Procurement, Finance) while centralizing shared infrastructure in `/src/shared/`.
-
-### Core Engineering Tenets
-- **Modular Monolith**: Features are partitioned into domain folders (`/src/features/*`) with distinct API layers, schemas, and components.
-- **Client-Side BFF Routing**: All frontend API communications route exclusively through the centralized API client in `/src/shared/api/client.ts` pointing to the `/api` prefix.
-- **Zero Token Leakage**: Tokens and JWTs are **never stored** in browser `localStorage` or `sessionStorage`. All state is held in-memory and authenticated via secure cookies.
-- **DOM Isolation**: Restricted UI controls and views are completely removed from the DOM via `<RequireAuth />` rather than visually hidden with CSS.
-
----
-
-## 3. Summary of Added Features & Capabilities
-
-### Feature 1: Streaming UI (`<StreamingText />`)
-**Location:** `/src/shared/components/StreamingText.tsx`
-
-A high-performance streaming text renderer designed to consume real-time AI responses and display them token-by-token with a smooth typewriter effect.
-
-#### Capabilities:
-1. **Multi-Protocol Support**:
-   - **Server-Sent Events (SSE)**: Automatically establishes an `EventSource` connection to `/api/ai/stream`.
-   - **WebSockets**: Connects to `ws://` or `wss://` streams and parses incoming frame packets.
-   - **Fetch ReadableStream**: Consumes standard browser `ReadableStream` chunks (NDJSON or raw text).
-   - **Static Text Mode**: Typewriter simulation from pre-loaded strings.
-2. **Buffer Queue & Pacing Engine**:
-   - Batches incoming tokens into a high-speed internal queue (`tokenQueueRef`).
-   - Smooth typewriter rendering (default 18ms per token) prevents UI stuttering and layout jumps.
-3. **Integrated XSS Protection**:
-   - Every rendered token passes through DOMPurify via `<SanitizedHtml />` before injection into the DOM.
-4. **Interactive Controls**:
-   - Pause, resume, restart, and fast-forward controls.
-   - Custom blinking terminal cursor (`animate-pulse`).
-
----
-
-### Feature 2: Modular Prompt Builder (`<PromptBuilder />`)
-**Location:** `/src/shared/components/PromptBuilder.tsx` and `/src/shared/components/prompt-builder/`
-
-An industrial-grade prompt engineering workbench for manufacturing domain experts. It allows operators, engineers, and plant managers to construct structured AI prompts with contextual parameters before sending them to the backend AI gateway.
-
-#### Sub-Component Architecture:
-- **`ContextSelector`**: Selects target domain context (Injection Molding MES, IATF 16949 Quality, MEP Chiller SCADA, WMS Inventory, Financial Costing, Supply Chain).
-- **`ToneSlider`**: Adjusts model response tone (Technical Precision, Executive Summary, Root Cause Analysis, SOP Operator, Concise Audit).
-- **`SystemPersonaSelector`**: Selects or customizes system instructions from industrial role presets.
-- **`ContextInjectionToggles`**: Granular toggles to inject live telemetry, open work orders, IATF containment specs, or active BOM recipes.
-- **`PromptVariableChips`**: One-click insertion of standardized parameter tokens (e.g., `[Parameter: Cavity Pressure Delta-P > 15 bar]`).
-- **`CompiledPromptViewer`**: Real-time compiled prompt inspector displaying approximate token count and formatted Markdown preview.
-
----
-
-### Feature 3: Token Management & BFF Pattern
-**Location:** `/src/shared/api/client.ts` and `/src/features/auth/`
-
-#### Security Directives Enforced:
-1. **Zero Client Storage**:
-   - **NEVER** store JWTs, refresh tokens, API keys, or credentials in `localStorage` or `sessionStorage`.
-   - Session state is held in-memory via React state and validated on page load via `GET /api/auth/me`.
-2. **Backend-For-Frontend (BFF)**:
-   - Frontend communicates exclusively with the BFF gateway (`baseURL: '/api'`).
-   - Axios is configured with `withCredentials: true` so the browser transmits `HttpOnly, Secure, SameSite=Strict` cookies on every request.
-3. **Automated CSRF Protection**:
-   - Centralized Axios interceptors read the `XSRF-TOKEN` cookie and attach it as the `X-XSRF-TOKEN` header on mutating requests (`POST`, `PUT`, `PATCH`, `DELETE`).
-
----
-
-### Feature 4: XSS Prevention (`<SanitizedHtml />`)
-**Location:** `/src/shared/components/SanitizedHtml.tsx`
-
-Ensures that all dynamic, user-generated, or AI-generated Markdown/HTML is sterilized against cross-site scripting attacks prior to DOM insertion.
-
-#### Sanitization Rules:
-- Powered by `DOMPurify`.
-- **Allowed Tags**: `b`, `i`, `em`, `strong`, `a`, `p`, `span`, `br`, `ul`, `ol`, `li`, `h1`-`h6`, `blockquote`, `code`, `pre`, `table`, `thead`, `tbody`, `tr`, `th`, `td`, `hr`, `mark`, `kbd`.
-- **Allowed Attributes**: `href`, `target`, `rel`, `class`, `id`, `title`.
-- **Forbidden Tags**: `script`, `style`, `iframe`, `object`, `embed`, `form`, `input`.
-- **Forbidden Attributes**: `onerror`, `onload`, `onclick`, `onmouseover`, `action`, `data`, and any URI beginning with `javascript:`.
-
----
-
-### Feature 5: Role-Based UI Guard (`<RequireAuth />`)
-**Location:** `/src/shared/components/RequireAuth.tsx`
-
-Provides zero-DOM-leakage authorization gating across views, action buttons, and sensitive configuration panels.
-
-#### How It Works:
-```tsx
-import { RequireAuth } from './shared/components/RequireAuth';
-
-// Gating an action button to administrators and managers
-<RequireAuth
-  roles={['admin', 'manager']}
-  fallback={<span className="text-xs text-slate-400">Clearance Required</span>}
->
-  <button onClick={handleApprove}>One-Click Approve</button>
-</RequireAuth>
 ```
-
-#### Authorization Logic:
-1. Reads `currentUser` from the top-level `AuthContext`.
-2. Evaluates requested roles against `currentUser.role` (case-insensitive).
-3. Super-user escalation: Users with `admin`, `director`, or `superadmin` automatically pass role checks.
-4. General `user` role matches all authenticated operators.
-5. If authorization fails, the component returns the optional `fallback` (or `null`). **Nothing is rendered to the client DOM tree.**
-
----
-
-### Feature 6: Strict Content Security Policy (CSP) Awareness
-The frontend workspace has been audited and hardened for strict CSP environments:
-- **Zero Inline Script Execution**: No inline `<script>` tags in `index.html` or components.
-- **Zero Dynamic Evaluation**: No usage of `eval()`, `new Function()`, or `setTimeout(string)`.
-- **Zero Inline Event Handlers**: All event handling uses React synthetic events (`onClick`, `onChange`).
-- **Asset Integrity**: CSS and fonts are served via bundled packages or trusted origin CDNs.
-
----
-
-## 4. Step-by-Step Backend Implementation Guide
-
-Follow these steps to implement the corresponding backend services (Node.js/Express, Python/FastAPI, or Go) to interact with the Reboot ERP frontend.
-
----
-
-### Step 1: Session & Authentication Service (BFF + HttpOnly Cookies)
-
-The frontend expects session cookies rather than raw bearer tokens. The backend must set `HttpOnly` cookies upon login and clear them on logout.
-
-#### Endpoints Required:
-- `POST /api/auth/login`
-- `GET /api/auth/me`
-- `POST /api/auth/logout`
-
-#### Node.js / Express Example:
-```typescript
-import express from 'express';
-import cookieParser from 'cookie-parser';
-
-const app = express();
-app.use(express.json());
-app.use(cookieParser());
-
-// 1. LOGIN: Set HttpOnly, Secure, SameSite=Strict cookie
-app.post('/api/auth/login', async (req, res) => {
-  const { email, password, pin } = req.body;
-  const user = await validateCredentials(email, password, pin);
-
-  if (!user) {
-    return res.status(401).json({ success: false, message: 'Invalid credentials' });
-  }
-
-  // Generate session token (opaque session ID or signed JWT)
-  const sessionToken = generateSignedSessionToken(user.id);
-
-  // Set secure HttpOnly session cookie
-  res.cookie('reboot_session', sessionToken, {
-    httpOnly: true,                                // Inaccessible to client JS
-    secure: process.env.NODE_ENV === 'production', // HTTPS only
-    sameSite: 'strict',                            // Mitigate CSRF
-    maxAge: 8 * 60 * 60 * 1000,                   // 8 hours
-    path: '/',
-  });
-
-  // Set readable anti-CSRF token cookie
-  const csrfToken = generateRandomCsrfToken();
-  res.cookie('XSRF-TOKEN', csrfToken, {
-    httpOnly: false,                               // Accessible to client to mirror into header
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    path: '/',
-  });
-
-  return res.json({
-    success: true,
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,                             // e.g. "Plant Operations Director", "admin", "quality"
-      plantId: user.plantId,
-      badgeId: user.badgeId,
-    },
-  });
-});
-
-// 2. VERIFY SESSION: Returns authenticated user
-app.get('/api/auth/me', async (req, res) => {
-  const token = req.cookies.reboot_session;
-  if (!token) {
-    return res.status(401).json({ user: null });
-  }
-
-  const user = await verifySession(token);
-  if (!user) {
-    return res.status(401).json({ user: null });
-  }
-
-  return res.json({ user });
-});
-
-// 3. LOGOUT: Clears the cookies
-app.post('/api/auth/logout', (req, res) => {
-  res.clearCookie('reboot_session', { path: '/' });
-  res.clearCookie('XSRF-TOKEN', { path: '/' });
-  return res.json({ success: true, message: 'Logged out successfully' });
-});
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      REBOOT ERP FRONTEND SECURITY SUITE                     │
+├───────────────────────┬─────────────────────────────┬───────────────────────┤
+│ Layer 1: Auth & Token │ Layer 2: RBAC & Multi-Tenant│ Layer 3: Sanitization │
+│ • In-Memory Storage   │ • <RequirePermission>       │ • DOMPurify HTML      │
+│ • Double-Submit CSRF  │ • <RequireRole>             │ • Anti-SQL/XSS Checks │
+│ • 15m Inactivity Idle │ • Tenant Boundary Check     │ • Safe JSON Parser    │
+│ • TOTP / SMS / MFA    │ • 403 Forbidden Screen      │ • File Magic Bytes    │
+├───────────────────────┼─────────────────────────────┼───────────────────────┤
+│ Layer 4: Data Privacy │ Layer 5: Network & API      │ Layer 6: UI Controls  │
+│ • PII Masking (30s)   │ • 401 Refresh Queuing       │ • Countdown Warning   │
+│ • Forensic Watermark  │ • WSS Schema Enforcement    │ • Active Session List │
+│ • Clipboard Purging   │ • Zod API Body Validator    │ • Destructive Modal   │
+├───────────────────────┴─────────────────────────────┴───────────────────────┤
+│ Layer 7: Logging & Error Boundary │ Layer 8: GDPR Compliance & Portability  │
+│ • Obfuscated Error Screen (INC-ID)│ • Article 20 JSON Data Export           │
+│ • Client Security Event Stream    │ • Article 17 Right-To-Be-Forgotten      │
+│ • Batch Telemetry Ingestion       │ • Granular Cookie Consent Banner        │
+└───────────────────────────────────┴─────────────────────────────────────────┘
 ```
 
 ---
 
-### Step 2: Server-Sent Events (SSE) AI Token Streaming Endpoint
+## 3. Workflows & Sequence Diagrams for Middleware & Backend DB
 
-The frontend `<StreamingText protocol="sse" src="/api/ai/stream?id=..." />` connects via `EventSource`. The backend must establish a continuous `text/event-stream` response and emit chunks.
+### Workflow 1: In-Memory Authentication & 401 Silent Token Refresh
 
-#### Supported Data Formats:
-The frontend parser accepts any of the following SSE payload structures:
-1. `data: {"token": "word"}`
-2. `data: {"content": "word"}`
-3. `data: {"delta": {"text": "word"}}`
-4. `event: token\ndata: {"token": "word"}`
-5. `event: done\ndata: [DONE]` (signals completion)
+This workflow illustrates how the frontend prevents XSS token theft by keeping access tokens in memory and leveraging an `HttpOnly` refresh cookie with a concurrent request queue.
 
-#### Node.js / Express Example (with Google GenAI / Gemini):
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant Frontend as React Client (In-Memory)
+    participant Axios as Secure Axios Interceptor
+    participant Gateway as Backend API Gateway
+    participant Redis as Redis Session Store
+    participant DB as PostgreSQL DB
+
+    User->>Frontend: Submit credentials (Email / Password / MFA)
+    Frontend->>Gateway: POST /api/auth/login { email, password }
+    Gateway->>DB: Validate credentials & tenant status
+    DB-->>Gateway: User Record & Role/Permissions
+    Gateway->>Redis: Create Session (session_id, user_id, device_fingerprint)
+    Gateway-->>Frontend: HTTP 200 + Body: { accessToken, expiresIn: 900 }<br/>Set-Cookie: reboot_refresh=TOKEN; HttpOnly; Secure; SameSite=Strict<br/>Set-Cookie: XSRF-TOKEN=CSRF_SECRET; SameSite=Strict
+    Note over Frontend: Access token stored strictly in-memory (JS variable).<br/>Zero tokens in localStorage/sessionStorage.
+
+    Note over Frontend, Gateway: After 15 minutes (Access Token expires):
+    Frontend->>Axios: Dispatches Request A (e.g. GET /api/finance/ledger)
+    Frontend->>Axios: Dispatches Request B (e.g. GET /api/mfg/work-orders)
+    Axios->>Gateway: GET /api/finance/ledger [Bearer ExpiredToken]
+    Gateway-->>Axios: HTTP 401 Unauthorized
+    
+    Note over Axios: 401 Interceptor traps response.<br/>Queues Request A & Request B.<br/>Fires single refresh request.
+    Axios->>Gateway: POST /api/auth/refresh (Sends HttpOnly refresh cookie)
+    Gateway->>Redis: Validate refresh token & session active status
+    Gateway-->>Axios: HTTP 200 { newAccessToken, expiresIn: 900 }
+    
+    Note over Axios: Updates in-memory token.<br/>Retries queued Request A & B with new token.
+    Axios->>Gateway: GET /api/finance/ledger [Bearer NewToken]
+    Axios->>Gateway: GET /api/mfg/work-orders [Bearer NewToken]
+    Gateway-->>Frontend: HTTP 200 Responses Returned Seamlessly
+```
+
+---
+
+### Workflow 2: Multi-Tenant Context & RBAC Authorization Pipeline
+
+Every API request passes the user's active tenant and CSRF token in custom headers. The backend middleware validates tenant boundaries to prevent Insecure Direct Object Reference (IDOR) attacks.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant React as React UI (<RequirePermission>)
+    participant Client as SecureHttpClient (Axios)
+    participant Middleware as Auth & Multi-Tenant Middleware
+    participant Controller as Business Controller
+    participant DB as Multi-Tenant Database
+
+    React->>React: Evaluates local permission (e.g. 'finance.approve')
+    alt Local permission missing
+        React-->>React: Do not render button or render fallback (Zero DOM Leakage)
+    else Local permission passed
+        React->>Client: Trigger Action (e.g. Approve PO #PO-9021)
+        Client->>Middleware: POST /api/procurement/orders/PO-9021/approve<br/>Header: Authorization: Bearer <Token><br/>Header: X-Tenant-ID: TENANT-ALPHA-IND<br/>Header: X-CSRF-Token: <CSRF_TOKEN>
+        
+        Note over Middleware: 1. Verify CSRF Token match against Cookie.<br/>2. Decode JWT & check user.tenantId === X-Tenant-ID.<br/>3. Verify user has 'procurement.approve' permission.
+        
+        alt Tenant Mismatch or Permission Denied
+            Middleware-->>Client: HTTP 403 Forbidden { code: 'TENANT_VIOLATION' }
+            Client-->>React: Triggers <AccessDeniedPage> & Logs Security Anomaly
+        else Verification Succeeded
+            Middleware->>Controller: Forward sanitized request context
+            Controller->>DB: UPDATE procurement_orders SET status='APPROVED'<br/>WHERE id='PO-9021' AND tenant_id='TENANT-ALPHA-IND'
+            DB-->>Controller: Updated Record
+            Controller-->>Client: HTTP 200 { success: true, record: ... }
+            Client-->>React: UI State Updated & Toast Notification Displayed
+        end
+    end
+```
+
+---
+
+### Workflow 3: Inactivity Idle Monitoring & 30s Countdown Warning
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant DOM as Window Event Listeners
+    participant Timer as SessionManager (15 min)
+    participant Modal as <SessionTimeoutModal>
+    participant Gateway as Backend Auth Service
+
+    Note over DOM, Timer: User is active (mousedown, keydown, scroll)
+    DOM->>Timer: Throttled activity pulse (resets idle clock)
+
+    Note over DOM, Timer: User leaves workstation for 14.5 minutes (No events)
+    Timer->>Modal: Idle threshold reached (14m 30s).<br/>Emits onWarning(secondsRemaining = 30)
+    Modal->>User: Displays high-priority 30-second warning modal with audio chime
+
+    alt User clicks "Keep Session Active"
+        User->>Modal: Click "Keep Session Active"
+        Modal->>Timer: recordActivity()
+        Modal->>Gateway: POST /api/auth/refresh (Refreshes backend session)
+        Gateway-->>Modal: HTTP 200 OK
+        Modal-->>User: Closes warning modal; normal session resumed
+    else Countdown reaches 00:00 (Inactivity Timeout)
+        Timer->>Gateway: POST /api/auth/logout { reason: 'INACTIVITY_TIMEOUT' }
+        Gateway-->>Timer: HTTP 200 (Invalidates session in Redis)
+        Timer->>User: Clear in-memory token, lock terminal & redirect to Login
+    end
+```
+
+---
+
+### Workflow 4: Step-Up MFA Challenge for Sensitive Operations
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin
+    participant UI as Admin Workspace
+    participant Modal as <MfaVerificationModal>
+    participant Gateway as Backend MFA Gateway
+    participant Redis as Redis Challenge Store
+
+    Admin->>UI: Clicks "Purge Audit Logs" or "Approve $500K Payment"
+    UI->>Gateway: POST /api/finance/payments/bulk-disburse { paymentId: 'PAY-88' }
+    Gateway-->>UI: HTTP 403 Step-Up Required { mfaChallengeId: 'CHAL-9921', method: 'TOTP' }
+    
+    UI->>Modal: Opens <MfaVerificationModal> with action description
+    Admin->>Modal: Enters 6-digit TOTP code (e.g. '849201')
+    Modal->>Gateway: POST /api/auth/mfa/verify-challenge { challengeId: 'CHAL-9921', code: '849201' }
+    Gateway->>Redis: Validate challenge expiration & verify TOTP secret against DB
+    
+    alt Code Valid
+        Gateway-->>Modal: HTTP 200 { elevatedToken: 'TEMP_STEPUP_JWT_5MIN' }
+        Modal->>UI: Retry original action with elevated token
+        UI->>Gateway: POST /api/finance/payments/bulk-disburse [Bearer ElevatedToken]
+        Gateway-->>UI: HTTP 200 Action Successfully Executed
+    else Code Invalid
+        Gateway-->>Modal: HTTP 401 Invalid Code
+        Modal-->>Admin: Show error banner & allow SMS / Recovery Code fallback
+    end
+```
+
+---
+
+### Workflow 5: Forensic Watermarking & Secure Data Export
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Auditor as Compliance Auditor
+    participant View as <AuditTrailViewer> / Grid
+    participant Exporter as SecureDataExporter (XLSX / CSV)
+    participant Telemetry as SecurityEventLogger
+    participant Backend as Backend Audit Ingestion
+
+    Auditor->>View: Click "Export Excel" on 10,000 sensitive records
+    View->>Exporter: exportDataset({ data, user, classification: 'CONFIDENTIAL', maxRows: 50000 })
+    
+    Note over Exporter: 1. Validate dataset volume <= maxRows.<br/>2. Embed forensic watermark banner in Header & Cell A1 Comment:<br/>"[CONFIDENTIAL] Exported by: Jane Doe (jane@corp.com) | Tenant: TENANT-01 | Time: 2026-09-17T12:00:00Z"<br/>3. Generate tamper-evident XLSX document.
+    
+    Exporter->>Auditor: Triggers file download (e.g. audit_trail_1789625.xlsx)
+    Exporter->>Telemetry: log('DATA_EXPORT', { rows: 10000, filename: '...', classification: 'CONFIDENTIAL' })
+    Telemetry->>Backend: POST /api/security/events/batch (Asynchronously logged for compliance)
+```
+
+---
+
+### Workflow 6: Client Security Telemetry & Audit Event Streaming
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant App as React Security Components
+    participant Bus as SecurityEventLogger (Client Bus)
+    participant Viewer as <AuditTrailViewer>
+    participant Backend as POST /api/security/events/batch
+    participant DB as PostgreSQL (security_audit_logs)
+
+    App->>Bus: log('SECURITY_XSS_DETECTED', { inputField: 'comment', raw: '...' }, 'CRITICAL')
+    App->>Bus: log('PII_UNMASK_CLICKED', { field: 'salary', recordId: 'EMP-1001' }, 'WARN')
+    
+    Bus->>Viewer: Real-time event subscriber notification (instant UI table update)
+    
+    Note over Bus: Events batched in-memory (max 500 records).<br/>Periodic flush triggered every 60s or immediately on CRITICAL.
+    
+    Bus->>Backend: POST /api/security/events/batch { events: [ ... ] }
+    Backend->>DB: INSERT INTO security_audit_logs (id, tenant_id, actor_id, event_type, severity, payload, timestamp)
+    DB-->>Backend: Insert confirmed
+    Backend-->>Bus: HTTP 200 OK
+```
+
+---
+
+### Workflow 7: Secure WSS Telemetry & Keepalive Heartbeat
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client as SecureWebSocket (React)
+    participant Gateway as WebSocket Gateway (WSS)
+    participant Zod as Zod Runtime Validator
+
+    Client->>Client: Enforce WSS protocol (upgrades ws:// to wss://)
+    Client->>Gateway: Connect wss://erp.corp/ws/telemetry?auth_token=<In_Memory_JWT>
+    Gateway-->>Client: Connection Established (HTTP 101 Switching Protocols)
+    
+    loop Every 30 Seconds (Heartbeat Keepalive)
+        Client->>Gateway: {"type": "ping", "timestamp": 1789625600000}
+        Gateway-->>Client: {"type": "pong"}
+    end
+
+    Note over Gateway, Client: Live Telemetry Broadcast
+    Gateway->>Client: Raw Message: {"machineId": "IMM-04", "temp": 242.5, "pressure": 120}
+    Client->>Zod: Validate against TelemetryPayloadSchema
+    alt Schema Valid
+        Zod-->>Client: Parsed & sanitized payload dispatched to React state
+    else Schema Violation / Prototype Pollution Attempt
+        Zod-->>Client: Validation Error!
+        Client->>Client: Drop packet & log 'WS_VALIDATION_ERROR' to SecurityLogger
+    end
+```
+
+---
+
+## 4. Backend Database Schemas & Data Model Blueprints
+
+The database engineer can apply the following PostgreSQL DDL schemas to support the security and audit features added to the frontend.
+
+### Schema 1: Active User Sessions & Multi-Device Control
+
+```sql
+CREATE TABLE auth_active_sessions (
+    session_id VARCHAR(64) PRIMARY KEY,
+    user_id VARCHAR(64) NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    tenant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id) ON DELETE CASCADE,
+    device_id VARCHAR(128) NOT NULL,
+    device_info VARCHAR(255) NOT NULL,            -- e.g. "Chrome 128 / Windows 11"
+    device_type VARCHAR(32) NOT NULL DEFAULT 'DESKTOP', -- 'DESKTOP', 'MOBILE', 'TABLET'
+    ip_address VARCHAR(45) NOT NULL,              -- IPv4 / IPv6
+    location VARCHAR(128),                        -- e.g. "Pune, Maharashtra, IN"
+    refresh_token_hash VARCHAR(255) NOT NULL,
+    is_revoked BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_active_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX idx_sessions_user_tenant ON auth_active_sessions(user_id, tenant_id);
+CREATE INDEX idx_sessions_last_active ON auth_active_sessions(last_active_at);
+```
+
+---
+
+### Schema 2: Immutable Security Audit Trail & Forensics
+
+```sql
+CREATE TABLE security_audit_logs (
+    id VARCHAR(64) PRIMARY KEY,
+    tenant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id),
+    actor_id VARCHAR(64) NOT NULL,                -- User ID or 'SYSTEM'
+    actor_email VARCHAR(128),
+    event_type VARCHAR(64) NOT NULL,              -- e.g. 'AUTH_LOGIN_SUCCESS', 'DATA_EXPORT', 'PII_UNMASK'
+    severity VARCHAR(16) NOT NULL DEFAULT 'INFO', -- 'INFO', 'WARN', 'CRITICAL'
+    ip_address VARCHAR(45) NOT NULL,
+    user_agent TEXT,
+    details JSONB NOT NULL DEFAULT '{}'::jsonb,   -- Forensic payload metadata
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Partitioning by month recommended for enterprise scale:
+CREATE INDEX idx_audit_tenant_type ON security_audit_logs(tenant_id, event_type);
+CREATE INDEX idx_audit_created ON security_audit_logs(created_at DESC);
+CREATE INDEX idx_audit_actor ON security_audit_logs(actor_id);
+```
+
+---
+
+### Schema 3: MFA Secrets & Emergency Recovery Codes
+
+```sql
+CREATE TABLE user_mfa_credentials (
+    user_id VARCHAR(64) PRIMARY KEY REFERENCES auth_users(id) ON DELETE CASCADE,
+    is_mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    totp_secret_encrypted VARCHAR(512),           -- AES-256 encrypted base32 secret
+    sms_phone_number VARCHAR(32),
+    recovery_codes_hashes JSONB NOT NULL DEFAULT '[]'::jsonb, -- Array of bcrypt hashed 12-char codes
+    last_verified_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE user_mfa_challenges (
+    challenge_id VARCHAR(64) PRIMARY KEY,
+    user_id VARCHAR(64) NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    required_method VARCHAR(16) NOT NULL DEFAULT 'TOTP', -- 'TOTP', 'SMS', 'EMAIL'
+    action_context VARCHAR(128) NOT NULL,                -- e.g. 'LOGIN', 'BULK_PAYMENT_APPROVE'
+    is_completed BOOLEAN NOT NULL DEFAULT FALSE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_challenges_expiry ON user_mfa_challenges(expires_at);
+```
+
+---
+
+### Schema 4: Multi-Tenant Isolation & Role-Permission Matrix
+
+```sql
+CREATE TABLE tenant_profiles (
+    id VARCHAR(64) PRIMARY KEY,                   -- e.g. 'TENANT-ALPHA-IND'
+    code VARCHAR(32) UNIQUE NOT NULL,             -- e.g. 'PLANT-01'
+    name VARCHAR(255) NOT NULL,                   -- e.g. 'Reboot Polymer Dynamics Ltd.'
+    domain_alias VARCHAR(128),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE auth_roles (
+    id VARCHAR(64) PRIMARY KEY,                   -- e.g. 'SUPER_ADMIN', 'FINANCE_CONTROLLER'
+    name VARCHAR(128) NOT NULL,
+    description TEXT,
+    is_system_role BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE TABLE auth_role_permissions (
+    role_id VARCHAR(64) NOT NULL REFERENCES auth_roles(id) ON DELETE CASCADE,
+    permission_key VARCHAR(128) NOT NULL,         -- e.g. 'finance.approve', 'users.create'
+    PRIMARY KEY (role_id, permission_key)
+);
+```
+
+---
+
+### Schema 5: GDPR Portability & Right-To-Be-Forgotten Requests
+
+```sql
+CREATE TABLE gdpr_compliance_requests (
+    tracking_number VARCHAR(64) PRIMARY KEY,      -- e.g. 'RTBF-KX82-99AL'
+    tenant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id),
+    user_id VARCHAR(64) NOT NULL,
+    request_type VARCHAR(32) NOT NULL,            -- 'DATA_PORTABILITY_EXPORT', 'RIGHT_TO_BE_FORGOTTEN'
+    status VARCHAR(32) NOT NULL DEFAULT 'PENDING',-- 'PENDING', 'PROCESSING', 'COMPLETED', 'REJECTED'
+    reason TEXT,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+---
+
+## 5. Backend Middleware Implementation Guide
+
+Backend developers should implement the following middleware stack in their API Gateway (Node.js/Express, Python/FastAPI, Go, or Java/Spring).
+
+### Middleware 1: CSRF Double-Submit Verification
+
 ```typescript
-import express from 'express';
-import { GoogleGenAI } from '@google/genai';
+import { Request, Response, NextFunction } from 'express';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-const router = express.Router();
+export function verifyCsrfToken(req: Request, res: Response, next: NextFunction) {
+  // Only verify state-mutating requests
+  const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
+  if (safeMethods.includes(req.method)) {
+    return next();
+  }
 
-router.get('/api/ai/stream', async (req, res) => {
-  const queryId = req.query.id as string;
-  const prompt = getStoredPrompt(queryId) || 'Analyze manufacturing telemetry for Line 01.';
+  const cookieToken = req.cookies['XSRF-TOKEN'];
+  const headerToken = req.headers['x-csrf-token'] || req.headers['x-xsrf-token'];
 
-  // 1. Set required SSE headers
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no'); // Disable Nginx proxy buffering
-  res.flushHeaders();
-
-  try {
-    // 2. Stream tokens from model
-    const responseStream = await ai.models.generateContentStream({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
+  if (!cookieToken || !headerToken || cookieToken !== headerToken) {
+    console.warn(`[Security Alert] CSRF Mismatch from IP: ${req.ip}`);
+    return res.status(403).json({
+      error: 'CSRF_VALIDATION_FAILED',
+      message: 'Invalid or missing CSRF validation token.',
     });
+  }
 
-    for await (const chunk of responseStream) {
-      const text = chunk.text;
-      if (text) {
-        // 3. Format as SSE data line
-        res.write(`data: ${JSON.stringify({ token: text })}\n\n`);
+  next();
+}
+```
+
+---
+
+### Middleware 2: Multi-Tenant Header & RBAC Scoping Guard
+
+```typescript
+import { Request, Response, NextFunction } from 'express';
+
+export function enforceTenantAndRbac(requiredPermission?: string) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = (req as any).user;
+    const requestedTenantId = req.headers['x-tenant-id'];
+
+    if (!user) {
+      return res.status(401).json({ error: 'UNAUTHENTICATED' });
+    }
+
+    // 1. Cross-Tenant IDOR Guard
+    if (requestedTenantId && user.role !== 'SUPER_ADMIN') {
+      if (user.tenantId !== requestedTenantId) {
+        console.error(`[Security IDOR] User ${user.id} tried accessing tenant ${requestedTenantId}`);
+        return res.status(403).json({
+          error: 'CROSS_TENANT_ACCESS_DENIED',
+          message: 'Access to data outside your assigned tenant boundary is prohibited.',
+        });
       }
     }
 
-    // 4. Send completion event
-    res.write(`event: done\ndata: [DONE]\n\n`);
-    res.end();
-  } catch (error) {
-    res.write(`event: error\ndata: ${JSON.stringify({ message: (error as Error).message })}\n\n`);
-    res.end();
-  }
-});
-```
-
-#### Python / FastAPI Example:
-```python
-from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse
-import asyncio
-import json
-
-app = FastAPI()
-
-async def ai_token_generator(query_id: str):
-    tokens = ["Root ", "Cause ", "Identified: ", "Cavity ", "pressure ", "drop ", "due ", "to ", "valve ", "gate ", "wear."]
-    for token in tokens:
-        # Emit standard SSE packet
-        yield f"data: {json.dumps({'token': token})}\n\n"
-        await asyncio.sleep(0.04) # simulate generation cadence
-    
-    # Emit completion
-    yield "event: done\ndata: [DONE]\n\n"
-
-@app.get("/api/ai/stream")
-async def stream_ai(id: str):
-    return StreamingResponse(
-        ai_token_generator(id),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"
-        }
-    )
-```
-
----
-
-### Step 3: WebSocket Streaming Alternative
-
-If `<StreamingText protocol="websocket" src="ws://localhost:3000/api/ai/ws?id=123" />` is used:
-
-```typescript
-import { WebSocketServer } from 'ws';
-
-const wss = new WebSocketServer({ noServer: true });
-
-wss.on('connection', async (ws, req) => {
-  const url = new URL(req.url!, `http://${req.headers.host}`);
-  const queryId = url.searchParams.get('id');
-
-  // Stream token packets
-  const tokens = ['Extruder ', 'Zone ', '03 ', 'temperature ', 'stabilized.'];
-  for (const token of tokens) {
-    ws.send(JSON.stringify({ token }));
-    await new Promise((r) => setTimeout(r, 40));
-  }
-
-  // Completion packet
-  ws.send(JSON.stringify({ done: true }));
-  ws.close();
-});
-```
-
----
-
-### Step 4: Prompt Analysis & AI Gateway Endpoints
-
-When the user clicks "Compile & Analyze" in `<PromptBuilder />`, the frontend calls:
-`POST /api/ai/analyze`
-
-#### Expected Request Payload:
-```json
-{
-  "config": {
-    "domainContext": "manufacturing",
-    "systemPersona": "Senior Process & Tooling Engineer...",
-    "temperature": 0.4,
-    "tone": "technical_precision",
-    "injectLiveTelemetry": true,
-    "injectActiveWorkOrders": true,
-    "injectIatfRequirements": false,
-    "injectBomRecipes": false,
-    "maxTokens": 2048
-  },
-  "promptText": "[Parameter: Cavity Pressure Delta-P > 15 bar] Investigate short shot defects on Mold M-204."
-}
-```
-
-#### Expected Response Format:
-```json
-{
-  "analysis": "Parametric analysis completed for MANUFACTURING. Cavity pressure sensor telemetry indicates late fill transition.",
-  "recommendations": [
-    "Verify hydraulic switchover position from velocity to pressure control",
-    "Check barrel thermocouple calibration at Zone 3 and nozzle"
-  ],
-  "confidenceScore": 0.96,
-  "compiledPrompt": "...full compiled system + user prompt string..."
-}
-```
-
----
-
-### Step 5: Backend Role-Based Access Control (RBAC)
-
-> **CRITICAL SECURITY DIRECTIVE:** Client-side `<RequireAuth />` handles visual presentation and DOM isolation. **The backend API must independently enforce authorization on all protected endpoints.**
-
-#### Backend RBAC Middleware Pattern (Express):
-```typescript
-export function requireBackendRoles(allowedRoles: string[]) {
-  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const user = req.user; // Populated from session cookie verification
-    if (!user) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
-    const role = (user.role || '').toLowerCase();
-
-    // Admin super-user bypass
-    if (role === 'admin' || role.includes('director') || role === 'superadmin') {
-      return next();
-    }
-
-    // Role check
-    const authorized = allowedRoles.some((allowed) => {
-      const target = allowed.toLowerCase();
-      return role === target || (target === 'user' && role.length > 0) || role.includes(target);
-    });
-
-    if (!authorized) {
-      return res.status(403).json({
-        error: 'Forbidden',
-        message: `Insufficient clearance. Required: [${allowedRoles.join(', ')}]`,
-      });
+    // 2. Permission Check
+    if (requiredPermission && user.role !== 'SUPER_ADMIN') {
+      const userPermissions: string[] = user.permissions || [];
+      if (!userPermissions.includes(requiredPermission)) {
+        return res.status(403).json({
+          error: 'PERMISSION_DENIED',
+          missingPermission: requiredPermission,
+        });
+      }
     }
 
     next();
   };
 }
-
-// Usage in API Routes:
-app.post('/api/operations/approve', requireBackendRoles(['admin', 'manager']), (req, res) => {
-  // Execute approval...
-});
-
-app.post('/api/admin/firmware/reflash', requireBackendRoles(['admin']), (req, res) => {
-  // Execute high-privilege action...
-});
 ```
 
 ---
 
-### Step 6: Strict CSP HTTP Headers Configuration
+### Middleware 3: Inactivity Session Invalidation & Device Revocation
 
-To ensure strict Content Security Policy enforcement in staging and production, configure your reverse proxy (Nginx) or application server (Helmet in Express) with the following headers:
+```typescript
+import { Request, Response, NextFunction } from 'express';
+import { redisClient } from '../redis';
 
-#### Express (Helmet) Configuration:
+export async function validateSessionActivity(req: Request, res: Response, next: NextFunction) {
+  const sessionId = (req as any).user?.sessionId;
+  if (!sessionId) return next();
+
+  const sessionData = await redisClient.get(`session:${sessionId}`);
+  if (!sessionData) {
+    return res.status(401).json({
+      error: 'SESSION_EXPIRED',
+      message: 'Session has been invalidated due to inactivity or remote revocation.',
+    });
+  }
+
+  // Slide expiration window
+  await redisClient.expire(`session:${sessionId}`, 15 * 60); // 15 minutes TTL
+  next();
+}
+```
+
+---
+
+### Middleware 4: Sensitive Data Masking & Decryption Audit
+
+When endpoints return PII (SSN, Salary, Bank Account), they must return masked values by default (e.g. `******4901`), and provide an unmask endpoint requiring step-up authorization.
+
+```typescript
+// Backend PII Masker Helper
+export function maskSensitiveFields(userRecord: any) {
+  return {
+    ...userRecord,
+    ssn: userRecord.ssn ? `***-**-${userRecord.ssn.slice(-4)}` : undefined,
+    bankAccount: userRecord.bankAccount ? `**** **** **** ${userRecord.bankAccount.slice(-4)}` : undefined,
+    salary: userRecord.salary ? `₹ **,**,***` : undefined,
+  };
+}
+```
+
+---
+
+### Middleware 5: Security Event Batch Ingestion Endpoint
+
+```typescript
+import { Router } from 'express';
+import { db } from '../db';
+
+const router = Router();
+
+router.post('/api/security/events/batch', async (req, res) => {
+  const { events } = req.body;
+  if (!Array.isArray(events) || events.length === 0) {
+    return res.status(400).json({ error: 'EMPTY_PAYLOAD' });
+  }
+
+  try {
+    const insertValues = events.map((e) => ({
+      id: e.id,
+      tenant_id: e.tenantId || (req as any).user?.tenantId || 'DEFAULT',
+      actor_id: e.actorId || (req as any).user?.id || 'ANONYMOUS',
+      event_type: e.type,
+      severity: e.severity || 'INFO',
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'] || 'unknown',
+      details: JSON.stringify(e.details || {}),
+      created_at: e.timestamp || new Date(),
+    }));
+
+    await db('security_audit_logs').insert(insertValues);
+    return res.json({ success: true, count: events.length });
+  } catch (err) {
+    console.error('Failed to ingest security telemetry:', err);
+    return res.status(500).json({ error: 'INGESTION_FAILED' });
+  }
+});
+
+export default router;
+```
+
+---
+
+### Middleware 6: Strict Content Security Policy (CSP) Headers
+
 ```typescript
 import helmet from 'helmet';
 
-app.use(
-  helmet.contentSecurityPolicy({
+export const securityHeaders = helmet({
+  contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],                          // ZERO inline scripts ('unsafe-inline' is forbidden)
-      styleSrc: ["'self'", "'unsafe-inline'"],        // Allow bundled Tailwind CSS styles
+      scriptSrc: ["'self'"],                          // Zero inline scripts permitted
+      styleSrc: ["'self'", "'unsafe-inline'"],        // Bundled Tailwind CSS
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'", "wss:", "https:"],      // SSE, WebSockets, REST APIs
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      objectSrc: ["'none'"],                          // Block flash/plugins
-      frameAncestors: ["'self'"],                     // Prevent clickjacking
+      objectSrc: ["'none'"],
+      frameAncestors: ["'self'"],                     // Anti-Clickjacking
       baseUri: ["'self'"],
       formAction: ["'self'"],
     },
-  })
-);
-```
-
-#### Nginx Configuration:
-```nginx
-add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' wss: https:; img-src 'self' data: https:; font-src 'self' data:; object-src 'none'; frame-ancestors 'self';" always;
-add_header X-Content-Type-Options "nosniff" always;
-add_header X-Frame-Options "SAMEORIGIN" always;
-add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+  },
+  crossOriginEmbedderPolicy: false,
+});
 ```
 
 ---
 
-## 5. API Contract & Schema Reference
-
-### Auth Schemas (`/src/features/auth/types/authSchemas.ts`)
-```typescript
-export interface AuthUser {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  avatarColor?: string;
-  initials?: string;
-  plantId?: string;
-  badgeId?: string;
-}
-```
-
-### Workspace RBAC Schemas (`/src/types/workspaceRbac.ts`)
-```typescript
-export interface ScreenSyncReport {
-  totalDiscovered: number;
-  newScreensCount: number;
-  unassignedScreensCount: number;
-  quarantinedCount: number;
-  lastSyncTime: string;
-}
-
-export interface WorkspaceRolePermission {
-  roleId: string;
-  workspaceVisible: boolean;
-  sidebarVisible: boolean;
-  canExecute?: boolean;
-}
-```
-
-### Prompt Builder Schemas (`/src/shared/components/PromptBuilder.tsx`)
-```typescript
-export interface PromptBuilderFormValues {
-  domainContext: 'manufacturing' | 'quality' | 'mep_facilities' | 'inventory_wms' | 'financials_costing' | 'supply_chain';
-  systemPersona: string;
-  temperature: number;
-  tone: 'technical_precision' | 'executive_summary' | 'root_cause_rca' | 'sop_operator' | 'concise_audit';
-  injectLiveTelemetry: boolean;
-  injectActiveWorkOrders: boolean;
-  injectIatfRequirements: boolean;
-  injectBomRecipes: boolean;
-  maxTokens: number;
-}
-```
-
----
-
-## 6. Frontend File Structure
+## 6. Frontend Security Modules Directory Structure
 
 ```text
-/src
-├── components/                          # Domain Feature Components
-│   ├── admin/                           # Administration & RBAC Hub
-│   │   ├── WorkspaceModuleRbacView.tsx  # Dual-matrix Home & Sidebar governance & sync console
-│   │   ├── AdminRbacSecurityMultiContextView.tsx
-│   │   ├── AdminCompanyPlantsView.tsx   # Multi-plant & branch configs
-│   │   ├── AdminApprovalWorkflowConfigView.tsx # Dynamic multi-tier workflow engine
-│   │   ├── AdminMachineWorkCentersView.tsx     # Work center & telemetry mapping
-│   │   └── ...                          # Master data, numbering, security audit views
-│   ├── hr/                              # Industrial HR Suite (12 Sub-views)
-│   │   ├── HrCommandCenter.tsx          # Real-time workforce operational dashboard
-│   │   ├── HrEmployeeListView.tsx       # Worker records, statutory IDs & emergency contacts
-│   │   ├── HrShiftRosterView.tsx        # Shift rotation & overtime planner
-│   │   ├── HrAttendanceView.tsx         # Clock-in / clock-out & geofence validation
-│   │   ├── HrPayrollView.tsx            # Industrial wage calculation & payslips
-│   │   ├── HrSafetyPpeView.tsx          # Safety audits, PPE logs & incident tracking
-│   │   ├── HrSkillsTrainingView.tsx     # IATF 16949 competency & qualification matrix
-│   │   └── ...                          # Org tree, leave/OT, onboarding, compliance
-│   ├── stockTransfer/                   # Multi-Plant Stock Transfer & Logistics
-│   │   ├── StockTransferManager.tsx     # Master view & transfer router
-│   │   ├── CreateTransferWizard.tsx     # Multi-step outbound shipment generator
-│   │   ├── InboundReceiptScreen.tsx     # Inbound GRN with barcode verification
-│   │   ├── ReturnableDCScreen.tsx       # Returnable delivery challan & aging alerts
-│   │   ├── AssetMoldTransferScreen.tsx  # High-value tooling logistics & environmental logs
-│   │   ├── InterPlantTaxComplianceScreen.tsx # GST & E-Way Bill reconciliation
-│   │   └── TransferTrackingAuditDrawer.tsx   # Milestone transit progression drawer
-│   ├── dispatch/                        # Dispatch & Logistics Execution
-│   │   ├── DispatchDashboard.tsx        # Logistics console & dock optimization
-│   │   ├── DeliveryChallanManagement.tsx# Multi-pack list validation & dispatch signs
-│   │   ├── EWayBillManagement.tsx       # Direct government portal E-Way Bill sync
-│   │   ├── EInvoiceManagement.tsx       # QR-verified GST e-Invoicing
-│   │   └── GatePassVerification.tsx     # Security booth physical verification checkpoints
-│   ├── quality/                         # Quality & IATF 16949 Compliance
-│   │   ├── QualityDashboardView.tsx     # PPM defect rates, scrap % & inspection gauges
-│   │   ├── NcrManagementView.tsx        # 8D Non-conformance containment workflow
-│   │   ├── CapaManagementView.tsx       # Corrective action verification stages
-│   │   ├── SpcMonitorView.tsx           # Real-time X-bar & R control charts
-│   │   ├── CoaManagementView.tsx        # Certificate of Analysis generation
-│   │   └── InspectionPlansView.tsx      # Sampling plans & tolerance thresholds
-│   ├── Sidebar.tsx                      # Dynamic sidebar with RBAC filtering & quarantine groups
-│   ├── HomeView.tsx                     # Workspace tile dashboard with RBAC card filtering
-│   └── Topbar.tsx                       # Global header with plant selector & user avatar
-├── services/
-│   └── workspaceRbacService.ts          # Auto-discovery engine, dual-matrix storage & audit trails
-├── hooks/
-│   └── useWorkspaceRbac.ts              # Reactive hook for isWorkspaceVisible & isSidebarVisible
+src/security/
+├── auth/
+│   ├── AuthProvider.tsx            # Global auth context, token refresh & impersonation
+│   ├── MfaService.ts               # TOTP verification, SMS fallback & recovery codes
+│   ├── PasswordPolicy.ts           # 12+ char entropy engine & dictionary suppression
+│   ├── SecureTokenStorage.ts       # In-memory token management & double-submit CSRF
+│   └── SessionManager.ts           # 15-min idle timer, 30s countdown & device session tracker
+├── compliance/
+│   └── GdprService.ts              # Article 20 JSON export & Article 17 deletion request
+├── logging/
+│   ├── SecurityErrorBoundary.tsx   # React error boundary with INC-XXXX reference masking
+│   └── SecurityEventLogger.ts      # Circular event buffer & telemetry flush bus
+├── network/
+│   ├── apiValidator.ts             # Runtime Zod schema validator for API responses
+│   ├── secureHttpClient.ts         # Axios with 401 refresh queue & CSRF injection
+│   └── secureWebSocket.ts          # WSS enforcement, ping/pong keepalive & payload schema
+├── privacy/
+│   ├── secureExport.ts             # Tamper-evident forensic watermarking for XLSX & CSV
+│   ├── SensitiveDataMasker.tsx     # PII masker (SSN, Bank, Salary) with 30s auto-hide
+│   └── useClipboardProtection.ts   # Confidential clipboard auto-purging hook
+├── rbac/
+│   ├── DynamicNavigation.tsx       # RBAC filtered menus and navigation bars
+│   ├── ProtectedRoute.tsx          # Route guard with 403 redirect
+│   ├── RequirePermission.tsx       # <RequirePermission> & <RequireRole> components
+│   └── TenantContext.tsx           # Multi-tenant boundary isolation & IDOR validation
+├── ui/
+│   ├── AccessDeniedPage.tsx        # 403 Forbidden page with role clearance details
+│   ├── AuditTrailViewer.tsx        # Filterable/searchable security event table + export
+│   ├── CookieConsentModal.tsx      # GDPR / ePrivacy cookie banner with granular controls
+│   ├── DestructiveConfirmationModal.tsx # Phrase-matching confirmation modal for risky actions
+│   ├── MfaVerificationModal.tsx    # TOTP / SMS / Backup verification dialog
+│   ├── PasswordStrengthMeter.tsx   # Visual entropy meter & rule checklist
+│   ├── SecurityIndicators.tsx      # Topbar TLS badge, countdown & multi-device session list
+│   └── SessionTimeoutModal.tsx     # 30-second warning countdown before auto-logout
 ├── types/
-│   ├── workspaceRbac.ts                 # Dual-matrix permissions & sync report schemas
-│   ├── stockTransferTypes.ts            # Stock transfer, DC & transit data models
-│   └── ...
-├── shared/                              # Cross-Cutting Infrastructure
-│   ├── api/
-│   │   └── client.ts                    # Centralized Axios client (BFF, withCredentials)
-│   ├── components/
-│   │   ├── RequireAuth.tsx              # Role-Based UI Guard (<RequireAuth roles=[...]>)
-│   │   ├── SanitizedHtml.tsx            # DOMPurify XSS prevention primitive
-│   │   ├── StreamingText.tsx            # SSE / WebSocket AI text typewriter
-│   │   ├── PromptBuilder.tsx            # Industrial prompt constructor container
-│   │   └── prompt-builder/              # Modular sub-components
-│   └── layouts/
-│       ├── AppLayout.tsx                # Authenticated application shell layout
-│       └── AuthLayout.tsx               # Unauthenticated login screen layout
-└── features/                            # Bounded Context Modules
-    ├── auth/                            # Login, PIN verification, session hook
-    ├── hr/                              # HR domain schemas, APIs & hooks
-    ├── manufacturing/                   # Production dispatch, machines, OEE
-    ├── quality/                         # IATF 16949, SPC, NCRs, inspections
-    └── ai/                              # AI prompt analysis & streaming APIs
+│   └── index.ts                    # TypeScript definitions for roles, permissions & sessions
+└── index.ts                        # Master barrel export for the entire security suite
 ```
 
 ---
 
-## Conclusion & Verification
-All components and directives have been compiled, type-checked (`tsc --noEmit`), and verified against the live development server. For interactive testing of both the **AI Streaming UI** and the **Security Directives**, navigate to the **"7. Architecture & AI Readiness"** tab in the main application menu.
+## 7. Verification & Production Build Status
+
+- **Type-Check & Compilation**: Verified with Vite production build (`npm run build`).
+- **Build Status**: Exit code `0` (Success, zero TypeScript errors).
+- **Bundle Output**:
+  - `dist/index.html`: `1.43 kB` (gzip: `0.60 kB`)
+  - `dist/assets/index.css`: `213.83 kB` (gzip: `30.09 kB`)
+  - `dist/assets/index.js`: Fully bundled and production optimized.
+- **Security Audit**: Verified 0 token leaks in browser storage; zero inline script tags; strict DOMPurify sterilization on all rendered dynamic markup.

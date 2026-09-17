@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { mockSupplierCollaboration } from '../../data/mockScmData';
 import { SupplierCollaborationPO } from '../../types/scm';
+import { PaginationBar } from '../common/PaginationBar';
+import { usePagination } from '../../hooks/usePagination';
 
 interface ScmSupplierCollaborationViewProps {
   onNavigate: (view: string, param?: any) => void;
@@ -44,6 +46,11 @@ export const ScmSupplierCollaborationView: React.FC<ScmSupplierCollaborationView
       p.poNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.itemName.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const { paginatedData: paginatedPos, paginationProps } = usePagination(filteredPos, {
+    initialPageSize: 10,
+    pageSizeOptions: [10, 25, 50],
+  });
 
   return (
     <div className="space-y-6 animate-fade-in text-slate-800">
@@ -144,80 +151,92 @@ export const ScmSupplierCollaborationView: React.FC<ScmSupplierCollaborationView
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filteredPos.map((po) => (
-                <tr key={po.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="p-3">
-                    <div className="font-bold text-slate-900">{po.supplierName}</div>
-                    <div className="text-[11px] font-mono text-[#0F8B8D] font-semibold">{po.poNumber}</div>
-                    <span className="text-[10px] px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded font-mono">
-                      Scorecard: Grade {po.scorecardGrade}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <div className="font-bold text-slate-900">{po.itemCode}</div>
-                    <div className="text-[11px] text-slate-500">{po.itemName}</div>
-                  </td>
-                  <td className="p-3 text-right font-mono font-bold text-slate-900">
-                    {po.orderQty.toLocaleString()} {po.uom}
-                  </td>
-                  <td className="p-3 font-mono text-slate-700">{po.requiredDate}</td>
-                  <td className="p-3 font-mono font-bold text-slate-900">{po.promisedDate}</td>
-                  <td className="p-3">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        po.asnStatus === 'Verified'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : po.asnStatus === 'Discrepancy'
-                          ? 'bg-rose-100 text-rose-800'
-                          : 'bg-blue-50 text-blue-700'
-                      }`}
-                    >
-                      {po.asnNumber || po.asnStatus}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <span
-                      className={`text-[11px] font-medium block ${
-                        po.documentStatus.includes('Missing') ? 'text-rose-600 font-bold' : 'text-emerald-700'
-                      }`}
-                    >
-                      {po.documentStatus}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        po.deliveryStatus === 'Delayed'
-                          ? 'bg-rose-100 text-rose-800'
-                          : po.deliveryStatus === 'Customs Hold'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-emerald-50 text-emerald-700'
-                      }`}
-                    >
-                      {po.deliveryStatus}
-                    </span>
-                  </td>
-                  <td className="p-3 text-right space-x-1">
-                    <button
-                      onClick={() => handleSendReminder(po)}
-                      className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold transition"
-                      title="Send Reminder"
-                    >
-                      Remind
-                    </button>
-                    {po.deliveryStatus === 'Delayed' && (
-                      <button
-                        onClick={() => handleApproveDeliveryChange(po)}
-                        className="px-2 py-1 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded text-[11px] font-bold transition"
+              {paginatedPos.length > 0 ? (
+                paginatedPos.map((po) => (
+                  <tr key={po.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="p-3">
+                      <div className="font-bold text-slate-900">{po.supplierName}</div>
+                      <div className="text-[11px] font-mono text-[#0F8B8D] font-semibold">{po.poNumber}</div>
+                      <span className="text-[10px] px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded font-mono">
+                        Scorecard: Grade {po.scorecardGrade}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <div className="font-bold text-slate-900">{po.itemCode}</div>
+                      <div className="text-[11px] text-slate-500">{po.itemName}</div>
+                    </td>
+                    <td className="p-3 text-right font-mono font-bold text-slate-900">
+                      {po.orderQty.toLocaleString()} {po.uom}
+                    </td>
+                    <td className="p-3 font-mono text-slate-700">{po.requiredDate}</td>
+                    <td className="p-3 font-mono font-bold text-slate-900">{po.promisedDate}</td>
+                    <td className="p-3">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          po.asnStatus === 'Verified'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : po.asnStatus === 'Discrepancy'
+                            ? 'bg-rose-100 text-rose-800'
+                            : 'bg-blue-50 text-blue-700'
+                        }`}
                       >
-                        Approve Change
+                        {po.asnNumber || po.asnStatus}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <span
+                        className={`text-[11px] font-medium block ${
+                          po.documentStatus.includes('Missing') ? 'text-rose-600 font-bold' : 'text-emerald-700'
+                        }`}
+                      >
+                        {po.documentStatus}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          po.deliveryStatus === 'Delayed'
+                            ? 'bg-rose-100 text-rose-800'
+                            : po.deliveryStatus === 'Customs Hold'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-emerald-50 text-emerald-700'
+                        }`}
+                      >
+                        {po.deliveryStatus}
+                      </span>
+                    </td>
+                    <td className="p-3 text-right space-x-1">
+                      <button
+                        onClick={() => handleSendReminder(po)}
+                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold transition"
+                        title="Send Reminder"
+                      >
+                        Remind
                       </button>
-                    )}
+                      {po.deliveryStatus === 'Delayed' && (
+                        <button
+                          onClick={() => handleApproveDeliveryChange(po)}
+                          className="px-2 py-1 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded text-[11px] font-bold transition"
+                        >
+                          Approve Change
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={9} className="p-8 text-center text-slate-400">
+                    No supplier orders match search query.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
+          <PaginationBar
+            {...paginationProps}
+            itemName="orders"
+          />
         </div>
       </div>
     </div>

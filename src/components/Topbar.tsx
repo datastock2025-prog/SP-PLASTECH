@@ -53,6 +53,8 @@ import { AuthUser } from '../types';
 import { INITIAL_QUICK_ACTIONS, QuickActionItem } from '../data/quickActionsData';
 import { GlobalCommandPalette } from './common/GlobalCommandPalette';
 import { QuickActionModal } from './common/QuickActionModal';
+import { SecurityIndicators } from '../security';
+import { adminService, adminEventBus } from '../services/adminService';
 
 export interface PlantEntity {
   id: string;
@@ -151,6 +153,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   const [selectedQuickAction, setSelectedQuickAction] = useState<QuickActionItem | null>(null);
 
   // Topbar Settings State
+  const [entities, setEntities] = useState<PlantEntity[]>(ENTERPRISE_ENTITIES);
   const [activePlantId, setActivePlantId] = useState<string>(currentUser?.plantId || 'PLANT-01');
   const [plantSearchTerm, setPlantSearchTerm] = useState('');
   const [currentLang, setCurrentLang] = useState('EN');
@@ -159,6 +162,35 @@ export const Topbar: React.FC<TopbarProps> = ({
   const [recentActionIds, setRecentActionIds] = useState<string[]>(['QA-001', 'QA-002', 'QA-004']);
   const [activeNotificationTab, setActiveNotificationTab] = useState<'all' | 'approvals' | 'alerts' | 'tasks' | 'system'>('all');
   const [isOfflineSimulated, setIsOfflineSimulated] = useState(false);
+
+  // Sync live plants from PostgreSQL
+  useEffect(() => {
+    const fetchPlants = async () => {
+      try {
+        const live = await adminService.getPlants();
+        if (live && live.length > 0) {
+          setEntities(
+            live.map((p) => ({
+              id: p.id,
+              code: p.plantCode,
+              name: p.plantName,
+              location: `${p.city}, ${p.state}`,
+              type: (p.division?.includes('Warehouse') ? 'Warehouse' : p.division?.includes('Corporate') ? 'Corporate office' : 'Plant') as any,
+              userRole: 'Operations Lead',
+              isDefault: p.isHeadquarters,
+            }))
+          );
+        }
+      } catch {
+        // Fallback
+      }
+    };
+    fetchPlants();
+    const unsub = adminEventBus.subscribe(() => {
+      fetchPlants();
+    });
+    return unsub;
+  }, []);
 
   // Close dropdowns on click outside
   const topbarRef = useRef<HTMLDivElement>(null);
@@ -218,7 +250,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   }, [currentView]);
 
   // Current entity details
-  const currentEntity = ENTERPRISE_ENTITIES.find((p) => p.id === activePlantId) || ENTERPRISE_ENTITIES[0];
+  const currentEntity = entities.find((p) => p.id === activePlantId) || entities[0];
 
   // Plant Switch Handler
   const handleSelectPlant = (entity: PlantEntity) => {
@@ -434,7 +466,7 @@ export const Topbar: React.FC<TopbarProps> = ({
               </div>
 
               <div className="max-h-64 overflow-y-auto space-y-1 divide-y divide-slate-100">
-                {ENTERPRISE_ENTITIES.filter((e) =>
+                {entities.filter((e) =>
                   e.name.toLowerCase().includes(plantSearchTerm.toLowerCase()) ||
                   e.location.toLowerCase().includes(plantSearchTerm.toLowerCase()) ||
                   e.code.toLowerCase().includes(plantSearchTerm.toLowerCase())
@@ -1096,6 +1128,11 @@ export const Topbar: React.FC<TopbarProps> = ({
               </div>
             </div>
           )}
+        </div>
+
+        {/* Security Indicators (TLS status, Inactivity Countdown, Session Manager) */}
+        <div className="hidden lg:flex items-center">
+          <SecurityIndicators />
         </div>
 
         {/* 7. User Profile Menu & Role Switcher (STEP-9, STEP-10, Pages 9-10) */}

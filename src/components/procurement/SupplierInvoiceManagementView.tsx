@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { SupplierInvoiceRecord, ExtendedPurchaseOrder } from '../../types/procurement';
 import { ProcurementStatusBadge } from './ProcurementStatusBadge';
+import { usePagination } from '../../hooks/usePagination';
 import { PaginationBar } from '../common/PaginationBar';
 
 interface Props {
@@ -35,8 +36,6 @@ export const SupplierInvoiceManagementView: React.FC<Props> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMatchStatus, setSelectedMatchStatus] = useState<string>('All');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [selectedInvoice, setSelectedInvoice] = useState<SupplierInvoiceRecord | null>(invoices[0] || null);
 
   const filteredInvoices = invoices.filter((i) => {
@@ -47,6 +46,11 @@ export const SupplierInvoiceManagementView: React.FC<Props> = ({
 
     const matchStatus = selectedMatchStatus === 'All' || i.matchStatus === selectedMatchStatus;
     return matchSearch && matchStatus;
+  });
+
+  const { paginatedData: pagedInvoices, paginationProps } = usePagination(filteredInvoices, {
+    initialPageSize: 5,
+    pageSizeOptions: [5, 10, 20],
   });
 
   const handleApproveMatch = (inv: SupplierInvoiceRecord) => {
@@ -111,7 +115,7 @@ export const SupplierInvoiceManagementView: React.FC<Props> = ({
           </div>
 
           <div className="space-y-2.5">
-            {filteredInvoices.map((inv) => (
+            {pagedInvoices.map((inv) => (
               <div
                 key={inv.id}
                 onClick={() => setSelectedInvoice(inv)}
@@ -132,6 +136,9 @@ export const SupplierInvoiceManagementView: React.FC<Props> = ({
                 </div>
               </div>
             ))}
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <PaginationBar {...paginationProps} itemName="invoices" />
+            </div>
           </div>
         </div>
 

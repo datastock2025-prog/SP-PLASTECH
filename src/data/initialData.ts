@@ -1405,7 +1405,7 @@ export const INITIAL_SUBCONTRACT_JOBS: SubcontractJob[] = [
 ];
 
 // Compatibility Export Aliases
-export const initialItems = INITIAL_ITEMS;
+export const initialItems: ItemMaster[] = [];
 export const initialBoms = INITIAL_BOMS;
 export const initialMachines = INITIAL_MACHINES;
 export const initialWorkOrders = INITIAL_WORK_ORDERS;

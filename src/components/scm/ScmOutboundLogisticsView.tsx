@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { mockOutboundDeliveries } from '../../data/mockScmData';
 import { OutboundDelivery } from '../../types/scm';
+import { PaginationBar } from '../common/PaginationBar';
+import { usePagination } from '../../hooks/usePagination';
 
 interface ScmOutboundLogisticsViewProps {
   onNavigate: (view: string, param?: any) => void;
@@ -51,6 +53,11 @@ export const ScmOutboundLogisticsView: React.FC<ScmOutboundLogisticsViewProps> =
       d.vehicleNumber.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'All' || d.status === statusFilter;
     return matchesSearch && matchesStatus;
+  });
+
+  const { paginatedData: paginatedDeliveries, paginationProps } = usePagination(filteredDeliveries, {
+    initialPageSize: 10,
+    pageSizeOptions: [10, 25, 50],
   });
 
   return (
@@ -117,63 +124,75 @@ export const ScmOutboundLogisticsView: React.FC<ScmOutboundLogisticsViewProps> =
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {filteredDeliveries.map((del) => (
-                  <tr
-                    key={del.id}
-                    onClick={() => setSelectedDelivery(del)}
-                    className={`hover:bg-slate-50/80 transition cursor-pointer ${
-                      selectedDelivery?.id === del.id ? 'bg-emerald-50/40 font-semibold' : ''
-                    }`}
-                  >
-                    <td className="p-3 font-mono font-bold text-slate-900">{del.id}</td>
-                    <td className="p-3">
-                      <div className="font-bold text-slate-900">{del.customer}</div>
-                      <div className="text-[11px] text-slate-500">{del.destinationPlant}</div>
-                    </td>
-                    <td className="p-3">
-                      <div className="font-mono font-bold text-slate-800">{del.vehicleNumber}</div>
-                      <div className="text-[11px] text-slate-500">{del.driverName}</div>
-                    </td>
-                    <td className="p-3 text-right font-mono font-bold text-slate-900">
-                      {del.totalQty.toLocaleString()} {del.uom}
-                    </td>
-                    <td className="p-3">
-                      <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-medium">
-                        {del.routeType}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          del.status === 'Delivered'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : del.status === 'In Transit'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}
-                      >
-                        {del.status}
-                      </span>
-                    </td>
-                    <td className="p-3 text-right">
-                      {del.podStatus === 'Confirmed e-POD' ? (
-                        <span className="text-[11px] text-emerald-600 font-bold">✓ Signed</span>
-                      ) : (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleConfirmPod(del.id);
-                          }}
-                          className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold transition"
+                {paginatedDeliveries.length > 0 ? (
+                  paginatedDeliveries.map((del) => (
+                    <tr
+                      key={del.id}
+                      onClick={() => setSelectedDelivery(del)}
+                      className={`hover:bg-slate-50/80 transition cursor-pointer ${
+                        selectedDelivery?.id === del.id ? 'bg-emerald-50/40 font-semibold' : ''
+                      }`}
+                    >
+                      <td className="p-3 font-mono font-bold text-slate-900">{del.id}</td>
+                      <td className="p-3">
+                        <div className="font-bold text-slate-900">{del.customer}</div>
+                        <div className="text-[11px] text-slate-500">{del.destinationPlant}</div>
+                      </td>
+                      <td className="p-3">
+                        <div className="font-mono font-bold text-slate-800">{del.vehicleNumber}</div>
+                        <div className="text-[11px] text-slate-500">{del.driverName}</div>
+                      </td>
+                      <td className="p-3 text-right font-mono font-bold text-slate-900">
+                        {del.totalQty.toLocaleString()} {del.uom}
+                      </td>
+                      <td className="p-3">
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-medium">
+                          {del.routeType}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            del.status === 'Delivered'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : del.status === 'In Transit'
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}
                         >
-                          Sign POD
-                        </button>
-                      )}
+                          {del.status}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right">
+                        {del.podStatus === 'Confirmed e-POD' ? (
+                          <span className="text-[11px] text-emerald-600 font-bold">✓ Signed</span>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleConfirmPod(del.id);
+                            }}
+                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold transition"
+                          >
+                            Sign POD
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-slate-400">
+                      No outbound deliveries match search criteria.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
+            <PaginationBar
+              {...paginationProps}
+              itemName="deliveries"
+            />
           </div>
         </div>
 

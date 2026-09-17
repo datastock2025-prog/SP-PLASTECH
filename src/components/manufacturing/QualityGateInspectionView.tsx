@@ -11,6 +11,9 @@ import {
   Activity
 } from 'lucide-react';
 
+import { PaginationBar } from '../common/PaginationBar';
+import { usePagination } from '../../hooks/usePagination';
+
 interface QualityGateProps {
   workOrders: WorkOrder[];
   items: ItemMaster[];
@@ -33,6 +36,11 @@ export const QualityGateInspectionView: React.FC<QualityGateProps> = ({
     { sample: 'Sample Shot #3 (10:00)', wallThickness: 1.25, weightG: 48.2, visualFlash: 'Minor Burr', status: 'Passed' },
     { sample: 'Sample Shot #4 (11:00)', wallThickness: 1.21, weightG: 47.9, visualFlash: 'None', status: 'Passed' }
   ];
+
+  const { paginatedData: paginatedSamples, paginationProps } = usePagination(inspectionSamples, {
+    initialPageSize: 10,
+    pageSizeOptions: [10, 25, 50],
+  });
 
   return (
     <div className="space-y-6">
@@ -82,7 +90,7 @@ export const QualityGateInspectionView: React.FC<QualityGateProps> = ({
               </tr>
             </thead>
             <tbody>
-              {inspectionSamples.map((sample, idx) => (
+              {paginatedSamples.map((sample, idx) => (
                 <tr key={idx} className="border-b border-[#E4E0D6] hover:bg-[#FAF9F5]">
                   <td className="p-3 font-semibold text-[#14213D]">{sample.sample}</td>
                   <td className="p-3 text-center font-mono font-bold text-[#14213D]">{sample.wallThickness} mm</td>
@@ -97,6 +105,10 @@ export const QualityGateInspectionView: React.FC<QualityGateProps> = ({
               ))}
             </tbody>
           </table>
+          <PaginationBar
+            {...paginationProps}
+            itemName="samples"
+          />
         </div>
       </div>
     </div>

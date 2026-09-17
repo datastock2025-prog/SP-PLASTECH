@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { CycleCountSession, CycleCountItemAudit } from '../../types/warehouse';
 import { WarehouseStatusBadge } from './WarehouseStatusBadge';
+import { usePagination } from '../../hooks/usePagination';
+import { PaginationBar } from '../common/PaginationBar';
 
 interface Props {
   sessions: CycleCountSession[];
@@ -37,6 +39,11 @@ export const CycleCountAuditView: React.FC<Props> = ({
   const [selectedSessionId, setSelectedSessionId] = useState<string>(sessions[0]?.id || '');
 
   const currentSession = sessionList.find((s) => s.id === selectedSessionId) || sessionList[0];
+
+  const { paginatedData: pagedItems, paginationProps } = usePagination(currentSession?.items || [], {
+    initialPageSize: 10,
+    pageSizeOptions: [5, 10, 20],
+  });
 
   const handleUpdateItemCount = (itemSku: string, countedQty: number) => {
     if (!currentSession) return;
@@ -307,7 +314,7 @@ export const CycleCountAuditView: React.FC<Props> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {currentSession.items.map((item) => (
+                {pagedItems.map((item) => (
                   <tr key={item.itemSku} className="hover:bg-slate-50">
                     <td className="py-2.5 px-3">
                       <div className="font-bold text-[#14213D]">{item.itemName}</div>
@@ -347,6 +354,7 @@ export const CycleCountAuditView: React.FC<Props> = ({
               </tbody>
             </table>
           </div>
+          <PaginationBar {...paginationProps} itemName="items" />
         </div>
       )}
     </div>

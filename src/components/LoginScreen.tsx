@@ -33,10 +33,39 @@ import {
 } from 'lucide-react';
 import { AuthUser } from '../types';
 import { DEMO_USERS, ENTERPRISE_PLANTS, SHIFTS } from '../data/authUsers';
+import { adminService, adminEventBus } from '../services/adminService';
 
 interface LoginScreenProps {
   onLogin: (user: AuthUser, plantId: string, shiftId: string) => void;
   lastLoggedOutUser?: AuthUser | null;
+}
+
+// Convert AdminUser to AuthUser
+function mapAdminToAuthUser(adminUser: any): AuthUser {
+  const roleType =
+    adminUser.roleId?.includes('ADMIN') ? 'admin' :
+    adminUser.roleId?.includes('OPERATOR') ? 'operator' :
+    adminUser.roleId?.includes('QA') || adminUser.roleId?.includes('QUALITY') ? 'quality' :
+    adminUser.roleId?.includes('WH') || adminUser.roleId?.includes('WAREHOUSE') ? 'warehouse' :
+    adminUser.roleId?.includes('FINANCE') ? 'finance' :
+    adminUser.roleId?.includes('SALES') ? 'sales' : 'production';
+
+  return {
+    id: adminUser.id,
+    name: adminUser.fullName,
+    email: adminUser.email,
+    role: adminUser.roleName || adminUser.designation || 'Enterprise User',
+    roleType,
+    department: adminUser.department,
+    plantId: adminUser.plantIds?.[0] || 'PLANT-01',
+    plantName: adminUser.plantNames?.[0] || 'Plant 01 — Pune / Chakan Hub',
+    shift: adminUser.assignedShift || 'Shift A — Morning (06:00 – 14:00)',
+    badgeId: adminUser.badgeId || `EMP-${adminUser.id.replace(/\D/g, '') || '101'}`,
+    pin: '1234',
+    avatarColor: adminUser.avatarColor || 'from-[#0F8B8D] to-[#E8622C]',
+    initials: adminUser.initials || adminUser.fullName?.slice(0, 2).toUpperCase() || 'US',
+    permissions: ['all', 'admin', 'mfg', 'qc', 'wh', 'finance', 'sales'],
+  };
 }
 
 // Cached AudioContext singleton to eliminate tab switching latency & audio thread lock
@@ -71,6 +100,48 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, lastLoggedOut
   // Navigation & Mode State
   const [authMode, setAuthMode] = useState<'quick' | 'operator' | 'credentials'>('quick');
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  const [liveUsers, setLiveUsers] = useState<AuthUser[]>(DEMO_USERS);
+  const [livePlants, setLivePlants] = useState(ENTERPRISE_PLANTS);
+
+  // Sync live users and plants from PostgreSQL / adminService
+  useEffect(() => {
+    const fetchLiveContext = async () => {
+      try {
+        const [users, plants] = await Promise.all([
+          adminService.getUsers(),
+          adminService.getPlants(),
+        ]);
+        if (users && users.length > 0) {
+          const mapped = users.map(mapAdminToAuthUser);
+          // Merge unique by email/id
+          const merged = [...mapped];
+          DEMO_USERS.forEach((du) => {
+            if (!merged.some((m) => m.email.toLowerCase() === du.email.toLowerCase())) {
+              merged.push(du);
+            }
+          });
+          setLiveUsers(merged);
+        }
+        if (plants && plants.length > 0) {
+          setLivePlants(
+            plants.map((p) => ({
+              id: p.id,
+              name: `${p.plantCode} — ${p.plantName}`,
+              location: `${p.city}, ${p.state}`,
+            }))
+          );
+        }
+      } catch {
+        // Fallback to DEMO_USERS
+      }
+    };
+
+    fetchLiveContext();
+    const unsub = adminEventBus.subscribe(() => {
+      fetchLiveContext();
+    });
+    return unsub;
+  }, []);
 
   // Live Clock & Auto-detected shift
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
@@ -127,28 +198,29 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, lastLoggedOut
 
   // Operator PIN & Badge State
   const [selectedOperator, setSelectedOperator] = useState<AuthUser>(
-    DEMO_USERS.find((u) => u.roleType === 'operator') || DEMO_USERS[0]
+    liveUsers.find((u) => u.roleType === 'operator') || liveUsers[0]
   );
   const [pinDigits, setPinDigits] = useState<string>('');
   const [isScanningRfid, setIsScanningRfid] = useState<boolean>(false);
 
   const departments = useMemo(() => {
-    const deps = Array.from(new Set(DEMO_USERS.map((u) => u.department.split(' ')[0])));
+    const deps = Array.from(new Set(liveUsers.map((u) => u.department.split(' ')[0])));
     return ['All', ...deps];
-  }, []);
+  }, [liveUsers]);
 
   const filteredUsers = useMemo(() => {
-    return DEMO_USERS.filter((u) => {
+    return liveUsers.filter((u) => {
       const matchesSearch =
         u.name.toLowerCase().includes(searchPersona.toLowerCase()) ||
         u.role.toLowerCase().includes(searchPersona.toLowerCase()) ||
         u.department.toLowerCase().includes(searchPersona.toLowerCase()) ||
-        u.badgeId.toLowerCase().includes(searchPersona.toLowerCase());
+        u.badgeId.toLowerCase().includes(searchPersona.toLowerCase()) ||
+        u.email.toLowerCase().includes(searchPersona.toLowerCase());
       const matchesDept =
         departmentFilter === 'All' || u.department.toLowerCase().includes(departmentFilter.toLowerCase());
       return matchesSearch && matchesDept;
     });
-  }, [searchPersona, departmentFilter]);
+  }, [liveUsers, searchPersona, departmentFilter]);
 
   // Execute Final Login Handshake
   const executeLogin = (user: AuthUser) => {
@@ -157,7 +229,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, lastLoggedOut
 
     setTimeout(() => {
       const shiftObj = SHIFTS.find((s) => s.id === selectedShift);
-      const plantObj = ENTERPRISE_PLANTS.find((p) => p.id === selectedPlant);
+      const plantObj = livePlants.find((p) => p.id === selectedPlant);
       setIsLoading(false);
 
       onLogin(

@@ -296,21 +296,21 @@ export const WorkspaceSavedViewsView: React.FC<WorkspaceToolProps> = ({ onNaviga
           <div
             key={p.id}
             onClick={() => onNavigate(p.view)}
-            className="bg-white p-5 rounded-xl border border-slate-200 hover:border-purple-300 hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between"
+            className="bg-white p-5 rounded-2xl border border-slate-200/90 hover:border-purple-400 hover:shadow-lg hover:shadow-purple-900/5 hover:-translate-y-1 active:translate-y-0.5 active:scale-[0.98] transition-all duration-200 ease-out cursor-pointer flex flex-col justify-between group relative overflow-hidden select-none"
           >
             <div>
               <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-                <span className="font-semibold uppercase tracking-wider text-[10px] text-purple-600">{p.module}</span>
-                <span className="bg-slate-100 px-2 py-0.5 rounded font-mono text-[11px]">{p.count}</span>
+                <span className="font-semibold uppercase tracking-wider text-[10px] text-purple-600 group-hover:text-purple-700 transition-colors">{p.module}</span>
+                <span className="bg-slate-100 px-2 py-0.5 rounded font-mono text-[11px] group-hover:bg-purple-50 group-hover:text-purple-700 transition-colors">{p.count}</span>
               </div>
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <span>{p.icon}</span>
+              <h3 className="text-sm font-bold text-slate-900 group-hover:text-purple-700 transition-colors flex items-center gap-2">
+                <span className="text-base group-hover:scale-110 transition-transform">{p.icon}</span>
                 <span>{p.title}</span>
               </h3>
             </div>
-            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-purple-600 font-semibold">
+            <div className="mt-4 pt-3 border-t border-slate-100 group-hover:border-purple-100 flex items-center justify-between text-xs text-purple-600 font-semibold transition-colors">
               <span>Open filtered view</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform duration-200" />
             </div>
           </div>
         ))}
@@ -369,10 +369,10 @@ export const WorkspaceRecentRecordsView: React.FC<WorkspaceToolProps> = ({ onNav
             <div
               key={rec.id}
               onClick={() => onNavigate(rec.view, rec.params)}
-              className="bg-white p-4 rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-xs transition-all cursor-pointer flex items-center justify-between gap-3"
+              className="bg-white p-4 rounded-xl border border-slate-200/90 hover:border-indigo-300 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0.5 active:scale-[0.98] transition-all duration-200 ease-out cursor-pointer flex items-center justify-between gap-3 group select-none"
             >
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-xs uppercase font-mono shrink-0">
+                <div className="w-9 h-9 rounded-lg bg-slate-100 group-hover:bg-indigo-50 text-slate-700 group-hover:text-indigo-600 flex items-center justify-center font-bold text-xs uppercase font-mono shrink-0 transition-colors">
                   {rec.type}
                 </div>
                 <div className="min-w-0">
@@ -380,12 +380,12 @@ export const WorkspaceRecentRecordsView: React.FC<WorkspaceToolProps> = ({ onNav
                     <span className="font-mono text-xs font-bold text-indigo-700">{rec.recordCode}</span>
                     <span className="text-[11px] text-slate-400 font-medium">&bull; {rec.module}</span>
                   </div>
-                  <h4 className="text-xs font-semibold text-slate-800 truncate mt-0.5">{rec.title}</h4>
+                  <h4 className="text-xs font-semibold text-slate-800 group-hover:text-indigo-600 transition-colors truncate mt-0.5">{rec.title}</h4>
                 </div>
               </div>
               <div className="text-[11px] text-slate-400 shrink-0 flex items-center gap-1">
                 <span>{rec.timestamp}</span>
-                <ChevronRight className="w-3.5 h-3.5" />
+                <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
               </div>
             </div>
           ))}

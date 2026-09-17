@@ -27,6 +27,8 @@ import {
   Inbox,
   Ruler,
 } from 'lucide-react';
+import { PaginationBar } from '../common/PaginationBar';
+import { usePagination } from '../../hooks/usePagination';
 
 interface Props {
   inspectionPlans: InspectionPlan[];
@@ -54,6 +56,11 @@ export const QualityDashboardView: React.FC<Props> = ({
   const criticalNCRs = openNCRs.filter((n) => n.severity === 'Critical');
   const openCAPAs = capas.filter((c) => c.stage !== 'close');
   const verifiedCOAs = coas.filter((c) => c.status === 'Issued' || c.status === 'Signed' || c.status === 'Approved');
+
+  const { paginatedData: paginatedNcrs, paginationProps: ncrPaginationProps } = usePagination(ncrs, {
+    initialPageSize: 5,
+    pageSizeOptions: [5, 10, 25],
+  });
 
   return (
     <div className="space-y-6">
@@ -266,7 +273,7 @@ export const QualityDashboardView: React.FC<Props> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E4E0D6]">
-                {ncrs.slice(0, 5).map((n) => (
+                {paginatedNcrs.map((n) => (
                   <tr
                     key={n.id}
                     onClick={() => onNavigate('ncrDetail', { id: n.id })}
@@ -302,6 +309,10 @@ export const QualityDashboardView: React.FC<Props> = ({
                 ))}
               </tbody>
             </table>
+            <PaginationBar
+              {...ncrPaginationProps}
+              itemName="NCRs"
+            />
           </div>
         </div>
 

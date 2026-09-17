@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { WorkOrder, MachineMaster, ItemMaster } from '../../types';
 import { MoldMaster } from '../../data/manufacturingData';
+import { PaginationBar } from '../common/PaginationBar';
+import { usePagination } from '../../hooks/usePagination';
+import { useDebounce } from '../../hooks/useDebounce';
 import {
   Calendar,
   Layers,
@@ -53,19 +56,43 @@ export const MfgPlanningBoard: React.FC<PlanningBoardProps> = ({
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [showOptimizationAlert, setShowOptimizationAlert] = useState<boolean>(true);
 
-  const itemName = (code: string) => items.find((i) => i.code === code)?.name || code;
-  const prodMachines = machines.filter((m) =>
-    ['Injection Molding Machine', 'Extrusion Line', 'Blow Molding Machine'].includes(m.type)
-  );
+  // Debounce search input
+  const debouncedSearch = useDebounce(searchTerm, 300);
 
-  const unscheduledWOs = workOrders.filter((w) => !w.machine || !w.day);
+  const itemMap = useMemo(() => {
+    const map = new Map<string, string>();
+    items.forEach((i) => map.set(i.code, i.name));
+    return map;
+  }, [items]);
+
+  const itemName = useCallback((code: string) => itemMap.get(code) || code, [itemMap]);
+
+  const prodMachines = useMemo(() => {
+    return machines.filter((m) => {
+      const isProdType = ['Injection Molding Machine', 'Extrusion Line', 'Blow Molding Machine'].includes(m.type);
+      const matchesSearch =
+        debouncedSearch === '' ||
+        m.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        m.code.toLowerCase().includes(debouncedSearch.toLowerCase());
+      return isProdType && matchesSearch;
+    });
+  }, [machines, debouncedSearch]);
+
+  const { paginatedData: paginatedMachines, paginationProps: machinePaginationProps } = usePagination(prodMachines, {
+    initialPageSize: 5,
+    pageSizeOptions: [5, 10, 20],
+  });
+
+  const unscheduledWOs = useMemo(() => {
+    return workOrders.filter((w) => !w.machine || !w.day);
+  }, [workOrders]);
 
   // Time slot hours for shift schedule (06:00 to 22:00)
   const timeSlots = [
     '06:00', '08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'
   ];
 
-  const handleDragDropSchedule = (woId: string, machineId: string, day: string) => {
+  const handleDragDropSchedule = useCallback((woId: string, machineId: string, day: string) => {
     const wo = workOrders.find((w) => w.id === woId);
     if (!wo) return;
     onUpdateWO({
@@ -76,7 +103,7 @@ export const MfgPlanningBoard: React.FC<PlanningBoardProps> = ({
       history: [{ event: `Rescheduled to ${machineId} (${day})`, time: 'Just now' }, ...(wo.history || [])]
     });
     showToast(`${wo.id} allocated to ${machineId} on ${day}`);
-  };
+  }, [workOrders, onUpdateWO, showToast]);
 
   const handleAutoSequenceJIT = () => {
     // Reorder based on Light-to-Dark color and mold compatibility
@@ -280,7 +307,7 @@ export const MfgPlanningBoard: React.FC<PlanningBoardProps> = ({
                 </tr>
               </thead>
               <tbody>
-                {prodMachines.map((m) => {
+                {paginatedMachines.map((m) => {
                   const assignedOrders = workOrders.filter((w) => w.machine === m.id);
                   return (
                     <tr key={m.id} className="border-b border-[#E4E0D6] hover:bg-[#FAF9F5]">
@@ -334,6 +361,10 @@ export const MfgPlanningBoard: React.FC<PlanningBoardProps> = ({
                 })}
               </tbody>
             </table>
+            <PaginationBar
+              {...machinePaginationProps}
+              itemName="machines"
+            />
           </div>
         </div>
       </div>

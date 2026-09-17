@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sliders,
   Plus,
@@ -15,8 +15,17 @@ import {
   Layers,
   Edit2,
   Tag,
+  X,
+  ArrowRight,
+  ArrowLeft,
+  Building2,
+  Check,
+  Radio,
 } from 'lucide-react';
 import { MachineWorkCenterConfig, mockMachineWorkCenters } from '../../data/mockAdminExtendedData';
+import { adminService } from '../../services/adminService';
+import { PlantDetails } from '../../types/admin';
+import { mockCompanyProfile } from '../../data/mockAdminData';
 
 interface AdminMachineWorkCentersViewProps {
   showToast?: (msg: string) => void;
@@ -26,10 +35,48 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
   showToast = (_msg: string) => {},
 }) => {
   const [machines, setMachines] = useState<MachineWorkCenterConfig[]>(mockMachineWorkCenters);
+  const [plants, setPlants] = useState<PlantDetails[]>(mockCompanyProfile.plants);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [selectedMachine, setSelectedMachine] = useState<MachineWorkCenterConfig>(machines[0]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Wizard Modal State
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
+  const [editingMachineId, setEditingMachineId] = useState<string | null>(null);
+
+  // Form State
+  const [formData, setFormData] = useState<Partial<MachineWorkCenterConfig>>({
+    code: '',
+    name: '',
+    plantId: 'PLANT-01',
+    plantName: 'Plant 01 — Pune / Chakan Hub',
+    bayNumber: 'Bay 01 — IMM Press Line',
+    category: 'Injection Molding',
+    tonnageRating: 450,
+    clampingForceKn: 4415,
+    tieBarSpacingMm: '820 x 780',
+    maxShotWeightGrams: 1450,
+    screwDiameterMm: 65,
+    hourlyCostRateInr: 2400,
+    currentStatus: 'Idle',
+    plcInterfaceIp: '192.168.10.150',
+    energyMeterId: 'EM-BAY-01-A',
+    oeeTargetPct: 85,
+    currentOeePct: 82.5,
+    assignedMolds: ['MOLD-BUMPER-01'],
+  });
+
+  const [newMoldTag, setNewMoldTag] = useState('');
+
+  // Load live plants
+  useEffect(() => {
+    adminService.getPlants().then((livePlants) => {
+      if (livePlants && livePlants.length > 0) {
+        setPlants(livePlants);
+      }
+    });
+  }, []);
 
   const categories = [
     'ALL',
@@ -37,6 +84,7 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
     'Blow Molding',
     'Twin-Screw Extrusion',
     'Ultrasonic Welding',
+    'Auxiliary Chiller & Dehumidifier',
   ];
 
   const filteredMachines = machines.filter((mc) => {
@@ -58,6 +106,96 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
         return m;
       })
     );
+    if (selectedMachine.id === id) {
+      setSelectedMachine((prev) => ({ ...prev, currentStatus: newStatus }));
+    }
+  };
+
+  const handleOpenRegisterWizard = () => {
+    setEditingMachineId(null);
+    setWizardStep(1);
+    const selectedPlant = plants[0] || mockCompanyProfile.plants[0];
+    setFormData({
+      code: `IMM-${(machines.length + 1).toString().padStart(2, '0')}`,
+      name: '',
+      plantId: selectedPlant.id,
+      plantName: selectedPlant.plantName,
+      bayNumber: `Bay 0${(machines.length % 5) + 1} — Processing Area`,
+      category: 'Injection Molding',
+      tonnageRating: 450,
+      clampingForceKn: 4415,
+      tieBarSpacingMm: '820 x 780',
+      maxShotWeightGrams: 1450,
+      screwDiameterMm: 65,
+      hourlyCostRateInr: 2400,
+      currentStatus: 'Idle',
+      plcInterfaceIp: `192.168.10.${150 + machines.length}`,
+      energyMeterId: `EM-BAY-0${(machines.length % 5) + 1}-A`,
+      oeeTargetPct: 85,
+      currentOeePct: 82.5,
+      assignedMolds: ['MOLD-BUMPER-01'],
+    });
+    setIsWizardOpen(true);
+  };
+
+  const handleOpenEditWizard = (mc: MachineWorkCenterConfig) => {
+    setEditingMachineId(mc.id);
+    setWizardStep(1);
+    setFormData({ ...mc });
+    setIsWizardOpen(true);
+  };
+
+  const handleTonnageChange = (tonnage: number) => {
+    const kn = Math.round(tonnage * 9.81);
+    setFormData((prev) => ({
+      ...prev,
+      tonnageRating: tonnage,
+      clampingForceKn: kn,
+    }));
+  };
+
+  const handleAddMoldTag = () => {
+    if (!newMoldTag.trim()) return;
+    const cleanTag = newMoldTag.trim().toUpperCase();
+    if (!formData.assignedMolds?.includes(cleanTag)) {
+      setFormData((prev) => ({
+        ...prev,
+        assignedMolds: [...(prev.assignedMolds || []), cleanTag],
+      }));
+    }
+    setNewMoldTag('');
+  };
+
+  const handleRemoveMoldTag = (tagToRemove: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      assignedMolds: prev.assignedMolds?.filter((t) => t !== tagToRemove) || [],
+    }));
+  };
+
+  const handleSaveMachine = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.code || !formData.name) {
+      showToast('Please enter both Machine Code and Description Name.');
+      return;
+    }
+
+    if (editingMachineId) {
+      const updated = { ...(formData as MachineWorkCenterConfig), id: editingMachineId };
+      setMachines((prev) => prev.map((m) => (m.id === editingMachineId ? updated : m)));
+      setSelectedMachine(updated);
+      showToast(`Work Center ${updated.code} specifications updated.`);
+    } else {
+      const newId = `MC-${Date.now().toString().slice(-4)}`;
+      const newMachine: MachineWorkCenterConfig = {
+        ...(formData as MachineWorkCenterConfig),
+        id: newId,
+      };
+      setMachines((prev) => [newMachine, ...prev]);
+      setSelectedMachine(newMachine);
+      showToast(`Machine Work Center ${newMachine.code} successfully registered and online.`);
+    }
+    setIsWizardOpen(false);
   };
 
   return (
@@ -76,10 +214,8 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
         </div>
 
         <button
-          onClick={() => {
-            showToast('Opened new Work Center registration wizard.');
-          }}
-          className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-[#0F8B8D] hover:bg-[#0c7274] rounded-lg shadow-sm transition-colors self-start md:self-auto"
+          onClick={handleOpenRegisterWizard}
+          className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-[#0F8B8D] hover:bg-[#0c7274] rounded-lg shadow-sm transition-colors self-start md:self-auto cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" />
           Register Machine / Work Center
@@ -122,7 +258,7 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
         {/* Left Column: Machine Work Center List */}
         <div className="lg:col-span-7 space-y-3">
           {filteredMachines.map((mc) => {
-            const isSelected = selectedMachine.id === mc.id;
+            const isSelected = selectedMachine?.id === mc.id;
             return (
               <div
                 key={mc.id}
@@ -147,17 +283,29 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
                     </div>
                   </div>
 
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      mc.currentStatus === 'Running'
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : mc.currentStatus === 'Tool Changeover'
-                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                        : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    {mc.currentStatus}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        mc.currentStatus === 'Running'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : mc.currentStatus === 'Tool Changeover'
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {mc.currentStatus}
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenEditWizard(mc);
+                      }}
+                      className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors"
+                      title="Edit Machine Specifications"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Technical Specs Strip */}
@@ -279,20 +427,458 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
             <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
               <button
                 onClick={() => showToast(`Calibrated energy & shot telemetry for ${selectedMachine.code}.`)}
-                className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
                 Sync PLC Telemetry
               </button>
               <button
-                onClick={() => showToast(`Saved work center parameters for ${selectedMachine.code}.`)}
-                className="px-3 py-1.5 rounded-lg bg-[#0F8B8D] text-white text-xs font-semibold hover:bg-[#0c7274]"
+                onClick={() => handleOpenEditWizard(selectedMachine)}
+                className="px-3 py-1.5 rounded-lg bg-[#0F8B8D] text-white text-xs font-semibold hover:bg-[#0c7274] cursor-pointer"
               >
-                Save Changes
+                Edit Work Center
               </button>
             </div>
           </div>
         )}
       </div>
+
+      {/* ========================================================================= */}
+      {/* REGISTER / EDIT MACHINE WORK CENTER WIZARD MODAL */}
+      {/* ========================================================================= */}
+      {isWizardOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+            {/* Modal Header with Progress Stepper */}
+            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-xs font-semibold text-[#0F8B8D] uppercase tracking-wider">
+                  <Cpu className="w-4 h-4 text-[#0F8B8D]" />
+                  <span>{editingMachineId ? 'Edit Work Center' : 'New Asset Registration Wizard'}</span>
+                </div>
+                <h2 className="text-base font-bold text-slate-900 mt-0.5">
+                  {editingMachineId ? `Configure ${formData.code}` : 'Register Machine / Work Center Asset'}
+                </h2>
+              </div>
+              <button
+                onClick={() => setIsWizardOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Stepper Tabs */}
+            <div className="px-6 py-3 bg-white border-b border-slate-100 flex items-center justify-between text-xs">
+              <div
+                onClick={() => setWizardStep(1)}
+                className={`flex items-center gap-2 cursor-pointer transition-colors ${
+                  wizardStep === 1
+                    ? 'text-[#0F8B8D] font-bold'
+                    : wizardStep > 1
+                    ? 'text-slate-700 font-medium'
+                    : 'text-slate-400'
+                }`}
+              >
+                <div
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                    wizardStep === 1
+                      ? 'bg-[#0F8B8D] text-white'
+                      : wizardStep > 1
+                      ? 'bg-teal-100 text-teal-800'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {wizardStep > 1 ? <Check className="w-3.5 h-3.5" /> : '1'}
+                </div>
+                <span>Asset Identity &amp; Location</span>
+              </div>
+
+              <div className="w-8 h-px bg-slate-200" />
+
+              <div
+                onClick={() => formData.name && formData.code && setWizardStep(2)}
+                className={`flex items-center gap-2 cursor-pointer transition-colors ${
+                  wizardStep === 2
+                    ? 'text-[#0F8B8D] font-bold'
+                    : wizardStep > 2
+                    ? 'text-slate-700 font-medium'
+                    : 'text-slate-400'
+                }`}
+              >
+                <div
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                    wizardStep === 2
+                      ? 'bg-[#0F8B8D] text-white'
+                      : wizardStep > 2
+                      ? 'bg-teal-100 text-teal-800'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  {wizardStep > 2 ? <Check className="w-3.5 h-3.5" /> : '2'}
+                </div>
+                <span>Mechanical Parameters</span>
+              </div>
+
+              <div className="w-8 h-px bg-slate-200" />
+
+              <div
+                onClick={() => formData.name && formData.code && setWizardStep(3)}
+                className={`flex items-center gap-2 cursor-pointer transition-colors ${
+                  wizardStep === 3
+                    ? 'text-[#0F8B8D] font-bold'
+                    : 'text-slate-400'
+                }`}
+              >
+                <div
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                    wizardStep === 3
+                      ? 'bg-[#0F8B8D] text-white'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  3
+                </div>
+                <span>IoT &amp; Mold Tools</span>
+              </div>
+            </div>
+
+            {/* Modal Body / Wizard Steps */}
+            <form onSubmit={handleSaveMachine} className="flex-1 overflow-y-auto p-6 space-y-4">
+              {/* STEP 1: General & Location */}
+              {wizardStep === 1 && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Machine Asset Code <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.code || ''}
+                        onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                        placeholder="e.g. IMM-ENGEL-650-01"
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono focus:ring-1 focus:ring-[#0F8B8D] focus:border-[#0F8B8D]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Process Category <span className="text-rose-500">*</span>
+                      </label>
+                      <select
+                        value={formData.category}
+                        onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white focus:ring-1 focus:ring-[#0F8B8D]"
+                      >
+                        <option value="Injection Molding">Injection Molding</option>
+                        <option value="Blow Molding">Blow Molding</option>
+                        <option value="Twin-Screw Extrusion">Twin-Screw Extrusion</option>
+                        <option value="Ultrasonic Welding">Ultrasonic Welding</option>
+                        <option value="Auxiliary Chiller & Dehumidifier">Auxiliary Chiller &amp; Dehumidifier</option>
+                      </select>
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Machine Model &amp; Description <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.name || ''}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        placeholder="e.g. Engel Victory 650T Duo Eco-Drive Injection Press"
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-1 focus:ring-[#0F8B8D] focus:border-[#0F8B8D]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Assigned Manufacturing Plant</label>
+                      <select
+                        value={formData.plantId}
+                        onChange={(e) => {
+                          const p = plants.find((pl) => pl.id === e.target.value);
+                          setFormData({
+                            ...formData,
+                            plantId: e.target.value,
+                            plantName: p?.plantName || e.target.value,
+                          });
+                        }}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white focus:ring-1 focus:ring-[#0F8B8D]"
+                      >
+                        {plants.map((pl) => (
+                          <option key={pl.id} value={pl.id}>
+                            {pl.plantCode} — {pl.plantName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Bay &amp; Floor Location</label>
+                      <input
+                        type="text"
+                        value={formData.bayNumber || ''}
+                        onChange={(e) => setFormData({ ...formData, bayNumber: e.target.value })}
+                        placeholder="e.g. Bay 04 — Heavy IMM Section"
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-1 focus:ring-[#0F8B8D]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Initial Operational Status</label>
+                      <select
+                        value={formData.currentStatus}
+                        onChange={(e) => setFormData({ ...formData, currentStatus: e.target.value as any })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white focus:ring-1 focus:ring-[#0F8B8D]"
+                      >
+                        <option value="Running">Running (In Production)</option>
+                        <option value="Idle">Idle (Available for Setup)</option>
+                        <option value="Tool Changeover">Tool Changeover</option>
+                        <option value="Maintenance">Maintenance &amp; Calibration</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2: Mechanical Parameters */}
+              {wizardStep === 2 && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Clamping Tonnage (Tons)
+                      </label>
+                      <input
+                        type="number"
+                        min="10"
+                        max="5000"
+                        value={formData.tonnageRating || 450}
+                        onChange={(e) => handleTonnageChange(Number(e.target.value))}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono focus:ring-1 focus:ring-[#0F8B8D]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Calculated Clamping Force (kN)
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.clampingForceKn || 4415}
+                        onChange={(e) => setFormData({ ...formData, clampingForceKn: Number(e.target.value) })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-slate-50 font-mono text-slate-700"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Tie-Bar Clearance (W x H mm)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.tieBarSpacingMm || '820 x 780'}
+                        onChange={(e) => setFormData({ ...formData, tieBarSpacingMm: e.target.value })}
+                        placeholder="e.g. 1100 x 980"
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono focus:ring-1 focus:ring-[#0F8B8D]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Screw Barrel Diameter (mm)
+                      </label>
+                      <input
+                        type="number"
+                        min="15"
+                        max="300"
+                        value={formData.screwDiameterMm || 65}
+                        onChange={(e) => setFormData({ ...formData, screwDiameterMm: Number(e.target.value) })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono focus:ring-1 focus:ring-[#0F8B8D]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Max Shot Weight (grams PP)
+                      </label>
+                      <input
+                        type="number"
+                        min="10"
+                        max="50000"
+                        value={formData.maxShotWeightGrams || 1450}
+                        onChange={(e) => setFormData({ ...formData, maxShotWeightGrams: Number(e.target.value) })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono focus:ring-1 focus:ring-[#0F8B8D]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Machine Hourly Cost Rate (₹ / hr)
+                      </label>
+                      <input
+                        type="number"
+                        min="100"
+                        step="50"
+                        value={formData.hourlyCostRateInr || 2400}
+                        onChange={(e) => setFormData({ ...formData, hourlyCostRateInr: Number(e.target.value) })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono text-emerald-700 font-bold focus:ring-1 focus:ring-[#0F8B8D]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Target OEE Benchmark (%)
+                      </label>
+                      <input
+                        type="number"
+                        min="50"
+                        max="100"
+                        value={formData.oeeTargetPct || 85}
+                        onChange={(e) => setFormData({ ...formData, oeeTargetPct: Number(e.target.value) })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono focus:ring-1 focus:ring-[#0F8B8D]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 3: Industry 4.0 IoT & Mold Assignments */}
+              {wizardStep === 3 && (
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        PLC Euromap 63 / 77 Gateway IP
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.plcInterfaceIp || ''}
+                        onChange={(e) => setFormData({ ...formData, plcInterfaceIp: e.target.value })}
+                        placeholder="e.g. 192.168.10.150"
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono text-indigo-700 focus:ring-1 focus:ring-[#0F8B8D]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Sub-meter Energy ID
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.energyMeterId || ''}
+                        onChange={(e) => setFormData({ ...formData, energyMeterId: e.target.value })}
+                        placeholder="e.g. EM-BAY-01-A"
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono focus:ring-1 focus:ring-[#0F8B8D]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Mold / Tooling Assignment */}
+                  <div className="space-y-2 pt-2 border-t border-slate-100">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Compatible Mold Die Tooling Assignments
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newMoldTag}
+                        onChange={(e) => setNewMoldTag(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddMoldTag();
+                          }
+                        }}
+                        placeholder="Enter mold code e.g. MOLD-DOOR-TRIM-02"
+                        className="flex-1 px-3 py-1.5 text-xs rounded-lg border border-slate-300 font-mono focus:ring-1 focus:ring-[#0F8B8D]"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddMoldTag}
+                        className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold"
+                      >
+                        + Add Tool
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {formData.assignedMolds?.map((m) => (
+                        <span
+                          key={m}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-teal-50 border border-teal-200 font-mono text-[11px] text-[#0F8B8D] font-semibold"
+                        >
+                          {m}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMoldTag(m)}
+                            className="hover:text-rose-600 transition-colors"
+                          >
+                            &times;
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Wizard Footer Controls */}
+              <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
+                <div>
+                  {wizardStep > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setWizardStep((prev) => ((prev - 1) as 1 | 2 | 3))}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      Back
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsWizardOpen(false)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+
+                  {wizardStep < 3 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!formData.name || !formData.code) {
+                          showToast('Please specify machine asset code and model name.');
+                          return;
+                        }
+                        setWizardStep((prev) => ((prev + 1) as 1 | 2 | 3));
+                      }}
+                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#0F8B8D] hover:bg-[#0c7274] text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+                    >
+                      Next Step
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#0F8B8D] hover:bg-[#0c7274] text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      {editingMachineId ? 'Save Work Center Changes' : 'Complete Registration'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

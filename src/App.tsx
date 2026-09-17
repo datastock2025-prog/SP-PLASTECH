@@ -12,6 +12,9 @@ import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { UnauthorizedScreen } from './components/common/UnauthorizedScreen';
 import { ROLE_DEFAULT_VIEW } from './data/roleDefaultViews';
 import { workspaceRbacService, normalizeRoleKey } from './services/workspaceRbacService';
+import { itemService } from './services/itemService';
+import { adminEventBus } from './services/adminService';
+import { SessionTimeoutModal, MfaVerificationModal, CookieConsentModal } from './security';
 
 // Domain Feature Modules (Bounded Contexts)
 import {
@@ -92,7 +95,13 @@ export const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Primary Business Entities State
-  const [items, setItems] = useState<ItemMaster[]>(initialItems);
+  const [items, setItems] = useState<ItemMaster[]>(() => {
+    try {
+      return itemService.getItemsSync();
+    } catch {
+      return [];
+    }
+  });
   const [boms, setBoms] = useState<BomMaster[]>(INITIAL_BOMS);
   const [machines, setMachines] = useState<MachineMaster[]>(initialMachines);
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>(initialWorkOrders);
@@ -106,6 +115,31 @@ export const App: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
   const [quotations, setQuotations] = useState<Quotation[]>(initialQuotations);
   const [rmas, setRmas] = useState<ReturnMerchandise[]>(INITIAL_RMAS);
+
+  // Sync Item Master with persistent Item Service & Admin Event Bus
+  useEffect(() => {
+    itemService.getItems().then((fetched) => {
+      if (fetched) setItems(fetched);
+    });
+    const unsubSaved = adminEventBus.on('ITEM_SAVED', (savedItem: ItemMaster) => {
+      setItems((prev) => {
+        const idx = prev.findIndex((i) => i.code === savedItem.code);
+        if (idx >= 0) {
+          const copy = [...prev];
+          copy[idx] = savedItem;
+          return copy;
+        }
+        return [savedItem, ...prev];
+      });
+    });
+    const unsubDeleted = adminEventBus.on('ITEM_DELETED', ({ code }: { code: string }) => {
+      setItems((prev) => prev.filter((i) => i.code !== code));
+    });
+    return () => {
+      unsubSaved?.();
+      unsubDeleted?.();
+    };
+  }, []);
 
   // Drawer & Modal State
   const [drawerState, setDrawerState] = useState<{
@@ -1207,6 +1241,11 @@ export const App: React.FC = () => {
         onConfirm={confirmState.onConfirm}
         onClose={closeConfirm}
       />
+
+      {/* Security Modals & GDPR Banners */}
+      <SessionTimeoutModal />
+      <MfaVerificationModal />
+      <CookieConsentModal />
 
       {/* Toast Notification */}
       {toastMsg && (

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback, memo } from 'react';
 import {
   Clock,
   AlertTriangle,
@@ -14,33 +14,107 @@ import {
 } from 'lucide-react';
 import { mockInventoryAging } from '../../data/mockScmData';
 import { InventoryAgingRecord } from '../../types/scm';
+import { PaginationBar } from '../common/PaginationBar';
+import { usePagination } from '../../hooks/usePagination';
+import { useDebounce } from '../../hooks/useDebounce';
 
 interface ScmInventoryAgingViewProps {
   onNavigate: (view: string, param?: any) => void;
   showToast: (msg: string) => void;
 }
 
+// Memoized table row component to prevent unnecessary re-renders
+const AgingTableRow = memo(({
+  rec,
+  onAction,
+}: {
+  rec: InventoryAgingRecord;
+  onAction: (record: InventoryAgingRecord, action: string) => void;
+}) => (
+  <tr className="hover:bg-slate-50/80 transition-colors">
+    <td className="p-3">
+      <div className="font-bold text-slate-900">{rec.itemCode}</div>
+      <div className="text-[11px] text-slate-500">{rec.itemName}</div>
+    </td>
+    <td className="p-3 font-mono font-bold text-slate-800">{rec.lotNumber}</td>
+    <td className="p-3 font-mono text-[11px] text-slate-600">{rec.warehouseLocation}</td>
+    <td className="p-3 text-right font-mono font-bold text-slate-900">
+      {rec.quantity.toLocaleString()} {rec.uom}
+    </td>
+    <td className="p-3 text-right font-mono font-bold text-rose-600">{rec.daysInStock} d</td>
+    <td className="p-3">
+      <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-medium border border-slate-200">
+        {rec.agingBucket}
+      </span>
+    </td>
+    <td className="p-3 font-mono text-slate-700">
+      {rec.expiryDate ? (
+        <span className="text-amber-700 font-bold">{rec.expiryDate}</span>
+      ) : (
+        <span className="text-slate-400">Non-expiring</span>
+      )}
+    </td>
+    <td className="p-3 text-right font-mono font-bold text-slate-900">
+      ₹{rec.totalValue.toLocaleString()}
+    </td>
+    <td className="p-3">
+      <span
+        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+          rec.dispositionRecommendation === 'Scrap & Regrind'
+            ? 'bg-rose-100 text-rose-800'
+            : rec.dispositionRecommendation === 'Reprocess'
+            ? 'bg-amber-100 text-amber-800'
+            : 'bg-emerald-50 text-emerald-700'
+        }`}
+      >
+        {rec.dispositionRecommendation}
+      </span>
+    </td>
+    <td className="p-3 text-right">
+      <button
+        onClick={() => onAction(rec, rec.dispositionRecommendation)}
+        className="px-2.5 py-1 bg-[#14213D] hover:bg-[#1C2B4D] text-white rounded text-[11px] font-bold transition cursor-pointer"
+      >
+        Process
+      </button>
+    </td>
+  </tr>
+));
+
 export const ScmInventoryAgingView: React.FC<ScmInventoryAgingViewProps> = ({ onNavigate, showToast }) => {
   const [records, setRecords] = useState<InventoryAgingRecord[]>(mockInventoryAging);
   const [bucketFilter, setBucketFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredRecords = records.filter((r) => {
-    const matchesSearch =
-      r.itemCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.itemName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.lotNumber.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesBucket = bucketFilter === 'All' || r.agingBucket === bucketFilter;
-    return matchesSearch && matchesBucket;
+  // Debounce search query by 300ms
+  const debouncedSearch = useDebounce(searchQuery, 300);
+
+  const filteredRecords = useMemo(() => {
+    return records.filter((r) => {
+      const matchesSearch =
+        debouncedSearch === '' ||
+        r.itemCode.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        r.itemName.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        r.lotNumber.toLowerCase().includes(debouncedSearch.toLowerCase());
+      const matchesBucket = bucketFilter === 'All' || r.agingBucket === bucketFilter;
+      return matchesSearch && matchesBucket;
+    });
+  }, [records, debouncedSearch, bucketFilter]);
+
+  const { paginatedData: paginatedRecords, paginationProps } = usePagination(filteredRecords, {
+    initialPageSize: 10,
+    pageSizeOptions: [10, 25, 50],
   });
 
-  const totalDeadStockValue = records
-    .filter((r) => r.dispositionRecommendation === 'Scrap & Regrind' || r.dispositionRecommendation === 'Return to Vendor')
-    .reduce((acc, curr) => acc + curr.totalValue, 0);
+  const totalDeadStockValue = useMemo(() => {
+    return records
+      .filter((r) => r.dispositionRecommendation === 'Scrap & Regrind' || r.dispositionRecommendation === 'Return to Vendor')
+      .reduce((acc, curr) => acc + curr.totalValue, 0);
+  }, [records]);
 
-  const handleAction = (record: InventoryAgingRecord, action: string) => {
+  const handleAction = useCallback((record: InventoryAgingRecord, action: string) => {
     showToast(`Executed action "${action}" for ${record.itemCode} (Lot: ${record.lotNumber || record.batchNumber})`);
-  };
+  }, [showToast]);
 
   return (
     <div className="space-y-6 animate-fade-in text-slate-800">
@@ -160,58 +234,27 @@ export const ScmInventoryAgingView: React.FC<ScmInventoryAgingViewProps> = ({ on
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filteredRecords.map((rec) => (
-                <tr key={rec.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="p-3">
-                    <div className="font-bold text-slate-900">{rec.itemCode}</div>
-                    <div className="text-[11px] text-slate-500">{rec.itemName}</div>
-                  </td>
-                  <td className="p-3 font-mono font-bold text-slate-800">{rec.lotNumber}</td>
-                  <td className="p-3 font-mono text-[11px] text-slate-600">{rec.warehouseLocation}</td>
-                  <td className="p-3 text-right font-mono font-bold text-slate-900">
-                    {rec.quantity.toLocaleString()} {rec.uom}
-                  </td>
-                  <td className="p-3 text-right font-mono font-bold text-rose-600">{rec.daysInStock} d</td>
-                  <td className="p-3">
-                    <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-medium border border-slate-200">
-                      {rec.agingBucket}
-                    </span>
-                  </td>
-                  <td className="p-3 font-mono text-slate-700">
-                    {rec.expiryDate ? (
-                      <span className="text-amber-700 font-bold">{rec.expiryDate}</span>
-                    ) : (
-                      <span className="text-slate-400">Non-expiring</span>
-                    )}
-                  </td>
-                  <td className="p-3 text-right font-mono font-bold text-slate-900">
-                    ₹{rec.totalValue.toLocaleString()}
-                  </td>
-                  <td className="p-3">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        rec.dispositionRecommendation === 'Scrap & Regrind'
-                          ? 'bg-rose-100 text-rose-800'
-                          : rec.dispositionRecommendation === 'Reprocess'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-emerald-50 text-emerald-700'
-                      }`}
-                    >
-                      {rec.dispositionRecommendation}
-                    </span>
-                  </td>
-                  <td className="p-3 text-right">
-                    <button
-                      onClick={() => handleAction(rec, rec.dispositionRecommendation)}
-                      className="px-2.5 py-1 bg-[#14213D] hover:bg-[#1C2B4D] text-white rounded text-[11px] font-bold transition cursor-pointer"
-                    >
-                      Process
-                    </button>
+              {paginatedRecords.length > 0 ? (
+                paginatedRecords.map((rec) => (
+                  <AgingTableRow
+                    key={rec.id}
+                    rec={rec}
+                    onAction={handleAction}
+                  />
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={10} className="p-8 text-center text-slate-400">
+                    No aged inventory records match current filters.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
+          <PaginationBar
+            {...paginationProps}
+            itemName="lots"
+          />
         </div>
       </div>
     </div>

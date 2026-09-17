@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Users,
   Search,
@@ -16,9 +16,13 @@ import {
   Building,
   Clock,
   Edit2,
+  Trash2,
   ShieldAlert,
+  Database,
+  RefreshCw,
 } from 'lucide-react';
-import { AdminUser } from '../../types/admin';
+import { AdminUser, AdminRole, PlantDetails } from '../../types/admin';
+import { adminService, adminEventBus } from '../../services/adminService';
 import { mockAdminUsers, mockAdminRoles, mockCompanyProfile } from '../../data/mockAdminData';
 
 interface AdminUsersViewProps {
@@ -27,6 +31,9 @@ interface AdminUsersViewProps {
 
 export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_msg: string) => {} }) => {
   const [users, setUsers] = useState<AdminUser[]>(mockAdminUsers);
+  const [roles, setRoles] = useState<AdminRole[]>(mockAdminRoles);
+  const [plants, setPlants] = useState<PlantDetails[]>(mockCompanyProfile.plants);
+  const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedRole, setSelectedRole] = useState('ALL');
   const [selectedPlant, setSelectedPlant] = useState('ALL');
@@ -34,6 +41,33 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+
+  // Load live data from PostgreSQL / Backend service
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const [fetchedUsers, fetchedRoles, fetchedPlants] = await Promise.all([
+        adminService.getUsers(),
+        adminService.getRoles(),
+        adminService.getPlants(),
+      ]);
+      setUsers(fetchedUsers);
+      setRoles(fetchedRoles);
+      setPlants(fetchedPlants);
+    } catch {
+      // Handled in service fallback
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+    const unsub = adminEventBus.subscribe(() => {
+      adminService.getUsers().then(setUsers);
+    });
+    return unsub;
+  }, []);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -58,7 +92,7 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
       u.designation.toLowerCase().includes(search.toLowerCase());
 
     const matchesRole = selectedRole === 'ALL' || u.roleId === selectedRole;
-    const matchesPlant = selectedPlant === 'ALL' || u.plantIds.includes(selectedPlant);
+    const matchesPlant = selectedPlant === 'ALL' || u.plantIds.some((p) => p === selectedPlant);
     const matchesStatus = selectedStatus === 'ALL' || u.status === selectedStatus;
 
     return matchesSearch && matchesRole && matchesPlant && matchesStatus;
@@ -73,8 +107,8 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
       phone: '',
       designation: '',
       department: 'Manufacturing Execution',
-      roleId: 'ROLE-PLANT-MANAGER',
-      plantIds: ['PLANT-01'],
+      roleId: roles[0]?.id || 'ROLE-PLANT-MANAGER',
+      plantIds: [plants[0]?.id || 'PLANT-01'],
       assignedShift: 'Shift A — Morning (06:00 – 14:00)',
       status: 'Active',
       mfaEnabled: true,
@@ -101,94 +135,69 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
     setIsModalOpen(true);
   };
 
-  const handleSaveUser = (e: React.FormEvent) => {
+  const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.fullName || !formData.email || !formData.username) {
       showToast('Please provide full name, username, and email.');
       return;
     }
 
-    const selectedRoleObj = mockAdminRoles.find((r) => r.id === formData.roleId);
-    const plantNames = formData.plantIds.map(
-      (pid) => mockCompanyProfile.plants.find((p) => p.id === pid)?.plantName || pid
-    );
-
     if (modalMode === 'create') {
-      const newUser: AdminUser = {
-        id: `USR-00${users.length + 1}`,
-        username: formData.username.toLowerCase().trim(),
+      const created = await adminService.createUser({
         fullName: formData.fullName.trim(),
+        username: formData.username.toLowerCase().trim(),
         email: formData.email.trim(),
         phone: formData.phone.trim(),
         designation: formData.designation.trim() || 'ERP Operator',
         department: formData.department,
         roleId: formData.roleId,
-        roleName: selectedRoleObj?.name || 'Custom Role',
         plantIds: formData.plantIds,
-        plantNames,
         assignedShift: formData.assignedShift,
         status: formData.status,
         mfaEnabled: formData.mfaEnabled,
-        mfaMethod: formData.mfaEnabled ? 'Authenticator App (TOTP)' : 'None',
-        lastLoginDate: 'Never',
-        lastLoginIp: '—',
-        createdDate: new Date().toISOString().split('T')[0],
-        avatarColor: 'from-[#0F8B8D] to-[#E8622C]',
-        initials: (formData.fullName || '')
-          .split(' ')
-          .filter(Boolean)
-          .map((n) => n[0])
-          .join('')
-          .toUpperCase()
-          .slice(0, 2) || 'US',
-        failedLoginAttempts: 0,
-      };
-      setUsers([newUser, ...users]);
-      showToast(`User account for ${newUser.fullName} created with welcome credentials.`);
+      });
+      setUsers((prev) => [created, ...prev.filter((u) => u.id !== created.id)]);
+      showToast(`User ${created.fullName} provisioned in PostgreSQL & RBAC directory.`);
     } else if (editingUserId) {
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.id === editingUserId
-            ? {
-                ...u,
-                fullName: formData.fullName,
-                username: formData.username,
-                email: formData.email,
-                phone: formData.phone,
-                designation: formData.designation,
-                department: formData.department,
-                roleId: formData.roleId,
-                roleName: selectedRoleObj?.name || u.roleName,
-                plantIds: formData.plantIds,
-                plantNames,
-                assignedShift: formData.assignedShift,
-                status: formData.status,
-                mfaEnabled: formData.mfaEnabled,
-              }
-            : u
-        )
-      );
-      showToast('User profile and permissions updated.');
+      const updated = await adminService.updateUser(editingUserId, {
+        fullName: formData.fullName,
+        username: formData.username,
+        email: formData.email,
+        phone: formData.phone,
+        designation: formData.designation,
+        department: formData.department,
+        roleId: formData.roleId,
+        plantIds: formData.plantIds,
+        assignedShift: formData.assignedShift,
+        status: formData.status,
+        mfaEnabled: formData.mfaEnabled,
+      });
+      setUsers((prev) => prev.map((u) => (u.id === editingUserId ? updated : u)));
+      showToast(`User profile and credentials updated in database.`);
     }
     setIsModalOpen(false);
   };
 
-  const handleToggleStatus = (userId: string) => {
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id === userId) {
-          const nextStatus = u.status === 'Active' ? 'Suspended' : 'Active';
-          showToast(`User ${u.fullName} is now ${nextStatus}.`);
-          return { ...u, status: nextStatus };
-        }
-        return u;
-      })
-    );
+  const handleToggleStatus = async (userId: string) => {
+    const target = users.find((u) => u.id === userId);
+    if (!target) return;
+    const nextStatus = target.status === 'Active' ? 'Suspended' : 'Active';
+    await adminService.updateUser(userId, { status: nextStatus });
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: nextStatus } : u)));
+    showToast(`User ${target.fullName} status updated to ${nextStatus}.`);
   };
 
-  const handleResetPassword = (user: AdminUser) => {
-    const tempPin = Math.floor(1000 + Math.random() * 9000);
-    showToast(`Password reset for ${user.fullName}. Temporary OTP PIN: ${tempPin} dispatched.`);
+  const handleDeleteUser = async (userId: string) => {
+    const target = users.find((u) => u.id === userId);
+    if (!target) return;
+    await adminService.deleteUser(userId);
+    setUsers((prev) => prev.filter((u) => u.id !== userId));
+    showToast(`User ${target.fullName} soft-deleted from database (Audit trail retained).`);
+  };
+
+  const handleResetPassword = async (user: AdminUser) => {
+    await adminService.resetUserPin(user.id, '1234');
+    showToast(`Credentials reset for ${user.fullName}. Default PIN set to '1234'.`);
   };
 
   return (
@@ -399,6 +408,13 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
                         ) : (
                           <Unlock className="w-3.5 h-3.5" />
                         )}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUser(user.id)}
+                        title="Delete User (Soft-delete & revoke active sessions)"
+                        className="p-1.5 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </td>

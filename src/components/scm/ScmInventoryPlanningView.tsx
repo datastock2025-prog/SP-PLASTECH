@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { mockScmInventory } from '../../data/mockScmData';
 import { SCMInventoryItem } from '../../types/scm';
+import { PaginationBar } from '../common/PaginationBar';
+import { usePagination } from '../../hooks/usePagination';
 
 interface ScmInventoryPlanningViewProps {
   onNavigate: (view: string, param?: any) => void;
@@ -38,6 +40,11 @@ export const ScmInventoryPlanningView: React.FC<ScmInventoryPlanningViewProps> =
     const matchesCat = categoryFilter === 'All' || i.category === categoryFilter;
     const matchesStat = statusFilter === 'All' || i.status === statusFilter;
     return matchesSearch && matchesCat && matchesStat;
+  });
+
+  const { paginatedData: paginatedItems, paginationProps } = usePagination(filteredItems, {
+    initialPageSize: 10,
+    pageSizeOptions: [10, 25, 50],
   });
 
   const totalValue = items.reduce((acc, curr) => acc + curr.stockValue, 0);
@@ -194,86 +201,98 @@ export const ScmInventoryPlanningView: React.FC<ScmInventoryPlanningViewProps> =
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filteredItems.map((item) => (
-                <tr key={item.itemCode} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="p-3">
-                    <div className="font-bold text-slate-900">{item.itemCode}</div>
-                    <div className="text-[11px] text-slate-500 truncate max-w-[200px]">{item.itemName}</div>
-                    {item.resinGrade && (
-                      <span className="text-[10px] font-mono text-[#0F8B8D]">{item.resinGrade} ({item.mfi})</span>
-                    )}
-                    {item.shelfLifeExpiryDate && (
-                      <span className="text-[10px] font-mono text-amber-700 font-bold block">
-                        Expires: {item.shelfLifeExpiryDate}
+              {paginatedItems.length > 0 ? (
+                paginatedItems.map((item) => (
+                  <tr key={item.itemCode} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="p-3">
+                      <div className="font-bold text-slate-900">{item.itemCode}</div>
+                      <div className="text-[11px] text-slate-500 truncate max-w-[200px]">{item.itemName}</div>
+                      {item.resinGrade && (
+                        <span className="text-[10px] font-mono text-[#0F8B8D]">{item.resinGrade} ({item.mfi})</span>
+                      )}
+                      {item.shelfLifeExpiryDate && (
+                        <span className="text-[10px] font-mono text-amber-700 font-bold block">
+                          Expires: {item.shelfLifeExpiryDate}
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-medium">
+                        {item.category}
                       </span>
-                    )}
-                  </td>
-                  <td className="p-3">
-                    <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-medium">
-                      {item.category}
-                    </span>
-                  </td>
-                  <td className="p-3 font-mono text-[11px] text-slate-600">{item.warehouseLocation}</td>
-                  <td className="p-3 text-right font-mono font-bold text-slate-900">
-                    {item.currentStock.toLocaleString()} {item.uom}
-                  </td>
-                  <td className="p-3 text-right font-mono text-emerald-700 font-semibold">
-                    {item.availableStock.toLocaleString()} {item.uom}
-                  </td>
-                  <td className="p-3 text-right font-mono text-blue-700">
-                    +{item.incomingSupply.toLocaleString()} {item.uom}
-                  </td>
-                  <td className="p-3 text-right font-mono font-bold text-slate-900">
-                    {item.projectedStock.toLocaleString()} {item.uom}
-                  </td>
-                  <td className="p-3 text-right font-mono">
-                    <span
-                      className={`font-bold ${
-                        item.daysOfCover <= 5
-                          ? 'text-rose-600'
-                          : item.daysOfCover <= 15
-                          ? 'text-amber-600'
-                          : 'text-emerald-700'
-                      }`}
-                    >
-                      {item.daysOfCover} d
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        item.status === 'Stockout Risk'
-                          ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                          : item.status === 'Low Stock'
-                          ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                          : item.status === 'Expiring'
-                          ? 'bg-purple-100 text-purple-800 border border-purple-300'
-                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      }`}
-                    >
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="p-3 text-right space-x-1">
-                    <button
-                      onClick={() => handleCreatePR(item)}
-                      className="px-2 py-1 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded text-[11px] font-bold transition cursor-pointer"
-                      title="Create Requisition"
-                    >
-                      Requisition
-                    </button>
-                    <button
-                      onClick={() => handleTransferStock(item)}
-                      className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold transition cursor-pointer"
-                      title="Transfer Location"
-                    >
-                      Transfer
-                    </button>
+                    </td>
+                    <td className="p-3 font-mono text-[11px] text-slate-600">{item.warehouseLocation}</td>
+                    <td className="p-3 text-right font-mono font-bold text-slate-900">
+                      {item.currentStock.toLocaleString()} {item.uom}
+                    </td>
+                    <td className="p-3 text-right font-mono text-emerald-700 font-semibold">
+                      {item.availableStock.toLocaleString()} {item.uom}
+                    </td>
+                    <td className="p-3 text-right font-mono text-blue-700">
+                      +{item.incomingSupply.toLocaleString()} {item.uom}
+                    </td>
+                    <td className="p-3 text-right font-mono font-bold text-slate-900">
+                      {item.projectedStock.toLocaleString()} {item.uom}
+                    </td>
+                    <td className="p-3 text-right font-mono">
+                      <span
+                        className={`font-bold ${
+                          item.daysOfCover <= 5
+                            ? 'text-rose-600'
+                            : item.daysOfCover <= 15
+                            ? 'text-amber-600'
+                            : 'text-emerald-700'
+                        }`}
+                      >
+                        {item.daysOfCover} d
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          item.status === 'Stockout Risk'
+                            ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                            : item.status === 'Low Stock'
+                            ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                            : item.status === 'Expiring'
+                            ? 'bg-purple-100 text-purple-800 border border-purple-300'
+                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        }`}
+                      >
+                        {item.status}
+                      </span>
+                    </td>
+                    <td className="p-3 text-right space-x-1">
+                      <button
+                        onClick={() => handleCreatePR(item)}
+                        className="px-2 py-1 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded text-[11px] font-bold transition cursor-pointer"
+                        title="Create Requisition"
+                      >
+                        Requisition
+                      </button>
+                      <button
+                        onClick={() => handleTransferStock(item)}
+                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold transition cursor-pointer"
+                        title="Transfer Location"
+                      >
+                        Transfer
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={10} className="p-8 text-center text-slate-400">
+                    No inventory items match search and category filters.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
+          <PaginationBar
+            {...paginationProps}
+            itemName="items"
+          />
         </div>
       </div>
     </div>

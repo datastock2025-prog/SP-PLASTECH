@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { mockInboundShipments } from '../../data/mockScmData';
 import { InboundShipment } from '../../types/scm';
+import { PaginationBar } from '../common/PaginationBar';
+import { usePagination } from '../../hooks/usePagination';
 
 interface ScmInboundLogisticsViewProps {
   onNavigate: (view: string, param?: any) => void;
@@ -25,6 +27,11 @@ interface ScmInboundLogisticsViewProps {
 export const ScmInboundLogisticsView: React.FC<ScmInboundLogisticsViewProps> = ({ onNavigate, showToast }) => {
   const [shipments, setShipments] = useState<InboundShipment[]>(mockInboundShipments);
   const [selectedShipment, setSelectedShipment] = useState<InboundShipment>(mockInboundShipments[0]);
+
+  const { paginatedData: paginatedShipments, paginationProps } = usePagination(shipments, {
+    initialPageSize: 10,
+    pageSizeOptions: [10, 25, 50],
+  });
 
   const handleExpediteCustoms = (shipmentId: string) => {
     showToast(`Escalated customs clearance broker for ${shipmentId} via ICEGATE EDI port system`);
@@ -82,7 +89,7 @@ export const ScmInboundLogisticsView: React.FC<ScmInboundLogisticsViewProps> = (
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {shipments.map((s) => (
+                {paginatedShipments.map((s) => (
                   <tr
                     key={s.shipmentId}
                     onClick={() => setSelectedShipment(s)}
@@ -141,6 +148,10 @@ export const ScmInboundLogisticsView: React.FC<ScmInboundLogisticsViewProps> = (
                 ))}
               </tbody>
             </table>
+            <PaginationBar
+              {...paginationProps}
+              itemName="shipments"
+            />
           </div>
         </div>
 

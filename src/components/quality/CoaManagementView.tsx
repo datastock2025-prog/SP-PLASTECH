@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { CertificateOfAnalysis } from '../../types';
+import { usePagination } from '../../hooks/usePagination';
+import { PaginationBar } from '../common/PaginationBar';
 import {
   Plus,
   Search,
@@ -47,6 +49,11 @@ export const CoaManagementView: React.FC<Props> = ({
       c.lot.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.product.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesStatus && matchesSearch;
+  });
+
+  const { paginatedData: pagedCoas, paginationProps } = usePagination(filteredCoas, {
+    initialPageSize: 5,
+    pageSizeOptions: [5, 10, 20],
   });
 
   const currentCoa = coas.find((c) => c.id === activeCoaId) || filteredCoas[0] || coas[0];
@@ -269,7 +276,7 @@ export const CoaManagementView: React.FC<Props> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: COA Directory */}
         <div className="lg:col-span-5 space-y-3">
-          {filteredCoas.map((coa) => {
+          {pagedCoas.map((coa) => {
             const isSelected = coa.id === currentCoa?.id;
 
             return (
@@ -309,6 +316,9 @@ export const CoaManagementView: React.FC<Props> = ({
               </div>
             );
           })}
+          <div className="bg-white rounded-xl border border-[#E4E0D6] overflow-hidden">
+            <PaginationBar {...paginationProps} itemName="certificates" />
+          </div>
         </div>
 
         {/* Right Column: High Fidelity Printable Certificate */}

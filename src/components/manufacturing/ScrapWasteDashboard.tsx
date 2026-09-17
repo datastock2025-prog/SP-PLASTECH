@@ -12,6 +12,9 @@ import {
   Scale
 } from 'lucide-react';
 
+import { PaginationBar } from '../common/PaginationBar';
+import { usePagination } from '../../hooks/usePagination';
+
 interface ScrapDashboardProps {
   workOrders: WorkOrder[];
   items: ItemMaster[];
@@ -29,6 +32,17 @@ export const ScrapWasteDashboard: React.FC<ScrapDashboardProps> = ({
   const [regrindKg, setRegrindKg] = useState<number>(45);
 
   const itemName = (code: string) => items.find((i) => i.code === code)?.name || code;
+
+  const regrindRecipes = [
+    { name: 'Household Bucket 10L (FG-HD-TUB-01)', max: '25%', act: '15%', status: 'Within Spec' },
+    { name: 'Square Container 500ml (FG-CTN-500)', max: '15%', act: '10%', status: 'Within Spec' },
+    { name: 'PET Bottle Preform (FG-PET-030)', max: '0% (Virgin Only - Food Grade)', act: '0%', status: 'Virgin Enforced' }
+  ];
+
+  const { paginatedData: paginatedRecipes, paginationProps } = usePagination(regrindRecipes, {
+    initialPageSize: 10,
+    pageSizeOptions: [10, 25, 50],
+  });
 
   // Scrap Pareto categories data
   const paretoDefects = [
@@ -159,11 +173,7 @@ export const ScrapWasteDashboard: React.FC<ScrapDashboardProps> = ({
               </tr>
             </thead>
             <tbody>
-              {[
-                { name: 'Household Bucket 10L (FG-HD-TUB-01)', max: '25%', act: '15%', status: 'Within Spec' },
-                { name: 'Square Container 500ml (FG-CTN-500)', max: '15%', act: '10%', status: 'Within Spec' },
-                { name: 'PET Bottle Preform (FG-PET-030)', max: '0% (Virgin Only - Food Grade)', act: '0%', status: 'Virgin Enforced' }
-              ].map((row, idx) => (
+              {paginatedRecipes.map((row, idx) => (
                 <tr key={idx} className="border-b border-[#E4E0D6]">
                   <td className="p-2.5 font-semibold text-[#14213D]">{row.name}</td>
                   <td className="p-2.5 text-center font-mono font-bold">{row.max}</td>
@@ -177,6 +187,10 @@ export const ScrapWasteDashboard: React.FC<ScrapDashboardProps> = ({
               ))}
             </tbody>
           </table>
+          <PaginationBar
+            {...paginationProps}
+            itemName="recipes"
+          />
         </div>
       )}
     </div>

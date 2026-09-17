@@ -18,6 +18,8 @@ import {
   PriceListEntry,
   RebateProgram,
 } from '../../data/salesData';
+import { usePagination } from '../../hooks/usePagination';
+import { PaginationBar } from '../common/PaginationBar';
 
 interface Props {
   showToast: (msg: string) => void;
@@ -26,6 +28,16 @@ interface Props {
 export const SalesPricingMatrixView: React.FC<Props> = ({ showToast }) => {
   const [activeTab, setActiveTab] = useState<'Standard Price Lists' | 'Rebate Programs' | 'Margin Simulator'>('Standard Price Lists');
   const [search, setSearch] = useState<string>('');
+
+  const { paginatedData: pagedPriceLists, paginationProps: priceListPaginationProps } = usePagination(
+    SALES_PRICE_LISTS,
+    { initialPageSize: 10, pageSizeOptions: [5, 10, 20] }
+  );
+
+  const { paginatedData: pagedRebates, paginationProps: rebatePaginationProps } = usePagination(
+    SALES_REBATES,
+    { initialPageSize: 4, pageSizeOptions: [2, 4, 8] }
+  );
 
   // Simulator State
   const [simBaseCost, setSimBaseCost] = useState<number>(7.2);
@@ -107,7 +119,7 @@ export const SalesPricingMatrixView: React.FC<Props> = ({ showToast }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E4E0D6]">
-                {SALES_PRICE_LISTS.map((p) => (
+                {pagedPriceLists.map((p) => (
                   <tr key={p.id} className="hover:bg-slate-50">
                     <td className="p-3 font-mono font-bold text-[#0F8B8D]">{p.id}</td>
                     <td className="p-3 font-medium text-[#14213D]">{p.name}</td>
@@ -133,58 +145,64 @@ export const SalesPricingMatrixView: React.FC<Props> = ({ showToast }) => {
               </tbody>
             </table>
           </div>
+          <PaginationBar {...priceListPaginationProps} itemName="price lists" />
         </div>
       )}
 
       {/* Tab 2: Rebate Programs */}
       {activeTab === 'Rebate Programs' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {SALES_REBATES.map((r) => {
-            const pctAchieved = Math.min(100, Math.round((r.currentVolume / r.volumeTarget) * 100));
-            return (
-              <div key={r.id} className="bg-white p-5 rounded-xl border border-[#E4E0D6] shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b border-[#E4E0D6] pb-3">
-                  <div>
-                    <span className="font-mono text-xs font-bold text-[#0F8B8D]">{r.id}</span>
-                    <h2 className="text-base font-bold text-[#14213D]">{r.name}</h2>
-                    <p className="text-xs text-[#6B7280]">Customer: {r.customer} &middot; {r.productGroup}</p>
-                  </div>
-                  <span className="badge green">{r.status}</span>
-                </div>
-
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between font-mono">
-                    <span className="text-[#6B7280]">Volume Target:</span>
-                    <span className="font-bold text-[#14213D]">{r.volumeTarget.toLocaleString()} PCS</span>
-                  </div>
-                  <div className="flex justify-between font-mono">
-                    <span className="text-[#6B7280]">Current Achieved:</span>
-                    <span className="font-bold text-emerald-700">
-                      {r.currentVolume.toLocaleString()} PCS ({pctAchieved}%)
-                    </span>
-                  </div>
-                  <div className="flex justify-between font-mono">
-                    <span className="text-[#6B7280]">Rebate Rate:</span>
-                    <span className="font-bold text-[#E8622C]">{r.rebatePct}% Credit Memo</span>
-                  </div>
-                  <div className="flex justify-between font-mono">
-                    <span className="text-[#6B7280]">Accrued Credit:</span>
-                    <span className="font-bold text-emerald-700">₹{r.accruedRebate.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between font-mono">
-                    <span className="text-[#6B7280]">Validity:</span>
-                    <span>{r.validity}</span>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {pagedRebates.map((r) => {
+              const pctAchieved = Math.min(100, Math.round((r.currentVolume / r.volumeTarget) * 100));
+              return (
+                <div key={r.id} className="bg-white p-5 rounded-xl border border-[#E4E0D6] shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#E4E0D6] pb-3">
+                    <div>
+                      <span className="font-mono text-xs font-bold text-[#0F8B8D]">{r.id}</span>
+                      <h2 className="text-base font-bold text-[#14213D]">{r.name}</h2>
+                      <p className="text-xs text-[#6B7280]">Customer: {r.customer} &middot; {r.productGroup}</p>
+                    </div>
+                    <span className="badge green">{r.status}</span>
                   </div>
 
-                  <div className="pt-2">
-                    <div className="h-2 w-full bg-[#F6F4EF] rounded-full overflow-hidden">
-                      <div className="h-full bg-[#0F8B8D] rounded-full" style={{ width: `${pctAchieved}%` }} />
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between font-mono">
+                      <span className="text-[#6B7280]">Volume Target:</span>
+                      <span className="font-bold text-[#14213D]">{r.volumeTarget.toLocaleString()} PCS</span>
+                    </div>
+                    <div className="flex justify-between font-mono">
+                      <span className="text-[#6B7280]">Current Achieved:</span>
+                      <span className="font-bold text-emerald-700">
+                        {r.currentVolume.toLocaleString()} PCS ({pctAchieved}%)
+                      </span>
+                    </div>
+                    <div className="flex justify-between font-mono">
+                      <span className="text-[#6B7280]">Rebate Rate:</span>
+                      <span className="font-bold text-[#E8622C]">{r.rebatePct}% Credit Memo</span>
+                    </div>
+                    <div className="flex justify-between font-mono">
+                      <span className="text-[#6B7280]">Accrued Credit:</span>
+                      <span className="font-bold text-emerald-700">₹{r.accruedRebate.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between font-mono">
+                      <span className="text-[#6B7280]">Validity:</span>
+                      <span>{r.validity}</span>
+                    </div>
+
+                    <div className="pt-2">
+                      <div className="h-2 w-full bg-[#F6F4EF] rounded-full overflow-hidden">
+                        <div className="h-full bg-[#0F8B8D] rounded-full" style={{ width: `${pctAchieved}%` }} />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+          <div className="bg-white rounded-xl border border-[#E4E0D6] overflow-hidden">
+            <PaginationBar {...rebatePaginationProps} itemName="rebates" />
+          </div>
         </div>
       )}
 

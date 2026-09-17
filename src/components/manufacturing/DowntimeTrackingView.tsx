@@ -14,6 +14,8 @@ import {
   Activity,
   Filter
 } from 'lucide-react';
+import { PaginationBar } from '../common/PaginationBar';
+import { usePagination } from '../../hooks/usePagination';
 
 interface DowntimeProps {
   workOrders: WorkOrder[];
@@ -58,17 +60,22 @@ export const DowntimeTrackingView: React.FC<DowntimeProps> = ({
     },
     {
       id: 'DT-2026-086',
-      machine: 'EXT-LINE-02',
-      wo: 'WO-1189',
-      category: 'Material & Feed',
-      subReason: 'Hopper Vacuum Loader Clog',
+      machine: 'IMM-150T-01',
+      wo: 'WO-1186',
+      category: 'Raw Material Feed',
+      subReason: 'Hopper Resin Bridging Issue',
       durationMin: 15,
       status: 'Resolved',
       escalationLevel: 'Level 1: Operator Handled',
-      reportedAt: '07:30 AM',
-      technician: 'A. Sharma'
+      reportedAt: '08:00 AM',
+      technician: 'S. Patil'
     }
   ];
+
+  const { paginatedData: paginatedEvents, paginationProps } = usePagination(downtimeEvents, {
+    initialPageSize: 10,
+    pageSizeOptions: [10, 25, 50],
+  });
 
   return (
     <div className="space-y-6">
@@ -157,7 +164,7 @@ export const DowntimeTrackingView: React.FC<DowntimeProps> = ({
                 </tr>
               </thead>
               <tbody>
-                {downtimeEvents.map((evt) => (
+                {paginatedEvents.map((evt) => (
                   <tr key={evt.id} className="border-b border-[#E4E0D6] hover:bg-[#FAF9F5]">
                     <td className="p-3 font-mono font-bold text-[#0F8B8D]">{evt.id}</td>
                     <td className="p-3 font-mono font-bold text-[#14213D]">{evt.machine}</td>
@@ -182,6 +189,10 @@ export const DowntimeTrackingView: React.FC<DowntimeProps> = ({
                 ))}
               </tbody>
             </table>
+            <PaginationBar
+              {...paginationProps}
+              itemName="events"
+            />
           </div>
         </div>
       )}

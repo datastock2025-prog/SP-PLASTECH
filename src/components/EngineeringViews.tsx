@@ -748,9 +748,13 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
                           </button>
                           <button
                             onClick={() => {
-                              const pItem = items.find((i) => i.code === bom.parent) || items[0];
-                              setWizardParentItem(pItem);
-                              setIsMfgBomWizardOpen(true);
+                              const pItem = items.find((i) => i.code === bom.parent) || (items.length > 0 ? items[0] : null);
+                              if (pItem) {
+                                setWizardParentItem(pItem);
+                                setIsMfgBomWizardOpen(true);
+                              } else {
+                                showToast('No parent item record found in catalog for this BOM.');
+                              }
                             }}
                             title="Open in 9-Step Manufacturing BOM Wizard"
                             className="p-1 text-[#6B7280] hover:text-[#0F8B8D] hover:bg-teal-50 rounded"
@@ -1084,9 +1088,13 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
           {renderStatusBadge(activeBom.status)}
           <button
             onClick={() => {
-              const pItem = items.find((i) => i.code === activeBom.parent) || items[0];
-              setWizardParentItem(pItem);
-              setIsMfgBomWizardOpen(true);
+              const pItem = items.find((i) => i.code === activeBom.parent) || (items.length > 0 ? items[0] : null);
+              if (pItem) {
+                setWizardParentItem(pItem);
+                setIsMfgBomWizardOpen(true);
+              } else {
+                showToast('No parent item record found in catalog for this BOM.');
+              }
             }}
             className="btn btn-sm btn-primary flex items-center gap-1.5 shadow-sm"
           >

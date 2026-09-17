@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { usePagination } from '../../hooks/usePagination';
+import { PaginationBar } from '../common/PaginationBar';
 import {
   BarChart3,
   Plus,
@@ -55,6 +57,12 @@ export const SpcMonitorView: React.FC<Props> = ({
   const [subgroups, setSubgroups] = useState<SpcSubgroup[]>(INITIAL_SUBGROUPS);
   const [selectedChar, setSelectedChar] = useState<'wall' | 'weight' | 'od' | 'cycle'>('wall');
   const [selectedMachine, setSelectedMachine] = useState<string>('IMM-250T-03');
+
+  const reversedSubgroups = useMemo(() => [...subgroups].reverse(), [subgroups]);
+  const { paginatedData: pagedSubgroups, paginationProps } = usePagination(reversedSubgroups, {
+    initialPageSize: 8,
+    pageSizeOptions: [5, 8, 15, 25],
+  });
 
   // Characteristic Configuration
   const charConfig = {
@@ -426,7 +434,7 @@ export const SpcMonitorView: React.FC<Props> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E4E0D6]">
-              {subgroups.slice(-8).reverse().map((g) => (
+              {pagedSubgroups.map((g) => (
                 <tr key={g.id} className="hover:bg-[#F6F4EF]/40 transition-colors">
                   <td className="py-2.5 px-3 font-mono font-bold text-[#0F8B8D]">#{g.id}</td>
                   <td className="py-2.5 px-3 font-mono text-[#6B7280]">{g.time}</td>
@@ -449,6 +457,7 @@ export const SpcMonitorView: React.FC<Props> = ({
             </tbody>
           </table>
         </div>
+        <PaginationBar {...paginationProps} itemName="subgroups" />
       </div>
     </div>
   );

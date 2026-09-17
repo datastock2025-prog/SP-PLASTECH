@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { mockReplenishmentItems } from '../../data/mockScmData';
 import { ReplenishmentItem } from '../../types/scm';
+import { PaginationBar } from '../common/PaginationBar';
+import { usePagination } from '../../hooks/usePagination';
 
 interface ScmReplenishmentViewProps {
   onNavigate: (view: string, param?: any) => void;
@@ -32,6 +34,11 @@ export const ScmReplenishmentView: React.FC<ScmReplenishmentViewProps> = ({ onNa
       i.preferredSupplier.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesRule = ruleFilter === 'All' || i.ruleType === ruleFilter;
     return matchesSearch && matchesRule;
+  });
+
+  const { paginatedData: paginatedItems, paginationProps } = usePagination(filteredItems, {
+    initialPageSize: 10,
+    pageSizeOptions: [10, 25, 50],
   });
 
   const handleTriggerReorder = (item: ReplenishmentItem) => {
@@ -115,59 +122,71 @@ export const ScmReplenishmentView: React.FC<ScmReplenishmentViewProps> = ({ onNa
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filteredItems.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="p-3">
-                    <div className="font-bold text-slate-900">{item.itemCode}</div>
-                    <div className="text-[11px] text-slate-500">{item.itemName}</div>
-                    <div className="text-[10px] text-slate-400">{item.preferredSupplier}</div>
-                  </td>
-                  <td className="p-3 font-mono text-[11px] text-slate-600">{item.warehouseLocation}</td>
-                  <td className="p-3 text-right font-mono font-bold text-slate-900">
-                    {item.currentStock.toLocaleString()} {item.uom}
-                  </td>
-                  <td className="p-3 text-right font-mono text-amber-700 font-semibold">
-                    {item.reorderLevel.toLocaleString()} {item.uom}
-                  </td>
-                  <td className="p-3 text-right font-mono text-slate-600">
-                    {item.safetyStock.toLocaleString()} {item.uom}
-                  </td>
-                  <td className="p-3 text-right font-mono text-[11px] text-slate-500">
-                    {item.minStock.toLocaleString()} / {item.maxStock.toLocaleString()}
-                  </td>
-                  <td className="p-3 text-right font-mono font-bold text-emerald-700">
-                    {item.reorderQty.toLocaleString()} {item.uom}
-                  </td>
-                  <td className="p-3">
-                    <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-medium border border-slate-200">
-                      {item.ruleType}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        item.status === 'Below Safety Stock'
-                          ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                          : item.status === 'Below Reorder'
-                          ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      }`}
-                    >
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="p-3 text-right">
-                    <button
-                      onClick={() => handleTriggerReorder(item)}
-                      className="px-2.5 py-1 bg-[#E8622C] hover:bg-[#d45422] text-white rounded text-[11px] font-bold transition cursor-pointer"
-                    >
-                      Reorder Now
-                    </button>
+              {paginatedItems.length > 0 ? (
+                paginatedItems.map((item) => (
+                  <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="p-3">
+                      <div className="font-bold text-slate-900">{item.itemCode}</div>
+                      <div className="text-[11px] text-slate-500">{item.itemName}</div>
+                      <div className="text-[10px] text-slate-400">{item.preferredSupplier}</div>
+                    </td>
+                    <td className="p-3 font-mono text-[11px] text-slate-600">{item.warehouseLocation}</td>
+                    <td className="p-3 text-right font-mono font-bold text-slate-900">
+                      {item.currentStock.toLocaleString()} {item.uom}
+                    </td>
+                    <td className="p-3 text-right font-mono text-amber-700 font-semibold">
+                      {item.reorderLevel.toLocaleString()} {item.uom}
+                    </td>
+                    <td className="p-3 text-right font-mono text-slate-600">
+                      {item.safetyStock.toLocaleString()} {item.uom}
+                    </td>
+                    <td className="p-3 text-right font-mono text-[11px] text-slate-500">
+                      {item.minStock.toLocaleString()} / {item.maxStock.toLocaleString()}
+                    </td>
+                    <td className="p-3 text-right font-mono font-bold text-emerald-700">
+                      {item.reorderQty.toLocaleString()} {item.uom}
+                    </td>
+                    <td className="p-3">
+                      <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-medium border border-slate-200">
+                        {item.ruleType}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          item.status === 'Below Safety Stock'
+                            ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                            : item.status === 'Below Reorder'
+                            ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        }`}
+                      >
+                        {item.status}
+                      </span>
+                    </td>
+                    <td className="p-3 text-right">
+                      <button
+                        onClick={() => handleTriggerReorder(item)}
+                        className="px-2.5 py-1 bg-[#E8622C] hover:bg-[#d45422] text-white rounded text-[11px] font-bold transition cursor-pointer"
+                      >
+                        Reorder Now
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={10} className="p-8 text-center text-slate-400">
+                    No replenishment items match search filters.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
+          <PaginationBar
+            {...paginationProps}
+            itemName="items"
+          />
         </div>
       </div>
     </div>

@@ -30,6 +30,7 @@ import {
 import { PaginationBar } from './common/PaginationBar';
 import { CreateItemWizardModal } from './masterdata/CreateItemWizardModal';
 import { ManufacturingBomWizardModal } from './engineering/bomWizard/ManufacturingBomWizardModal';
+import { itemService } from '../services/itemService';
 
 interface MasterDataProps {
   view: string;
@@ -38,7 +39,7 @@ interface MasterDataProps {
   machines: MachineMaster[];
   selectedCode?: string;
   selectedId?: string;
-  onNavigate: (view: string, param?: any) => void;
+  onNavigate: (view: string, code?: string, id?: string) => void;
   onUpdateItem: (item: ItemMaster) => void;
   onDeleteItem: (code: string) => void;
   onCreateItem: (item: ItemMaster) => void;
@@ -102,6 +103,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   };
 
   const handleSaveWizardItem = (savedItem: ItemMaster) => {
+    itemService.saveItem(savedItem);
     const exists = items.some((i) => i.code === savedItem.code);
     if (exists) {
       onUpdateItem(savedItem);
@@ -159,6 +161,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
       if (!matchSearch) return false;
       if (filterType === 'all') return true;
       if (filterType === 'pending_approval') return i.approval === 'pending';
+      if (filterType === 'draft') return i.approval === 'draft';
       if (filterType === 'Masterbatch') return i.type === 'Masterbatch' || i.type === 'Additive';
       return i.type === filterType;
     });
@@ -166,11 +169,10 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
     const lowStockCount = items.filter((i) => i.status === 'low').length;
     const holdCount = items.filter((i) => i.status === 'hold').length;
     const pendingCount = items.filter((i) => i.approval === 'pending').length;
+    const draftCount = items.filter((i) => i.approval === 'draft').length;
 
     const totalItemPages = Math.ceil(filteredItems.length / itemPageSize) || 1;
     const pagedItems = filteredItems.slice((itemPage - 1) * itemPageSize, itemPage * itemPageSize);
-
-
 
     return (
       <div className="space-y-5">
@@ -205,9 +207,9 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
             <div className="trend flat">Across 7 categories</div>
           </div>
           <div className="kpi-card">
-            <div className="lbl">Low Stock</div>
-            <div className="val">{lowStockCount}</div>
-            <div className="trend down">Needs purchase requisition</div>
+            <div className="lbl">Drafts in Progress</div>
+            <div className="val text-amber-700">{draftCount}</div>
+            <div className="trend flat">{draftCount ? 'Auto-saving enabled' : 'Zero drafts'}</div>
           </div>
           <div className="kpi-card">
             <div className="lbl">Pending Approval</div>
@@ -215,14 +217,9 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
             <div className="trend flat">{pendingCount ? 'Awaiting QA review' : 'All approved'}</div>
           </div>
           <div className="kpi-card">
-            <div className="lbl">Quality Holds</div>
-            <div className="val">{holdCount}</div>
-            <div className="trend down">{holdCount ? 'Regrind lot held' : 'Zero holds'}</div>
-          </div>
-          <div className="kpi-card">
-            <div className="lbl">Total Inventory Value</div>
-            <div className="val">₹4.2Cr</div>
-            <div className="trend up">▲ 2.1% MoM</div>
+            <div className="lbl">Low Stock</div>
+            <div className="val">{lowStockCount}</div>
+            <div className="trend down">Needs purchase requisition</div>
           </div>
         </div>
 
@@ -233,6 +230,12 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
             onClick={() => setFilterType('all')}
           >
             All Items
+          </div>
+          <div
+            className={`chip ${filterType === 'Finished Good' ? 'active' : ''}`}
+            onClick={() => setFilterType('Finished Good')}
+          >
+            Finished Goods
           </div>
           <div
             className={`chip ${filterType === 'Raw Material' ? 'active' : ''}`}
@@ -253,22 +256,16 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
             Regrind
           </div>
           <div
-            className={`chip ${filterType === 'Finished Good' ? 'active' : ''}`}
-            onClick={() => setFilterType('Finished Good')}
+            className={`chip ${filterType === 'draft' ? 'active' : ''}`}
+            onClick={() => setFilterType('draft')}
           >
-            Finished Goods
-          </div>
-          <div
-            className={`chip ${filterType === 'Spare Part' ? 'active' : ''}`}
-            onClick={() => setFilterType('Spare Part')}
-          >
-            Spares
+            📝 Drafts ({draftCount})
           </div>
           <div
             className={`chip ${filterType === 'pending_approval' ? 'active' : ''}`}
             onClick={() => setFilterType('pending_approval')}
           >
-            ⏳ Pending Review
+            ⏳ Pending Review ({pendingCount})
           </div>
 
           <div className="flex-1 max-w-xs ml-auto">
@@ -572,6 +569,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                                   `Delete ${item.code}?`,
                                   `This will remove ${item.name} from the master catalog.`,
                                   () => {
+                                    itemService.deleteItem(item.code);
                                     onDeleteItem(item.code);
                                     showToast(`Item ${item.code} deleted`);
                                   }
@@ -588,8 +586,26 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                 ) : (
                   <tr>
                     <td colSpan={10}>
-                      <div className="p-8 text-center text-xs text-[#6B7280]">
-                        No items match this filter. Try adjusting your search query.
+                      <div className="py-12 px-6 text-center">
+                        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-teal-50 text-[#0F8B8D] mb-3">
+                          <Plus className="w-6 h-6" />
+                        </div>
+                        <h3 className="text-sm font-bold text-[#14213D] mb-1">
+                          {items.length === 0 ? 'No Master Items in Catalog' : 'No matching items found'}
+                        </h3>
+                        <p className="text-xs text-[#6B7280] max-w-md mx-auto mb-4">
+                          {items.length === 0
+                            ? 'The catalog is empty and ready for live data entry. Click below to register your first Raw Material or Finished Good.'
+                            : 'No items match your active search or filter. Try clearing filters or changing search query.'}
+                        </p>
+                        {items.length === 0 && (
+                          <button
+                            onClick={handleOpenCreateItemWizard}
+                            className="btn btn-sm btn-primary inline-flex items-center gap-1.5"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Create First Item
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -641,8 +657,30 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
      ITEM DETAIL VIEW (With All 10 Full Tabs)
   ---------------------------------------------------- */
   if (view === 'itemDetail') {
-    const item = items.find((i) => i.code === selectedCode) || items[0];
-    const itemBoms = boms.filter((b) => b.lines.some((l) => l.item === item.code) || b.parent === item.code);
+    const item = items.find((i) => i.code === selectedCode) || (items.length > 0 ? items[0] : null);
+    if (!item) {
+      return (
+        <div className="space-y-5">
+          <div className="back-link" onClick={() => onNavigate('itemList')}>
+            <ArrowLeft className="w-3.5 h-3.5" /> Back to Item Master
+          </div>
+          <div className="p-12 text-center bg-white rounded-xl border border-[#E4E0D6] shadow-xs">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-100 text-slate-500 mb-3">
+              <Box className="w-6 h-6" />
+            </div>
+            <h3 className="text-sm font-bold text-[#14213D] mb-1">Item Not Found in Catalog</h3>
+            <p className="text-xs text-[#6B7280] max-w-sm mx-auto mb-4">
+              The requested item code is not available or the master catalog is currently empty.
+            </p>
+            <button className="btn btn-sm btn-primary" onClick={() => onNavigate('itemList')}>
+              Return to Catalog
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    const itemBoms = boms.filter((b) => (b.lines || []).some((l) => l.item === item.code) || b.parent === item.code);
 
     const tabs = [
       'Overview',
@@ -1180,21 +1218,31 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   ---------------------------------------------------- */
   if (view === 'bomList') {
     const openCreateBomModal = () => {
-      let parent = items.find((i) => i.type === 'Finished Good')?.code || 'FG-CTN-500';
+      const fgItems = items.filter((i) => i.type === 'Finished Good');
+      let parent = fgItems.length > 0 ? fgItems[0].code : '';
       let version = 'v1';
       const handleSave = () => {
         const parentItem = items.find((i) => i.code === parent);
+        const rawMaterials = items.filter((i) => i.type === 'Raw Material' || i.type === 'Masterbatch');
+        const lines = rawMaterials.length > 0
+          ? rawMaterials.slice(0, 2).map((rm) => ({
+              item: rm.code,
+              name: rm.name,
+              qty: 1,
+              uom: rm.baseUOM || 'KG',
+              scrap: 0,
+              cost: 0,
+            }))
+          : [];
+
         const newBom: BomMaster = {
           id: `BOM-${1050 + boms.length}`,
-          parent,
-          parentName: parentItem?.name || parent,
+          parent: parent || 'NEW-FG-RECIPE',
+          parentName: parentItem?.name || parent || 'New Product Recipe',
           version,
           status: 'released',
           updated: 'Today',
-          lines: [
-            { item: 'RM-PP-NAT-001', name: 'PP Natural Granules', qty: 0.485, uom: 'KG', scrap: 2, cost: 37.8 },
-            { item: 'MB-WHT-002', name: 'White Masterbatch', qty: 0.012, uom: 'KG', scrap: 1, cost: 5.2 }
-          ]
+          lines,
         };
         onCreateBom(newBom);
         closeDrawer();
@@ -1240,8 +1288,12 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
             <button
               className="btn btn-sm btn-primary flex items-center gap-1.5 shadow-sm"
               onClick={() => {
-                const defaultParent = items.find((i) => i.type === 'Finished Goods' || i.type === 'Finished Good') || items[0];
-                handleOpenMfgBomWizard(defaultParent);
+                const defaultParent = items.find((i) => i.type === 'Finished Goods' || i.type === 'Finished Good') || (items.length > 0 ? items[0] : null);
+                if (defaultParent) {
+                  handleOpenMfgBomWizard(defaultParent);
+                } else {
+                  showToast('Please create a Finished Good item first in Item Master before building a BOM.');
+                }
               }}
             >
               <Layers className="w-3.5 h-3.5" /> Create Manufacturing BOM
@@ -1274,35 +1326,43 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               </tr>
             </thead>
             <tbody>
-              {boms.map((b) => {
-                const totalCost = b.lines.reduce((s, l) => s + (l.cost || 0), 0);
-                return (
-                  <tr key={b.id} onClick={() => onNavigate('bomDetail', { id: b.id })}>
-                    <td><span className="cell-code">{b.id}</span></td>
-                    <td className="cell-name"><b>{b.parentName}</b><div className="cell-sub">{b.parent}</div></td>
-                    <td>{b.version}</td>
-                    <td>{b.lines.length} components</td>
-                    <td className="font-mono font-bold">₹{totalCost.toFixed(2)}</td>
-                    <td>{renderApprovalBadge(b.status)}</td>
-                    <td className="mono text-xs text-[#6B7280]">{b.updated}</td>
-                    <td>
-                      <div className="row-actions" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          className="row-ic danger"
-                          onClick={() => {
-                            openConfirm(`Delete ${b.id}?`, `Delete recipe for ${b.parentName}?`, () => {
-                              onDeleteBom(b.id);
-                              showToast(`BOM ${b.id} deleted`);
-                            });
-                          }}
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+              {boms.length > 0 ? (
+                boms.map((b) => {
+                  const totalCost = (b.lines || []).reduce((s, l) => s + (l.cost || 0), 0);
+                  return (
+                    <tr key={b.id} onClick={() => onNavigate('bomDetail', { id: b.id })}>
+                      <td><span className="cell-code">{b.id}</span></td>
+                      <td className="cell-name"><b>{b.parentName}</b><div className="cell-sub">{b.parent}</div></td>
+                      <td>{b.version}</td>
+                      <td>{(b.lines || []).length} components</td>
+                      <td className="font-mono font-bold">₹{totalCost.toFixed(2)}</td>
+                      <td>{renderApprovalBadge(b.status)}</td>
+                      <td className="mono text-xs text-[#6B7280]">{b.updated}</td>
+                      <td>
+                        <div className="row-actions" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            className="row-ic danger"
+                            onClick={() => {
+                              openConfirm(`Delete ${b.id}?`, `Delete recipe for ${b.parentName}?`, () => {
+                                onDeleteBom(b.id);
+                                showToast(`BOM ${b.id} deleted`);
+                              });
+                            }}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={8} className="p-8 text-center text-xs text-[#6B7280]">
+                    No Bill of Materials configured yet. Click 'Create Manufacturing BOM' to get started.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -1331,8 +1391,24 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
      BOM DETAIL VIEW
   ---------------------------------------------------- */
   if (view === 'bomDetail') {
-    const bom = boms.find((b) => b.id === selectedId) || boms[0];
-    const totalCost = bom.lines.reduce((s, l) => s + (l.cost || 0), 0);
+    const bom = boms.find((b) => b.id === selectedId) || (boms.length > 0 ? boms[0] : null);
+    if (!bom) {
+      return (
+        <div className="space-y-5">
+          <div className="back-link" onClick={() => onNavigate('bomList')}>
+            <ArrowLeft className="w-3.5 h-3.5" /> Back to BOM Master
+          </div>
+          <div className="p-12 text-center bg-white rounded-xl border border-[#E4E0D6]">
+            <h3 className="text-sm font-bold text-[#14213D] mb-1">BOM Not Found</h3>
+            <p className="text-xs text-[#6B7280] mb-4">The requested Bill of Materials record does not exist.</p>
+            <button className="btn btn-sm btn-primary" onClick={() => onNavigate('bomList')}>
+              Return to BOM List
+            </button>
+          </div>
+        </div>
+      );
+    }
+    const totalCost = (bom.lines || []).reduce((s, l) => s + (l.cost || 0), 0);
 
     return (
       <div className="space-y-5">

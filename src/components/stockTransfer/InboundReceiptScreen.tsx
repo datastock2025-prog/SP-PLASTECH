@@ -25,6 +25,8 @@ import {
   MaintenanceWorkOrderDraft,
   UserRolePerspective,
 } from '../../types/stockTransferTypes';
+import { usePagination } from '../../hooks/usePagination';
+import { PaginationBar } from '../common/PaginationBar';
 
 interface InboundReceiptScreenProps {
   transfers?: StockTransferRecord[];
@@ -50,6 +52,11 @@ export const InboundReceiptScreen: React.FC<InboundReceiptScreenProps> = ({
   // Transfer Search / QR Code Input
   const [searchInput, setSearchInput] = useState<string>(selectedTransferId || 'XSTN-2026-00452');
   const [activeTransfer, setActiveTransfer] = useState<StockTransferRecord | null>(null);
+
+  const { paginatedData: pagedItems, paginationProps } = usePagination(activeTransfer?.items || [], {
+    initialPageSize: 10,
+    pageSizeOptions: [5, 10, 20],
+  });
 
   // Editable Received Quantities
   const [receivedQtys, setReceivedQtys] = useState<Record<string, number>>({});
@@ -505,7 +512,7 @@ export const InboundReceiptScreen: React.FC<InboundReceiptScreenProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {activeTransfer.items.map((item) => {
+                    {pagedItems.map((item) => {
                       const rec = receivedQtys[item.id] ?? item.transferQty;
                       const short = Math.max(0, item.transferQty - rec);
                       const hasVariance = short > 0;
@@ -574,6 +581,7 @@ export const InboundReceiptScreen: React.FC<InboundReceiptScreenProps> = ({
                   </tbody>
                 </table>
               </div>
+              <PaginationBar {...paginationProps} itemName="items" />
             </div>
           )}
 

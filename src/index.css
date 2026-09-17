@@ -778,13 +778,21 @@ tbody tr:last-child td {
   flex-direction: column;
   gap: 10px;
   cursor: pointer;
-  transition: border-color .15s, box-shadow .15s, transform .12s;
+  position: relative;
+  overflow: hidden;
+  transition: border-color .2s ease-out, box-shadow .2s ease-out, transform .2s ease-out, background-color .15s ease-out;
 }
 
 .module-card:hover {
-  border-color: transparent;
-  box-shadow: var(--shadow);
-  transform: translateY(-2px);
+  border-color: var(--teal);
+  box-shadow: 0 10px 24px -8px rgba(15, 139, 141, 0.15), var(--shadow);
+  transform: translateY(-3px);
+}
+
+.module-card:active {
+  transform: translateY(1px) scale(0.98);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+  transition-duration: 75ms;
 }
 
 .m-icon {

@@ -20,6 +20,8 @@ import {
   ReturnableDCRecord,
   UserRolePerspective,
 } from '../../types/stockTransferTypes';
+import { usePagination } from '../../hooks/usePagination';
+import { PaginationBar } from '../common/PaginationBar';
 
 interface ReturnableDCScreenProps {
   returnableDcs?: ReturnableDCRecord[];
@@ -70,6 +72,11 @@ export const ReturnableDCScreen: React.FC<ReturnableDCScreenProps> = ({
         : dc.agingStatus.includes('>30d');
 
     return matchesSearch && matchesAging;
+  });
+
+  const { paginatedData: pagedDcs, paginationProps } = usePagination(filteredDcs, {
+    initialPageSize: 10,
+    pageSizeOptions: [5, 10, 20, 50],
   });
 
   const totalIssued = returnableDcs.reduce((acc, d) => acc + d.issuedQty, 0);
@@ -219,7 +226,7 @@ export const ReturnableDCScreen: React.FC<ReturnableDCScreenProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredDcs.map((dc) => {
+                pagedDcs.map((dc) => {
                   const isClosed = dc.pendingReturnQty === 0;
                   const isOverdue = dc.agingStatus.includes('>30d') && !isClosed;
 
@@ -308,6 +315,7 @@ export const ReturnableDCScreen: React.FC<ReturnableDCScreenProps> = ({
             </tbody>
           </table>
         </div>
+        <PaginationBar {...paginationProps} itemName="delivery challans" />
       </div>
 
       {/* MODAL 1: Receive Return Workflow */}

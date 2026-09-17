@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Building2,
   MapPin,
   FileText,
   Plus,
   Edit2,
+  Trash2,
   CheckCircle2,
   AlertCircle,
   Clock,
@@ -16,9 +17,12 @@ import {
   Globe,
   Coins,
   Calendar,
+  Database,
+  RefreshCw,
 } from 'lucide-react';
 import { CompanyProfile, PlantDetails } from '../../types/admin';
 import { mockCompanyProfile } from '../../data/mockAdminData';
+import { adminService, adminEventBus } from '../../services/adminService';
 
 interface AdminCompanyPlantsViewProps {
   showToast?: (msg: string) => void;
@@ -32,6 +36,30 @@ export const AdminCompanyPlantsView: React.FC<AdminCompanyPlantsViewProps> = ({
   const [companyForm, setCompanyForm] = useState(mockCompanyProfile);
   const [isPlantModalOpen, setIsPlantModalOpen] = useState(false);
   const [editingPlantId, setEditingPlantId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Load plants from PostgreSQL
+  const loadPlants = async () => {
+    setIsLoading(true);
+    try {
+      const livePlants = await adminService.getPlants();
+      setProfile((prev) => ({ ...prev, plants: livePlants }));
+    } catch {
+      // Fallback
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPlants();
+    const unsub = adminEventBus.subscribe(() => {
+      adminService.getPlants().then((livePlants) => {
+        setProfile((prev) => ({ ...prev, plants: livePlants }));
+      });
+    });
+    return unsub;
+  }, []);
 
   const [plantForm, setPlantForm] = useState<Partial<PlantDetails>>({
     plantCode: '',
@@ -63,14 +91,14 @@ export const AdminCompanyPlantsView: React.FC<AdminCompanyPlantsViewProps> = ({
   const handleOpenCreatePlant = () => {
     setEditingPlantId(null);
     setPlantForm({
-      plantCode: `PL-0${profile.plants.length + 1}-HYD`,
+      plantCode: `PLANT-0${profile.plants.length + 1}`,
       plantName: '',
-      division: 'Automotive / Technical Polymer Compounding',
+      division: 'Automotive & Technical Polymers',
       address: '',
       city: '',
       state: '',
       pincode: '',
-      gstin: '36AABCR9281G1Z1',
+      gstin: '33AABCR1234F1Z0',
       contactPerson: '',
       contactEmail: '',
       contactPhone: '',
@@ -90,7 +118,7 @@ export const AdminCompanyPlantsView: React.FC<AdminCompanyPlantsViewProps> = ({
     setIsPlantModalOpen(true);
   };
 
-  const handleSavePlant = (e: React.FormEvent) => {
+  const handleSavePlant = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!plantForm.plantName || !plantForm.city) {
       showToast('Please specify plant facility name and city location.');
@@ -98,24 +126,32 @@ export const AdminCompanyPlantsView: React.FC<AdminCompanyPlantsViewProps> = ({
     }
 
     if (editingPlantId) {
+      const updated = await adminService.updatePlant(editingPlantId, plantForm);
       setProfile((prev) => ({
         ...prev,
-        plants: prev.plants.map((p) => (p.id === editingPlantId ? { ...p, ...(plantForm as PlantDetails) } : p)),
+        plants: prev.plants.map((p) => (p.id === editingPlantId ? updated : p)),
       }));
-      showToast('Manufacturing facility specifications updated.');
+      showToast(`Manufacturing facility ${updated.plantName} updated in PostgreSQL database.`);
     } else {
-      const newPlant: PlantDetails = {
-        ...(plantForm as PlantDetails),
-        id: `PLANT-0${profile.plants.length + 1}`,
-        defaultWarehouseId: `WH-${plantForm.plantCode}-01`,
-      };
+      const created = await adminService.createPlant(plantForm);
       setProfile((prev) => ({
         ...prev,
-        plants: [...prev.plants, newPlant],
+        plants: [...prev.plants, created],
       }));
-      showToast(`Manufacturing facility ${newPlant.plantName} registered in multi-plant grid.`);
+      showToast(`Manufacturing facility ${created.plantName} registered and propagated to Topbar & Access matrix.`);
     }
     setIsPlantModalOpen(false);
+  };
+
+  const handleDeletePlant = async (plantId: string) => {
+    const target = profile.plants.find((p) => p.id === plantId);
+    if (!target) return;
+    await adminService.deletePlant(plantId);
+    setProfile((prev) => ({
+      ...prev,
+      plants: prev.plants.filter((p) => p.id !== plantId),
+    }));
+    showToast(`Plant facility ${target.plantName} decommissioned.`);
   };
 
   return (
@@ -370,7 +406,15 @@ export const AdminCompanyPlantsView: React.FC<AdminCompanyPlantsViewProps> = ({
                 </div>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-slate-100 flex justify-end">
+              <div className="mt-4 pt-3 border-t border-slate-100 flex justify-end gap-2">
+                <button
+                  onClick={() => handleDeletePlant(plant.id)}
+                  title="Decommission Facility"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-200 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Decommission
+                </button>
                 <button
                   onClick={() => handleOpenEditPlant(plant)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"

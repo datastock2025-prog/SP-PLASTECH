@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Server,
   Activity,
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { AdminSystemHealth } from '../../types/admin';
 import { mockSystemHealth, mockCompanyProfile, mockAuditLogs } from '../../data/mockAdminData';
+import { adminService } from '../../services/adminService';
 
 interface AdminDashboardViewProps {
   onNavigate?: (view: string, param?: any) => void;
@@ -33,18 +34,24 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'nodes' | 'jobs'>('overview');
 
-  const handleRefreshMetrics = () => {
+  const loadHealth = async () => {
+    try {
+      const data = await adminService.getSystemHealth();
+      setHealth(data);
+    } catch {
+      // Fallback
+    }
+  };
+
+  useEffect(() => {
+    loadHealth();
+  }, []);
+
+  const handleRefreshMetrics = async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      setHealth((prev) => ({
-        ...prev,
-        cpuUsagePct: +(20 + Math.random() * 12).toFixed(1),
-        memoryUsagePct: +(55 + Math.random() * 8).toFixed(1),
-        dbLatencyMs: +(2.5 + Math.random() * 2).toFixed(1),
-      }));
-      setIsRefreshing(false);
-      showToast('System health metrics synchronized from cluster nodes.');
-    }, 600);
+    await loadHealth();
+    setIsRefreshing(false);
+    showToast('PostgreSQL pool metrics & system health telemetry refreshed.');
   };
 
   const handleClearCache = () => {

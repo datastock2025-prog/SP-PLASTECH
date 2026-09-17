@@ -222,20 +222,32 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
           {/* Quick Metrics */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5 w-full xl:w-auto shrink-0 min-w-0">
-            <div className="bg-white/10 backdrop-blur-xs px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border border-white/10 min-w-0 text-center sm:text-left">
-              <div className="text-base sm:text-xl font-bold text-white font-mono">92.4%</div>
+            <div
+              onClick={() => onNavigate('oeeDashboard')}
+              className="bg-white/10 hover:bg-white/20 backdrop-blur-xs px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border border-white/10 hover:border-white/25 min-w-0 text-center sm:text-left transition-all duration-200 hover:-translate-y-0.5 active:scale-95 cursor-pointer select-none group shadow-xs"
+            >
+              <div className="text-base sm:text-xl font-bold text-white font-mono group-hover:text-emerald-200 transition-colors">92.4%</div>
               <div className="text-[10px] text-slate-300 uppercase tracking-wider font-medium truncate">OEE Today</div>
             </div>
-            <div className="bg-white/10 backdrop-blur-xs px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border border-white/10 min-w-0 text-center sm:text-left">
-              <div className="text-base sm:text-xl font-bold text-cyan-300 font-mono">{activeWOCount}</div>
+            <div
+              onClick={() => onNavigate('woList')}
+              className="bg-white/10 hover:bg-white/20 backdrop-blur-xs px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border border-white/10 hover:border-white/25 min-w-0 text-center sm:text-left transition-all duration-200 hover:-translate-y-0.5 active:scale-95 cursor-pointer select-none group shadow-xs"
+            >
+              <div className="text-base sm:text-xl font-bold text-cyan-300 font-mono group-hover:text-cyan-200 transition-colors">{activeWOCount}</div>
               <div className="text-[10px] text-slate-300 uppercase tracking-wider font-medium truncate">Active WOs</div>
             </div>
-            <div className="bg-white/10 backdrop-blur-xs px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border border-white/10 min-w-0 text-center sm:text-left">
-              <div className="text-base sm:text-xl font-bold text-amber-300 font-mono">{lowStockCount}</div>
+            <div
+              onClick={() => onNavigate('stockList')}
+              className="bg-white/10 hover:bg-white/20 backdrop-blur-xs px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border border-white/10 hover:border-white/25 min-w-0 text-center sm:text-left transition-all duration-200 hover:-translate-y-0.5 active:scale-95 cursor-pointer select-none group shadow-xs"
+            >
+              <div className="text-base sm:text-xl font-bold text-amber-300 font-mono group-hover:text-amber-200 transition-colors">{lowStockCount}</div>
               <div className="text-[10px] text-slate-300 uppercase tracking-wider font-medium truncate">Low Stock</div>
             </div>
-            <div className="bg-white/10 backdrop-blur-xs px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border border-white/10 min-w-0 text-center sm:text-left">
-              <div className="text-base sm:text-xl font-bold text-emerald-300 font-mono">{openPOCount}</div>
+            <div
+              onClick={() => onNavigate('poList')}
+              className="bg-white/10 hover:bg-white/20 backdrop-blur-xs px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border border-white/10 hover:border-white/25 min-w-0 text-center sm:text-left transition-all duration-200 hover:-translate-y-0.5 active:scale-95 cursor-pointer select-none group shadow-xs"
+            >
+              <div className="text-base sm:text-xl font-bold text-emerald-300 font-mono group-hover:text-emerald-200 transition-colors">{openPOCount}</div>
               <div className="text-[10px] text-slate-300 uppercase tracking-wider font-medium truncate">Open POs</div>
             </div>
           </div>
@@ -244,60 +256,69 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
       {/* React Architecture Guide & AI Stack Banners */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 min-w-0">
-        <div className="p-4 rounded-xl bg-gradient-to-r from-[#E8622C]/10 via-[#0F8B8D]/10 to-white bg-white border border-[#E8622C]/30 flex items-center justify-between gap-4 shadow-xs min-w-0">
+        <div
+          onClick={handleOpenGuide}
+          className="p-4 rounded-2xl bg-gradient-to-r from-[#E8622C]/10 via-[#0F8B8D]/5 to-white bg-white border border-[#E8622C]/30 hover:border-[#E8622C]/60 flex items-center justify-between gap-4 shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0.5 active:scale-[0.98] transition-all duration-200 cursor-pointer min-w-0 group"
+        >
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-[#E8622C] text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-[#E8622C] group-hover:bg-[#D45320] text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0 group-hover:scale-105 transition-all duration-200">
               <Code className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-sm font-bold text-slate-900 truncate">React Enterprise Spec</h3>
+              <h3 className="text-sm font-bold text-slate-900 group-hover:text-[#E8622C] transition-colors truncate">React Enterprise Spec</h3>
               <p className="text-xs text-slate-500 truncate">Modular monolith, state stores &amp; concurrency.</p>
             </div>
           </div>
           <button
-            onClick={handleOpenGuide}
-            className="px-3 py-1.5 rounded-lg bg-[#E8622C] hover:bg-[#D45320] text-white text-xs font-bold transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1"
+            onClick={(e) => { e.stopPropagation(); handleOpenGuide(); }}
+            className="px-3 py-1.5 rounded-lg bg-[#E8622C] hover:bg-[#D45320] active:scale-95 text-white text-xs font-bold transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1"
           >
             <span>Open Spec</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
           </button>
         </div>
 
-        <div className="p-4 rounded-xl bg-gradient-to-r from-[#0F8B8D]/10 via-[#E8622C]/10 to-white bg-white border border-[#0F8B8D]/30 flex items-center justify-between gap-4 shadow-xs min-w-0">
+        <div
+          onClick={() => onNavigate('aiPromptBuilder')}
+          className="p-4 rounded-2xl bg-gradient-to-r from-[#0F8B8D]/10 via-[#E8622C]/5 to-white bg-white border border-[#0F8B8D]/30 hover:border-[#0F8B8D]/60 flex items-center justify-between gap-4 shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0.5 active:scale-[0.98] transition-all duration-200 cursor-pointer min-w-0 group"
+        >
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-[#0F8B8D] text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-[#0F8B8D] group-hover:bg-[#0D7A7C] text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0 group-hover:scale-105 transition-all duration-200">
               <Sparkles className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-sm font-bold text-slate-900 truncate">AI Stack &amp; Prompt Studio</h3>
+              <h3 className="text-sm font-bold text-slate-900 group-hover:text-[#0F8B8D] transition-colors truncate">AI Stack &amp; Prompt Studio</h3>
               <p className="text-xs text-slate-500 truncate">Streaming UI, context selectors &amp; tone sliders.</p>
             </div>
           </div>
           <button
-            onClick={() => onNavigate('aiPromptBuilder')}
-            className="px-3 py-1.5 rounded-lg bg-[#0F8B8D] hover:bg-[#0D7A7C] text-white text-xs font-bold transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1"
+            onClick={(e) => { e.stopPropagation(); onNavigate('aiPromptBuilder'); }}
+            className="px-3 py-1.5 rounded-lg bg-[#0F8B8D] hover:bg-[#0D7A7C] active:scale-95 text-white text-xs font-bold transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1"
           >
             <span>Launch Studio</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
           </button>
         </div>
 
-        <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-500/10 via-teal-500/10 to-white bg-white border border-indigo-200 flex items-center justify-between gap-4 shadow-xs min-w-0">
+        <div
+          onClick={() => onNavigate('hrCommandCenter')}
+          className="p-4 rounded-2xl bg-gradient-to-r from-indigo-500/10 via-teal-500/5 to-white bg-white border border-indigo-200 hover:border-indigo-400 flex items-center justify-between gap-4 shadow-xs hover:shadow-md hover:-translate-y-0.5 active:translate-y-0.5 active:scale-[0.98] transition-all duration-200 cursor-pointer min-w-0 group"
+        >
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-indigo-600 group-hover:bg-indigo-700 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0 group-hover:scale-105 transition-all duration-200">
               <Users className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-sm font-bold text-slate-900 truncate">HR &amp; Line Staffing</h3>
+              <h3 className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">HR &amp; Line Staffing</h3>
               <p className="text-xs text-slate-500 truncate">128 active personnel, IATF skill matrix.</p>
             </div>
           </div>
           <button
-            onClick={() => onNavigate('hrCommandCenter')}
-            className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1"
+            onClick={(e) => { e.stopPropagation(); onNavigate('hrCommandCenter'); }}
+            className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold transition-all shrink-0 cursor-pointer shadow-xs flex items-center gap-1"
           >
             <span>HR Command</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
           </button>
         </div>
       </div>
@@ -438,10 +459,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer active:scale-95 ${
                 selectedCategory === cat.id
-                  ? 'bg-[#14213D] text-white shadow-xs'
-                  : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700'
+                  ? 'bg-[#14213D] text-white shadow-xs font-bold'
+                  : 'bg-slate-100 hover:bg-slate-200/80 hover:text-slate-900 text-slate-700'
               }`}
             >
               {cat.label}
@@ -481,49 +502,57 @@ export const HomeView: React.FC<HomeViewProps> = ({
               </div>
 
               {/* Items Card Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3 min-w-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3.5 min-w-0">
                 {group.items.map((item) => (
                   <div
                     key={item.id}
                     onClick={() => onNavigate(item.view, item.params)}
-                    className="p-3.5 rounded-xl bg-white border border-slate-200/90 hover:border-indigo-400 hover:shadow-md transition-all duration-150 cursor-pointer flex flex-col justify-between group relative overflow-hidden min-w-0"
+                    className="p-4 rounded-2xl bg-white border border-slate-200/90 hover:border-[#0F8B8D]/50 hover:shadow-lg hover:shadow-teal-900/5 hover:-translate-y-1 active:translate-y-0.5 active:scale-[0.975] active:duration-75 transition-all duration-200 ease-out cursor-pointer flex flex-col justify-between group relative overflow-hidden min-w-0 select-none"
                   >
-                    <div className="space-y-2">
+                    {/* Top Flow Bar Reveal */}
+                    <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-[#E8622C] via-[#0F8B8D] to-indigo-500 opacity-0 group-hover:opacity-100 transition-all duration-300 transform origin-left scale-x-0 group-hover:scale-x-100" />
+                    {/* Subtle Ambient Hover Glow */}
+                    <div className="absolute inset-0 bg-gradient-to-br from-teal-500/[0.03] via-transparent to-[#E8622C]/[0.03] opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+
+                    <div className="space-y-2.5 relative z-10">
                       <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-indigo-50 text-slate-700 group-hover:text-indigo-600 flex items-center justify-center font-bold text-xs transition-colors shrink-0">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8.5 h-8.5 rounded-xl bg-slate-100/90 border border-slate-200/70 text-slate-700 group-hover:bg-[#0F8B8D] group-hover:text-white group-hover:border-[#0F8B8D] group-hover:shadow-md group-hover:shadow-teal-500/20 group-hover:scale-105 transition-all duration-200 flex items-center justify-center font-bold font-mono text-xs shrink-0">
                             {(item.subGroup || group?.title || 'NA').slice(0, 2).toUpperCase()}
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             {item.subGroup && (
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block leading-none">
+                              <span className="text-[10px] font-bold text-slate-400 group-hover:text-[#0F8B8D] uppercase tracking-wider block leading-none transition-colors duration-150 truncate">
                                 {item.subGroup}
                               </span>
                             )}
-                            <h4 className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors leading-snug mt-0.5">
+                            <h4 className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-[#0F8B8D] transition-colors duration-150 leading-snug mt-0.5 truncate">
                               {item.label}
                             </h4>
                           </div>
                         </div>
 
                         {item.badge && (
-                          <span className={`text-[10px] font-bold text-white px-2 py-0.5 rounded-full shrink-0 ${item.badgeColor || 'bg-indigo-600'}`}>
+                          <span className={`text-[10px] font-bold text-white px-2 py-0.5 rounded-full shrink-0 group-hover:scale-105 transition-transform duration-200 shadow-xs ${item.badgeColor || 'bg-indigo-600'}`}>
                             {item.badge}
                           </span>
                         )}
                       </div>
 
                       {item.tooltip && (
-                        <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
+                        <p className="text-[11px] text-slate-500 group-hover:text-slate-600 line-clamp-2 leading-relaxed transition-colors duration-150">
                           {item.tooltip}
                         </p>
                       )}
                     </div>
 
-                    <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-indigo-600 font-semibold opacity-80 group-hover:opacity-100">
-                      <span className="font-mono text-[10px] text-slate-400">/{item.view}</span>
-                      <span className="flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-                        Launch &rarr;
+                    <div className="mt-3.5 pt-2.5 border-t border-slate-100 group-hover:border-teal-100 flex items-center justify-between text-[11px] text-[#0F8B8D] font-semibold relative z-10 transition-colors duration-150">
+                      <span className="font-mono text-[10px] text-slate-400 group-hover:text-teal-700 bg-slate-50 group-hover:bg-teal-50/70 px-1.5 py-0.5 rounded transition-colors duration-150">
+                        /{item.view}
+                      </span>
+                      <span className="flex items-center gap-1 font-bold group-hover:gap-1.5 transition-all duration-200">
+                        <span>Launch</span>
+                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform duration-200 ease-out" />
                       </span>
                     </div>
                   </div>

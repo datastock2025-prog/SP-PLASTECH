@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback, memo } from 'react';
 import {
   TrendingUp,
   AlertTriangle,
@@ -31,7 +31,52 @@ import {
   mockInboundShipments,
   mockOutboundDeliveries,
 } from '../../data/mockScmData';
-import { SCMViewType } from '../../types/scm';
+import { SCMViewType, MrpSuggestion, ScmException } from '../../types/scm';
+import { PaginationBar } from '../common/PaginationBar';
+import { usePagination } from '../../hooks/usePagination';
+
+// Memoized MRP row component
+const MrpSuggestionRow = memo(({
+  mrp,
+  onConvert,
+}: {
+  mrp: MrpSuggestion;
+  onConvert: (mrp: MrpSuggestion) => void;
+}) => (
+  <tr className="hover:bg-slate-50/70 transition-colors">
+    <td className="p-3">
+      <div className="font-bold text-slate-900">{mrp.itemCode}</div>
+      <div className="text-[11px] text-slate-500 truncate max-w-[180px]">{mrp.itemName}</div>
+    </td>
+    <td className="p-3 font-mono font-medium text-slate-700">{mrp.requiredDate}</td>
+    <td className="p-3 font-mono font-bold text-rose-600">
+      {mrp.projectedShortage.toLocaleString()} {mrp.uom}
+    </td>
+    <td className="p-3 font-mono font-bold text-slate-900">
+      {mrp.suggestedOrderQty.toLocaleString()} {mrp.uom}
+    </td>
+    <td className="p-3">
+      <span
+        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+          mrp.supplyType === 'Purchase'
+            ? 'bg-blue-50 text-blue-700 border border-blue-200'
+            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+        }`}
+      >
+        {mrp.supplyType}
+      </span>
+    </td>
+    <td className="p-3 text-slate-600 truncate max-w-[150px]">{mrp.preferredSupplier}</td>
+    <td className="p-3 text-right">
+      <button
+        onClick={() => onConvert(mrp)}
+        className="px-2.5 py-1 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg text-[11px] font-bold transition cursor-pointer shadow-2xs"
+      >
+        Convert to PO
+      </button>
+    </td>
+  </tr>
+));
 
 interface ScmControlTowerViewProps {
   onNavigate: (view: string, param?: any) => void;
@@ -44,7 +89,18 @@ export const ScmControlTowerView: React.FC<ScmControlTowerViewProps> = ({ onNavi
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [actionInput, setActionInput] = useState<string>('');
 
-  const activeExceptions = mockScmExceptions.filter((e) => e.status !== 'Closed');
+  const { paginatedData: paginatedMrp, paginationProps: mrpPaginationProps } = usePagination(mockMrpSuggestions, {
+    initialPageSize: 5,
+    pageSizeOptions: [5, 10, 20],
+  });
+
+  const activeExceptions = useMemo(() => {
+    return mockScmExceptions.filter((e) => e.status !== 'Closed');
+  }, []);
+
+  const handleConvertMrp = useCallback((mrp: MrpSuggestion) => {
+    showToast(`Created Requisition for ${mrp.itemCode} (${mrp.suggestedOrderQty} ${mrp.uom})`);
+  }, [showToast]);
 
   const handleRunMRP = () => {
     showToast('Running MRP Engine across 18 Injection Machines & 142 SKUs...');
@@ -353,43 +409,19 @@ export const ScmControlTowerView: React.FC<ScmControlTowerViewProps> = ({ onNavi
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {mockMrpSuggestions.map((mrp) => (
-                    <tr key={mrp.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="p-3">
-                        <div className="font-bold text-slate-900">{mrp.itemCode}</div>
-                        <div className="text-[11px] text-slate-500 truncate max-w-[180px]">{mrp.itemName}</div>
-                      </td>
-                      <td className="p-3 font-mono font-medium text-slate-700">{mrp.requiredDate}</td>
-                      <td className="p-3 font-mono font-bold text-rose-600">
-                        {mrp.projectedShortage.toLocaleString()} {mrp.uom}
-                      </td>
-                      <td className="p-3 font-mono font-bold text-slate-900">
-                        {mrp.suggestedOrderQty.toLocaleString()} {mrp.uom}
-                      </td>
-                      <td className="p-3">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            mrp.supplyType === 'Purchase'
-                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                              : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          }`}
-                        >
-                          {mrp.supplyType}
-                        </span>
-                      </td>
-                      <td className="p-3 text-slate-600 truncate max-w-[150px]">{mrp.preferredSupplier}</td>
-                      <td className="p-3 text-right">
-                        <button
-                          onClick={() => showToast(`Created Requisition for ${mrp.itemCode} (${mrp.suggestedOrderQty} ${mrp.uom})`)}
-                          className="px-2.5 py-1 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg text-[11px] font-bold transition cursor-pointer shadow-2xs"
-                        >
-                          Convert to PO
-                        </button>
-                      </td>
-                    </tr>
+                  {paginatedMrp.map((mrp) => (
+                    <MrpSuggestionRow
+                      key={mrp.id}
+                      mrp={mrp}
+                      onConvert={handleConvertMrp}
+                    />
                   ))}
                 </tbody>
               </table>
+              <PaginationBar
+                {...mrpPaginationProps}
+                itemName="suggestions"
+              />
             </div>
           </div>
         </div>

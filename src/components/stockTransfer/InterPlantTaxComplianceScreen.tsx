@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback, memo } from 'react';
 import {
   ShieldCheck,
   Truck,
@@ -18,6 +18,9 @@ import {
   StockTransferRecord,
   UserRolePerspective,
 } from '../../types/stockTransferTypes';
+import { usePagination } from '../../hooks/usePagination';
+import { useDebounce } from '../../hooks/useDebounce';
+import { PaginationBar } from '../common/PaginationBar';
 
 interface InterPlantTaxComplianceScreenProps {
   transfers?: StockTransferRecord[];
@@ -25,6 +28,72 @@ interface InterPlantTaxComplianceScreenProps {
   onSelectTransferForTracking?: (transfer: StockTransferRecord) => void;
   showToast?: (msg: string) => void;
 }
+
+// Memoized individual consignment row to avoid re-renders
+const ConsignmentTableRow = memo(({
+  transfer,
+  onAudit,
+}: {
+  transfer: StockTransferRecord;
+  onAudit: (t: StockTransferRecord) => void;
+}) => {
+  const log = transfer.logistics!;
+  const isInterState = log.igstAmount > 0;
+
+  return (
+    <tr className="hover:bg-slate-50">
+      <td className="py-3 px-3.5 font-mono font-bold text-indigo-700">
+        {transfer.id}
+      </td>
+      <td className="py-3 px-3">
+        <div className="font-bold text-slate-900">
+          {transfer.fromPlantName.split('-')[1] || transfer.fromPlantName} &rarr;{' '}
+          {transfer.toPlantName.split('-')[1] || transfer.toPlantName}
+        </div>
+        <div className="text-[11px] text-slate-500">
+          {isInterState ? (
+            <span className="text-indigo-700 font-semibold">Inter-State (IGST Applicable)</span>
+          ) : (
+            <span className="text-emerald-700 font-semibold">Intra-State (CGST + SGST)</span>
+          )}
+        </div>
+      </td>
+      <td className="py-3 px-3">
+        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium text-[11px]">
+          {log.taxDocType}
+        </span>
+      </td>
+      <td className="py-3 px-3 text-right font-mono font-medium text-slate-700">
+        {log.distanceKm} KM
+      </td>
+      <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
+        ₹{log.assessableValue.toLocaleString('en-IN')}
+      </td>
+      <td className="py-3 px-3 text-right font-bold text-slate-700">
+        18%
+      </td>
+      <td className="py-3 px-3 text-right font-mono font-bold text-slate-800">
+        {isInterState
+          ? `₹${log.igstAmount.toLocaleString('en-IN')} (IGST)`
+          : `₹${(log.cgstAmount + log.sgstAmount).toLocaleString('en-IN')} (C+S)`}
+      </td>
+      <td className="py-3 px-3">
+        <div className="font-mono font-bold text-slate-900">{log.vehicleNumber}</div>
+        <div className="text-[11px] text-slate-500 font-mono">
+          EWB: {log.eWayBillNumber || 'Exempt (<50KM)'}
+        </div>
+      </td>
+      <td className="py-3 px-3.5 text-right whitespace-nowrap">
+        <button
+          onClick={() => onAudit(transfer)}
+          className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-bold"
+        >
+          Audit Details
+        </button>
+      </td>
+    </tr>
+  );
+});
 
 export const InterPlantTaxComplianceScreen: React.FC<InterPlantTaxComplianceScreenProps> = ({
   transfers = [],
@@ -34,35 +103,49 @@ export const InterPlantTaxComplianceScreen: React.FC<InterPlantTaxComplianceScre
 }) => {
   const [filterQuery, setFilterQuery] = useState<string>('');
 
+  const debouncedQuery = useDebounce(filterQuery, 300);
+
   const safeTransfers = transfers || [];
 
   // Inter-plant records only
-  const interPlantTransfers = safeTransfers.filter(
-    (t) => t.transferType === 'INTER_PLANT' && t.logistics
-  );
+  const interPlantTransfers = useMemo(() => {
+    return safeTransfers.filter((t) => t.transferType === 'INTER_PLANT' && t.logistics);
+  }, [safeTransfers]);
 
-  const filteredTransfers = interPlantTransfers.filter(
-    (t) =>
-      t.id.toLowerCase().includes(filterQuery.toLowerCase()) ||
-      t.fromPlantName.toLowerCase().includes(filterQuery.toLowerCase()) ||
-      t.toPlantName.toLowerCase().includes(filterQuery.toLowerCase()) ||
-      (t.logistics?.vehicleNumber && t.logistics.vehicleNumber.toLowerCase().includes(filterQuery.toLowerCase()))
-  );
+  const filteredTransfers = useMemo(() => {
+    return interPlantTransfers.filter((t) =>
+      debouncedQuery === '' ||
+      t.id.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+      t.fromPlantName.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+      t.toPlantName.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+      (t.logistics?.vehicleNumber && t.logistics.vehicleNumber.toLowerCase().includes(debouncedQuery.toLowerCase()))
+    );
+  }, [interPlantTransfers, debouncedQuery]);
 
-  // Totals
-  const totalTaxableValue = interPlantTransfers.reduce(
-    (acc, t) => acc + (t.logistics?.assessableValue || 0),
-    0
-  );
-  const totalIgst = interPlantTransfers.reduce((acc, t) => acc + (t.logistics?.igstAmount || 0), 0);
-  const totalCgstSgst = interPlantTransfers.reduce(
-    (acc, t) => acc + (t.logistics?.cgstAmount || 0) + (t.logistics?.sgstAmount || 0),
-    0
-  );
-  const totalGrandTotal = interPlantTransfers.reduce(
-    (acc, t) => acc + (t.logistics?.grandTotalValue || 0),
-    0
-  );
+  const { paginatedData: pagedTransfers, paginationProps } = usePagination(filteredTransfers, {
+    initialPageSize: 10,
+    pageSizeOptions: [5, 10, 20, 50],
+  });
+
+  // Memoized Totals
+  const totalTaxableValue = useMemo(() => {
+    return interPlantTransfers.reduce((acc, t) => acc + (t.logistics?.assessableValue || 0), 0);
+  }, [interPlantTransfers]);
+
+  const totalIgst = useMemo(() => {
+    return interPlantTransfers.reduce((acc, t) => acc + (t.logistics?.igstAmount || 0), 0);
+  }, [interPlantTransfers]);
+
+  const totalCgstSgst = useMemo(() => {
+    return interPlantTransfers.reduce(
+      (acc, t) => acc + (t.logistics?.cgstAmount || 0) + (t.logistics?.sgstAmount || 0),
+      0
+    );
+  }, [interPlantTransfers]);
+
+  const totalGrandTotal = useMemo(() => {
+    return interPlantTransfers.reduce((acc, t) => acc + (t.logistics?.grandTotalValue || 0), 0);
+  }, [interPlantTransfers]);
 
   return (
     <div className="space-y-6">
@@ -163,67 +246,17 @@ export const InterPlantTaxComplianceScreen: React.FC<InterPlantTaxComplianceScre
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredTransfers.map((t) => {
-                const log = t.logistics!;
-                const isInterState = log.igstAmount > 0;
-
-                return (
-                  <tr key={t.id} className="hover:bg-slate-50">
-                    <td className="py-3 px-3.5 font-mono font-bold text-indigo-700">
-                      {t.id}
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="font-bold text-slate-900">
-                        {t.fromPlantName.split('-')[1] || t.fromPlantName} &rarr;{' '}
-                        {t.toPlantName.split('-')[1] || t.toPlantName}
-                      </div>
-                      <div className="text-[11px] text-slate-500">
-                        {isInterState ? (
-                          <span className="text-indigo-700 font-semibold">Inter-State (IGST Applicable)</span>
-                        ) : (
-                          <span className="text-emerald-700 font-semibold">Intra-State (CGST + SGST)</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium text-[11px]">
-                        {log.taxDocType}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono font-medium text-slate-700">
-                      {log.distanceKm} KM
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
-                      ₹{log.assessableValue.toLocaleString('en-IN')}
-                    </td>
-                    <td className="py-3 px-3 text-right font-bold text-slate-700">
-                      18%
-                    </td>
-                    <td className="py-3 px-3 text-right font-mono font-bold text-slate-800">
-                      {isInterState
-                        ? `₹${log.igstAmount.toLocaleString('en-IN')} (IGST)`
-                        : `₹${(log.cgstAmount + log.sgstAmount).toLocaleString('en-IN')} (C+S)`}
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="font-mono font-bold text-slate-900">{log.vehicleNumber}</div>
-                      <div className="text-[11px] text-slate-500 font-mono">
-                        EWB: {log.eWayBillNumber || 'Exempt (<50KM)'}
-                      </div>
-                    </td>
-                    <td className="py-3 px-3.5 text-right whitespace-nowrap">
-                      <button
-                        onClick={() => onSelectTransferForTracking(t)}
-                        className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-bold"
-                      >
-                        Audit Details
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+              {pagedTransfers.map((t) => (
+                <ConsignmentTableRow
+                  key={t.id}
+                  transfer={t}
+                  onAudit={onSelectTransferForTracking}
+                />
+              ))}
             </tbody>
           </table>
         </div>
+        <PaginationBar {...paginationProps} itemName="consignments" />
       </div>
     </div>
   );

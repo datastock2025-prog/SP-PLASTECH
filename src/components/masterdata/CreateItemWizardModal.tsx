@@ -57,61 +57,74 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   const [lastAutoSaveTime, setLastAutoSaveTime] = useState<string>('12:04');
 
   // Step 1: Item Type
-  const [selectedType, setSelectedType] = useState<ItemType>(editItem?.type || 'Raw Material');
+  const [selectedType, setSelectedType] = useState<ItemType>(editItem?.type || 'Finished Good');
 
   // Step 2: Basic Information
   const [autoGenerateCode, setAutoGenerateCode] = useState<boolean>(!editItem);
-  const [itemCode, setItemCode] = useState<string>(editItem?.code || 'RM-PP-NAT-014');
-  const [itemName, setItemName] = useState<string>(editItem?.name || 'PP Natural Granules');
-  const [category, setCategory] = useState<string>(editItem?.cat || 'Raw Material / PP');
-  const [itemGroup, setItemGroup] = useState<string>('Polymer feedstock');
-  const [status, setStatus] = useState<string>(editItem?.approval === 'approved' ? 'Active' : 'Pending Approval');
-  const [description, setDescription] = useState<string>(
-    editItem?.desc || 'Grade, application and processing notes for standard injection molding.'
-  );
+  const [itemCode, setItemCode] = useState<string>(editItem?.code || '');
+  const [itemName, setItemName] = useState<string>(editItem?.name || '');
+  const [category, setCategory] = useState<string>(editItem?.cat || '');
+  const [itemGroup, setItemGroup] = useState<string>('');
+  const [status, setStatus] = useState<string>(editItem?.approval === 'approved' ? 'Active' : 'Active');
+  const [description, setDescription] = useState<string>(editItem?.desc || '');
   const [itemImage, setItemImage] = useState<string | null>(null);
 
+  // Finished Good Technical & Injection Molding Parameters
+  const [cycleTime, setCycleTime] = useState<number | string>(
+    editItem?.cycleTime ?? editItem?.standardCycleTime ?? ''
+  );
+  const [partWeight, setPartWeight] = useState<number | string>(
+    editItem?.partWeightGrams ?? editItem?.netWeightGrams ?? ''
+  );
+  const [cavityCount, setCavityCount] = useState<number | string>(
+    editItem?.cavityCount ?? 1
+  );
+  const [runnerWeight, setRunnerWeight] = useState<number | string>(
+    editItem?.runnerWeightGrams ?? 0
+  );
+
+  // Computed Shot Weight Formula: Part Weight + Runner Weight = Single Shot Weight
+  const numPartWeight = Number(partWeight) || 0;
+  const numRunnerWeight = Number(runnerWeight) || 0;
+  const numCavities = Number(cavityCount) || 1;
+  const calculatedSingleShotWeight = Number((numPartWeight + numRunnerWeight).toFixed(2));
+  const calculatedTotalShotWeight = Number(((numPartWeight * numCavities) + numRunnerWeight).toFixed(2));
+
   // Step 3: Units & Conversions
-  const [baseUOM, setBaseUOM] = useState<string>(editItem?.baseUOM || 'KG');
-  const [purchaseUOM, setPurchaseUOM] = useState<string>('KG');
-  const [salesUOM, setSalesUOM] = useState<string>('KG');
-  const [stockUOM, setStockUOM] = useState<string>('KG');
-  const [productionUOM, setProductionUOM] = useState<string>('KG');
-  const [conversions, setConversions] = useState<ConversionRow[]>([
-    { id: '1', from: 'KG', to: 'Bag', factor: 25.0 },
-    { id: '2', from: 'KG', to: 'Pallet', factor: 1000.0 },
-  ]);
+  const [baseUOM, setBaseUOM] = useState<string>(editItem?.baseUOM || (selectedType === 'Raw Material' ? 'KG' : 'PCS'));
+  const [purchaseUOM, setPurchaseUOM] = useState<string>(editItem?.baseUOM || (selectedType === 'Raw Material' ? 'KG' : 'PCS'));
+  const [salesUOM, setSalesUOM] = useState<string>(editItem?.baseUOM || (selectedType === 'Raw Material' ? 'KG' : 'PCS'));
+  const [stockUOM, setStockUOM] = useState<string>(editItem?.baseUOM || (selectedType === 'Raw Material' ? 'KG' : 'PCS'));
+  const [productionUOM, setProductionUOM] = useState<string>(editItem?.baseUOM || (selectedType === 'Raw Material' ? 'KG' : 'PCS'));
+  const [conversions, setConversions] = useState<ConversionRow[]>([]);
 
   // Step 4: Manufacturing Attributes
-  const [resinType, setResinType] = useState<string>(editItem?.resinType || 'Polypropylene (PP)');
-  const [polymerGrade, setPolymerGrade] = useState<string>('Repol H110MA');
-  const [color, setColor] = useState<string>('Natural');
-  const [mfi, setMfi] = useState<string>(editItem?.mfi || '11.0');
-  const [density, setDensity] = useState<string>(editItem?.density || '0.905');
-  const [additivePercentage, setAdditivePercentage] = useState<string>('1.2');
-  const [masterbatchDosage, setMasterbatchDosage] = useState<string>('3.5');
-  const [regrindAllowance, setRegrindAllowance] = useState<string>(editItem?.regrind || '20');
-  const [moistureSensitive, setMoistureSensitive] = useState<boolean>(editItem?.moistureSensitive ?? true);
+  const [resinType, setResinType] = useState<string>(editItem?.resinType || '');
+  const [polymerGrade, setPolymerGrade] = useState<string>('');
+  const [color, setColor] = useState<string>('');
+  const [mfi, setMfi] = useState<string>(editItem?.mfi || '');
+  const [density, setDensity] = useState<string>(editItem?.density || '');
+  const [additivePercentage, setAdditivePercentage] = useState<string>('');
+  const [masterbatchDosage, setMasterbatchDosage] = useState<string>('');
+  const [regrindAllowance, setRegrindAllowance] = useState<string>(editItem?.regrind || '');
+  const [moistureSensitive, setMoistureSensitive] = useState<boolean>(editItem?.moistureSensitive ?? false);
   const [processingMethod, setProcessingMethod] = useState<string>('Injection Molding');
 
   // Step 5: Inventory Settings
   const [lotControlled, setLotControlled] = useState<boolean>(editItem?.lot ?? true);
-  const [expiryControlled, setExpiryControlled] = useState<boolean>(true);
-  const [fefoPicking, setFefoPicking] = useState<boolean>(true);
-  const [shelfLifeDays, setShelfLifeDays] = useState<number>(365);
-  const [defaultWarehouse, setDefaultWarehouse] = useState<string>(editItem?.wh || 'RM-WH-01');
-  const [defaultBin, setDefaultBin] = useState<string>(editItem?.locationCode || 'A-01-03');
+  const [expiryControlled, setExpiryControlled] = useState<boolean>(false);
+  const [fefoPicking, setFefoPicking] = useState<boolean>(false);
+  const [shelfLifeDays, setShelfLifeDays] = useState<number>(0);
+  const [defaultWarehouse, setDefaultWarehouse] = useState<string>(editItem?.wh || (selectedType === 'Raw Material' ? 'RM-WH-01' : 'FG-WH-01'));
+  const [defaultBin, setDefaultBin] = useState<string>(editItem?.locationCode || '');
   const [reorderLevel, setReorderLevel] = useState<number>(
-    editItem?.reorderLevel ? parseInt(editItem.reorderLevel) : 10000
+    editItem?.reorderLevel ? parseInt(editItem.reorderLevel) : 0
   );
   const [safetyStock, setSafetyStock] = useState<number>(
-    editItem?.safetyStock ? parseInt(editItem.safetyStock) : 6000
+    editItem?.safetyStock ? parseInt(editItem.safetyStock) : 0
   );
 
   // Post-Molding Routing Destination Checkboxes: DOL, ASSEMPLY, DEFLASH
-  // DOL -> directly to FG-STORE
-  // ASSEMPLY -> assembly inventory store (ASSEMBLY-STORE)
-  // DEFLASH -> deflash inventory (DEFLASH-STORE)
   const initialRouting: 'DOL' | 'ASSEMBLY' | 'DEFLASH' = editItem?.routingDestination ||
     (editItem?.isDeflash ? 'DEFLASH' : editItem?.isAssembly ? 'ASSEMBLY' : editItem?.isDol ? 'DOL' : 'DOL');
 
@@ -126,7 +139,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       setIsAssembly(false);
       setIsDeflash(false);
       setRoutingDestination('DOL');
-      if (defaultWarehouse === 'RM-WH-01' && selectedType === 'Finished Good') {
+      if (selectedType === 'Finished Good') {
         setDefaultWarehouse('FG-WH-01');
       }
     } else {
@@ -163,50 +176,157 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   };
 
   // Step 6: Quality Settings
-  const [iqcMandatory, setIqcMandatory] = useState<boolean>(editItem?.qc ?? true);
-  const [coaRequired, setCoaRequired] = useState<boolean>(true);
+  const [iqcMandatory, setIqcMandatory] = useState<boolean>(editItem?.qc ?? false);
+  const [coaRequired, setCoaRequired] = useState<boolean>(false);
   const [samplingPlan, setSamplingPlan] = useState<string>('ISO 2859-1 Level II Normal');
-  const [approvedLab, setApprovedLab] = useState<string>('In-House Spectrophotometer & MFI Lab');
-  const [qualityTestParams, setQualityTestParams] = useState<string[]>([
-    'Melt Flow Index (ASTM D1238)',
-    'Density Gradient (ASTM D792)',
-    'Moisture Content PPM (Karl Fischer)',
-  ]);
+  const [approvedLab, setApprovedLab] = useState<string>('');
+  const [qualityTestParams, setQualityTestParams] = useState<string[]>([]);
 
   // Step 7: Purchasing
   const [preferredSupplier, setPreferredSupplier] = useState<string>(
-    editItem?.supplier || 'Reliance Industries Ltd'
+    editItem?.supplier || ''
   );
-  const [standardPurchasePrice, setStandardPurchasePrice] = useState<number>(112.5);
-  const [hsnCode, setHsnCode] = useState<string>(editItem?.hsCode || '39021000');
-  const [leadTimeDays, setLeadTimeDays] = useState<number>(editItem?.leadTime ? parseInt(editItem.leadTime) : 7);
-  const [purchaseMoq, setPurchaseMoq] = useState<number>(5000);
+  const [standardPurchasePrice, setStandardPurchasePrice] = useState<number>(0);
+  const [hsnCode, setHsnCode] = useState<string>(editItem?.hsCode || '');
+  const [leadTimeDays, setLeadTimeDays] = useState<number>(editItem?.leadTime ? parseInt(editItem.leadTime) : 0);
+  const [purchaseMoq, setPurchaseMoq] = useState<number>(0);
   const [gstRate, setGstRate] = useState<string>('18%');
 
   // Step 8: Sales
-  const [standardSalesPrice, setStandardSalesPrice] = useState<number>(145.0);
+  const [standardSalesPrice, setStandardSalesPrice] = useState<number>(0);
   const [priceTier, setPriceTier] = useState<string>('Tier 1 OEM Standard');
-  const [salesMoq, setSalesMoq] = useState<number>(1000);
-  const [packagingStandard, setPackagingStandard] = useState<string>(
-    '25 KG Moisture Barrier Paper Bags on Shrink-Wrapped Wooden Pallets'
-  );
+  const [salesMoq, setSalesMoq] = useState<number>(0);
+  const [packagingStandard, setPackagingStandard] = useState<string>('');
 
   // Step 9: Documents
   const [documents, setDocuments] = useState<
     { name: string; type: string; size: string; uploadedOn: string }[]
-  >([
-    { name: 'TDS_PP_Repol_H110MA_v3.pdf', type: 'Technical Data Sheet (TDS)', size: '1.2 MB', uploadedOn: 'Today' },
-    { name: 'MSDS_Polypropylene_Homopolymer_2026.pdf', type: 'Material Safety Data Sheet (MSDS)', size: '2.4 MB', uploadedOn: 'Today' },
-  ]);
+  >([]);
 
   // Step 10: Review & Workflow
   const [workflowRoute, setWorkflowRoute] = useState<string>(
     'Multi-Tier: Engineering Author -> QA Lead -> Plant Operations Manager'
   );
   const [workflowPriority, setWorkflowPriority] = useState<'Normal' | 'Urgent' | 'Expedited'>('Normal');
-  const [creationNotes, setCreationNotes] = useState<string>(
-    'New masterbatch & resin qualification for Tier-1 automotive bumper program.'
-  );
+  const [creationNotes, setCreationNotes] = useState<string>('');
+
+  const [isAutoSaving, setIsAutoSaving] = useState<boolean>(false);
+  const [existingDraftFound, setExistingDraftFound] = useState<any | null>(null);
+
+  // Reset form or initialize when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      if (editItem) {
+        setSelectedType(editItem.type || 'Finished Good');
+        setItemCode(editItem.code || '');
+        setItemName(editItem.name || '');
+        setCategory(editItem.cat || '');
+        setDescription(editItem.desc || '');
+        setCycleTime(editItem.cycleTime ?? editItem.standardCycleTime ?? '');
+        setPartWeight(editItem.partWeightGrams ?? editItem.netWeightGrams ?? '');
+        setCavityCount(editItem.cavityCount ?? 1);
+        setRunnerWeight(editItem.runnerWeightGrams ?? 0);
+        setBaseUOM(editItem.baseUOM || 'PCS');
+        setResinType(editItem.resinType || '');
+        setMfi(editItem.mfi || '');
+        setDensity(editItem.density || '');
+        setDefaultWarehouse(editItem.wh || '');
+        setDefaultBin(editItem.locationCode || '');
+        setReorderLevel(editItem.reorderLevel ? parseInt(editItem.reorderLevel) : 0);
+        setSafetyStock(editItem.safetyStock ? parseInt(editItem.safetyStock) : 0);
+        setPreferredSupplier(editItem.supplier || '');
+        setHsnCode(editItem.hsCode || '');
+        setLeadTimeDays(editItem.leadTime ? parseInt(editItem.leadTime) : 0);
+        setAutoGenerateCode(false);
+      } else {
+        // Clean blank slate for new live item entry
+        setCurrentStep(1);
+        setItemName('');
+        setCategory('');
+        setItemGroup('');
+        setDescription('');
+        setCycleTime('');
+        setPartWeight('');
+        setCavityCount(1);
+        setRunnerWeight(0);
+        setConversions([]);
+        setResinType('');
+        setPolymerGrade('');
+        setColor('');
+        setMfi('');
+        setDensity('');
+        setAdditivePercentage('');
+        setMasterbatchDosage('');
+        setRegrindAllowance('');
+        setMoistureSensitive(false);
+        setLotControlled(true);
+        setExpiryControlled(false);
+        setFefoPicking(false);
+        setShelfLifeDays(0);
+        setDefaultWarehouse(selectedType === 'Raw Material' ? 'RM-WH-01' : 'FG-WH-01');
+        setDefaultBin('');
+        setReorderLevel(0);
+        setSafetyStock(0);
+        setIqcMandatory(false);
+        setCoaRequired(false);
+        setApprovedLab('');
+        setQualityTestParams([]);
+        setPreferredSupplier('');
+        setStandardPurchasePrice(0);
+        setHsnCode('');
+        setLeadTimeDays(0);
+        setPurchaseMoq(0);
+        setStandardSalesPrice(0);
+        setSalesMoq(0);
+        setPackagingStandard('');
+        setDocuments([]);
+        setCreationNotes('');
+        setAutoGenerateCode(true);
+      }
+    }
+  }, [isOpen, editItem]);
+
+  // Check for existing saved draft on open
+  useEffect(() => {
+    if (isOpen && !editItem) {
+      try {
+        const raw = localStorage.getItem('reboot_erp_item_draft_auto');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.itemCode && parsed.itemCode.trim() !== '') {
+            setExistingDraftFound(parsed);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to parse auto-draft', err);
+      }
+    }
+  }, [isOpen, editItem]);
+
+  // Restore draft
+  const handleRestoreDraft = () => {
+    if (!existingDraftFound) return;
+    setSelectedType(existingDraftFound.selectedType || 'Finished Good');
+    setItemCode(existingDraftFound.itemCode || '');
+    setItemName(existingDraftFound.itemName || '');
+    setCategory(existingDraftFound.category || '');
+    setItemGroup(existingDraftFound.itemGroup || '');
+    setDescription(existingDraftFound.description || '');
+    setCycleTime(existingDraftFound.cycleTime ?? '');
+    setPartWeight(existingDraftFound.partWeight ?? '');
+    setCavityCount(existingDraftFound.cavityCount ?? 1);
+    setRunnerWeight(existingDraftFound.runnerWeight ?? 0);
+    setBaseUOM(existingDraftFound.baseUOM || 'PCS');
+    setCurrentStep(existingDraftFound.currentStep || 2);
+    setExistingDraftFound(null);
+    showToast(`Restored draft for ${existingDraftFound.itemCode || 'item'}.`);
+  };
+
+  const handleDiscardDraft = () => {
+    localStorage.removeItem('reboot_erp_item_draft_auto');
+    setExistingDraftFound(null);
+    showToast('Discarded previous draft.');
+  };
 
   // Auto-generate item code when type changes and toggle is on
   useEffect(() => {
@@ -229,16 +349,101 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
     }
   }, [selectedType, autoGenerateCode, editItem]);
 
-  // Auto-save timer simulation
+  // 30-Second Auto-save Timer Execution
   useEffect(() => {
-    const timer = setInterval(() => {
+    if (!isOpen) return;
+
+    const performAutoSave = () => {
+      setIsAutoSaving(true);
       const now = new Date();
-      setLastAutoSaveTime(
-        now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      );
-    }, 30000);
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+      const draftPayload = {
+        selectedType,
+        itemCode,
+        itemName,
+        category,
+        itemGroup,
+        status,
+        description,
+        cycleTime,
+        partWeight,
+        cavityCount,
+        runnerWeight,
+        baseUOM,
+        purchaseUOM,
+        salesUOM,
+        stockUOM,
+        productionUOM,
+        resinType,
+        polymerGrade,
+        color,
+        mfi,
+        density,
+        defaultWarehouse,
+        defaultBin,
+        reorderLevel,
+        safetyStock,
+        leadTimeDays,
+        preferredSupplier,
+        hsnCode,
+        routingDestination,
+        isDol,
+        isAssembly,
+        isDeflash,
+        currentStep,
+        savedAt: timeStr,
+      };
+
+      try {
+        localStorage.setItem('reboot_erp_item_draft_auto', JSON.stringify(draftPayload));
+      } catch (err) {
+        console.warn('Auto-save write error', err);
+      }
+
+      setLastAutoSaveTime(timeStr);
+      setTimeout(() => setIsAutoSaving(false), 1200);
+    };
+
+    // Trigger auto-save every 30 seconds
+    const timer = setInterval(performAutoSave, 30000);
     return () => clearInterval(timer);
-  }, []);
+  }, [
+    isOpen,
+    selectedType,
+    itemCode,
+    itemName,
+    category,
+    itemGroup,
+    status,
+    description,
+    cycleTime,
+    partWeight,
+    cavityCount,
+    runnerWeight,
+    baseUOM,
+    purchaseUOM,
+    salesUOM,
+    stockUOM,
+    productionUOM,
+    resinType,
+    polymerGrade,
+    color,
+    mfi,
+    density,
+    defaultWarehouse,
+    defaultBin,
+    reorderLevel,
+    safetyStock,
+    leadTimeDays,
+    preferredSupplier,
+    hsnCode,
+    routingDestination,
+    isDol,
+    isAssembly,
+    isDeflash,
+    currentStep,
+  ]);
 
   if (!isOpen) return null;
 
@@ -308,6 +513,13 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       baseUOM,
       approval: 'draft',
       createdOn: 'Today',
+      standardCycleTime: Number(cycleTime) || 0,
+      cycleTime: Number(cycleTime) || 0,
+      partWeightGrams: numPartWeight,
+      cavityCount: numCavities,
+      runnerWeightGrams: numRunnerWeight,
+      shotWeightGrams: calculatedSingleShotWeight,
+      netWeightGrams: numPartWeight,
       locationCode: defaultBin,
       desc: description,
       resinType,
@@ -352,7 +564,13 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       baseUOM,
       approval: isApprovedDirectly ? 'approved' : 'pending',
       createdOn: editItem?.createdOn || 'Today',
-      standardCycleTime: selectedType === 'Finished Good' ? 14 : 0,
+      standardCycleTime: Number(cycleTime) || (selectedType === 'Finished Good' ? 24.5 : 0),
+      cycleTime: Number(cycleTime) || 0,
+      partWeightGrams: numPartWeight,
+      cavityCount: numCavities,
+      runnerWeightGrams: numRunnerWeight,
+      shotWeightGrams: calculatedSingleShotWeight,
+      netWeightGrams: numPartWeight,
       cycleTimeUOM: 'sec/pc',
       locationCode: defaultBin,
       desc: description,
@@ -469,15 +687,51 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
               </div>
             </div>
 
-            {/* Bottom Left Timestamp Status */}
-            <div className="pt-4 border-t border-slate-100 text-[11px] font-mono text-slate-400">
-              Auto-saved {lastAutoSaveTime} &bull; draft {itemCode}
+            {/* Bottom Left Timestamp Status with active auto-save indicator */}
+            <div className="pt-4 border-t border-slate-100 text-[11px] font-mono text-slate-500 flex items-center gap-2">
+              <span
+                className={`w-2 h-2 rounded-full shrink-0 ${
+                  isAutoSaving ? 'bg-amber-500 animate-ping' : 'bg-emerald-500'
+                }`}
+              />
+              <span className="truncate">
+                {isAutoSaving
+                  ? 'Auto-saving progress...'
+                  : `Auto-saved ${lastAutoSaveTime} • draft ${itemCode}`}
+              </span>
             </div>
           </div>
 
           {/* Right Column (3 Cols): Main Step Form Content */}
           <div className="md:col-span-3 p-6 flex flex-col justify-between overflow-y-auto max-h-[640px] bg-white">
             <div className="space-y-5">
+              {/* Draft Restoration Banner if found */}
+              {existingDraftFound && (
+                <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs animate-in fade-in">
+                  <div className="flex items-center gap-2 text-amber-900">
+                    <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>
+                      <strong>Unsaved draft detected:</strong> "{existingDraftFound.itemCode || 'Untitled'}" (Saved at {existingDraftFound.savedAt || 'recently'}).
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleRestoreDraft}
+                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+                    >
+                      Resume Draft
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDiscardDraft}
+                      className="px-2 py-1 bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 rounded-lg text-xs transition-colors cursor-pointer"
+                    >
+                      Discard
+                    </button>
+                  </div>
+                </div>
+              )}
               {/* ========================================================= */}
               {/* STEP 1: ITEM TYPE                                         */}
               {/* ========================================================= */}
@@ -627,6 +881,164 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         placeholder="Grade, application and processing notes"
                       />
                     </div>
+
+                    {/* ========================================================================= */}
+                    {/* FINISHED GOOD / INJECTION MOLDING PROCESS & TOOLING PARAMETERS            */}
+                    {/* ========================================================================= */}
+                    {selectedType === 'Finished Good' && (
+                      <div className="md:col-span-2 p-4 bg-gradient-to-br from-blue-50/70 via-slate-50 to-teal-50/40 rounded-xl border border-blue-200/80 shadow-xs space-y-3 animate-fade-in">
+                        <div className="flex items-center justify-between pb-2 border-b border-blue-200/60">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-md bg-[#0066CC] text-white flex items-center justify-center font-bold text-xs">
+                              <Box className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-xs text-slate-900">
+                                Finished Good &mdash; Injection Molding Tooling &amp; Process Parameters
+                              </h3>
+                              <p className="text-[11px] text-slate-500">
+                                Core rheology, cycle timing, mold cavity metrics, and automatic shot weight balancing.
+                              </p>
+                            </div>
+                          </div>
+
+                          <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 text-[#0066CC] border border-blue-200">
+                            Mold Spec Gate
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                          {/* Cycle Time */}
+                          <div>
+                            <label className="block font-semibold text-slate-700 mb-1">
+                              Cycle Time <span className="text-slate-400 font-normal">(seconds)</span> *
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                step="0.1"
+                                min="1"
+                                required
+                                value={cycleTime}
+                                onChange={(e) => setCycleTime(e.target.value)}
+                                className="w-full pl-3 pr-10 py-2 rounded-lg border border-slate-300 font-mono text-xs focus:ring-1 focus:ring-[#0066CC] bg-white"
+                                placeholder="e.g. 24.5"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[11px] text-slate-400 font-semibold">
+                                sec
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Part Weight */}
+                          <div>
+                            <label className="block font-semibold text-slate-700 mb-1">
+                              Part Weight <span className="text-slate-400 font-normal">(grams/pc)</span> *
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0.1"
+                                required
+                                value={partWeight}
+                                onChange={(e) => setPartWeight(e.target.value)}
+                                className="w-full pl-3 pr-10 py-2 rounded-lg border border-slate-300 font-mono text-xs focus:ring-1 focus:ring-[#0066CC] bg-white"
+                                placeholder="e.g. 142.5"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[11px] text-slate-400 font-semibold">
+                                g
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Cavity Count */}
+                          <div>
+                            <label className="block font-semibold text-slate-700 mb-1">
+                              Mold Cavities <span className="text-slate-400 font-normal">(count)</span> *
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min="1"
+                                max="128"
+                                required
+                                value={cavityCount}
+                                onChange={(e) => setCavityCount(e.target.value)}
+                                className="w-full pl-3 pr-12 py-2 rounded-lg border border-slate-300 font-mono text-xs focus:ring-1 focus:ring-[#0066CC] bg-white"
+                                placeholder="e.g. 2"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[11px] text-slate-400 font-semibold">
+                                cav
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Runner Weight */}
+                          <div>
+                            <label className="block font-semibold text-slate-700 mb-1">
+                              Runner Weight <span className="text-slate-400 font-normal">(grams)</span> *
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                required
+                                value={runnerWeight}
+                                onChange={(e) => setRunnerWeight(e.target.value)}
+                                className="w-full pl-3 pr-10 py-2 rounded-lg border border-slate-300 font-mono text-xs focus:ring-1 focus:ring-[#0066CC] bg-white"
+                                placeholder="e.g. 18.0"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[11px] text-slate-400 font-semibold">
+                                g
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Calculated Shot Weight Dynamic Readout & Formula Banner */}
+                        <div className="p-3 bg-white rounded-xl border border-blue-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-[#0066CC]" />
+                                Calculated Shot Weight:
+                              </span>
+                              <span className="font-mono text-sm font-bold text-[#0066CC] bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                {calculatedSingleShotWeight} g / pc shot
+                              </span>
+                              <span className="text-slate-400">&bull;</span>
+                              <span className="font-mono text-xs font-semibold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                                {calculatedTotalShotWeight} g (Total {numCavities}-Cavity Shot)
+                              </span>
+                            </div>
+
+                            {/* Mathematical formula badge */}
+                            <div className="font-mono text-[11px] text-slate-600 flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-slate-700">Formula:</span>
+                              <span className="bg-slate-100 px-1.5 py-0.2 rounded text-slate-800">
+                                Part Weight ({numPartWeight}g) + Runner Weight ({numRunnerWeight}g) = {calculatedSingleShotWeight}g
+                              </span>
+                              <span className="text-slate-400">&bull;</span>
+                              <span className="bg-slate-100 px-1.5 py-0.2 rounded text-slate-800">
+                                ({numPartWeight}g &times; {numCavities} Cavities) + {numRunnerWeight}g = {calculatedTotalShotWeight}g Total Mold Shot
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 text-right font-mono text-[11px] text-slate-500">
+                            <div>Est. Hourly Output:</div>
+                            <strong className="text-slate-900 text-xs">
+                              {Number(cycleTime) > 0
+                                ? Math.round((3600 / Number(cycleTime)) * numCavities).toLocaleString()
+                                : 0}{' '}
+                              pcs / hr
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Image Upload Box */}
                     <div className="md:col-span-2">
@@ -1489,8 +1901,21 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-1">
                       <div className="text-[10px] uppercase font-bold text-slate-400">Units &amp; Manufacturing</div>
                       <div className="text-slate-800">Base UOM: <strong>{baseUOM}</strong></div>
-                      <div className="text-slate-800">MFI: <strong>{mfi} g/10min</strong> &bull; Density: <strong>{density}</strong></div>
-                      <div className="text-slate-500 text-[11px]">Resin: {resinType} ({polymerGrade})</div>
+                      {selectedType === 'Finished Good' ? (
+                        <>
+                          <div className="text-slate-800 font-mono text-[11px]">
+                            Cycle: <strong>{cycleTime}s</strong> &bull; Cavities: <strong>{cavityCount}</strong>
+                          </div>
+                          <div className="text-[#0066CC] font-mono text-[11px] font-semibold">
+                            Part: {partWeight}g + Runner: {runnerWeight}g = Shot: {calculatedSingleShotWeight}g
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-slate-800">MFI: <strong>{mfi} g/10min</strong> &bull; Density: <strong>{density}</strong></div>
+                          <div className="text-slate-500 text-[11px]">Resin: {resinType} ({polymerGrade})</div>
+                        </>
+                      )}
                     </div>
 
                     <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-1">

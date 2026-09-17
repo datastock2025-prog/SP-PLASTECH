@@ -1291,10 +1291,11 @@ const CreateEcrModal: React.FC<CreateEcrModalProps> = ({
 
   // Linked BOMs for selected item
   const linkedBoms = useMemo(() => {
+    const itemNameLower = currentItem?.name?.toLowerCase();
     return boms.filter(
       (b) =>
         b.parent === selectedItemCode ||
-        b.parentName.toLowerCase().includes(currentItem?.name.toLowerCase() || '')
+        (itemNameLower && b.parentName && b.parentName.toLowerCase().includes(itemNameLower))
     );
   }, [boms, selectedItemCode, currentItem]);
 
