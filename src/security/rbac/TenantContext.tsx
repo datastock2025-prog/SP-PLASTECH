@@ -4,6 +4,8 @@ import { useAuth } from '../auth/AuthProvider';
 export interface TenantInfo {
   tenantId: string;
   tenantName: string;
+  name?: string;
+  id?: string;
   region: string;
   complianceTier: 'SOC2_TYPE2' | 'HIPAA' | 'GDPR_ENTERPRISE';
   features: string[];
@@ -20,6 +22,8 @@ const AVAILABLE_TENANTS: TenantInfo[] = [
   {
     tenantId: 'TENANT-ALPHA-IND',
     tenantName: 'Reboot Polymer Dynamics Ltd. (Pune Plant)',
+    name: 'Reboot Polymer Dynamics Ltd. (Pune Plant)',
+    id: 'TENANT-ALPHA-IND',
     region: 'ap-south-1 (Mumbai)',
     complianceTier: 'GDPR_ENTERPRISE',
     features: ['SCM_ADVANCED', 'SPC_REALTIME', 'STOCK_TRANSFER_GST', 'AI_MRP'],
@@ -27,6 +31,8 @@ const AVAILABLE_TENANTS: TenantInfo[] = [
   {
     tenantId: 'TENANT-BETA-US',
     tenantName: 'Reboot Precision Tooling Inc. (Chicago Hub)',
+    name: 'Reboot Precision Tooling Inc. (Chicago Hub)',
+    id: 'TENANT-BETA-US',
     region: 'us-east-1 (N. Virginia)',
     complianceTier: 'SOC2_TYPE2',
     features: ['ASSET_MOLD_TRACKER', 'ADVANCED_FINANCE'],

@@ -43,6 +43,7 @@ export interface UserProfile {
   id: string;
   email: string;
   fullName: string;
+  name?: string;
   tenantId: string;
   tenantName: string;
   role: UserRole;
@@ -100,13 +101,17 @@ export interface SecurityEvent {
     | 'SECURITY_IDOR_ATTEMPT'
     | 'SECURITY_XSS_DETECTED'
     | 'ADMIN_IMPERSONATION_START'
-    | 'ADMIN_IMPERSONATION_END';
+    | 'ADMIN_IMPERSONATION_END'
+    | string;
+  type?: string;
+  actorId?: string;
+  ip?: string;
   userId?: string;
   tenantId?: string;
   resource?: string;
   ipAddress?: string;
   details?: Record<string, any>;
-  severity: 'INFO' | 'WARNING' | 'CRITICAL';
+  severity: 'INFO' | 'WARNING' | 'CRITICAL' | 'WARN';
 }
 
 export interface PasswordValidationResult {
@@ -128,3 +133,6 @@ export interface CookieConsentPreferences {
   timestamp: string;
   version: string;
 }
+
+export type CookieConsent = CookieConsentPreferences;
+

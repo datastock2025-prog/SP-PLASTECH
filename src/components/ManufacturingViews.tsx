@@ -120,15 +120,16 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
 
   // Synchronization handler when Daily Production Entry is logged
   // Logic:
+  // - If item has WIP checked (or isWip / routingDestination === 'WIP'): routes to 'PRD-STORE' intermediate WIP floor
   // - If item has DOL checked (or isDol / routingDestination === 'DOL'): routes directly to 'FG-STORE'
   // - If item has ASSEMPLY checked (or isAssembly / routingDestination === 'ASSEMBLY'): routes to 'ASSEMBLY-STORE'
   // - If item has DEFLASH checked (or isDeflash / routingDestination === 'DEFLASH'): routes to 'DEFLASH-STORE'
   const handleSyncWipLot = (wo: WorkOrder, source: 'grid_entry' | 'excel_csv_upload', notes?: string) => {
     const targetItem = items.find((i) => i.code === wo.item);
 
-    let targetStore: OperationalStoreType = 'FG-STORE';
-    let targetStage: 'FG Inventory' | 'Assembly' | 'Deflashing' = 'FG Inventory';
-    let qcStatus: WipQcStatus = 'moved_to_fg';
+    let targetStore: OperationalStoreType = 'PRD-STORE';
+    let targetStage: 'Molding WIP' | 'FG Inventory' | 'Assembly' | 'Deflashing' = 'Molding WIP';
+    let qcStatus: WipQcStatus = 'pending_qc';
     let requiresDeflash = false;
     let requiresAssembly = false;
 
@@ -142,11 +143,16 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
       targetStage = 'Assembly';
       qcStatus = 'transferred_assembly';
       requiresAssembly = true;
-    } else {
+    } else if (targetItem?.isDol || targetItem?.routingDestination === 'DOL') {
       // DOL (Direct On Line) -> directly to FG-STORE
       targetStore = 'FG-STORE';
       targetStage = 'FG Inventory';
       qcStatus = 'moved_to_fg';
+    } else {
+      // Default: WIP -> PRD-STORE intermediate WIP floor
+      targetStore = 'PRD-STORE';
+      targetStage = 'Molding WIP';
+      qcStatus = 'pending_qc';
     }
 
     const goodQty = wo.completed ?? wo.qty ?? 1000;
@@ -296,6 +302,7 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
           workOrders={workOrders}
           machines={machines}
           items={items}
+          boms={boms}
           molds={INITIAL_MOLDS}
           onNavigate={onNavigate}
           onUpdateWO={onUpdateWO}

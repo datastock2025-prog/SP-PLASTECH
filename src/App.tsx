@@ -15,6 +15,7 @@ import { workspaceRbacService, normalizeRoleKey } from './services/workspaceRbac
 import { itemService } from './services/itemService';
 import { adminEventBus } from './services/adminService';
 import { SessionTimeoutModal, MfaVerificationModal, CookieConsentModal } from './security';
+import { UserProfilePreferencesView } from './components/profile/UserProfilePreferencesView';
 
 // Domain Feature Modules (Bounded Contexts)
 import {
@@ -210,6 +211,10 @@ export const App: React.FC = () => {
       'aiPromptBuilder',
       'promptBuilder',
       'aiAssistant',
+      'myProfile',
+      'userProfile',
+      'profilePreferences',
+      'userPreferences',
     ];
     if (universalViews.includes(view)) return true;
 
@@ -550,6 +555,10 @@ export const App: React.FC = () => {
       adminNotifications: ['Admin & System Settings', 'Notification Templates & Event Routing'],
       adminCustomFields: ['Admin & System Settings', 'Global System Parameters & User Defined Fields'],
       adminSystemParameters: ['Admin & System Settings', 'Global System Parameters & User Defined Fields'],
+      myProfile: ['User Account', 'My Profile & Preferences'],
+      userProfile: ['User Account', 'My Profile & Preferences'],
+      profilePreferences: ['User Account', 'My Profile & Preferences'],
+      userPreferences: ['User Account', 'My Profile & Preferences'],
     };
     return map[currentView] || ['Reboot ERP', currentView];
   };
@@ -942,6 +951,17 @@ export const App: React.FC = () => {
             </div>
           )}
 
+          {(currentView === 'myProfile' || currentView === 'userProfile' || currentView === 'profilePreferences' || currentView === 'userPreferences') && (
+            <UserProfilePreferencesView
+              currentUser={currentUser}
+              onNavigate={handleNavigate}
+              showToast={showToast}
+              onUpdateUser={(updated) => {
+                setCurrentUser(updated);
+              }}
+            />
+          )}
+
           {isEngineering && (
             <EngineeringViews
               view={currentView}
@@ -971,6 +991,7 @@ export const App: React.FC = () => {
               items={items}
               boms={boms}
               machines={machines}
+              currentUser={currentUser}
               selectedCode={viewParams.code}
               selectedId={viewParams.id}
               onNavigate={handleNavigate}
@@ -1195,6 +1216,8 @@ export const App: React.FC = () => {
           {isScm && (
             <ScmViews
               activeSubView={currentView}
+              items={items}
+              boms={boms}
               onNavigate={handleNavigate}
               showToast={showToast}
             />

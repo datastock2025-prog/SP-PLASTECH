@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ManufacturingBomWizardState } from './types';
+import { masterDataGovernanceService } from '../../../services/masterDataGovernanceService';
+import { adminEventBus } from '../../../services/adminService';
 import {
   DollarSign,
   TrendingDown,
@@ -15,6 +17,10 @@ import {
   Sliders,
   Calculator,
   PieChart,
+  Plus,
+  ChevronDown,
+  X,
+  Check,
 } from 'lucide-react';
 
 interface Step7Props {
@@ -26,6 +32,103 @@ interface Step7Props {
 export const Step7ScrapCost: React.FC<Step7Props> = ({ state, onChange, showToast }) => {
   const { scrapConfig, costRollup, components, secondaryOperations, routingResources, batchSize } = state;
   const [isCalculating, setIsCalculating] = useState<boolean>(false);
+
+  // Task 6: Master Data for Runner Scrap and Purge Lumps Categories
+  const [runnerCategoriesList, setRunnerCategoriesList] = useState(
+    masterDataGovernanceService.getRunnerScrapCategories()
+  );
+  const [purgeCategoriesList, setPurgeCategoriesList] = useState(
+    masterDataGovernanceService.getPurgeLumpsCategories()
+  );
+
+  const [isRunnerDropdownOpen, setIsRunnerDropdownOpen] = useState(false);
+  const [isPurgeDropdownOpen, setIsPurgeDropdownOpen] = useState(false);
+
+  // Creation Submodals
+  const [isCreateRunnerModalOpen, setIsCreateRunnerModalOpen] = useState(false);
+  const [newRunnerForm, setNewRunnerForm] = useState({
+    name: '',
+    description: '',
+    recoveryPct: 15,
+  });
+
+  const [isCreatePurgeModalOpen, setIsCreatePurgeModalOpen] = useState(false);
+  const [newPurgeForm, setNewPurgeForm] = useState({
+    name: '',
+    description: '',
+    polymerType: 'Polypropylene (PP)',
+  });
+
+  useEffect(() => {
+    const unsubRunner = adminEventBus.on('RUNNER_SCRAP_SAVED', () => {
+      setRunnerCategoriesList(masterDataGovernanceService.getRunnerScrapCategories());
+    });
+    const unsubPurge = adminEventBus.on('PURGE_LUMPS_SAVED', () => {
+      setPurgeCategoriesList(masterDataGovernanceService.getPurgeLumpsCategories());
+    });
+    return () => {
+      unsubRunner();
+      unsubPurge();
+    };
+  }, []);
+
+  const handleSaveNewRunnerCategory = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRunnerForm.name.trim()) {
+      showToast('Please enter a runner scrap category name');
+      return;
+    }
+    const saved = masterDataGovernanceService.saveRunnerScrapCategory({
+      name: newRunnerForm.name.trim(),
+      description: newRunnerForm.description.trim(),
+      recoveryPct: Number(newRunnerForm.recoveryPct) || 15,
+    });
+    setRunnerCategoriesList(masterDataGovernanceService.getRunnerScrapCategories());
+    onChange({
+      scrapConfig: {
+        ...scrapConfig,
+        runnerScrapCategory: saved.name,
+      },
+    });
+    setIsCreateRunnerModalOpen(false);
+    setNewRunnerForm({ name: '', description: '', recoveryPct: 15 });
+    showToast(`✓ Created Runner Scrap Category "${saved.name}" in Admin Master`);
+  };
+
+  const handleSaveNewPurgeCategory = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPurgeForm.name.trim()) {
+      showToast('Please enter a purge lumps category name');
+      return;
+    }
+    const saved = masterDataGovernanceService.savePurgeLumpsCategory({
+      name: newPurgeForm.name.trim(),
+      description: newPurgeForm.description.trim(),
+      polymerType: newPurgeForm.polymerType.trim(),
+    });
+    setPurgeCategoriesList(masterDataGovernanceService.getPurgeLumpsCategories());
+    onChange({
+      scrapConfig: {
+        ...scrapConfig,
+        lumbesScrapCategory: saved.name,
+      },
+    });
+    setIsCreatePurgeModalOpen(false);
+    setNewPurgeForm({ name: '', description: '', polymerType: 'Polypropylene (PP)' });
+    showToast(`✓ Created Purge Lumps Category "${saved.name}" in Admin Master`);
+  };
+
+  // Filtered lists
+  const filteredRunners = runnerCategoriesList.filter((r) =>
+    r.name.toLowerCase().includes((scrapConfig.runnerScrapCategory || '').toLowerCase()) ||
+    r.description.toLowerCase().includes((scrapConfig.runnerScrapCategory || '').toLowerCase())
+  );
+
+  const filteredPurges = purgeCategoriesList.filter((p) =>
+    p.name.toLowerCase().includes((scrapConfig.lumbesScrapCategory || '').toLowerCase()) ||
+    p.description.toLowerCase().includes((scrapConfig.lumbesScrapCategory || '').toLowerCase()) ||
+    p.polymerType.toLowerCase().includes((scrapConfig.lumbesScrapCategory || '').toLowerCase())
+  );
 
   // Recalculate cost rollup engine
   const handleRunCostPreview = () => {
@@ -163,32 +266,213 @@ export const Step7ScrapCost: React.FC<Step7Props> = ({ state, onChange, showToas
             />
           </div>
 
-          <div className="field mb-0">
-            <label className="text-xs font-bold text-[#14213D] block mb-1">Runner Scrap Category</label>
-            <input
-              type="text"
-              value={scrapConfig.runnerScrapCategory}
-              onChange={(e) =>
-                onChange({
-                  scrapConfig: { ...scrapConfig, runnerScrapCategory: e.target.value },
-                })
-              }
-              className="w-full text-xs py-2 px-3 border border-[#E4E0D6] rounded-lg"
-            />
+          {/* Task 6: Runner Scrap Category Autocomplete & Create */}
+          <div className="field mb-0 relative">
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-bold text-[#14213D]">Runner Scrap Category</label>
+              <button
+                type="button"
+                onClick={() => {
+                  setNewRunnerForm({
+                    name: scrapConfig.runnerScrapCategory || '',
+                    description: '',
+                    recoveryPct: 15,
+                  });
+                  setIsCreateRunnerModalOpen(true);
+                }}
+                className="text-[10px] text-teal-700 hover:text-teal-900 font-bold flex items-center gap-0.5 hover:underline"
+              >
+                <Plus className="w-2.5 h-2.5" /> + Create
+              </button>
+            </div>
+            <div className="relative">
+              <input
+                type="text"
+                value={scrapConfig.runnerScrapCategory}
+                onFocus={() => setIsRunnerDropdownOpen(true)}
+                onChange={(e) => {
+                  onChange({
+                    scrapConfig: { ...scrapConfig, runnerScrapCategory: e.target.value },
+                  });
+                  setIsRunnerDropdownOpen(true);
+                }}
+                placeholder="Search or enter runner scrap..."
+                className="w-full text-xs py-2 px-3 pr-7 border border-[#E4E0D6] rounded-lg"
+              />
+              <ChevronDown
+                className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-3 pointer-events-none cursor-pointer"
+                onClick={() => setIsRunnerDropdownOpen(!isRunnerDropdownOpen)}
+              />
+            </div>
+
+            {isRunnerDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setIsRunnerDropdownOpen(false)} />
+                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-[#E4E0D6] rounded-lg shadow-xl z-20 max-h-48 overflow-y-auto">
+                  <div className="p-1.5 border-b border-gray-100 bg-gray-50 flex items-center justify-between text-[10px] text-gray-500 font-semibold px-2">
+                    <span>Select Runner Scrap Reason</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsRunnerDropdownOpen(false);
+                        setNewRunnerForm({
+                          name: scrapConfig.runnerScrapCategory || '',
+                          description: '',
+                          recoveryPct: 15,
+                        });
+                        setIsCreateRunnerModalOpen(true);
+                      }}
+                      className="text-teal-700 hover:text-teal-900 font-bold flex items-center gap-0.5"
+                    >
+                      <Plus className="w-2.5 h-2.5" /> + New in Admin
+                    </button>
+                  </div>
+                  {filteredRunners.map((cat) => (
+                    <div
+                      key={cat.id}
+                      onClick={() => {
+                        onChange({
+                          scrapConfig: { ...scrapConfig, runnerScrapCategory: cat.name },
+                        });
+                        setIsRunnerDropdownOpen(false);
+                      }}
+                      className="px-2.5 py-1.5 hover:bg-emerald-50 cursor-pointer text-xs flex items-center justify-between"
+                    >
+                      <div>
+                        <div className="font-semibold text-gray-900">{cat.name}</div>
+                        <div className="text-[10px] text-gray-500 truncate max-w-[200px]">{cat.description}</div>
+                      </div>
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                        {cat.recoveryPct}% Recovery
+                      </span>
+                    </div>
+                  ))}
+                  {filteredRunners.length === 0 && (
+                    <div className="p-3 text-center text-gray-500 text-xs">
+                      No matching runner scrap categories.
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsRunnerDropdownOpen(false);
+                          setNewRunnerForm({
+                            name: scrapConfig.runnerScrapCategory,
+                            description: '',
+                            recoveryPct: 15,
+                          });
+                          setIsCreateRunnerModalOpen(true);
+                        }}
+                        className="block mx-auto mt-1.5 text-xs text-teal-700 font-bold hover:underline"
+                      >
+                        + Create "{scrapConfig.runnerScrapCategory}" as new Category
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
-          <div className="field mb-0">
-            <label className="text-xs font-bold text-[#14213D] block mb-1">Purge Lumps Category</label>
-            <input
-              type="text"
-              value={scrapConfig.lumbesScrapCategory}
-              onChange={(e) =>
-                onChange({
-                  scrapConfig: { ...scrapConfig, lumbesScrapCategory: e.target.value },
-                })
-              }
-              className="w-full text-xs py-2 px-3 border border-[#E4E0D6] rounded-lg"
-            />
+          {/* Task 6: Purge Lumps Category Autocomplete & Create */}
+          <div className="field mb-0 relative">
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-bold text-[#14213D]">Purge Lumps Category</label>
+              <button
+                type="button"
+                onClick={() => {
+                  setNewPurgeForm({
+                    name: scrapConfig.lumbesScrapCategory || '',
+                    description: '',
+                    polymerType: 'Polypropylene (PP)',
+                  });
+                  setIsCreatePurgeModalOpen(true);
+                }}
+                className="text-[10px] text-teal-700 hover:text-teal-900 font-bold flex items-center gap-0.5 hover:underline"
+              >
+                <Plus className="w-2.5 h-2.5" /> + Create
+              </button>
+            </div>
+            <div className="relative">
+              <input
+                type="text"
+                value={scrapConfig.lumbesScrapCategory}
+                onFocus={() => setIsPurgeDropdownOpen(true)}
+                onChange={(e) => {
+                  onChange({
+                    scrapConfig: { ...scrapConfig, lumbesScrapCategory: e.target.value },
+                  });
+                  setIsPurgeDropdownOpen(true);
+                }}
+                placeholder="Search or enter purge lumps..."
+                className="w-full text-xs py-2 px-3 pr-7 border border-[#E4E0D6] rounded-lg"
+              />
+              <ChevronDown
+                className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-3 pointer-events-none cursor-pointer"
+                onClick={() => setIsPurgeDropdownOpen(!isPurgeDropdownOpen)}
+              />
+            </div>
+
+            {isPurgeDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setIsPurgeDropdownOpen(false)} />
+                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-[#E4E0D6] rounded-lg shadow-xl z-20 max-h-48 overflow-y-auto">
+                  <div className="p-1.5 border-b border-gray-100 bg-gray-50 flex items-center justify-between text-[10px] text-gray-500 font-semibold px-2">
+                    <span>Select Purge Lumps Reason</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsPurgeDropdownOpen(false);
+                        setNewPurgeForm({
+                          name: scrapConfig.lumbesScrapCategory || '',
+                          description: '',
+                          polymerType: 'Polypropylene (PP)',
+                        });
+                        setIsCreatePurgeModalOpen(true);
+                      }}
+                      className="text-teal-700 hover:text-teal-900 font-bold flex items-center gap-0.5"
+                    >
+                      <Plus className="w-2.5 h-2.5" /> + New in Admin
+                    </button>
+                  </div>
+                  {filteredPurges.map((cat) => (
+                    <div
+                      key={cat.id}
+                      onClick={() => {
+                        onChange({
+                          scrapConfig: { ...scrapConfig, lumbesScrapCategory: cat.name },
+                        });
+                        setIsPurgeDropdownOpen(false);
+                      }}
+                      className="px-2.5 py-1.5 hover:bg-amber-50 cursor-pointer text-xs flex items-center justify-between"
+                    >
+                      <div>
+                        <div className="font-semibold text-gray-900">{cat.name}</div>
+                        <div className="text-[10px] text-gray-500 truncate max-w-[200px]">{cat.polymerType}</div>
+                      </div>
+                    </div>
+                  ))}
+                  {filteredPurges.length === 0 && (
+                    <div className="p-3 text-center text-gray-500 text-xs">
+                      No matching purge lump categories.
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsPurgeDropdownOpen(false);
+                          setNewPurgeForm({
+                            name: scrapConfig.lumbesScrapCategory,
+                            description: '',
+                            polymerType: 'Polypropylene (PP)',
+                          });
+                          setIsCreatePurgeModalOpen(true);
+                        }}
+                        className="block mx-auto mt-1.5 text-xs text-teal-700 font-bold hover:underline"
+                      >
+                        + Create "{scrapConfig.lumbesScrapCategory}" as new Category
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -242,6 +526,149 @@ export const Step7ScrapCost: React.FC<Step7Props> = ({ state, onChange, showToas
           )}
         </div>
       </div>
+
+      {/* Task 6 Modal: Create Runner Scrap Category */}
+      {isCreateRunnerModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E4E0D6] space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-[#E4E0D6] pb-3">
+              <h3 className="text-sm font-bold text-[#14213D] flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 text-emerald-600" />
+                Create Runner Scrap Category in Master Data
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsCreateRunnerModalOpen(false)}
+                className="text-gray-400 hover:text-gray-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveNewRunnerCategory} className="space-y-3 text-xs">
+              <div>
+                <label className="text-[11px] font-bold text-[#14213D] block mb-1">
+                  Category Name <span className="text-rose-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newRunnerForm.name}
+                  onChange={(e) => setNewRunnerForm({ ...newRunnerForm, name: e.target.value })}
+                  placeholder="e.g. High-Purity Virgin Regrind Granules"
+                  className="w-full text-xs py-2 px-3 border border-[#E4E0D6] rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-[#14213D] block mb-1">Description / Handling Standard</label>
+                <input
+                  type="text"
+                  value={newRunnerForm.description}
+                  onChange={(e) => setNewRunnerForm({ ...newRunnerForm, description: e.target.value })}
+                  placeholder="e.g. Clean virgin cold runners sorted at machine hopper"
+                  className="w-full text-xs py-2 px-3 border border-[#E4E0D6] rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-[#14213D] block mb-1">Standard Recovery Allowance (%)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={newRunnerForm.recoveryPct}
+                  onChange={(e) => setNewRunnerForm({ ...newRunnerForm, recoveryPct: Number(e.target.value) || 0 })}
+                  className="w-full text-xs font-mono py-2 px-3 border border-[#E4E0D6] rounded-lg"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E4E0D6]">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateRunnerModalOpen(false)}
+                  className="btn btn-sm btn-ghost text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-sm btn-primary bg-emerald-700 hover:bg-emerald-800 text-white text-xs flex items-center gap-1"
+                >
+                  <Check className="w-3.5 h-3.5" /> Save &amp; Select Category
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Task 6 Modal: Create Purge Lumps Category */}
+      {isCreatePurgeModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#E4E0D6] space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-[#E4E0D6] pb-3">
+              <h3 className="text-sm font-bold text-[#14213D] flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 text-emerald-600" />
+                Create Purge Lumps Category in Master Data
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsCreatePurgeModalOpen(false)}
+                className="text-gray-400 hover:text-gray-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveNewPurgeCategory} className="space-y-3 text-xs">
+              <div>
+                <label className="text-[11px] font-bold text-[#14213D] block mb-1">
+                  Category Name <span className="text-rose-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newPurgeForm.name}
+                  onChange={(e) => setNewPurgeForm({ ...newPurgeForm, name: e.target.value })}
+                  placeholder="e.g. Color Changeover Purge Compounds"
+                  className="w-full text-xs py-2 px-3 border border-[#E4E0D6] rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-[#14213D] block mb-1">Resin / Polymer Substrate</label>
+                <input
+                  type="text"
+                  value={newPurgeForm.polymerType}
+                  onChange={(e) => setNewPurgeForm({ ...newPurgeForm, polymerType: e.target.value })}
+                  placeholder="e.g. Polypropylene (PP), HDPE, ABS"
+                  className="w-full text-xs py-2 px-3 border border-[#E4E0D6] rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-[#14213D] block mb-1">Description / Recycling Protocol</label>
+                <input
+                  type="text"
+                  value={newPurgeForm.description}
+                  onChange={(e) => setNewPurgeForm({ ...newPurgeForm, description: e.target.value })}
+                  placeholder="e.g. Heavy purge cake sent to industrial shredder"
+                  className="w-full text-xs py-2 px-3 border border-[#E4E0D6] rounded-lg"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E4E0D6]">
+                <button
+                  type="button"
+                  onClick={() => setIsCreatePurgeModalOpen(false)}
+                  className="btn btn-sm btn-ghost text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-sm btn-primary bg-emerald-700 hover:bg-emerald-800 text-white text-xs flex items-center gap-1"
+                >
+                  <Check className="w-3.5 h-3.5" /> Save &amp; Select Category
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Section 2: Full-width Interactive Cost Preview Card */}
       <div className="bg-[#14213D] text-white rounded-2xl p-6 shadow-xl border border-[#26365C] space-y-6">

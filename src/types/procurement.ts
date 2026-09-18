@@ -182,6 +182,9 @@ export interface SupplierMaster {
   deliveryTerms: string; // Incoterms e.g. FOB, CIF, EXW
   leadTimeDays: number;
   minimumOrderValue: number;
+  hsnCode?: string;
+  tariffCode?: string;
+  moq?: number;
   website?: string;
   notes?: string;
   createdDate: string;

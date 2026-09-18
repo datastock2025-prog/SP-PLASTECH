@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Check,
   ChevronRight,
+  ChevronDown,
   ArrowLeft,
   ArrowRight,
   Save,
@@ -13,6 +14,7 @@ import {
   HelpCircle,
   ShieldCheck,
   CheckCircle,
+  CheckCircle2,
   AlertTriangle,
   Layers,
   Box,
@@ -28,8 +30,19 @@ import {
   Lock,
   Building,
   Image as ImageIcon,
+  Database,
+  Search,
+  ExternalLink,
+  Zap,
+  Truck,
+  MapPin,
+  Store,
 } from 'lucide-react';
 import { ItemMaster, ItemType, ApprovalStatus, ItemStatus } from '../../types';
+import { MasterDataRecord } from '../../data/mockAdminExtendedData';
+import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
+import { itemService } from '../../services/itemService';
+import { adminEventBus } from '../../services/adminService';
 
 interface ConversionRow {
   id: string;
@@ -43,6 +56,7 @@ interface CreateItemWizardProps {
   onClose: () => void;
   onSaveItem: (item: ItemMaster) => void;
   editItem?: ItemMaster | null;
+  allItems?: ItemMaster[];
   showToast: (msg: string) => void;
 }
 
@@ -51,6 +65,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   onClose,
   onSaveItem,
   editItem = null,
+  allItems,
   showToast,
 }) => {
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -59,15 +74,445 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   // Step 1: Item Type
   const [selectedType, setSelectedType] = useState<ItemType>(editItem?.type || 'Finished Good');
 
-  // Step 2: Basic Information
-  const [autoGenerateCode, setAutoGenerateCode] = useState<boolean>(!editItem);
+  // Step 2: Basic Information & Validation (Task 2)
   const [itemCode, setItemCode] = useState<string>(editItem?.code || '');
+  const [itemCodeError, setItemCodeError] = useState<boolean>(false);
   const [itemName, setItemName] = useState<string>(editItem?.name || '');
   const [category, setCategory] = useState<string>(editItem?.cat || '');
-  const [itemGroup, setItemGroup] = useState<string>('');
+  const [itemGroup, setItemGroup] = useState<string>(editItem?.itemGroup || '');
   const [status, setStatus] = useState<string>(editItem?.approval === 'approved' ? 'Active' : 'Active');
   const [description, setDescription] = useState<string>(editItem?.desc || '');
   const [itemImage, setItemImage] = useState<string | null>(null);
+
+  // Master Data Governance Integration State
+  const [masterRecords, setMasterRecords] = useState<MasterDataRecord[]>(() =>
+    masterDataGovernanceService.getAllRecords()
+  );
+  const [showCodeDropdown, setShowCodeDropdown] = useState<boolean>(false);
+  const [syncedMasterRecord, setSyncedMasterRecord] = useState<MasterDataRecord | null>(() => {
+    if (editItem?.code) {
+      return masterDataGovernanceService.getRecordByCode(editItem.code) || null;
+    }
+    return null;
+  });
+  const [isMasterDataModalOpen, setIsMasterDataModalOpen] = useState<boolean>(false);
+  const [masterModalForm, setMasterModalForm] = useState<Partial<MasterDataRecord>>({
+    entityType: 'Polymer Resin Item',
+    code: '',
+    name: '',
+    primaryUom: 'Kilograms (KG)',
+    category: 'Virgin Raw Polymer',
+    itemGroup: 'Polymer Feedstock',
+    plantScope: 'All Plants (Global)',
+    complianceCert: 'RoHS, REACH, UL-94 HB',
+    status: 'Approved',
+  });
+  const codeDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Task 1: Supplier Governance & Autocomplete State
+  const [supplierList, setSupplierList] = useState(() => masterDataGovernanceService.getSuppliers());
+  const [showSupplierDropdown, setShowSupplierDropdown] = useState<boolean>(false);
+  const supplierDropdownRef = useRef<HTMLDivElement>(null);
+  const [isNewSupplierModalOpen, setIsNewSupplierModalOpen] = useState<boolean>(false);
+  const [newSupplierForm, setNewSupplierForm] = useState({
+    code: '',
+    name: '',
+    category: 'Virgin Resin',
+    hsnCode: '39021000',
+    tariffCode: '3902.10.00',
+    moq: 1000,
+    leadTimeDays: 7,
+    paymentTerms: 'Net 30 Days',
+  });
+
+  // Task 3: Warehouse & Bin Governance State
+  const [warehouseList, setWarehouseList] = useState(() => masterDataGovernanceService.getWarehouses());
+  const [binList, setBinList] = useState(() => masterDataGovernanceService.getBins());
+  const [showBinDropdown, setShowBinDropdown] = useState<boolean>(false);
+  const binDropdownRef = useRef<HTMLDivElement>(null);
+  const [isNewWarehouseModalOpen, setIsNewWarehouseModalOpen] = useState<boolean>(false);
+  const [newWarehouseForm, setNewWarehouseForm] = useState({
+    code: '',
+    name: '',
+    zone: 'Zone A - Polymer Silos',
+    plantScope: 'All Plants',
+  });
+  const [isNewBinModalOpen, setIsNewBinModalOpen] = useState<boolean>(false);
+  const [newBinForm, setNewBinForm] = useState({
+    code: '',
+    warehouseCode: 'RM-WH-01',
+    zone: 'Standard Storage Zone',
+  });
+
+  const [filterAllTypes, setFilterAllTypes] = useState<boolean>(false);
+
+  // Subscribe to Master Data governance updates
+  useEffect(() => {
+    const unsub = adminEventBus.subscribe(() => {
+      setMasterRecords(masterDataGovernanceService.getAllRecords());
+      setSupplierList(masterDataGovernanceService.getSuppliers());
+      setWarehouseList(masterDataGovernanceService.getWarehouses());
+      setBinList(masterDataGovernanceService.getBins());
+    });
+    return unsub;
+  }, []);
+
+  // Close dropdowns on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (codeDropdownRef.current && !codeDropdownRef.current.contains(e.target as Node)) {
+        setShowCodeDropdown(false);
+      }
+      if (supplierDropdownRef.current && !supplierDropdownRef.current.contains(e.target as Node)) {
+        setShowSupplierDropdown(false);
+      }
+      if (binDropdownRef.current && !binDropdownRef.current.contains(e.target as Node)) {
+        setShowBinDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Map Item Type (Step 1) to Admin Master Data Entity Types (Task 1)
+  const itemTypeToEntityMap: Record<ItemType, string[]> = {
+    'Finished Good': ['Finished Molded Component'],
+    'Semi-Finished Good': ['Finished Molded Component'],
+    'Raw Material': ['Polymer Resin Item'],
+    'Regrind': ['Polymer Resin Item'],
+    'Masterbatch': ['Color Masterbatch'],
+    'Colorant': ['Color Masterbatch'],
+    'Additive': ['Color Masterbatch'],
+    'Spare Part': ['Tooling & Mold Asset'],
+    'Packaging Material': ['Finished Molded Component', 'Polymer Resin Item'],
+    'Consumable': ['Color Masterbatch', 'Polymer Resin Item'],
+  };
+
+  // Active Item Master Grid Items & Duplicate Validation
+  const currentGridItems: ItemMaster[] = (allItems && allItems.length > 0) ? allItems : itemService.getItemsSync();
+  const isEditing = !!editItem;
+  const currentEditCode = (editItem?.code || '').trim().toLowerCase();
+  const currentEditName = (editItem?.name || '').trim().toLowerCase();
+
+  // Codes and Names of items currently waiting for approval or rejected in Item Master Grid
+  const pendingOrRejectedCodes = new Set(
+    currentGridItems
+      .filter((i) => i.approval === 'pending' || i.approval === 'rejected' || i.status === 'rejected' || i.status === 'quarantined')
+      .map((i) => (i.code || '').trim().toLowerCase())
+  );
+
+  const pendingOrRejectedNames = new Set(
+    currentGridItems
+      .filter((i) => i.approval === 'pending' || i.approval === 'rejected' || i.status === 'rejected' || i.status === 'quarantined')
+      .map((i) => (i.name || '').trim().toLowerCase())
+  );
+
+  // Exact duplicate checkers
+  const checkDuplicateCode = (codeToCheck: string): { isDuplicate: boolean; item?: ItemMaster } => {
+    const clean = (codeToCheck || '').trim().toLowerCase();
+    if (!clean) return { isDuplicate: false };
+    if (isEditing && clean === currentEditCode) return { isDuplicate: false };
+    const matched = currentGridItems.find(
+      (i) => (i.code || '').trim().toLowerCase() === clean && (!isEditing || (i.code || '').trim().toLowerCase() !== currentEditCode)
+    );
+    return { isDuplicate: !!matched, item: matched };
+  };
+
+  const checkDuplicateName = (nameToCheck: string): { isDuplicate: boolean; item?: ItemMaster } => {
+    const clean = (nameToCheck || '').trim().toLowerCase();
+    if (!clean) return { isDuplicate: false };
+    if (isEditing && clean === currentEditName) return { isDuplicate: false };
+    const matched = currentGridItems.find(
+      (i) => (i.name || '').trim().toLowerCase() === clean && (!isEditing || (i.name || '').trim().toLowerCase() !== currentEditName)
+    );
+    return { isDuplicate: !!matched, item: matched };
+  };
+
+  // Real-time duplicate status for active inputs
+  const duplicateCodeMatch = checkDuplicateCode(itemCode);
+  const duplicateNameMatch = checkDuplicateName(itemName);
+
+  // Filter master data records based on selected item type and search query
+  // STRICT REQUIREMENT: Do NOT show items already waiting for approval or rejected in Item Master grid
+  const allowedEntities = itemTypeToEntityMap[selectedType] || ['Finished Molded Component'];
+  const filteredMasterCodes = masterRecords.filter((r) => {
+    const rCodeLower = (r.code || '').trim().toLowerCase();
+    const rNameLower = (r.name || '').trim().toLowerCase();
+
+    // 1. Exclude items already waiting for approval or rejected in Item Master grid
+    if (pendingOrRejectedCodes.has(rCodeLower) || pendingOrRejectedNames.has(rNameLower)) {
+      return false;
+    }
+    // 2. Exclude records marked as Rejected or Pending in governance
+    if (r.status === 'Rejected' || r.status === 'Pending' || (r as any).approval === 'rejected' || (r as any).approval === 'pending') {
+      return false;
+    }
+    // 3. When creating new item, exclude any codes/names already active in Item Master grid to prevent duplicate SKU selection
+    if (!isEditing) {
+      const alreadyInGrid = currentGridItems.some(
+        (i) => (i.code || '').trim().toLowerCase() === rCodeLower || (i.name || '').trim().toLowerCase() === rNameLower
+      );
+      if (alreadyInGrid) return false;
+    }
+
+    const matchType = filterAllTypes || allowedEntities.includes(r.entityType);
+    if (!matchType) return false;
+    if (!itemCode || !itemCode.trim()) return true;
+    const q = itemCode.trim().toLowerCase();
+    return (
+      (r.code || '').toLowerCase().includes(q) ||
+      (r.name || '').toLowerCase().includes(q) ||
+      (r.category || '').toLowerCase().includes(q) ||
+      (r.itemGroup && r.itemGroup.toLowerCase().includes(q)) ||
+      (r.resinType && r.resinType.toLowerCase().includes(q)) ||
+      (r.color && r.color.toLowerCase().includes(q))
+    );
+  });
+
+  // Apply Master Data Record to Wizard Form
+  const handleApplyMasterRecord = (rec: MasterDataRecord) => {
+    const dupCheckCode = checkDuplicateCode(rec.code);
+    if (dupCheckCode.isDuplicate) {
+      showToast(`Cannot select "${rec.code}": Code already in use by ${dupCheckCode.item?.code} (${dupCheckCode.item?.approval || 'active'}).`);
+      return;
+    }
+    const dupCheckName = checkDuplicateName(rec.name);
+    if (dupCheckName.isDuplicate) {
+      showToast(`Cannot select "${rec.name}": Name already in use by ${dupCheckName.item?.code} (${dupCheckName.item?.approval || 'active'}).`);
+      return;
+    }
+
+    setItemCode(rec.code);
+    setItemName(rec.name);
+    setCategory(rec.category);
+    setItemGroup(
+      rec.itemGroup ||
+      (rec.entityType === 'Polymer Resin Item'
+        ? 'Polymer Feedstock'
+        : rec.entityType === 'Color Masterbatch'
+        ? 'Colorants & Additives'
+        : rec.entityType === 'Finished Molded Component'
+        ? 'Automotive Assemblies'
+        : rec.entityType === 'Tooling & Mold Asset'
+        ? 'Tooling & Mold Spares'
+        : 'General Catalog')
+    );
+
+    // Task 2: Auto-fill Manufacturing Attributes (Resin Type, Color, Grade, MFI, Density)
+    const derivedResin = rec.resinType || (rec.entityType === 'Polymer Resin Item' ? 'Polypropylene (PP)' : rec.entityType === 'Finished Molded Component' ? 'Impact Copolymer PP + 15% EPDM' : '');
+    const derivedColor = rec.color || (rec.entityType === 'Color Masterbatch' ? 'Carbon Black (RAL 9005)' : rec.entityType === 'Finished Molded Component' ? 'Midnight Black / Painted Gloss' : 'Natural / Milky White');
+    
+    if (derivedResin) setResinType(derivedResin);
+    if (derivedColor) setColor(derivedColor);
+    if (rec.polymerGrade) setPolymerGrade(rec.polymerGrade);
+    if (rec.mfi) setMfi(rec.mfi);
+    if (rec.density) setDensity(rec.density);
+
+    // Auto-map type & UOM
+    if (rec.entityType === 'Polymer Resin Item') {
+      setSelectedType('Raw Material');
+      setBaseUOM('KG');
+      setPurchaseUOM('KG');
+      setStockUOM('KG');
+    } else if (rec.entityType === 'Color Masterbatch') {
+      setSelectedType('Masterbatch');
+      setBaseUOM('KG');
+      setPurchaseUOM('KG');
+      setStockUOM('KG');
+    } else if (rec.entityType === 'Finished Molded Component') {
+      setSelectedType('Finished Good');
+      setBaseUOM('PCS');
+      setPurchaseUOM('PCS');
+      setSalesUOM('PCS');
+      setStockUOM('PCS');
+    } else if (rec.entityType === 'Tooling & Mold Asset') {
+      setSelectedType('Spare Part');
+      setBaseUOM('PCS');
+    }
+
+    if (rec.complianceCert && !description) {
+      setDescription(`Compliance: ${rec.complianceCert}`);
+    }
+
+    setSyncedMasterRecord(rec);
+    setItemCodeError(false);
+    setShowCodeDropdown(false);
+    showToast(`✓ Master data "${rec.code}" auto-filled: Name, Category, Group, Resin (${derivedResin || 'PP'}), Color (${derivedColor || 'Natural'})`);
+  };
+
+  const handleItemCodeChange = (val: string) => {
+    setItemCode(val);
+    if (val.trim()) setItemCodeError(false);
+    setShowCodeDropdown(true);
+
+    // If exact match exists in master records, auto-fill immediately if not duplicate
+    const matched = masterDataGovernanceService.getRecordByCode(val);
+    if (matched) {
+      const codeLower = (matched.code || '').toLowerCase();
+      const nameLower = (matched.name || '').toLowerCase();
+      if (!pendingOrRejectedCodes.has(codeLower) && !pendingOrRejectedNames.has(nameLower)) {
+        handleApplyMasterRecord(matched);
+      }
+    } else if (syncedMasterRecord && syncedMasterRecord.code.toLowerCase() !== val.toLowerCase()) {
+      setSyncedMasterRecord(null);
+    }
+  };
+
+  const handleOpenNewMasterModal = (prefilledCode?: string) => {
+    const codeToUse =
+      (prefilledCode && prefilledCode.trim()) ||
+      (itemCode && itemCode.trim()) ||
+      (selectedType === 'Raw Material' ? 'RES-PP-COPO-02' : selectedType === 'Masterbatch' ? 'MB-BLK-AUTO-03' : 'FG-BMP-NEXON-R');
+
+    const entity: MasterDataRecord['entityType'] =
+      selectedType === 'Raw Material' || selectedType === 'Regrind'
+        ? 'Polymer Resin Item'
+        : selectedType === 'Masterbatch' || selectedType === 'Colorant' || selectedType === 'Additive'
+        ? 'Color Masterbatch'
+        : selectedType === 'Finished Good' || selectedType === 'Semi-Finished Good'
+        ? 'Finished Molded Component'
+        : selectedType === 'Spare Part'
+        ? 'Tooling & Mold Asset'
+        : 'Polymer Resin Item';
+
+    const defaultResin = resinType || (entity === 'Polymer Resin Item' ? 'Polypropylene (PP)' : entity === 'Finished Molded Component' ? 'Impact Copolymer PP + 15% EPDM' : '');
+    const defaultColor = color || (entity === 'Color Masterbatch' ? 'Carbon Black (RAL 9005)' : entity === 'Finished Molded Component' ? 'Midnight Black / Painted Gloss' : 'Natural / Milky White');
+
+    setMasterModalForm({
+      entityType: entity,
+      code: codeToUse.toUpperCase(),
+      name: itemName || '',
+      primaryUom: entity.includes('Resin') || entity.includes('Masterbatch') ? 'Kilograms (KG)' : 'Numbers (PCS)',
+      category: category || (entity === 'Polymer Resin Item' ? 'Virgin Raw Polymer' : entity === 'Color Masterbatch' ? 'Additives & Pigments' : 'Automotive Exterior'),
+      itemGroup: itemGroup || (entity === 'Polymer Resin Item' ? 'Polymer Feedstock' : entity === 'Color Masterbatch' ? 'Colorants & Additives' : 'Automotive Assemblies'),
+      plantScope: 'All Plants (Global)',
+      complianceCert: 'RoHS, REACH, UL-94 HB, PPAP Level-3',
+      status: 'Approved',
+      description: description || '',
+      resinType: defaultResin,
+      color: defaultColor,
+      polymerGrade: polymerGrade || '',
+      mfi: mfi || '',
+      density: density || '',
+    });
+    setShowCodeDropdown(false);
+    setIsMasterDataModalOpen(true);
+  };
+
+  const handleSaveMasterModalRecord = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!masterModalForm.code || !masterModalForm.name) {
+      showToast('Please provide both Master Code and Description Name.');
+      return;
+    }
+
+    const codeToSave = masterModalForm.code.trim().toUpperCase();
+    const nameToSave = masterModalForm.name.trim();
+
+    // Check if code or name duplicates existing item master SKUs
+    const dupCheckCode = checkDuplicateCode(codeToSave);
+    if (dupCheckCode.isDuplicate) {
+      showToast(`Cannot register Master Code "${codeToSave}": Code already exists in Item Master (${dupCheckCode.item?.approval || 'active'}).`);
+      return;
+    }
+    const dupCheckName = checkDuplicateName(nameToSave);
+    if (dupCheckName.isDuplicate) {
+      showToast(`Cannot register Master Name "${nameToSave}": Name already used by SKU ${dupCheckName.item?.code}.`);
+      return;
+    }
+
+    const saved = masterDataGovernanceService.saveRecord({
+      ...(masterModalForm as any),
+      code: codeToSave,
+      name: nameToSave,
+    });
+
+    // Auto-fill wizard
+    handleApplyMasterRecord(saved);
+    setIsMasterDataModalOpen(false);
+    showToast(`Master record ${saved.code} registered in Admin Governance & auto-filled!`);
+  };
+
+  // Task 1: Supplier Governance Handlers
+  const handleSelectSupplier = (sup: { name: string; hsnCode?: string; moq?: number; leadTimeDays?: number }) => {
+    setPreferredSupplier(sup.name);
+    if (sup.hsnCode) setHsnCode(sup.hsnCode);
+    if (sup.moq) setPurchaseMoq(sup.moq);
+    if (sup.leadTimeDays) setLeadTimeDays(sup.leadTimeDays);
+    setShowSupplierDropdown(false);
+    showToast(`✓ Supplier "${sup.name}" selected: HSN (${sup.hsnCode || '39021000'}) & MOQ (${sup.moq || 1000}) auto-filled!`);
+  };
+
+  const handleOpenNewSupplierModal = (prefilledName?: string) => {
+    setNewSupplierForm({
+      code: `SUP-${Date.now().toString().slice(-4)}`,
+      name: prefilledName || preferredSupplier || '',
+      category: selectedType === 'Masterbatch' || selectedType === 'Colorant' ? 'Masterbatch & Colorants' : selectedType === 'Spare Part' ? 'Molds & Tooling' : 'Virgin Resin',
+      hsnCode: selectedType === 'Masterbatch' ? '32061110' : selectedType === 'Spare Part' ? '84807100' : '39021000',
+      tariffCode: selectedType === 'Masterbatch' ? '3206.11.10' : selectedType === 'Spare Part' ? '8480.71.00' : '3902.10.00',
+      moq: selectedType === 'Masterbatch' ? 500 : selectedType === 'Spare Part' ? 1 : 2000,
+      leadTimeDays: 7,
+      paymentTerms: 'Net 30 Days',
+    });
+    setShowSupplierDropdown(false);
+    setIsNewSupplierModalOpen(true);
+  };
+
+  const handleSaveNewSupplier = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSupplierForm.name.trim()) {
+      showToast('Please enter supplier company name.');
+      return;
+    }
+    const saved = masterDataGovernanceService.saveSupplier(newSupplierForm);
+    setPreferredSupplier(saved.name);
+    setHsnCode(saved.hsnCode);
+    setPurchaseMoq(saved.moq);
+    setLeadTimeDays(saved.leadTimeDays);
+    setIsNewSupplierModalOpen(false);
+    showToast(`✓ Supplier "${saved.name}" registered in Master Data & auto-filled HSN (${saved.hsnCode}) and MOQ (${saved.moq})!`);
+  };
+
+  // Task 3: Warehouse & Bin Governance Handlers
+  const handleOpenNewWarehouseModal = () => {
+    const prefix = selectedType === 'Raw Material' ? 'RM-WH' : selectedType === 'Masterbatch' ? 'MB-STORE' : 'FG-WH';
+    setNewWarehouseForm({
+      code: `${prefix}-${Date.now().toString().slice(-2)}`,
+      name: '',
+      zone: selectedType === 'Raw Material' ? 'Zone A - Heavy Polymer Silos' : selectedType === 'Masterbatch' ? 'Zone B - Additives Vault' : 'Zone C - Automated Pallet Racks',
+      plantScope: 'All Plants (Global)',
+    });
+    setIsNewWarehouseModalOpen(true);
+  };
+
+  const handleSaveNewWarehouse = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newWarehouseForm.code.trim() || !newWarehouseForm.name.trim()) {
+      showToast('Please provide both Warehouse Code and Warehouse Name.');
+      return;
+    }
+    const saved = masterDataGovernanceService.saveWarehouse(newWarehouseForm);
+    setDefaultWarehouse(saved.code);
+    setIsNewWarehouseModalOpen(false);
+    showToast(`✓ Warehouse "${saved.code} - ${saved.name}" registered in Master Data & selected!`);
+  };
+
+  const handleSaveNewBin = (codeToSave?: string) => {
+    const code = (codeToSave || defaultBin || '').trim().toUpperCase();
+    if (!code) {
+      showToast('Please enter a bin location code.');
+      return;
+    }
+    const saved = masterDataGovernanceService.saveBin({
+      code,
+      warehouseCode: defaultWarehouse,
+      zone: 'Storage Rack/Aisle',
+    });
+    setDefaultBin(saved.code);
+    setShowBinDropdown(false);
+    setIsNewBinModalOpen(false);
+    showToast(`✓ Storage Bin "${saved.code}" registered in Master Data under warehouse ${defaultWarehouse}!`);
+  };
 
   // Finished Good Technical & Injection Molding Parameters
   const [cycleTime, setCycleTime] = useState<number | string>(
@@ -124,17 +569,36 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
     editItem?.safetyStock ? parseInt(editItem.safetyStock) : 0
   );
 
-  // Post-Molding Routing Destination Checkboxes: DOL, ASSEMPLY, DEFLASH
-  const initialRouting: 'DOL' | 'ASSEMBLY' | 'DEFLASH' = editItem?.routingDestination ||
-    (editItem?.isDeflash ? 'DEFLASH' : editItem?.isAssembly ? 'ASSEMBLY' : editItem?.isDol ? 'DOL' : 'DOL');
+  // Post-Molding Routing Destination Checkboxes: WIP (Default for FG), DOL, ASSEMBLY, DEFLASH
+  const initialRouting: 'WIP' | 'DOL' | 'ASSEMBLY' | 'DEFLASH' = editItem?.routingDestination ||
+    (editItem?.isWip ? 'WIP' : editItem?.isDeflash ? 'DEFLASH' : editItem?.isAssembly ? 'ASSEMBLY' : editItem?.isDol ? 'DOL' : 'WIP');
 
-  const [routingDestination, setRoutingDestination] = useState<'DOL' | 'ASSEMBLY' | 'DEFLASH'>(initialRouting);
+  const [routingDestination, setRoutingDestination] = useState<'WIP' | 'DOL' | 'ASSEMBLY' | 'DEFLASH'>(initialRouting);
+  const [isWip, setIsWip] = useState<boolean>(editItem?.isWip ?? (initialRouting === 'WIP'));
   const [isDol, setIsDol] = useState<boolean>(editItem?.isDol ?? (initialRouting === 'DOL'));
   const [isAssembly, setIsAssembly] = useState<boolean>(editItem?.isAssembly ?? (initialRouting === 'ASSEMBLY'));
   const [isDeflash, setIsDeflash] = useState<boolean>(editItem?.isDeflash ?? (initialRouting === 'DEFLASH'));
 
+  const handleToggleWip = (checked: boolean) => {
+    if (checked) {
+      setIsWip(true);
+      setIsDol(false);
+      setIsAssembly(false);
+      setIsDeflash(false);
+      setRoutingDestination('WIP');
+      if (selectedType === 'Finished Good') {
+        setDefaultWarehouse('WIP-WH-01');
+      }
+    } else {
+      setIsWip(false);
+      setIsDol(true);
+      setRoutingDestination('DOL');
+    }
+  };
+
   const handleToggleDol = (checked: boolean) => {
     if (checked) {
+      setIsWip(false);
       setIsDol(true);
       setIsAssembly(false);
       setIsDeflash(false);
@@ -144,34 +608,36 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       }
     } else {
       setIsDol(false);
-      setIsDeflash(true);
-      setRoutingDestination('DEFLASH');
+      setIsWip(true);
+      setRoutingDestination('WIP');
     }
   };
 
   const handleToggleAssembly = (checked: boolean) => {
     if (checked) {
+      setIsWip(false);
       setIsDol(false);
       setIsAssembly(true);
       setIsDeflash(false);
       setRoutingDestination('ASSEMBLY');
     } else {
       setIsAssembly(false);
-      setIsDol(true);
-      setRoutingDestination('DOL');
+      setIsWip(true);
+      setRoutingDestination('WIP');
     }
   };
 
   const handleToggleDeflash = (checked: boolean) => {
     if (checked) {
+      setIsWip(false);
       setIsDol(false);
       setIsAssembly(false);
       setIsDeflash(true);
       setRoutingDestination('DEFLASH');
     } else {
       setIsDeflash(false);
-      setIsDol(true);
-      setRoutingDestination('DOL');
+      setIsWip(true);
+      setRoutingDestination('WIP');
     }
   };
 
@@ -237,7 +703,6 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
         setPreferredSupplier(editItem.supplier || '');
         setHsnCode(editItem.hsCode || '');
         setLeadTimeDays(editItem.leadTime ? parseInt(editItem.leadTime) : 0);
-        setAutoGenerateCode(false);
       } else {
         // Clean blank slate for new live item entry
         setCurrentStep(1);
@@ -267,6 +732,11 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
         setDefaultBin('');
         setReorderLevel(0);
         setSafetyStock(0);
+        setIsWip(selectedType === 'Finished Good');
+        setIsDol(false);
+        setIsAssembly(false);
+        setIsDeflash(false);
+        setRoutingDestination(selectedType === 'Finished Good' ? 'WIP' : 'DOL');
         setIqcMandatory(false);
         setCoaRequired(false);
         setApprovedLab('');
@@ -281,73 +751,9 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
         setPackagingStandard('');
         setDocuments([]);
         setCreationNotes('');
-        setAutoGenerateCode(true);
       }
     }
   }, [isOpen, editItem]);
-
-  // Check for existing saved draft on open
-  useEffect(() => {
-    if (isOpen && !editItem) {
-      try {
-        const raw = localStorage.getItem('reboot_erp_item_draft_auto');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && parsed.itemCode && parsed.itemCode.trim() !== '') {
-            setExistingDraftFound(parsed);
-          }
-        }
-      } catch (err) {
-        console.warn('Failed to parse auto-draft', err);
-      }
-    }
-  }, [isOpen, editItem]);
-
-  // Restore draft
-  const handleRestoreDraft = () => {
-    if (!existingDraftFound) return;
-    setSelectedType(existingDraftFound.selectedType || 'Finished Good');
-    setItemCode(existingDraftFound.itemCode || '');
-    setItemName(existingDraftFound.itemName || '');
-    setCategory(existingDraftFound.category || '');
-    setItemGroup(existingDraftFound.itemGroup || '');
-    setDescription(existingDraftFound.description || '');
-    setCycleTime(existingDraftFound.cycleTime ?? '');
-    setPartWeight(existingDraftFound.partWeight ?? '');
-    setCavityCount(existingDraftFound.cavityCount ?? 1);
-    setRunnerWeight(existingDraftFound.runnerWeight ?? 0);
-    setBaseUOM(existingDraftFound.baseUOM || 'PCS');
-    setCurrentStep(existingDraftFound.currentStep || 2);
-    setExistingDraftFound(null);
-    showToast(`Restored draft for ${existingDraftFound.itemCode || 'item'}.`);
-  };
-
-  const handleDiscardDraft = () => {
-    localStorage.removeItem('reboot_erp_item_draft_auto');
-    setExistingDraftFound(null);
-    showToast('Discarded previous draft.');
-  };
-
-  // Auto-generate item code when type changes and toggle is on
-  useEffect(() => {
-    if (autoGenerateCode && !editItem) {
-      const prefixes: Record<string, string> = {
-        'Raw Material': 'RM-PP-NAT',
-        'Additive': 'ADD-SLP',
-        'Masterbatch': 'MB-COL',
-        'Colorant': 'COL-PIG',
-        'Regrind': 'RG-PP-REC',
-        'Semi-Finished Good': 'SFG-MOLD',
-        'Finished Good': 'FG-AUTO',
-        'Packaging Material': 'PKG-BOX',
-        'Spare Part': 'SPR-MOLD',
-        'Consumable': 'CON-OIL',
-      };
-      const prefix = prefixes[selectedType] || 'ITM-GEN';
-      const randNum = Math.floor(100 + Math.random() * 900);
-      setItemCode(`${prefix}-${randNum}`);
-    }
-  }, [selectedType, autoGenerateCode, editItem]);
 
   // 30-Second Auto-save Timer Execution
   useEffect(() => {
@@ -388,6 +794,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
         preferredSupplier,
         hsnCode,
         routingDestination,
+        isWip,
         isDol,
         isAssembly,
         isDeflash,
@@ -439,6 +846,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
     preferredSupplier,
     hsnCode,
     routingDestination,
+    isWip,
     isDol,
     isAssembly,
     isDeflash,
@@ -475,6 +883,30 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   ];
 
   const handleNext = () => {
+    if (currentStep >= 2) {
+      if (!itemCode.trim()) {
+        setItemCodeError(true);
+        setCurrentStep(2);
+        showToast('Item Code cannot be empty. Please enter or select a valid Item Code before proceeding.');
+        return;
+      }
+      if (!itemName.trim()) {
+        setCurrentStep(2);
+        showToast('Item Name cannot be empty. Please enter an Item Name before proceeding.');
+        return;
+      }
+      if (duplicateCodeMatch.isDuplicate) {
+        setItemCodeError(true);
+        setCurrentStep(2);
+        showToast(`Cannot proceed: Item Code "${itemCode}" already exists. Duplicate item codes are strictly prohibited.`);
+        return;
+      }
+      if (duplicateNameMatch.isDuplicate) {
+        setCurrentStep(2);
+        showToast(`Cannot proceed: Item Name "${itemName}" already exists. Duplicate item names are strictly prohibited.`);
+        return;
+      }
+    }
     if (currentStep < 10) {
       setCurrentStep(currentStep + 1);
     }
@@ -498,11 +930,30 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   };
 
   const handleSaveDraft = () => {
+    if (!itemCode.trim()) {
+      setItemCodeError(true);
+      setCurrentStep(2);
+      showToast('Item Code cannot be empty when saving draft.');
+      return;
+    }
+    if (duplicateCodeMatch.isDuplicate) {
+      setItemCodeError(true);
+      setCurrentStep(2);
+      showToast(`Cannot save draft: Item Code "${itemCode}" is already in use.`);
+      return;
+    }
+    if (itemName.trim() && duplicateNameMatch.isDuplicate) {
+      setCurrentStep(2);
+      showToast(`Cannot save draft: Item Name "${itemName}" is already in use.`);
+      return;
+    }
+
     const draftItem: ItemMaster = {
-      code: itemCode,
-      name: itemName || 'Untitled Draft Item',
+      code: itemCode.trim().toUpperCase(),
+      name: itemName.trim() || 'Untitled Draft Item',
       type: selectedType,
       cat: category,
+      itemGroup: itemGroup,
       stock: `0 ${baseUOM}`,
       avail: `0 ${baseUOM}`,
       wh: defaultWarehouse,
@@ -533,6 +984,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       hsCode: hsnCode,
       moistureSensitive,
       routingDestination,
+      isWip,
       isDol,
       isAssembly,
       isDeflash,
@@ -543,17 +995,35 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   };
 
   const handleSubmitFinal = (isApprovedDirectly = false) => {
-    if (!itemCode.trim() || !itemName.trim()) {
-      showToast('Item code and name are required before submitting.');
+    if (!itemCode.trim()) {
+      setItemCodeError(true);
+      showToast('Item Code is required before submitting.');
       setCurrentStep(2);
+      return;
+    }
+    if (!itemName.trim()) {
+      showToast('Item Name is required before submitting.');
+      setCurrentStep(2);
+      return;
+    }
+    if (duplicateCodeMatch.isDuplicate) {
+      setItemCodeError(true);
+      setCurrentStep(2);
+      showToast(`Cannot submit: Item Code "${itemCode}" already exists in the system.`);
+      return;
+    }
+    if (duplicateNameMatch.isDuplicate) {
+      setCurrentStep(2);
+      showToast(`Cannot submit: Item Name "${itemName}" is already used by SKU ${duplicateNameMatch.item?.code}.`);
       return;
     }
 
     const finalItem: ItemMaster = {
-      code: itemCode.trim(),
+      code: itemCode.trim().toUpperCase(),
       name: itemName.trim(),
       type: selectedType,
       cat: category,
+      itemGroup: itemGroup,
       stock: editItem?.stock || `0 ${baseUOM}`,
       avail: editItem?.avail || `0 ${baseUOM}`,
       wh: defaultWarehouse,
@@ -585,6 +1055,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       hsCode: hsnCode,
       moistureSensitive,
       routingDestination,
+      isWip,
       isDol,
       isAssembly,
       isDeflash,
@@ -656,19 +1127,45 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                   const isCompleted = currentStep > s.id;
                   const isActive = currentStep === s.id;
 
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => setCurrentStep(s.id)}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs transition-all ${
-                        isActive
-                          ? 'bg-[#F0F7FF] text-[#0066CC] font-bold shadow-xs'
-                          : isCompleted
-                          ? 'text-slate-700 font-medium hover:bg-slate-50'
-                          : 'text-slate-400 hover:bg-slate-50'
-                      }`}
-                    >
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => {
+                          if (s.id > 2) {
+                            if (!itemCode.trim()) {
+                              setItemCodeError(true);
+                              setCurrentStep(2);
+                              showToast('Item Code cannot be empty. Please enter an item code before navigating.');
+                              return;
+                            }
+                            if (!itemName.trim()) {
+                              setCurrentStep(2);
+                              showToast('Item Name cannot be empty. Please enter an item name before navigating.');
+                              return;
+                            }
+                            if (duplicateCodeMatch.isDuplicate) {
+                              setItemCodeError(true);
+                              setCurrentStep(2);
+                              showToast(`Cannot proceed: Item Code "${itemCode}" already exists.`);
+                              return;
+                            }
+                            if (duplicateNameMatch.isDuplicate) {
+                              setCurrentStep(2);
+                              showToast(`Cannot proceed: Item Name "${itemName}" already exists.`);
+                              return;
+                            }
+                          }
+                          setCurrentStep(s.id);
+                        }}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs transition-all ${
+                          isActive
+                            ? 'bg-[#F0F7FF] text-[#0066CC] font-bold shadow-xs'
+                            : isCompleted
+                            ? 'text-slate-700 font-medium hover:bg-slate-50'
+                            : 'text-slate-400 hover:bg-slate-50'
+                        }`}
+                      >
                       <div
                         className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 font-bold ${
                           isActive
@@ -779,77 +1276,342 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
               {/* ========================================================= */}
               {currentStep === 2 && (
                 <div className="space-y-4">
-                  <h2 className="text-sm font-bold text-slate-900">Basic information</h2>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-sm font-bold text-slate-900">Basic information</h2>
+                      <p className="text-[11px] text-slate-500">
+                        Item identification and classification. Entering an existing Master Code will auto-fill category, name, and item group.
+                      </p>
+                    </div>
+                    {syncedMasterRecord ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        <Zap className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
+                        Admin Master Synced
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenNewMasterModal()}
+                        className="text-xs text-[#0F8B8D] hover:text-[#0c7274] font-semibold flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-teal-200 bg-teal-50/60 hover:bg-teal-50 transition-colors cursor-pointer"
+                      >
+                        <Database className="w-3.5 h-3.5" />
+                        + New Master Data Record
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Synced Master Record Status Banner */}
+                  {syncedMasterRecord && (
+                    <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200 flex items-center justify-between gap-3 shadow-xs">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                          <Check className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-emerald-900 text-xs">
+                              Auto-filled from Admin Master Data
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-200/80 text-emerald-900 text-[10px] font-mono font-bold">
+                              {syncedMasterRecord.code}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded bg-white text-slate-600 border border-slate-200 text-[10px] font-medium">
+                              {syncedMasterRecord.entityType}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-emerald-800 mt-0.5">
+                            Category: <strong className="text-emerald-950">{syncedMasterRecord.category}</strong> &bull; Item Group: <strong className="text-emerald-950">{syncedMasterRecord.itemGroup || 'General'}</strong> &bull; UOM: <strong className="font-mono text-emerald-950">{syncedMasterRecord.primaryUom}</strong>
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSyncedMasterRecord(null)}
+                        className="text-[11px] font-semibold text-emerald-800 hover:text-emerald-950 underline px-2 py-1 cursor-pointer shrink-0"
+                      >
+                        Unlink
+                      </button>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                    {/* Item Code + Auto-generate toggle */}
-                    <div>
+                    {/* Item Code + Auto-generate toggle + Combobox */}
+                    <div className="relative" ref={codeDropdownRef}>
                       <div className="flex items-center justify-between mb-1">
                         <label className="font-semibold text-slate-700 flex items-center gap-1">
-                          Item code
+                          Item code *
                           <HelpCircle className="w-3 h-3 text-slate-400" />
                         </label>
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={autoGenerateCode}
-                            onChange={(e) => setAutoGenerateCode(e.target.checked)}
-                            className="rounded text-[#0066CC] focus:ring-[#0066CC]"
-                          />
-                          <span className="text-[11px] text-slate-600">Auto-generate item code</span>
-                        </label>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenNewMasterModal(itemCode)}
+                            className="text-[11px] text-[#0F8B8D] hover:text-[#0c7274] font-medium flex items-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="w-3 h-3" />
+                            + New Master Code
+                          </button>
+                        </div>
                       </div>
-                      <input
-                        type="text"
-                        value={itemCode}
-                        onChange={(e) => setItemCode(e.target.value)}
-                        disabled={autoGenerateCode}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono text-xs disabled:bg-slate-50 disabled:text-slate-600"
-                        placeholder="e.g. RM-PP-NAT-014"
-                      />
+
+                      <div className="relative">
+                        <input
+                          type="text"
+                          required
+                          value={itemCode}
+                          onChange={(e) => handleItemCodeChange(e.target.value)}
+                          onFocus={() => setShowCodeDropdown(true)}
+                          className={`w-full pl-3 pr-8 py-2 rounded-lg border font-mono text-xs transition-colors ${
+                            (itemCodeError && !itemCode.trim()) || duplicateCodeMatch.isDuplicate
+                              ? 'border-rose-500 bg-rose-50/40 text-rose-950 font-bold ring-2 ring-rose-200 focus:ring-rose-400'
+                              : syncedMasterRecord
+                              ? 'border-emerald-400 bg-emerald-50/30 text-emerald-950 font-bold focus:ring-1 focus:ring-emerald-500'
+                              : 'border-slate-300 focus:border-[#0F8B8D] focus:ring-1 focus:ring-[#0F8B8D]'
+                          }`}
+                          placeholder="e.g. FG-BMP-NEXON-F or type to search catalog..."
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCodeDropdown(!showCodeDropdown)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                          title="Lookup Master Data"
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {itemCodeError && !itemCode.trim() && (
+                        <p className="text-[11px] font-semibold text-rose-600 mt-1 flex items-center gap-1 animate-fade-in">
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                          Item Code is required before moving to next steps.
+                        </p>
+                      )}
+
+                      {duplicateCodeMatch.isDuplicate && (
+                        <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11px] mt-1.5 flex items-start gap-2 animate-in fade-in">
+                          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-bold text-rose-900">Duplicate Item Code:</span>
+                            <p className="mt-0.5 text-rose-700">
+                              Item code <strong>"{itemCode}"</strong> already exists in Item Master ({duplicateCodeMatch.item?.approval === 'pending' ? 'Waiting for Approval' : duplicateCodeMatch.item?.approval === 'rejected' ? 'Rejected Item' : 'Active Catalog SKU'}). Duplicate item codes are strictly prohibited.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Dropdown Menu for Master Data lookup / create */}
+                      {showCodeDropdown && (
+                        <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-white rounded-xl border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 max-h-80 flex flex-col">
+                          <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
+                            <span className="flex items-center gap-1.5 text-slate-700">
+                              <Database className="w-3.5 h-3.5 text-[#0F8B8D]" />
+                              {filterAllTypes ? 'All Master Catalog Parts' : `${selectedType} Parts Only`}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setFilterAllTypes(!filterAllTypes);
+                                }}
+                                className="text-[10px] font-medium text-[#0F8B8D] hover:underline normal-case"
+                              >
+                                {filterAllTypes ? `Filter ${selectedType} only` : 'Show all catalog'}
+                              </button>
+                              <span className="text-slate-400">({filteredMasterCodes.length})</span>
+                            </div>
+                          </div>
+
+                          <div className="overflow-y-auto divide-y divide-slate-100 flex-1 max-h-56">
+                            {filteredMasterCodes.length > 0 ? (
+                              filteredMasterCodes.map((rec) => (
+                                <button
+                                  key={rec.id}
+                                  type="button"
+                                  onClick={() => handleApplyMasterRecord(rec)}
+                                  className="w-full text-left px-3 py-2.5 hover:bg-teal-50/50 transition-colors flex items-start justify-between gap-2 group cursor-pointer"
+                                >
+                                  <div className="space-y-1 flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-mono font-bold text-slate-900 group-hover:text-[#0F8B8D] text-xs">
+                                        {rec.code}
+                                      </span>
+                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                                        {rec.entityType}
+                                      </span>
+                                      {rec.resinType && (
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                          Resin: {rec.resinType}
+                                        </span>
+                                      )}
+                                      {rec.color && (
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
+                                          Color: {rec.color}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-slate-700 font-medium line-clamp-1">{rec.name}</p>
+                                    <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                                      <span>Cat: <strong className="text-slate-700">{rec.category}</strong></span>
+                                      <span>&bull;</span>
+                                      <span>Group: <strong className="text-slate-700">{rec.itemGroup || 'General'}</strong></span>
+                                      <span>&bull;</span>
+                                      <span className="font-mono">{rec.primaryUom}</span>
+                                    </div>
+                                  </div>
+                                  <span className="text-[10px] text-[#0F8B8D] font-semibold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap self-center bg-teal-50 px-2 py-1 rounded border border-teal-200">
+                                    Auto-fill &rarr;
+                                  </span>
+                                </button>
+                              ))
+                            ) : (
+                              <div className="p-4 text-center">
+                                <div className="w-8 h-8 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-2">
+                                  <Database className="w-4 h-4" />
+                                </div>
+                                <p className="text-xs font-semibold text-slate-800">
+                                  {itemCode ? `Code "${itemCode}" not found` : `No ${selectedType} master records found`}
+                                </p>
+                                <p className="text-[11px] text-slate-500 mt-0.5 mb-3">
+                                  {filterAllTypes
+                                    ? 'Create this code under Admin Master Data to register it and auto-fill details.'
+                                    : `Currently filtered to "${selectedType}". Toggle to show all catalog or create a new record.`}
+                                </p>
+                                <div className="flex items-center justify-center gap-2">
+                                  {!filterAllTypes && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setFilterAllTypes(true)}
+                                      className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 text-xs font-medium hover:bg-slate-50 transition-colors"
+                                    >
+                                      Search All Types
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenNewMasterModal(itemCode)}
+                                    className="px-3 py-1.5 rounded-lg bg-[#0F8B8D] hover:bg-[#0c7274] text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    + Register in Master Data
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="p-2 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenNewMasterModal(itemCode)}
+                              className="text-xs text-[#0F8B8D] hover:text-[#0c7274] font-semibold flex items-center gap-1 px-2 py-1 rounded hover:bg-teal-50/50 cursor-pointer"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              + New Master Data Record
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowCodeDropdown(false)}
+                              className="text-[11px] text-slate-500 hover:text-slate-800 px-2 py-1 cursor-pointer"
+                            >
+                              Close
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Item Name */}
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Item name *</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block font-semibold text-slate-700">Item name *</label>
+                        {syncedMasterRecord && (
+                          <span className="text-[10px] text-emerald-700 font-medium">✓ Auto-filled</span>
+                        )}
+                      </div>
                       <input
                         type="text"
                         required
                         value={itemName}
                         onChange={(e) => setItemName(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-1 focus:ring-[#0066CC]"
+                        className={`w-full px-3 py-2 rounded-lg border text-xs focus:ring-1 focus:ring-[#0066CC] ${
+                          duplicateNameMatch.isDuplicate
+                            ? 'border-rose-500 bg-rose-50/40 text-rose-950 font-bold ring-2 ring-rose-200'
+                            : syncedMasterRecord
+                            ? 'border-emerald-300 bg-emerald-50/10'
+                            : 'border-slate-300'
+                        }`}
                         placeholder="e.g. PP Natural Granules"
                       />
+                      {duplicateNameMatch.isDuplicate && (
+                        <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11px] mt-1.5 flex items-start gap-2 animate-in fade-in">
+                          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-bold text-rose-900">Duplicate Item Name:</span>
+                            <p className="mt-0.5 text-rose-700">
+                              Item name <strong>"{itemName}"</strong> is already in use by SKU <strong>{duplicateNameMatch.item?.code}</strong> ({duplicateNameMatch.item?.approval === 'pending' ? 'Waiting for Approval' : duplicateNameMatch.item?.approval === 'rejected' ? 'Rejected Item' : 'Active Catalog SKU'}). Duplicate item names are strictly prohibited.
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Category */}
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Category</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block font-semibold text-slate-700">Category</label>
+                        {syncedMasterRecord && (
+                          <span className="text-[10px] text-emerald-700 font-medium">✓ Auto-filled</span>
+                        )}
+                      </div>
                       <select
                         value={category}
                         onChange={(e) => setCategory(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
+                        className={`w-full px-3 py-2 rounded-lg border text-xs bg-white ${
+                          syncedMasterRecord ? 'border-emerald-300 bg-emerald-50/10 font-medium' : 'border-slate-300'
+                        }`}
                       >
-                        <option value="Raw Material / PP">Raw Material / PP</option>
-                        <option value="Polypropylene Copolymer">Polypropylene Copolymer</option>
-                        <option value="HDPE Blow Grade">HDPE Blow Grade</option>
-                        <option value="Color Masterbatch">Color Masterbatch</option>
-                        <option value="Black Masterbatch">Black Masterbatch</option>
-                        <option value="Regrind PP Reprocessed">Regrind PP Reprocessed</option>
-                        <option value="Molded Automotive Parts">Molded Automotive Parts</option>
-                        <option value="Packaging Materials">Packaging Materials</option>
-                        <option value="Mold & Machine Spares">Mold &amp; Machine Spares</option>
+                        {Array.from(
+                          new Set([
+                            'Raw Material / PP',
+                            'Virgin Raw Polymer',
+                            'Polypropylene Copolymer',
+                            'HDPE Blow Grade',
+                            'Color Masterbatch',
+                            'Additives & Pigments',
+                            'Black Masterbatch',
+                            'Regrind PP Reprocessed',
+                            'Automotive Exterior',
+                            'Molded Automotive Parts',
+                            'Packaging Materials',
+                            'Mold & Machine Spares',
+                            'Injection Mold Dies',
+                            'OEM Tier-1 Customer',
+                            ...(category ? [category] : []),
+                          ])
+                        ).map((cat) => (
+                          <option key={cat} value={cat}>
+                            {cat}
+                          </option>
+                        ))}
                       </select>
                     </div>
 
                     {/* Item Group */}
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Item group</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block font-semibold text-slate-700">Item group</label>
+                        {syncedMasterRecord && (
+                          <span className="text-[10px] text-emerald-700 font-medium">✓ Auto-filled</span>
+                        )}
+                      </div>
                       <input
                         type="text"
                         value={itemGroup}
                         onChange={(e) => setItemGroup(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                        className={`w-full px-3 py-2 rounded-lg border text-xs ${
+                          syncedMasterRecord ? 'border-emerald-300 bg-emerald-50/10 font-medium' : 'border-slate-300'
+                        }`}
                         placeholder="e.g. Polymer feedstock"
                       />
                     </div>
@@ -1196,39 +1958,76 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
               {/* ========================================================= */}
               {currentStep === 4 && (
                 <div className="space-y-4">
-                  <h2 className="text-sm font-bold text-slate-900">Manufacturing attributes</h2>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-sm font-bold text-slate-900">Manufacturing attributes</h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Polymer resin, color specifications, and physical properties synced with Master Catalog.
+                      </p>
+                    </div>
+                    {syncedMasterRecord && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        Autofilled from Master Data ({syncedMasterRecord.code})
+                      </span>
+                    )}
+                  </div>
+
+                  {syncedMasterRecord && (
+                    <div className="p-3 bg-teal-50/70 rounded-xl border border-teal-200/80 flex items-start gap-2.5 text-xs text-teal-900">
+                      <Sparkles className="w-4 h-4 text-[#0F8B8D] shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold">Admin Master Data Synchronized:</span> Resin Type (<strong className="font-mono">{resinType || 'N/A'}</strong>) and Color (<strong className="font-mono">{color || 'N/A'}</strong>) have been automatically populated from the master catalog record <strong className="font-mono">{syncedMasterRecord.code}</strong>. You may fine-tune any properties below.
+                      </div>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Resin type</label>
+                      <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                        <span>Resin type *</span>
+                        {syncedMasterRecord?.resinType && (
+                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-medium border border-emerald-100">✓ Master Synced</span>
+                        )}
+                      </label>
                       <input
                         type="text"
                         value={resinType}
                         onChange={(e) => setResinType(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                        className={`w-full px-3 py-2 rounded-lg border transition-colors ${resinType ? 'border-slate-300 bg-white' : 'border-amber-300 bg-amber-50/30'}`}
                         placeholder="Polypropylene (PP)"
                       />
                     </div>
 
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Polymer grade</label>
+                      <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                        <span>Color *</span>
+                        {syncedMasterRecord?.color && (
+                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-medium border border-emerald-100">✓ Master Synced</span>
+                        )}
+                      </label>
+                      <input
+                        type="text"
+                        value={color}
+                        onChange={(e) => setColor(e.target.value)}
+                        className={`w-full px-3 py-2 rounded-lg border transition-colors ${color ? 'border-slate-300 bg-white' : 'border-amber-300 bg-amber-50/30'}`}
+                        placeholder="Natural"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                        <span>Polymer grade</span>
+                        {syncedMasterRecord?.polymerGrade && (
+                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-medium border border-emerald-100">✓ Master Synced</span>
+                        )}
+                      </label>
                       <input
                         type="text"
                         value={polymerGrade}
                         onChange={(e) => setPolymerGrade(e.target.value)}
                         className="w-full px-3 py-2 rounded-lg border border-slate-300"
                         placeholder="Repol H110MA"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Color</label>
-                      <input
-                        type="text"
-                        value={color}
-                        onChange={(e) => setColor(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300"
-                        placeholder="Natural"
                       />
                     </div>
 
@@ -1373,30 +2172,134 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     </div>
 
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Default warehouse</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block font-semibold text-slate-700">Default warehouse</label>
+                        <button
+                          type="button"
+                          onClick={handleOpenNewWarehouseModal}
+                          className="text-[11px] text-[#0F8B8D] hover:text-[#0c7274] font-medium flex items-center gap-1 cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" />
+                          + New Warehouse
+                        </button>
+                      </div>
                       <select
                         value={defaultWarehouse}
-                        onChange={(e) => setDefaultWarehouse(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                        onChange={(e) => {
+                          if (e.target.value === '__CREATE_NEW__') {
+                            handleOpenNewWarehouseModal();
+                          } else {
+                            setDefaultWarehouse(e.target.value);
+                          }
+                        }}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-medium focus:border-[#0F8B8D] focus:ring-1 focus:ring-[#0F8B8D]"
                       >
-                        <option value="RM-WH-01">RM-WH-01 (Polymer Silo &amp; Bags)</option>
-                        <option value="RM-WH-02">RM-WH-02 (Additives Store)</option>
-                        <option value="MB-STORE-01">MB-STORE-01 (Masterbatch Store)</option>
-                        <option value="RG-WH-01">RG-WH-01 (Regrind Bay)</option>
-                        <option value="FG-WH-01">FG-WH-01 (Finished Goods)</option>
-                        <option value="SP-WH-01">SP-WH-01 (Molds &amp; Spares)</option>
+                        {warehouseList.map((wh) => (
+                          <option key={wh.code} value={wh.code}>
+                            {wh.code} ({wh.name})
+                          </option>
+                        ))}
+                        <option value="__CREATE_NEW__" className="text-[#0F8B8D] font-bold">
+                          + Create New Warehouse in Master Data...
+                        </option>
                       </select>
                     </div>
 
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Default bin</label>
-                      <input
-                        type="text"
-                        value={defaultBin}
-                        onChange={(e) => setDefaultBin(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
-                        placeholder="A-01-03"
-                      />
+                    <div className="relative" ref={binDropdownRef}>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block font-semibold text-slate-700">Default bin</label>
+                        <button
+                          type="button"
+                          onClick={() => handleSaveNewBin(defaultBin)}
+                          className="text-[11px] text-[#0F8B8D] hover:text-[#0c7274] font-medium flex items-center gap-1 cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" />
+                          + Register Bin
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={defaultBin}
+                          onChange={(e) => {
+                            setDefaultBin(e.target.value.toUpperCase());
+                            setShowBinDropdown(true);
+                          }}
+                          onFocus={() => setShowBinDropdown(true)}
+                          className="w-full pl-3 pr-8 py-2 rounded-lg border border-slate-300 font-mono text-xs focus:border-[#0F8B8D] focus:ring-1 focus:ring-[#0F8B8D]"
+                          placeholder="e.g. A-01-03 or type to search bins..."
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowBinDropdown(!showBinDropdown)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                          title="Lookup Storage Bins"
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {showBinDropdown && (
+                        <div className="absolute left-0 right-0 top-full mt-1 z-40 bg-white rounded-xl border border-slate-200 shadow-xl overflow-hidden max-h-56 flex flex-col animate-in fade-in zoom-in-95">
+                          <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-semibold uppercase">
+                            <span className="flex items-center gap-1 text-slate-700">
+                              <MapPin className="w-3 h-3 text-[#0F8B8D]" />
+                              Master Storage Bins
+                            </span>
+                            <span className="text-slate-400">({binList.length})</span>
+                          </div>
+                          <div className="overflow-y-auto divide-y divide-slate-100 flex-1 max-h-36">
+                            {binList
+                              .filter(
+                                (b) =>
+                                  !defaultBin ||
+                                  b.code.toLowerCase().includes(defaultBin.toLowerCase()) ||
+                                  b.warehouseCode.toLowerCase().includes(defaultBin.toLowerCase())
+                              )
+                              .map((b) => (
+                                <button
+                                  key={b.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setDefaultBin(b.code);
+                                    if (b.warehouseCode) setDefaultWarehouse(b.warehouseCode);
+                                    setShowBinDropdown(false);
+                                  }}
+                                  className="w-full text-left px-3 py-2 hover:bg-teal-50/50 flex items-center justify-between group cursor-pointer transition-colors"
+                                >
+                                  <div>
+                                    <span className="font-mono font-bold text-xs text-slate-900 group-hover:text-[#0F8B8D]">
+                                      {b.code}
+                                    </span>
+                                    <span className="text-[10px] text-slate-500 ml-2">
+                                      WH: {b.warehouseCode} ({b.zone})
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] text-[#0F8B8D] opacity-0 group-hover:opacity-100 font-medium">
+                                    Select &rarr;
+                                  </span>
+                                </button>
+                              ))}
+                          </div>
+                          <div className="p-2 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs">
+                            <button
+                              type="button"
+                              onClick={() => handleSaveNewBin(defaultBin)}
+                              className="text-[11px] text-[#0F8B8D] hover:text-[#0c7274] font-semibold flex items-center gap-1 cursor-pointer"
+                            >
+                              <Plus className="w-3 h-3" />
+                              {defaultBin ? `Register "${defaultBin}" to Master Data` : 'Register New Bin'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowBinDropdown(false)}
+                              className="text-[11px] text-slate-400 hover:text-slate-600"
+                            >
+                              Close
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div>
@@ -1422,171 +2325,214 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     </div>
                   </div>
 
-                  {/* Post-Production Routing & Store Destination (DOL, ASSEMPLY, DEFLASH) */}
-                  <div className="pt-3 border-t border-slate-200 space-y-3">
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div>
-                        <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
-                          <span>Post-Molding Routing Destination Checkboxes</span>
-                          <span className="text-[10px] px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold border border-blue-200 uppercase tracking-wide">
-                            Daily Production Direct Routing
+                  {/* Post-Production Routing & Store Destination (WIP, DOL, ASSEMBLY, DEFLASH) - ONLY VISIBLE FOR FINISHED GOODS */}
+                  {selectedType === 'Finished Good' && (
+                    <div className="pt-3 border-t border-slate-200 space-y-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div>
+                          <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                            <span>Post-Molding Routing Destination Checkboxes</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold border border-blue-200 uppercase tracking-wide">
+                              Daily Production Direct Routing
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Select the destination store for this Finished Good. When daily production entry is saved, output is automatically routed to this store.
+                          </p>
+                        </div>
+                        <div className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 flex items-center gap-1.5">
+                          <span className="text-slate-500">Destination:</span>
+                          <span className={`font-bold ${
+                            routingDestination === 'WIP' ? 'text-blue-700' :
+                            routingDestination === 'DOL' ? 'text-emerald-700' :
+                            routingDestination === 'ASSEMBLY' ? 'text-purple-700' : 'text-amber-700'
+                          }`}>
+                            {routingDestination === 'WIP' ? 'WIP-STORE (Work In Progress Floor)' :
+                             routingDestination === 'DOL' ? 'FG-STORE (Direct to FG)' :
+                             routingDestination === 'ASSEMBLY' ? 'ASSEMBLY-STORE (Assembly Store)' :
+                             'DEFLASH-STORE (Deflash Store)'}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          Select the destination store for this item. When daily production entry is saved, output is automatically routed to this store.
-                        </p>
                       </div>
-                      <div className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 flex items-center gap-1.5">
-                        <span className="text-slate-500">Destination:</span>
-                        <span className={`font-bold ${
-                          routingDestination === 'DOL' ? 'text-emerald-700' :
-                          routingDestination === 'ASSEMBLY' ? 'text-purple-700' : 'text-amber-700'
+
+                      {/* 4 Checkbox Cards: WIP (Default), DOL, ASSEMBLY, DEFLASH */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                        {/* 1. WIP Checkbox (Default) */}
+                        <label className={`relative flex flex-col justify-between p-3 rounded-xl border-2 cursor-pointer transition-all select-none ${
+                          isWip
+                            ? 'border-blue-600 bg-blue-50/70 shadow-xs ring-2 ring-blue-500/20'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
                         }`}>
-                          {routingDestination === 'DOL' ? 'FG-STORE (Direct to FG)' :
-                           routingDestination === 'ASSEMBLY' ? 'ASSEMBLY-STORE (Assembly Store)' :
-                           'DEFLASH-STORE (Deflash Store)'}
-                        </span>
+                          <div>
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={isWip}
+                                  onChange={(e) => handleToggleWip(e.target.checked)}
+                                  className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer accent-blue-600"
+                                />
+                                <span className="font-bold text-slate-900 text-sm">WIP</span>
+                              </div>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                isWip ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-200'
+                              }`}>
+                                &rarr; WIP-STORE
+                              </span>
+                            </div>
+                            <div className="text-[11px] font-semibold text-blue-800">
+                              Work In Progress (Default)
+                            </div>
+                            <p className="mt-1.5 text-[11px] text-slate-600 leading-snug">
+                              When <strong>WIP</strong> is checked (Default), daily production entry automatically routes molded output to <strong>WIP-STORE</strong> intermediate staging floor.
+                            </p>
+                          </div>
+                          <div className="mt-2.5 pt-2 border-t border-blue-200/60 flex items-center justify-between text-[10px]">
+                            <span className="text-blue-700 font-medium">Status: {isWip ? 'Active Target (Default)' : 'Inactive'}</span>
+                            <span className="font-mono text-blue-900 font-bold">Store: WIP-STORE</span>
+                          </div>
+                        </label>
+
+                        {/* 2. DOL Checkbox */}
+                        <label className={`relative flex flex-col justify-between p-3 rounded-xl border-2 cursor-pointer transition-all select-none ${
+                          isDol
+                            ? 'border-emerald-600 bg-emerald-50/70 shadow-xs ring-2 ring-emerald-500/20'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+                        }`}>
+                          <div>
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={isDol}
+                                  onChange={(e) => handleToggleDol(e.target.checked)}
+                                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                                />
+                                <span className="font-bold text-slate-900 text-sm">DOL</span>
+                              </div>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                isDol ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-200'
+                              }`}>
+                                &rarr; FG-STORE
+                              </span>
+                            </div>
+                            <div className="text-[11px] font-semibold text-emerald-800">
+                              Direct On Line &rarr; FG-store
+                            </div>
+                            <p className="mt-1.5 text-[11px] text-slate-600 leading-snug">
+                              When <strong>DOL</strong> is checked, daily production entry directly deposits finished output into <strong>FG-STORE</strong> (Finished Goods), bypassing secondary finishing.
+                            </p>
+                          </div>
+                          <div className="mt-2.5 pt-2 border-t border-emerald-200/60 flex items-center justify-between text-[10px]">
+                            <span className="text-emerald-700 font-medium">Status: {isDol ? 'Active Target Store' : 'Inactive'}</span>
+                            <span className="font-mono text-emerald-900 font-bold">Store: FG-STORE</span>
+                          </div>
+                        </label>
+
+                        {/* 3. ASSEMBLY Checkbox */}
+                        <label className={`relative flex flex-col justify-between p-3 rounded-xl border-2 cursor-pointer transition-all select-none ${
+                          isAssembly
+                            ? 'border-purple-600 bg-purple-50/70 shadow-xs ring-2 ring-purple-500/20'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+                        }`}>
+                          <div>
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={isAssembly}
+                                  onChange={(e) => handleToggleAssembly(e.target.checked)}
+                                  className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer accent-purple-600"
+                                />
+                                <span className="font-bold text-slate-900 text-sm">ASSEMBLY</span>
+                              </div>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                isAssembly ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-200'
+                              }`}>
+                                &rarr; ASSEMBLY-STORE
+                              </span>
+                            </div>
+                            <div className="text-[11px] font-semibold text-purple-800">
+                              Assembly &rarr; Assembly Store
+                            </div>
+                            <p className="mt-1.5 text-[11px] text-slate-600 leading-snug">
+                              When <strong>ASSEMBLY</strong> is checked, daily production entry routes output to <strong>ASSEMBLY-STORE</strong> for secondary inserts, fittings, or multi-component assembly.
+                            </p>
+                          </div>
+                          <div className="mt-2.5 pt-2 border-t border-purple-200/60 flex items-center justify-between text-[10px]">
+                            <span className="text-purple-700 font-medium">Status: {isAssembly ? 'Active Target Store' : 'Inactive'}</span>
+                            <span className="font-mono text-purple-900 font-bold">Store: ASSEMBLY-STORE</span>
+                          </div>
+                        </label>
+
+                        {/* 4. DEFLASH Checkbox */}
+                        <label className={`relative flex flex-col justify-between p-3 rounded-xl border-2 cursor-pointer transition-all select-none ${
+                          isDeflash
+                            ? 'border-amber-600 bg-amber-50/70 shadow-xs ring-2 ring-amber-500/20'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+                        }`}>
+                          <div>
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={isDeflash}
+                                  onChange={(e) => handleToggleDeflash(e.target.checked)}
+                                  className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer accent-amber-600"
+                                />
+                                <span className="font-bold text-slate-900 text-sm">DEFLASH</span>
+                              </div>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                isDeflash ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-200'
+                              }`}>
+                                &rarr; DEFLASH-STORE
+                              </span>
+                            </div>
+                            <div className="text-[11px] font-semibold text-amber-800">
+                              Deflash &rarr; Deflash Store
+                            </div>
+                            <p className="mt-1.5 text-[11px] text-slate-600 leading-snug">
+                              When <strong>DEFLASH</strong> is checked, daily production entry routes output to <strong>DEFLASH-STORE</strong> for runner gate cutting, burr deburring, or flame polishing.
+                            </p>
+                          </div>
+                          <div className="mt-2.5 pt-2 border-t border-amber-200/60 flex items-center justify-between text-[10px]">
+                            <span className="text-amber-700 font-medium">Status: {isDeflash ? 'Active Target Store' : 'Inactive'}</span>
+                            <span className="font-mono text-amber-900 font-bold">Store: DEFLASH-STORE</span>
+                          </div>
+                        </label>
+                      </div>
+
+                      {/* Routing Visual Process Path */}
+                      <div className={`p-3 rounded-xl border text-xs flex items-center justify-between flex-wrap gap-2 ${
+                        routingDestination === 'WIP' ? 'bg-blue-50/90 border-blue-300 text-blue-950' :
+                        routingDestination === 'DOL' ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950' :
+                        routingDestination === 'ASSEMBLY' ? 'bg-purple-50/90 border-purple-300 text-purple-950' :
+                        'bg-amber-50/90 border-amber-300 text-amber-950'
+                      }`}>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold uppercase tracking-wider text-[10px] px-1.5 py-0.5 rounded bg-white border shadow-2xs">
+                            Direct Flow
+                          </span>
+                          <span className="font-medium text-slate-700">Molding Production</span>
+                          <span className="text-slate-400">&rarr;</span>
+                          <span className="font-medium text-slate-700">Daily Production Entry</span>
+                          <span className="text-slate-400">&rarr;</span>
+                          <span className="px-2 py-0.5 rounded-md font-bold bg-white shadow-xs border text-slate-900">
+                            {routingDestination === 'WIP' && 'Received in WIP-STORE (Work In Progress Intermediate Storage)'}
+                            {routingDestination === 'DOL' && 'Directly Received in FG-STORE (Finished Goods Direct)'}
+                            {routingDestination === 'ASSEMBLY' && 'Received in ASSEMBLY-STORE (Assembly Inventory Store)'}
+                            {routingDestination === 'DEFLASH' && 'Received in DEFLASH-STORE (Deflash Inventory Store)'}
+                          </span>
+                        </div>
+                        <div className="text-[11px] font-bold">
+                          {routingDestination === 'WIP' && '✓ Staged in WIP store ready for QA sampling or secondary routing'}
+                          {routingDestination === 'DOL' && '✓ Bypasses WIP staging directly to customer dispatch ready'}
+                          {routingDestination === 'ASSEMBLY' && '⚡ Queued for assembly hardware & packaging lines'}
+                          {routingDestination === 'DEFLASH' && '⚡ Queued for secondary deflashing & gate trimming'}
+                        </div>
                       </div>
                     </div>
-
-                    {/* 3 Checkbox Cards: DOL, ASSEMPLY, DEFLASH */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                      {/* 1. DOL Checkbox */}
-                      <label className={`relative flex flex-col justify-between p-3.5 rounded-xl border-2 cursor-pointer transition-all select-none ${
-                        isDol
-                          ? 'border-emerald-600 bg-emerald-50/70 shadow-xs'
-                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
-                      }`}>
-                        <div>
-                          <div className="flex items-center justify-between gap-2 mb-1.5">
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={isDol}
-                                onChange={(e) => handleToggleDol(e.target.checked)}
-                                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
-                              />
-                              <span className="font-bold text-slate-900 text-sm">DOL</span>
-                            </div>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              isDol ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-200'
-                            }`}>
-                              &rarr; FG-STORE
-                            </span>
-                          </div>
-                          <div className="text-[11px] font-semibold text-emerald-800">
-                            Direct On Line &rarr; FG-store
-                          </div>
-                          <p className="mt-1.5 text-[11px] text-slate-600 leading-snug">
-                            When <strong>DOL</strong> is checked, daily production entry directly deposits finished output into <strong>FG-STORE</strong> (Finished Goods), bypassing secondary finishing.
-                          </p>
-                        </div>
-                        <div className="mt-2.5 pt-2 border-t border-emerald-200/60 flex items-center justify-between text-[10px]">
-                          <span className="text-emerald-700 font-medium">Status: {isDol ? 'Active Target Store' : 'Inactive'}</span>
-                          <span className="font-mono text-emerald-900 font-bold">Store: FG-STORE</span>
-                        </div>
-                      </label>
-
-                      {/* 2. ASSEMPLY Checkbox */}
-                      <label className={`relative flex flex-col justify-between p-3.5 rounded-xl border-2 cursor-pointer transition-all select-none ${
-                        isAssembly
-                          ? 'border-purple-600 bg-purple-50/70 shadow-xs'
-                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
-                      }`}>
-                        <div>
-                          <div className="flex items-center justify-between gap-2 mb-1.5">
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={isAssembly}
-                                onChange={(e) => handleToggleAssembly(e.target.checked)}
-                                className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer accent-purple-600"
-                              />
-                              <span className="font-bold text-slate-900 text-sm">ASSEMPLY</span>
-                            </div>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              isAssembly ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-200'
-                            }`}>
-                              &rarr; ASSEMBLY-STORE
-                            </span>
-                          </div>
-                          <div className="text-[11px] font-semibold text-purple-800">
-                            Assembly &rarr; Assembly Inventory Store
-                          </div>
-                          <p className="mt-1.5 text-[11px] text-slate-600 leading-snug">
-                            When <strong>ASSEMPLY</strong> is checked, daily production entry routes output to <strong>ASSEMBLY-STORE</strong> for secondary inserts, fittings, or multi-component assembly.
-                          </p>
-                        </div>
-                        <div className="mt-2.5 pt-2 border-t border-purple-200/60 flex items-center justify-between text-[10px]">
-                          <span className="text-purple-700 font-medium">Status: {isAssembly ? 'Active Target Store' : 'Inactive'}</span>
-                          <span className="font-mono text-purple-900 font-bold">Store: ASSEMBLY-STORE</span>
-                        </div>
-                      </label>
-
-                      {/* 3. DEFLASH Checkbox */}
-                      <label className={`relative flex flex-col justify-between p-3.5 rounded-xl border-2 cursor-pointer transition-all select-none ${
-                        isDeflash
-                          ? 'border-amber-600 bg-amber-50/70 shadow-xs'
-                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
-                      }`}>
-                        <div>
-                          <div className="flex items-center justify-between gap-2 mb-1.5">
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={isDeflash}
-                                onChange={(e) => handleToggleDeflash(e.target.checked)}
-                                className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer accent-amber-600"
-                              />
-                              <span className="font-bold text-slate-900 text-sm">DEFLASH</span>
-                            </div>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              isDeflash ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-200'
-                            }`}>
-                              &rarr; DEFLASH-STORE
-                            </span>
-                          </div>
-                          <div className="text-[11px] font-semibold text-amber-800">
-                            Deflash &rarr; Deflash Inventory Store
-                          </div>
-                          <p className="mt-1.5 text-[11px] text-slate-600 leading-snug">
-                            When <strong>DEFLASH</strong> is checked, daily production entry routes output to <strong>DEFLASH-STORE</strong> for runner gate cutting, burr deburring, or flame polishing.
-                          </p>
-                        </div>
-                        <div className="mt-2.5 pt-2 border-t border-amber-200/60 flex items-center justify-between text-[10px]">
-                          <span className="text-amber-700 font-medium">Status: {isDeflash ? 'Active Target Store' : 'Inactive'}</span>
-                          <span className="font-mono text-amber-900 font-bold">Store: DEFLASH-STORE</span>
-                        </div>
-                      </label>
-                    </div>
-
-                    {/* Routing Visual Process Path */}
-                    <div className={`p-3 rounded-xl border text-xs flex items-center justify-between flex-wrap gap-2 ${
-                      routingDestination === 'DOL' ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950' :
-                      routingDestination === 'ASSEMBLY' ? 'bg-purple-50/90 border-purple-300 text-purple-950' :
-                      'bg-amber-50/90 border-amber-300 text-amber-950'
-                    }`}>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold uppercase tracking-wider text-[10px] px-1.5 py-0.5 rounded bg-white border shadow-2xs">
-                          Direct Flow
-                        </span>
-                        <span className="font-medium text-slate-700">Molding Production</span>
-                        <span className="text-slate-400">&rarr;</span>
-                        <span className="font-medium text-slate-700">Daily Production Entry</span>
-                        <span className="text-slate-400">&rarr;</span>
-                        <span className="px-2 py-0.5 rounded-md font-bold bg-white shadow-xs border text-slate-900">
-                          {routingDestination === 'DOL' && 'Directly Received in FG-STORE (Finished Goods)'}
-                          {routingDestination === 'ASSEMBLY' && 'Received in ASSEMBLY-STORE (Assembly Inventory)'}
-                          {routingDestination === 'DEFLASH' && 'Received in DEFLASH-STORE (Deflash Inventory)'}
-                        </span>
-                      </div>
-                      <div className="text-[11px] font-bold">
-                        {routingDestination === 'DOL' && '✓ Bypasses WIP staging directly to customer dispatch ready'}
-                        {routingDestination === 'ASSEMBLY' && '⚡ Queued for assembly hardware & packaging lines'}
-                        {routingDestination === 'DEFLASH' && '⚡ Queued for secondary deflashing & gate trimming'}
-                      </div>
-                    </div>
-                  </div>
+                  )}
                 </div>
               )}
 
@@ -1684,15 +2630,108 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                   <h2 className="text-sm font-bold text-slate-900">Purchasing &amp; Sourcing Attributes</h2>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Primary Preferred Supplier</label>
-                      <input
-                        type="text"
-                        value={preferredSupplier}
-                        onChange={(e) => setPreferredSupplier(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300"
-                        placeholder="e.g. Reliance Industries Ltd"
-                      />
+                    {/* Primary Preferred Supplier Autocomplete Combobox */}
+                    <div className="relative" ref={supplierDropdownRef}>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block font-semibold text-slate-700">Primary Preferred Supplier</label>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenNewSupplierModal(preferredSupplier)}
+                          className="text-[11px] text-[#0F8B8D] hover:text-[#0c7274] font-medium flex items-center gap-1 cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" />
+                          + New Supplier
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={preferredSupplier}
+                          onChange={(e) => {
+                            setPreferredSupplier(e.target.value);
+                            setShowSupplierDropdown(true);
+                          }}
+                          onFocus={() => setShowSupplierDropdown(true)}
+                          className="w-full pl-3 pr-8 py-2 rounded-lg border border-slate-300 text-xs focus:border-[#0F8B8D] focus:ring-1 focus:ring-[#0F8B8D]"
+                          placeholder="e.g. Reliance Industries or type to search..."
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowSupplierDropdown(!showSupplierDropdown)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                          title="Lookup Suppliers"
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {showSupplierDropdown && (
+                        <div className="absolute left-0 right-0 top-full mt-1 z-40 bg-white rounded-xl border border-slate-200 shadow-2xl overflow-hidden max-h-64 flex flex-col animate-in fade-in zoom-in-95">
+                          <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-semibold uppercase">
+                            <span className="flex items-center gap-1 text-slate-700">
+                              <Truck className="w-3 h-3 text-[#0F8B8D]" />
+                              Master Registered Suppliers
+                            </span>
+                            <span className="text-slate-400">({supplierList.length})</span>
+                          </div>
+                          <div className="overflow-y-auto divide-y divide-slate-100 flex-1 max-h-48">
+                            {supplierList
+                              .filter(
+                                (s) =>
+                                  !preferredSupplier ||
+                                  s.name.toLowerCase().includes(preferredSupplier.toLowerCase()) ||
+                                  s.code.toLowerCase().includes(preferredSupplier.toLowerCase()) ||
+                                  (s.category && s.category.toLowerCase().includes(preferredSupplier.toLowerCase()))
+                              )
+                              .map((s) => (
+                                <button
+                                  key={s.id}
+                                  type="button"
+                                  onClick={() => handleSelectSupplier(s)}
+                                  className="w-full text-left px-3 py-2.5 hover:bg-teal-50/50 flex items-start justify-between group cursor-pointer transition-colors"
+                                >
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-bold text-xs text-slate-900 group-hover:text-[#0F8B8D]">
+                                        {s.name}
+                                      </span>
+                                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 text-slate-600">
+                                        {s.code}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5">
+                                      <span>Cat: <strong className="text-slate-700">{s.category}</strong></span>
+                                      <span>&bull;</span>
+                                      <span>HSN: <strong className="font-mono text-slate-800">{s.hsnCode || '39021000'}</strong></span>
+                                      <span>&bull;</span>
+                                      <span>MOQ: <strong className="font-mono text-slate-800">{s.moq?.toLocaleString() || '1,000'}</strong></span>
+                                    </div>
+                                  </div>
+                                  <span className="text-[10px] font-semibold text-[#0F8B8D] opacity-0 group-hover:opacity-100 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                                    Auto-fill &rarr;
+                                  </span>
+                                </button>
+                              ))}
+                          </div>
+                          <div className="p-2 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenNewSupplierModal(preferredSupplier)}
+                              className="text-[11px] text-[#0F8B8D] hover:text-[#0c7274] font-semibold flex items-center gap-1 cursor-pointer"
+                            >
+                              <Plus className="w-3 h-3" />
+                              + Register New Supplier in Master Data
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowSupplierDropdown(false)}
+                              className="text-[11px] text-slate-400 hover:text-slate-600"
+                            >
+                              Close
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div>
@@ -1923,10 +2962,12 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                       <div className="text-slate-800">Warehouse: <strong>{defaultWarehouse}</strong> ({defaultBin})</div>
                       <div className="text-slate-800">
                         Routing: <strong className={
+                          routingDestination === 'WIP' ? 'text-blue-700 font-bold' :
                           routingDestination === 'DOL' ? 'text-emerald-700 font-bold' :
                           routingDestination === 'ASSEMBLY' ? 'text-purple-700 font-bold' : 'text-amber-700 font-bold'
                         }>
-                          {routingDestination === 'DOL' ? 'DOL (FG-STORE)' :
+                          {routingDestination === 'WIP' ? 'WIP (WIP-STORE - Intermediate)' :
+                           routingDestination === 'DOL' ? 'DOL (FG-STORE - Direct)' :
                            routingDestination === 'ASSEMBLY' ? 'ASSEMPLY (ASSEMBLY-STORE)' :
                            'DEFLASH (DEFLASH-STORE)'}
                         </strong>
@@ -2046,6 +3087,416 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* REGISTER NEW MASTER DATA RECORD SUB-MODAL (ADMIN GOVERNANCE)              */}
+      {/* ========================================================================= */}
+      {isMasterDataModalOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/90 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-1.5 text-xs text-[#0F8B8D] font-bold uppercase tracking-wider">
+                  <Database className="w-3.5 h-3.5" />
+                  <span>Admin Master Data Governance</span>
+                </div>
+                <h3 className="font-bold text-slate-900 text-base mt-0.5">
+                  Register Master Record &amp; Auto-fill
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Single source of truth catalog. Saves to Master Data and auto-populates item wizard.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMasterDataModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveMasterModalRecord} className="p-6 space-y-4 overflow-y-auto text-xs flex-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Entity Type</label>
+                  <select
+                    value={masterModalForm.entityType}
+                    onChange={(e) => setMasterModalForm({ ...masterModalForm, entityType: e.target.value as any })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                  >
+                    <option value="Polymer Resin Item">Polymer Resin Item</option>
+                    <option value="Color Masterbatch">Color Masterbatch</option>
+                    <option value="Finished Molded Component">Finished Molded Component</option>
+                    <option value="Tooling & Mold Asset">Tooling &amp; Mold Asset</option>
+                    <option value="Customer Account">Customer Account</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Master Code *</label>
+                  <input
+                    type="text"
+                    required
+                    value={masterModalForm.code || ''}
+                    onChange={(e) => setMasterModalForm({ ...masterModalForm, code: e.target.value.toUpperCase() })}
+                    placeholder="e.g. RES-PP-COPO-02"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <label className="block font-semibold text-slate-700 mb-1">Item / Account Description *</label>
+                  <input
+                    type="text"
+                    required
+                    value={masterModalForm.name || ''}
+                    onChange={(e) => setMasterModalForm({ ...masterModalForm, name: e.target.value })}
+                    placeholder="e.g. Polypropylene Impact Co-Polymer (MFI 12, High Izod)"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Classification / Category *</label>
+                  <input
+                    type="text"
+                    required
+                    value={masterModalForm.category || ''}
+                    onChange={(e) => setMasterModalForm({ ...masterModalForm, category: e.target.value })}
+                    placeholder="e.g. Virgin Raw Polymer"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Item Group *</label>
+                  <input
+                    type="text"
+                    required
+                    value={masterModalForm.itemGroup || ''}
+                    onChange={(e) => setMasterModalForm({ ...masterModalForm, itemGroup: e.target.value })}
+                    placeholder="e.g. Polymer Feedstock"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Primary Unit of Measure</label>
+                  <select
+                    value={masterModalForm.primaryUom}
+                    onChange={(e) => setMasterModalForm({ ...masterModalForm, primaryUom: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white font-mono"
+                  >
+                    <option value="Kilograms (KG)">Kilograms (KG)</option>
+                    <option value="Numbers (PCS)">Numbers (PCS)</option>
+                    <option value="Sets (SET)">Sets (SET)</option>
+                    <option value="Meters (MTR)">Meters (MTR)</option>
+                    <option value="Liters (LTR)">Liters (LTR)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Multi-Plant Scope</label>
+                  <select
+                    value={masterModalForm.plantScope}
+                    onChange={(e) => setMasterModalForm({ ...masterModalForm, plantScope: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                  >
+                    <option value="All Plants (Global)">All Plants (Global)</option>
+                    <option value="Pune & Sanand Units">Pune &amp; Sanand Units</option>
+                    <option value="Chennai Molding Only">Chennai Molding Only</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Resin Type / Base Material</label>
+                  <input
+                    type="text"
+                    value={masterModalForm.resinType || ''}
+                    onChange={(e) => setMasterModalForm({ ...masterModalForm, resinType: e.target.value })}
+                    placeholder="e.g. Polypropylene (PP) / ABS / PA66"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Color / Finish</label>
+                  <input
+                    type="text"
+                    value={masterModalForm.color || ''}
+                    onChange={(e) => setMasterModalForm({ ...masterModalForm, color: e.target.value })}
+                    placeholder="e.g. Natural / Carbon Black RAL 9005"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <label className="block font-semibold text-slate-700 mb-1">Compliance &amp; Quality Mandates</label>
+                  <input
+                    type="text"
+                    value={masterModalForm.complianceCert || ''}
+                    onChange={(e) => setMasterModalForm({ ...masterModalForm, complianceCert: e.target.value })}
+                    placeholder="e.g. RoHS, REACH, UL-94 HB, PPAP Level-3"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
+                <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5 text-[#0F8B8D]" />
+                  <span>Will immediately auto-fill into Item Wizard Step 2</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsMasterDataModalOpen(false)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#0F8B8D] hover:bg-[#0c7274] text-white font-semibold shadow-sm cursor-pointer"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    Save &amp; Auto-Fill
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Task 1: Register New Supplier Modal */}
+      {isNewSupplierModalOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-xl overflow-hidden my-auto animate-in zoom-in-95 duration-150">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-teal-50 via-white to-teal-50/30">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-[#0F8B8D] text-white flex items-center justify-center shadow-xs">
+                  <Truck className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900">Register New Supplier in Master Data</h3>
+                  <p className="text-[11px] text-slate-500">Auto-fills Supplier Name, HSN Code, and MOQ into wizard</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsNewSupplierModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveNewSupplier} className="p-6 space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Supplier Code *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newSupplierForm.code}
+                    onChange={(e) => setNewSupplierForm({ ...newSupplierForm, code: e.target.value.toUpperCase() })}
+                    placeholder="SUP-2025"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Supplier Company Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newSupplierForm.name}
+                    onChange={(e) => setNewSupplierForm({ ...newSupplierForm, name: e.target.value })}
+                    placeholder="e.g. Supreme Petrochem Ltd"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Category</label>
+                  <select
+                    value={newSupplierForm.category}
+                    onChange={(e) => setNewSupplierForm({ ...newSupplierForm, category: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                  >
+                    <option value="Virgin Resin">Virgin Resin Feedstock</option>
+                    <option value="Masterbatch & Colorants">Masterbatch &amp; Colorants</option>
+                    <option value="Additives & Stabilizers">Additives &amp; Stabilizers</option>
+                    <option value="Molds & Tooling">Molds &amp; Tooling Spares</option>
+                    <option value="Packaging & Corrugated">Packaging &amp; Corrugated</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">HSN / Tariff Code *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newSupplierForm.hsnCode}
+                    onChange={(e) => setNewSupplierForm({ ...newSupplierForm, hsnCode: e.target.value, tariffCode: e.target.value })}
+                    placeholder="39021000"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Default MOQ (Min Order Qty) *</label>
+                  <input
+                    type="number"
+                    required
+                    value={newSupplierForm.moq}
+                    onChange={(e) => setNewSupplierForm({ ...newSupplierForm, moq: parseInt(e.target.value) || 0 })}
+                    placeholder="5000"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Lead Time (Days)</label>
+                  <input
+                    type="number"
+                    value={newSupplierForm.leadTimeDays}
+                    onChange={(e) => setNewSupplierForm({ ...newSupplierForm, leadTimeDays: parseInt(e.target.value) || 0 })}
+                    placeholder="7"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
+                <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5 text-[#0F8B8D]" />
+                  <span>Will auto-fill into Item Wizard Step 7</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsNewSupplierModalOpen(false)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#0F8B8D] hover:bg-[#0c7274] text-white font-semibold shadow-sm cursor-pointer"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    Register &amp; Auto-Fill
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Task 3: Register New Warehouse Modal */}
+      {isNewWarehouseModalOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden my-auto animate-in zoom-in-95 duration-150">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-teal-50 via-white to-teal-50/30">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-[#0F8B8D] text-white flex items-center justify-center shadow-xs">
+                  <Store className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900">Register Warehouse in Master Data</h3>
+                  <p className="text-[11px] text-slate-500">Adds facility to central inventory governance</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsNewWarehouseModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveNewWarehouse} className="p-6 space-y-4 text-xs">
+              <div className="space-y-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Warehouse Code *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newWarehouseForm.code}
+                    onChange={(e) => setNewWarehouseForm({ ...newWarehouseForm, code: e.target.value.toUpperCase() })}
+                    placeholder="RM-WH-03"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Warehouse Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newWarehouseForm.name}
+                    onChange={(e) => setNewWarehouseForm({ ...newWarehouseForm, name: e.target.value })}
+                    placeholder="e.g. South Plant Polymer Storage & Blending"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Primary Zone / Description</label>
+                  <input
+                    type="text"
+                    value={newWarehouseForm.zone}
+                    onChange={(e) => setNewWarehouseForm({ ...newWarehouseForm, zone: e.target.value })}
+                    placeholder="e.g. Zone A - Heavy Polymer Silos"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Multi-Plant Scope</label>
+                  <select
+                    value={newWarehouseForm.plantScope}
+                    onChange={(e) => setNewWarehouseForm({ ...newWarehouseForm, plantScope: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                  >
+                    <option value="All Plants (Global)">All Plants (Global)</option>
+                    <option value="Pune & Sanand Units">Pune &amp; Sanand Units</option>
+                    <option value="Chennai Molding Only">Chennai Molding Only</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
+                <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5 text-[#0F8B8D]" />
+                  <span>Will immediately select as default warehouse</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsNewWarehouseModalOpen(false)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#0F8B8D] hover:bg-[#0c7274] text-white font-semibold shadow-sm cursor-pointer"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    Save &amp; Select
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

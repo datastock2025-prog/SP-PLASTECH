@@ -39,6 +39,7 @@ export interface ItemMaster {
   status: ItemStatus;
   icon: string;
   desc?: string;
+  itemGroup?: string;
   baseUOM: string;
   resinType?: string;
   mfi?: string;
@@ -93,7 +94,8 @@ export interface ItemMaster {
   cavityCount?: number;
   runnerWeightGrams?: number;
   shotWeightGrams?: number;
-  routingDestination?: 'DOL' | 'ASSEMBLY' | 'DEFLASH';
+  routingDestination?: 'WIP' | 'DOL' | 'ASSEMBLY' | 'DEFLASH';
+  isWip?: boolean;
   isDol?: boolean;
   isAssembly?: boolean;
   isDeflash?: boolean;

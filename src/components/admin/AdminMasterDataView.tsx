@@ -24,7 +24,10 @@ import {
   Sparkles,
   GitMerge,
 } from 'lucide-react';
-import { MasterDataRecord, mockMasterDataRecords } from '../../data/mockAdminExtendedData';
+import { MasterDataRecord } from '../../data/mockAdminExtendedData';
+import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
+import { adminEventBus } from '../../services/adminService';
+import { PaginationBar } from '../common/PaginationBar';
 
 interface AdminMasterDataViewProps {
   showToast?: (msg: string) => void;
@@ -33,10 +36,38 @@ interface AdminMasterDataViewProps {
 export const AdminMasterDataView: React.FC<AdminMasterDataViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
-  const [records, setRecords] = useState<MasterDataRecord[]>(mockMasterDataRecords);
+  const [records, setRecords] = useState<MasterDataRecord[]>(() => masterDataGovernanceService.getAllRecords());
   const [selectedEntity, setSelectedEntity] = useState<string>('ALL');
   const [search, setSearch] = useState('');
-  const [selectedRecord, setSelectedRecord] = useState<MasterDataRecord>(records[0]);
+  const [selectedRecord, setSelectedRecord] = useState<MasterDataRecord>(() => {
+    const list = masterDataGovernanceService.getAllRecords();
+    return list[0] || {
+      id: 'MD-01',
+      entityType: 'Polymer Resin Item',
+      code: 'RES-PP-COPO-01',
+      name: 'Polypropylene Impact Co-Polymer (MFI 12, High Izod)',
+      primaryUom: 'Kilograms (KG)',
+      category: 'Virgin Raw Polymer',
+      itemGroup: 'Polymer Feedstock',
+      plantScope: 'All Plants (Global)',
+      lastUpdated: '2026-09-02',
+      updatedBy: 'Dr. Sunita Kulkarni',
+      complianceCert: 'RoHS, REACH, UL-94 HB',
+      status: 'Approved',
+    };
+  });
+
+  // Subscribe to Master Data updates
+  React.useEffect(() => {
+    const unsub = adminEventBus.subscribe(() => {
+      const refreshed = masterDataGovernanceService.getAllRecords();
+      setRecords(refreshed);
+      if (refreshed.length > 0 && !refreshed.some((r) => r.id === selectedRecord?.id)) {
+        setSelectedRecord(refreshed[0]);
+      }
+    });
+    return unsub;
+  }, [selectedRecord]);
 
   // Modals State
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
@@ -51,6 +82,7 @@ export const AdminMasterDataView: React.FC<AdminMasterDataViewProps> = ({
     name: '',
     primaryUom: 'Kilograms (KG)',
     category: 'Virgin Raw Polymer',
+    itemGroup: 'Polymer Feedstock',
     plantScope: 'All Plants (Global)',
     complianceCert: 'RoHS, REACH, UL-94 HB',
     status: 'Approved',
@@ -65,28 +97,36 @@ export const AdminMasterDataView: React.FC<AdminMasterDataViewProps> = ({
     'Customer Account',
   ];
 
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(8);
+
   const filteredRecords = records.filter((r) => {
     const matchType = selectedEntity === 'ALL' || r.entityType === selectedEntity;
     const matchSearch =
       r.code.toLowerCase().includes(search.toLowerCase()) ||
       r.name.toLowerCase().includes(search.toLowerCase()) ||
-      r.category.toLowerCase().includes(search.toLowerCase());
+      r.category.toLowerCase().includes(search.toLowerCase()) ||
+      (r.itemGroup && r.itemGroup.toLowerCase().includes(search.toLowerCase()));
     return matchType && matchSearch;
   });
 
+  // Reset pagination when filter or search changes
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [search, selectedEntity]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / pageSize));
+  const paginatedRecords = filteredRecords.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   const handleToggleLock = (id: string) => {
-    setRecords((prev) =>
-      prev.map((r) => {
-        if (r.id === id) {
-          const next = r.status === 'Locked' ? 'Approved' : 'Locked';
-          showToast(`Master record ${r.code} is now ${next}.`);
-          const updated = { ...r, status: next as any };
-          if (selectedRecord.id === id) setSelectedRecord(updated);
-          return updated;
-        }
-        return r;
-      })
-    );
+    const target = records.find((r) => r.id === id);
+    if (target) {
+      const next = target.status === 'Locked' ? 'Approved' : 'Locked';
+      const updated = masterDataGovernanceService.saveRecord({ ...target, status: next as any });
+      setRecords(masterDataGovernanceService.getAllRecords());
+      if (selectedRecord?.id === id) setSelectedRecord(updated);
+      showToast(`Master record ${target.code} is now ${next}.`);
+    }
   };
 
   // Open Create Modal
@@ -105,7 +145,8 @@ export const AdminMasterDataView: React.FC<AdminMasterDataViewProps> = ({
       code: `${prefixMap[entity] || 'ITEM-'}${Date.now().toString().slice(-4)}`,
       name: '',
       primaryUom: entity.includes('Resin') || entity.includes('Masterbatch') ? 'Kilograms (KG)' : 'Pieces (NOS)',
-      category: 'Virgin Raw Polymer',
+      category: entity === 'Polymer Resin Item' ? 'Virgin Raw Polymer' : entity === 'Color Masterbatch' ? 'Additives & Pigments' : entity === 'Finished Molded Component' ? 'Automotive Exterior' : 'Injection Mold Dies',
+      itemGroup: entity === 'Polymer Resin Item' ? 'Polymer Feedstock' : entity === 'Color Masterbatch' ? 'Colorants & Additives' : entity === 'Finished Molded Component' ? 'Automotive Assemblies' : 'Tooling & Mold Spares',
       plantScope: 'All Plants (Global)',
       complianceCert: 'RoHS, REACH, UL-94 HB, ISO 9001',
       status: 'Approved',
@@ -128,27 +169,17 @@ export const AdminMasterDataView: React.FC<AdminMasterDataViewProps> = ({
       return;
     }
 
-    if (isEditMode && selectedRecord) {
-      const updated: MasterDataRecord = {
-        ...selectedRecord,
-        ...(formData as MasterDataRecord),
-        lastUpdated: new Date().toISOString().split('T')[0],
-        updatedBy: 'Admin Governance Team',
-      };
-      setRecords((prev) => prev.map((r) => (r.id === selectedRecord.id ? updated : r)));
-      setSelectedRecord(updated);
-      showToast(`Master specification ${updated.code} updated.`);
-    } else {
-      const newRec: MasterDataRecord = {
-        id: `MDR-${Date.now().toString().slice(-4)}`,
-        ...(formData as MasterDataRecord),
-        lastUpdated: new Date().toISOString().split('T')[0],
-        updatedBy: 'Admin Governance Team',
-      };
-      setRecords((prev) => [newRec, ...prev]);
-      setSelectedRecord(newRec);
-      showToast(`Master catalog record ${newRec.code} successfully registered.`);
-    }
+    const saved = masterDataGovernanceService.saveRecord({
+      ...(isEditMode && selectedRecord ? { id: selectedRecord.id } : {}),
+      ...(formData as any),
+      code: formData.code.trim().toUpperCase(),
+      name: formData.name.trim(),
+    });
+
+    const updatedList = masterDataGovernanceService.getAllRecords();
+    setRecords(updatedList);
+    setSelectedRecord(saved);
+    showToast(`Master record ${saved.code} successfully saved to enterprise governance.`);
     setIsRecordModalOpen(false);
   };
 
@@ -271,43 +302,67 @@ export const AdminMasterDataView: React.FC<AdminMasterDataViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredRecords.map((r) => {
-                const isSelected = selectedRecord?.id === r.id;
-                return (
-                  <tr
-                    key={r.id}
-                    onClick={() => setSelectedRecord(r)}
-                    className={`cursor-pointer transition-colors ${
-                      isSelected ? 'bg-[#0F8B8D]/5 font-semibold' : 'hover:bg-slate-50/80'
-                    }`}
-                  >
-                    <td className="py-3 px-4 text-slate-500 text-[11px] font-medium">{r.entityType}</td>
-                    <td className="py-3 px-4">
-                      <div className="font-mono text-xs font-bold text-slate-900">{r.code}</div>
-                      <div className="text-[11px] text-slate-500 truncate max-w-xs font-normal">{r.name}</div>
-                    </td>
-                    <td className="py-3 px-4 text-slate-600">{r.category}</td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          r.status === 'Approved'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : r.status === 'Locked'
-                            ? 'bg-slate-200 text-slate-700'
-                            : 'bg-amber-50 text-amber-700'
-                        }`}
-                      >
-                        {r.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <ChevronRight className="w-4 h-4 text-slate-400 inline" />
-                    </td>
-                  </tr>
-                );
-              })}
+              {paginatedRecords.length > 0 ? (
+                paginatedRecords.map((r) => {
+                  const isSelected = selectedRecord?.id === r.id;
+                  return (
+                    <tr
+                      key={r.id}
+                      onClick={() => setSelectedRecord(r)}
+                      className={`cursor-pointer transition-colors ${
+                        isSelected ? 'bg-[#0F8B8D]/5 font-semibold' : 'hover:bg-slate-50/80'
+                      }`}
+                    >
+                      <td className="py-3 px-4 text-slate-500 text-[11px] font-medium">{r.entityType}</td>
+                      <td className="py-3 px-4">
+                        <div className="font-mono text-xs font-bold text-slate-900">{r.code}</div>
+                        <div className="text-[11px] text-slate-500 truncate max-w-xs font-normal">{r.name}</div>
+                      </td>
+                      <td className="py-3 px-4 text-slate-600">{r.category}</td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            r.status === 'Approved'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : r.status === 'Locked'
+                              ? 'bg-slate-200 text-slate-700'
+                              : 'bg-amber-50 text-amber-700'
+                          }`}
+                        >
+                          {r.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <ChevronRight className="w-4 h-4 text-slate-400 inline" />
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-slate-400">
+                    No matching master data records found.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
+
+          {/* Master Data Grid Pagination */}
+          <PaginationBar
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalItems={filteredRecords.length}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
+            pageSizeOptions={[5, 8, 15, 25, 50]}
+            itemName="master records"
+            className="border-t border-slate-200 px-4 py-2.5 bg-slate-50"
+          />
         </div>
 
         {/* Record Inspector (Right) */}
@@ -341,6 +396,10 @@ export const AdminMasterDataView: React.FC<AdminMasterDataViewProps> = ({
                   <span className="font-semibold text-slate-800">{selectedRecord.category}</span>
                 </div>
                 <div className="flex justify-between">
+                  <span className="text-slate-500">Item Group:</span>
+                  <span className="font-semibold text-slate-800">{selectedRecord.itemGroup || 'General'}</span>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-slate-500">Primary UOM:</span>
                   <span className="font-mono font-semibold text-slate-800">{selectedRecord.primaryUom}</span>
                 </div>
@@ -355,6 +414,43 @@ export const AdminMasterDataView: React.FC<AdminMasterDataViewProps> = ({
                   </span>
                 </div>
               </div>
+
+              {/* Manufacturing & Polymer Technical Attributes */}
+              {(selectedRecord.resinType || selectedRecord.color || selectedRecord.polymerGrade) && (
+                <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100 space-y-1.5">
+                  <span className="font-bold text-blue-950 block text-[11px] uppercase tracking-wider">
+                    Manufacturing &amp; Polymer Attributes
+                  </span>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div>
+                      <span className="text-slate-500 block">Resin Type:</span>
+                      <strong className="text-slate-900">{selectedRecord.resinType || 'N/A'}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Color:</span>
+                      <strong className="text-slate-900">{selectedRecord.color || 'N/A'}</strong>
+                    </div>
+                    {selectedRecord.polymerGrade && (
+                      <div className="col-span-2">
+                        <span className="text-slate-500 block">Polymer Grade:</span>
+                        <strong className="text-slate-900">{selectedRecord.polymerGrade}</strong>
+                      </div>
+                    )}
+                    {selectedRecord.mfi && (
+                      <div>
+                        <span className="text-slate-500 block">MFI (g/10min):</span>
+                        <strong className="font-mono text-slate-900">{selectedRecord.mfi}</strong>
+                      </div>
+                    )}
+                    {selectedRecord.density && (
+                      <div>
+                        <span className="text-slate-500 block">Density (g/cm³):</span>
+                        <strong className="font-mono text-slate-900">{selectedRecord.density}</strong>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Compliance Badges */}
               <div>
@@ -557,6 +653,17 @@ export const AdminMasterDataView: React.FC<AdminMasterDataViewProps> = ({
                 </div>
 
                 <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Item Group</label>
+                  <input
+                    type="text"
+                    value={formData.itemGroup || ''}
+                    onChange={(e) => setFormData({ ...formData, itemGroup: e.target.value })}
+                    placeholder="e.g. Polymer Feedstock"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                  />
+                </div>
+
+                <div>
                   <label className="block font-semibold text-slate-700 mb-1">Primary Unit of Measure</label>
                   <select
                     value={formData.primaryUom}
@@ -595,6 +702,61 @@ export const AdminMasterDataView: React.FC<AdminMasterDataViewProps> = ({
                     <option value="Draft">Draft (Pending Verification)</option>
                     <option value="Locked">Locked (Golden Record)</option>
                   </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Resin Type / Base Material</label>
+                  <input
+                    type="text"
+                    value={formData.resinType || ''}
+                    onChange={(e) => setFormData({ ...formData, resinType: e.target.value })}
+                    placeholder="e.g. Polypropylene (PP), ABS"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Color / Finish</label>
+                  <input
+                    type="text"
+                    value={formData.color || ''}
+                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                    placeholder="e.g. Natural, Carbon Black, Signal Red"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                  />
+                </div>
+
+                <div className="col-span-2 grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Polymer Grade</label>
+                    <input
+                      type="text"
+                      value={formData.polymerGrade || ''}
+                      onChange={(e) => setFormData({ ...formData, polymerGrade: e.target.value })}
+                      placeholder="e.g. Repol H110MA"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">MFI (g/10min)</label>
+                    <input
+                      type="text"
+                      value={formData.mfi || ''}
+                      onChange={(e) => setFormData({ ...formData, mfi: e.target.value })}
+                      placeholder="e.g. 12.0"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Density (g/cm³)</label>
+                    <input
+                      type="text"
+                      value={formData.density || ''}
+                      onChange={(e) => setFormData({ ...formData, density: e.target.value })}
+                      placeholder="e.g. 0.905"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                    />
+                  </div>
                 </div>
 
                 <div className="col-span-2">

@@ -26,6 +26,7 @@ import {
 } from '../../types/procurement';
 import { ProcurementStatusBadge } from './ProcurementStatusBadge';
 import { PaginationBar } from '../common/PaginationBar';
+import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 
 interface Props {
   suppliers: SupplierMaster[];
@@ -124,6 +125,9 @@ export const SupplierMasterListView: React.FC<Props> = ({
     let formTerms = 'Net 30 Days';
     let formGstin = '';
     let formPan = '';
+    let formHsnCode = '39021000';
+    let formTariffCode = '3902.10.00';
+    let formMoq = 1000;
     let formContactName = '';
     let formContactEmail = '';
     let formContactPhone = '';
@@ -153,6 +157,9 @@ export const SupplierMasterListView: React.FC<Props> = ({
         deliveryTerms: 'Door Delivery',
         leadTimeDays: Number(formLeadTime) || 7,
         minimumOrderValue: 50000,
+        hsnCode: formHsnCode.trim() || '39021000',
+        tariffCode: formTariffCode.trim() || '3902.10.00',
+        moq: Number(formMoq) || 1000,
         createdDate: new Date().toISOString().slice(0, 10),
         openPOsCount: 0,
         openPOValue: 0,
@@ -230,6 +237,16 @@ export const SupplierMasterListView: React.FC<Props> = ({
       };
 
       onCreateSupplier(newSup);
+      masterDataGovernanceService.saveSupplier({
+        code: newSup.code,
+        name: newSup.name,
+        category: newSup.category,
+        hsnCode: newSup.hsnCode,
+        tariffCode: newSup.tariffCode,
+        moq: newSup.moq,
+        leadTimeDays: newSup.leadTimeDays,
+        paymentTerms: newSup.paymentTerms,
+      });
       closeDrawer();
       showToast(`Supplier ${newSup.name} (${newSup.code}) registered and submitted for onboarding approval`);
     };
@@ -303,6 +320,29 @@ export const SupplierMasterListView: React.FC<Props> = ({
               placeholder="e.g. AAACS1982K"
               onChange={(e) => (formPan = e.target.value)}
               className="w-full px-3 py-2 border rounded-lg bg-white font-mono text-xs uppercase"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-slate-600 font-semibold mb-1">HSN / Tariff Code *</label>
+            <input
+              type="text"
+              defaultValue={formHsnCode}
+              placeholder="e.g. 39021000"
+              onChange={(e) => (formHsnCode = e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg bg-white font-mono text-xs"
+            />
+          </div>
+          <div>
+            <label className="block text-slate-600 font-semibold mb-1">Default MOQ (Min Order Qty) *</label>
+            <input
+              type="number"
+              defaultValue={formMoq}
+              placeholder="e.g. 1000"
+              onChange={(e) => (formMoq = Number(e.target.value))}
+              className="w-full px-3 py-2 border rounded-lg bg-white font-mono text-xs"
             />
           </div>
         </div>

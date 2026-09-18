@@ -36,6 +36,9 @@ export const INITIAL_PROCUREMENT_SUPPLIERS: SupplierMaster[] = [
     deliveryTerms: 'FOR Factory (Hazira Plant)',
     leadTimeDays: 7,
     minimumOrderValue: 250000,
+    hsnCode: '39021000',
+    tariffCode: '3902.10.00',
+    moq: 5000,
     website: 'https://www.ril.com/polymers',
     notes: 'Primary supplier for PP Homopolymer and Random Copolymer. Consistent MFI batch tolerance.',
     createdDate: '2025-03-10',
@@ -760,7 +763,26 @@ export const INITIAL_PROCUREMENT_SUPPLIERS: SupplierMaster[] = [
 // ----------------------------------------------------
 // 2. PURCHASE REQUISITIONS (PR) DATA
 // ----------------------------------------------------
+export const addPurchaseRequisition = (newPr: PurchaseRequisition) => {
+  INITIAL_PURCHASE_REQUISITIONS.unshift(newPr);
+  try {
+    const existing = JSON.parse(localStorage.getItem('plastix_purchase_requisitions') || '[]');
+    localStorage.setItem('plastix_purchase_requisitions', JSON.stringify([newPr, ...existing.filter((p: any) => p.id !== newPr.id)]));
+  } catch (e) {
+    // ignore
+  }
+};
+
+const getStoredPRs = (): PurchaseRequisition[] => {
+  try {
+    const saved = localStorage.getItem('plastix_purchase_requisitions');
+    if (saved) return JSON.parse(saved);
+  } catch (e) {}
+  return [];
+};
+
 export const INITIAL_PURCHASE_REQUISITIONS: PurchaseRequisition[] = [
+  ...getStoredPRs(),
   {
     id: 'PR-2026-081',
     prNumber: 'PR-2026-081',

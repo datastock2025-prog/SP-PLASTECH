@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ItemMaster } from '../../../types';
-import { Search, ChevronDown, Check, X, Package, CheckCircle2 } from 'lucide-react';
+import { Search, ChevronDown, Check, X, Package, CheckCircle2, Plus } from 'lucide-react';
 
 interface ItemAutocompleteInputProps {
   items: ItemMaster[];
   value: string;
   onSelect: (item: ItemMaster) => void;
   onChangeText?: (text: string) => void;
+  onCreateNewItem?: (typedQuery?: string) => void;
+  displayMode?: 'code' | 'name' | 'dual';
   placeholder?: string;
   autoFocus?: boolean;
   className?: string;
@@ -24,6 +26,8 @@ export const ItemAutocompleteInput: React.FC<ItemAutocompleteInputProps> = ({
   value,
   onSelect,
   onChangeText,
+  onCreateNewItem,
+  displayMode = 'code',
   placeholder = 'Type item number or search by name...',
   autoFocus = false,
   className = '',
@@ -59,40 +63,60 @@ export const ItemAutocompleteInput: React.FC<ItemAutocompleteInputProps> = ({
 
   // Filter items based on user query and optional filters
   const filteredItems = React.useMemo(() => {
-    const q = query.trim().toLowerCase();
+    if (!items || !Array.isArray(items)) return [];
+    const q = (query || '').trim().toLowerCase();
     return items.filter((item) => {
+      if (!item || !item.code) return false;
+
+      // Task 5: Never show rejected items in operational autocompletes
+      if (item.approval === 'rejected' || item.status === 'rejected' || item.status === 'blocked') {
+        return false;
+      }
+
       // Exclude specific codes (e.g. parent item cannot be component of itself)
       if (filterExcludeCodes && filterExcludeCodes.includes(item.code)) {
         return false;
       }
       // Type filter if specified
       if (filterTypes && filterTypes.length > 0) {
-        const matchesType = filterTypes.some(
-          (t) =>
-            item.type.toLowerCase().includes(t.toLowerCase()) ||
-            item.cat.toLowerCase().includes(t.toLowerCase())
-        );
+        const itemType = (item.type || '').toLowerCase();
+        const itemCat = (item.cat || '').toLowerCase();
+        const matchesType = filterTypes.some((t) => {
+          const target = (t || '').toLowerCase();
+          return itemType.includes(target) || itemCat.includes(target);
+        });
         if (!matchesType) return false;
       }
       if (!q) return true;
+      const codeStr = (item.code || '').toLowerCase();
+      const nameStr = (item.name || '').toLowerCase();
+      const catStr = (item.cat || '').toLowerCase();
+      const resinStr = (item.resinType || '').toLowerCase();
       return (
-        item.code.toLowerCase().includes(q) ||
-        item.name.toLowerCase().includes(q) ||
-        item.cat.toLowerCase().includes(q) ||
-        (item.resinType && item.resinType.toLowerCase().includes(q))
+        codeStr.includes(q) ||
+        nameStr.includes(q) ||
+        catStr.includes(q) ||
+        resinStr.includes(q)
       );
     });
   }, [items, query, filterTypes, filterExcludeCodes]);
 
-  // Selected item object if query matches an existing item code
+  // Selected item object if query matches an existing item code or name
   const currentItem = React.useMemo(() => {
-    if (!query) return null;
-    return items.find((i) => i.code.toLowerCase() === query.trim().toLowerCase()) || null;
+    if (!query || !items || !Array.isArray(items)) return null;
+    const clean = query.trim().toLowerCase();
+    return (
+      items.find((i) => (i?.code || '').toLowerCase() === clean) ||
+      items.find((i) => (i?.name || '').toLowerCase() === clean) ||
+      null
+    );
   }, [items, query]);
 
   const handleSelect = (item: ItemMaster) => {
-    setQuery(item.code);
-    onChangeText?.(item.code);
+    if (!item) return;
+    const textToSet = displayMode === 'name' ? item.name || item.code : item.code;
+    setQuery(textToSet);
+    onChangeText?.(textToSet);
     onSelect(item);
     setIsOpen(false);
     setHighlightedIndex(-1);
@@ -105,8 +129,13 @@ export const ItemAutocompleteInput: React.FC<ItemAutocompleteInputProps> = ({
     setIsOpen(true);
     setHighlightedIndex(0);
 
-    // If user typed/pasted the exact item code, trigger selection automatically
-    const exactMatch = items.find((i) => i.code.toLowerCase() === text.trim().toLowerCase());
+    // If user typed/pasted the exact item code or name, trigger selection automatically
+    const exactMatch = (items || []).find(
+      (i) =>
+        i &&
+        ((i.code || '').toLowerCase() === text.trim().toLowerCase() ||
+          (i.name || '').toLowerCase() === text.trim().toLowerCase())
+    );
     if (exactMatch) {
       onSelect(exactMatch);
     }
@@ -137,7 +166,12 @@ export const ItemAutocompleteInput: React.FC<ItemAutocompleteInputProps> = ({
 
   const handleBlur = () => {
     // If the typed query is an exact match, ensure onSelect was triggered
-    const exactMatch = items.find((i) => i.code.toLowerCase() === query.trim().toLowerCase());
+    const exactMatch = (items || []).find(
+      (i) =>
+        i &&
+        ((i.code || '').toLowerCase() === (query || '').trim().toLowerCase() ||
+          (i.name || '').toLowerCase() === (query || '').trim().toLowerCase())
+    );
     if (exactMatch) {
       onSelect(exactMatch);
     }
@@ -150,12 +184,24 @@ export const ItemAutocompleteInput: React.FC<ItemAutocompleteInputProps> = ({
           <span>
             {label} {required && <span className="text-rose-600">*</span>}
           </span>
-          {currentItem && (
-            <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-              Item Master Verified
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {onCreateNewItem && (
+              <button
+                type="button"
+                onClick={() => onCreateNewItem(query)}
+                className="text-[11px] font-semibold text-[#0F8B8D] hover:text-[#0c7274] flex items-center gap-0.5 cursor-pointer"
+              >
+                <Plus className="w-3 h-3" />
+                + Create Item
+              </button>
+            )}
+            {currentItem && (
+              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                Master Verified
+              </span>
+            )}
+          </div>
         </label>
       )}
 
@@ -219,24 +265,38 @@ export const ItemAutocompleteInput: React.FC<ItemAutocompleteInputProps> = ({
 
       {/* Floating Autocomplete Dropdown */}
       {isOpen && !disabled && (
-        <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-xl shadow-xl border border-[#E4E0D6] overflow-hidden max-h-64 overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-xl shadow-xl border border-[#E4E0D6] overflow-hidden max-h-64 overflow-y-auto animate-in fade-in zoom-in-95 duration-100 flex flex-col">
           <div className="p-1.5 bg-[#F6F4EF] border-b border-[#E4E0D6] flex items-center justify-between text-[10px] text-gray-600 font-semibold px-2.5">
             <span>AVAILABLE IN ITEM MASTER ({filteredItems.length})</span>
             <span className="text-[9px] text-gray-400">↑↓ to navigate · Enter to pick</span>
           </div>
 
-          {filteredItems.length === 0 ? (
-            <div className="p-4 text-center text-xs text-gray-500">
-              <Package className="w-6 h-6 text-gray-300 mx-auto mb-1" />
-              <p className="font-semibold text-gray-700">No items found</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">
-                No Item Master matching &ldquo;{query}&rdquo;.
-              </p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-100">
-              {filteredItems.map((item, index) => {
-                const isSelected = item.code === query || item.code === value;
+          <div className="overflow-y-auto divide-y divide-gray-100 flex-1">
+            {filteredItems.length === 0 ? (
+              <div className="p-4 text-center text-xs text-gray-500">
+                <Package className="w-6 h-6 text-gray-300 mx-auto mb-1" />
+                <p className="font-semibold text-gray-700">No matching items found</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  No Item Master matching &ldquo;{query}&rdquo;.
+                </p>
+                {onCreateNewItem && (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setIsOpen(false);
+                      onCreateNewItem(query);
+                    }}
+                    className="mt-2.5 px-3 py-1.5 bg-[#0F8B8D] hover:bg-[#0c7274] text-white text-xs font-bold rounded-lg shadow-xs cursor-pointer inline-flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    + Create &quot;{query || 'New Item'}&quot; in Master Data
+                  </button>
+                )}
+              </div>
+            ) : (
+              filteredItems.map((item, index) => {
+                const isSelected = item.code === query || item.name === query || item.code === value;
                 const isHighlighted = index === highlightedIndex;
 
                 return (
@@ -277,7 +337,7 @@ export const ItemAutocompleteInput: React.FC<ItemAutocompleteInputProps> = ({
                         )}
                         {(item.standardCost || item.cost) && (
                           <span className="block font-mono text-[10px] text-emerald-700 font-bold">
-                            ${(item.standardCost || item.cost)?.toFixed(2)}/{item.baseUOM}
+                            ₹{(item.standardCost || item.cost)?.toFixed(2)}/{item.baseUOM}
                           </span>
                         )}
                       </div>
@@ -285,7 +345,34 @@ export const ItemAutocompleteInput: React.FC<ItemAutocompleteInputProps> = ({
                     </div>
                   </div>
                 );
-              })}
+              })
+            )}
+          </div>
+
+          {onCreateNewItem && (
+            <div className="p-2 bg-[#F6F4EF] border-t border-[#E4E0D6] flex items-center justify-between">
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setIsOpen(false);
+                  onCreateNewItem(query);
+                }}
+                className="text-xs text-[#0F8B8D] hover:text-[#0c7274] font-bold flex items-center gap-1.5 px-2 py-1 rounded hover:bg-teal-50/50 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                + Create New Finished Good Item in Master Data
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setIsOpen(false);
+                }}
+                className="text-[11px] text-gray-500 hover:text-gray-700 px-2 py-1"
+              >
+                Close
+              </button>
             </div>
           )}
         </div>

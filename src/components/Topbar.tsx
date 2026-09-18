@@ -1227,7 +1227,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                 <button
                   onClick={() => {
                     setShowUserMenu(false);
-                    onNavigate?.('hrCommandCenter');
+                    onNavigate?.('myProfile');
                   }}
                   className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-slate-100 cursor-pointer font-medium"
                 >

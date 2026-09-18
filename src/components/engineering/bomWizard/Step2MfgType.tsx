@@ -33,7 +33,8 @@ export const Step2MfgType: React.FC<Step2Props> = ({ state, onChange }) => {
     if (cat.includes('resin') || cat.includes('compound') || cat.includes('blend')) return 'Formula / Recipe BOM';
     if (cat.includes('assembly') || cat.includes('set')) return 'Assembly BOM';
     if (cat.includes('pack') || cat.includes('carton')) return 'Packaging BOM';
-    if (parentItem.name.toLowerCase().includes('trimmed') || parentItem.name.toLowerCase().includes('labeled')) return 'Secondary Operation BOM';
+    const name = (parentItem?.name || '').toLowerCase();
+    if (name.includes('trimmed') || name.includes('labeled')) return 'Secondary Operation BOM';
     return 'Discrete Manufacturing BOM';
   };
 

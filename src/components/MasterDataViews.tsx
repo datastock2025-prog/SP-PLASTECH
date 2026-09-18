@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ItemMaster,
   BomMaster,
   MachineMaster,
   ApprovalStatus,
   ItemType,
+  AuthUser,
 } from '../types';
 import {
   Search,
@@ -26,17 +27,37 @@ import {
   ThumbsUp,
   ThumbsDown,
   Layers,
+  History,
+  ShieldCheck,
+  Lock,
+  Unlock,
+  Settings,
+  Box,
+  Sliders,
+  FileText,
+  UserCheck,
 } from 'lucide-react';
 import { PaginationBar } from './common/PaginationBar';
 import { CreateItemWizardModal } from './masterdata/CreateItemWizardModal';
 import { ManufacturingBomWizardModal } from './engineering/bomWizard/ManufacturingBomWizardModal';
+import {
+  AuditHistoryModal,
+  GovernancePermissionsModal,
+} from './masterdata/GovernanceModals';
 import { itemService } from '../services/itemService';
+import {
+  masterDataGovernanceService,
+  MasterDataChangeRecord,
+  MasterDataGovernancePermissions,
+} from '../services/masterDataGovernanceService';
+import { adminEventBus } from '../services/adminService';
 
 interface MasterDataProps {
   view: string;
   items: ItemMaster[];
   boms: BomMaster[];
   machines: MachineMaster[];
+  currentUser?: AuthUser | null;
   selectedCode?: string;
   selectedId?: string;
   onNavigate: (view: string, code?: string, id?: string) => void;
@@ -60,6 +81,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   items,
   boms,
   machines,
+  currentUser,
   selectedCode,
   selectedId,
   onNavigate,
@@ -92,12 +114,51 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   const [isItemWizardOpen, setIsItemWizardOpen] = useState<boolean>(false);
   const [wizardEditItem, setWizardEditItem] = useState<ItemMaster | null>(null);
 
+  // Task 3: Audit Change History Modal State
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState<boolean>(false);
+  const [auditTarget, setAuditTarget] = useState<{ type?: string; code?: string; name?: string }>({});
+
+  // Task 4: Governance & RBAC Configuration Modal State
+  const [isGovModalOpen, setIsGovModalOpen] = useState<boolean>(false);
+  const [govPerms, setGovPerms] = useState<MasterDataGovernancePermissions>(
+    masterDataGovernanceService.getGovernancePermissions()
+  );
+
+  useEffect(() => {
+    const unsub = adminEventBus.on('GOVERNANCE_PERMISSIONS_SAVED', (updated) => {
+      if (updated) setGovPerms(updated);
+    });
+    return () => unsub();
+  }, []);
+
+  // RBAC Permission checks
+  const isSuperAdmin =
+    !currentUser ||
+    currentUser.roleType === 'admin' ||
+    (currentUser.role || '').toLowerCase().includes('admin') ||
+    (currentUser.role || '').toLowerCase().includes('director');
+
+  const canCreateItem = masterDataGovernanceService.canUserPerformAction('create_item', currentUser?.role);
+  const canEditItem = masterDataGovernanceService.canUserPerformAction('edit_item', currentUser?.role);
+  const canApproveItem = masterDataGovernanceService.canUserPerformAction('approve_item', currentUser?.role);
+  const canDeleteItem = masterDataGovernanceService.canUserPerformAction('delete_item', currentUser?.role);
+  const canCreateBom = masterDataGovernanceService.canUserPerformAction('create_bom', currentUser?.role);
+  const canEditBom = masterDataGovernanceService.canUserPerformAction('edit_bom', currentUser?.role);
+
   const handleOpenCreateItemWizard = () => {
+    if (!canCreateItem && !isSuperAdmin) {
+      showToast('Admin permission required to create items in catalog.');
+      return;
+    }
     setWizardEditItem(null);
     setIsItemWizardOpen(true);
   };
 
   const handleOpenEditItemWizard = (item: ItemMaster) => {
+    if (!canEditItem && !isSuperAdmin) {
+      showToast('Admin permission required to edit item specifications.');
+      return;
+    }
     setWizardEditItem(item);
     setIsItemWizardOpen(true);
   };
@@ -107,9 +168,73 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
     const exists = items.some((i) => i.code === savedItem.code);
     if (exists) {
       onUpdateItem(savedItem);
+      masterDataGovernanceService.recordAudit({
+        entityType: 'ITEM_MASTER',
+        entityCode: savedItem.code,
+        entityName: savedItem.name,
+        action: 'UPDATE',
+        changedBy: currentUser?.name || 'Priya Rao (Admin)',
+        userRole: currentUser?.role || 'admin',
+        changeSummary: `Updated Item Master SKU ${savedItem.code} attributes and tooling specifications.`,
+      });
+      showToast(`✓ Updated Item ${savedItem.code} in Master Data & recorded in PostgreSQL audit history.`);
     } else {
       onCreateItem(savedItem);
+      masterDataGovernanceService.recordAudit({
+        entityType: 'ITEM_MASTER',
+        entityCode: savedItem.code,
+        entityName: savedItem.name,
+        action: 'CREATE',
+        changedBy: currentUser?.name || 'Priya Rao (Admin)',
+        userRole: currentUser?.role || 'admin',
+        changeSummary: `Created new Item Master SKU ${savedItem.code} with approval status ${savedItem.approval}.`,
+      });
+      showToast(`✓ Created Item ${savedItem.code} in Master Data & recorded in PostgreSQL audit history.`);
     }
+    setIsItemWizardOpen(false);
+    setWizardEditItem(null);
+  };
+
+  const handleApproveItem = (item: ItemMaster) => {
+    if (!canApproveItem && !isSuperAdmin) {
+      showToast('Only Admin or Authorized Approvers can approve items.');
+      return;
+    }
+    const updated: ItemMaster = { ...item, approval: 'approved', status: 'active' };
+    itemService.saveItem(updated);
+    onUpdateItem(updated);
+    masterDataGovernanceService.recordAudit({
+      entityType: 'ITEM_MASTER',
+      entityCode: item.code,
+      entityName: item.name,
+      action: 'APPROVE',
+      changedBy: currentUser?.name || 'Priya Rao (Admin)',
+      userRole: currentUser?.role || 'admin',
+      changeSummary: `Approved Item ${item.code} (${item.name}) - Released to live operational modules.`,
+      diff: { approval: { before: item.approval, after: 'approved' } },
+    });
+    showToast(`✓ Approved ${item.code} - Released to all operational modules!`);
+  };
+
+  const handleRejectItem = (item: ItemMaster) => {
+    if (!canApproveItem && !isSuperAdmin) {
+      showToast('Only Admin or Authorized Approvers can reject items.');
+      return;
+    }
+    const updated: ItemMaster = { ...item, approval: 'rejected', status: 'inactive' };
+    itemService.saveItem(updated);
+    onUpdateItem(updated);
+    masterDataGovernanceService.recordAudit({
+      entityType: 'ITEM_MASTER',
+      entityCode: item.code,
+      entityName: item.name,
+      action: 'REJECT',
+      changedBy: currentUser?.name || 'Priya Rao (Admin)',
+      userRole: currentUser?.role || 'admin',
+      changeSummary: `Rejected Item ${item.code} (${item.name}). Quarantined and hidden from all operational modules.`,
+      diff: { approval: { before: item.approval, after: 'rejected' } },
+    });
+    showToast(`Rejected ${item.code}. Hidden from operational modules.`);
   };
 
   // Manufacturing BOM Wizard State
@@ -117,6 +242,10 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   const [bomWizardParentItem, setBomWizardParentItem] = useState<ItemMaster | null>(null);
 
   const handleOpenMfgBomWizard = (targetItem: ItemMaster) => {
+    if (!canCreateBom && !isSuperAdmin) {
+      showToast('Admin or Tooling Lead permission required to create BOMs.');
+      return;
+    }
     setBomWizardParentItem(targetItem);
     setIsMfgBomWizardOpen(true);
   };
@@ -151,133 +280,172 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   /* ----------------------------------------------------
      ITEM MASTER LIST & DETAIL
   ---------------------------------------------------- */
-  if (view === 'itemList') {
-    const filteredItems = items.filter((i) => {
-      const matchSearch =
-        i.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        i.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        i.cat.toLowerCase().includes(searchQuery.toLowerCase());
+  const renderViewContent = () => {
+    if (view === 'itemList') {
+      const filteredItems = items.filter((i) => {
+        if (!i) return false;
 
-      if (!matchSearch) return false;
-      if (filterType === 'all') return true;
-      if (filterType === 'pending_approval') return i.approval === 'pending';
-      if (filterType === 'draft') return i.approval === 'draft';
-      if (filterType === 'Masterbatch') return i.type === 'Masterbatch' || i.type === 'Additive';
-      return i.type === filterType;
-    });
+        // Task 5: Never show rejected items to non-admins
+        if (!isSuperAdmin && (i.approval === 'rejected' || i.status === 'rejected')) {
+          return false;
+        }
 
-    const lowStockCount = items.filter((i) => i.status === 'low').length;
-    const holdCount = items.filter((i) => i.status === 'hold').length;
-    const pendingCount = items.filter((i) => i.approval === 'pending').length;
-    const draftCount = items.filter((i) => i.approval === 'draft').length;
+        const matchSearch =
+          (i.code || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (i.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (i.cat || '').toLowerCase().includes(searchQuery.toLowerCase());
 
-    const totalItemPages = Math.ceil(filteredItems.length / itemPageSize) || 1;
-    const pagedItems = filteredItems.slice((itemPage - 1) * itemPageSize, itemPage * itemPageSize);
+        if (!matchSearch) return false;
+        if (filterType === 'all') return true;
+        if (filterType === 'pending_approval') return i.approval === 'pending';
+        if (filterType === 'draft') return i.approval === 'draft';
+        if (filterType === 'rejected') return i.approval === 'rejected';
+        if (filterType === 'Masterbatch') return i.type === 'Masterbatch' || i.type === 'Additive';
+        return i.type === filterType;
+      });
 
-    return (
-      <div className="space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <div className="font-mono text-[11px] uppercase tracking-wider text-[#0F8B8D] font-bold">
-              Master Data &middot; Catalog
+      const lowStockCount = items.filter((i) => i && i.status === 'low').length;
+      const holdCount = items.filter((i) => i && i.status === 'hold').length;
+      const pendingCount = items.filter((i) => i && i.approval === 'pending').length;
+      const draftCount = items.filter((i) => i && i.approval === 'draft').length;
+      const rejectedCount = items.filter((i) => i && (i.approval === 'rejected' || i.status === 'rejected')).length;
+
+      const totalItemPages = Math.ceil(filteredItems.length / itemPageSize) || 1;
+      const pagedItems = filteredItems.slice((itemPage - 1) * itemPageSize, itemPage * itemPageSize);
+
+      return (
+        <div className="space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <div className="font-mono text-[11px] uppercase tracking-wider text-[#0F8B8D] font-bold">
+                Master Data &middot; Catalog
+              </div>
+              <h1 className="text-xl font-bold text-[#14213D]">Item Master</h1>
+              <p className="text-xs text-[#6B7280]">
+                Raw materials, masterbatch, regrind, finished goods, packaging and spares.
+              </p>
             </div>
-            <h1 className="text-xl font-bold text-[#14213D]">Item Master</h1>
-            <p className="text-xs text-[#6B7280]">
-              Raw materials, masterbatch, regrind, finished goods, packaging and spares.
-            </p>
+            <div className="flex items-center gap-2">
+              <button
+                className="btn btn-sm btn-ghost border border-[#E4E0D6] flex items-center gap-1.5"
+                onClick={() => {
+                  setAuditTarget({});
+                  setIsAuditModalOpen(true);
+                }}
+                title="View PostgreSQL Master Data Audit & Change History Logs"
+              >
+                <History className="w-3.5 h-3.5 text-[#0F8B8D]" />
+                Audit History
+              </button>
+              {isSuperAdmin && (
+                <button
+                  className="btn btn-sm btn-ghost border border-[#E4E0D6] flex items-center gap-1.5"
+                  onClick={() => setIsGovModalOpen(true)}
+                  title="Configure Role-Based Access Controls for Master Data & BOM Grids"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
+                  Governance RBAC
+                </button>
+              )}
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={() => showToast(`Exported ${items.length} items to CSV`)}
+              >
+                Export CSV
+              </button>
+              <button className="btn btn-sm btn-primary" onClick={handleOpenCreateItemWizard}>
+                <Plus className="w-3.5 h-3.5" /> Create Item
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              className="btn btn-sm btn-ghost"
-              onClick={() => showToast(`Exported ${items.length} items to CSV`)}
+
+          {/* KPIs */}
+          <div className="kpi-row">
+            <div className="kpi-card">
+              <div className="lbl">Total Items</div>
+              <div className="val">{items.length}</div>
+              <div className="trend flat">Across 7 categories</div>
+            </div>
+            <div className="kpi-card">
+              <div className="lbl">Drafts in Progress</div>
+              <div className="val text-amber-700">{draftCount}</div>
+              <div className="trend flat">{draftCount ? 'Auto-saving enabled' : 'Zero drafts'}</div>
+            </div>
+            <div className="kpi-card">
+              <div className="lbl">Pending Approval</div>
+              <div className="val">{pendingCount}</div>
+              <div className="trend flat">{pendingCount ? 'Awaiting QA review' : 'All approved'}</div>
+            </div>
+            <div className="kpi-card">
+              <div className="lbl">Low Stock</div>
+              <div className="val">{lowStockCount}</div>
+              <div className="trend down">Needs purchase requisition</div>
+            </div>
+          </div>
+
+          {/* Filter Bar */}
+          <div className="filter-bar">
+            <div
+              className={`chip ${filterType === 'all' ? 'active' : ''}`}
+              onClick={() => setFilterType('all')}
             >
-              Export CSV
-            </button>
-            <button className="btn btn-sm btn-primary" onClick={handleOpenCreateItemWizard}>
-              <Plus className="w-3.5 h-3.5" /> Create Item
-            </button>
-          </div>
-        </div>
+              All Items
+            </div>
+            <div
+              className={`chip ${filterType === 'Finished Good' ? 'active' : ''}`}
+              onClick={() => setFilterType('Finished Good')}
+            >
+              Finished Goods
+            </div>
+            <div
+              className={`chip ${filterType === 'Raw Material' ? 'active' : ''}`}
+              onClick={() => setFilterType('Raw Material')}
+            >
+              Raw Materials
+            </div>
+            <div
+              className={`chip ${filterType === 'Masterbatch' ? 'active' : ''}`}
+              onClick={() => setFilterType('Masterbatch')}
+            >
+              Masterbatch
+            </div>
+            <div
+              className={`chip ${filterType === 'Regrind' ? 'active' : ''}`}
+              onClick={() => setFilterType('Regrind')}
+            >
+              Regrind
+            </div>
+            <div
+              className={`chip ${filterType === 'draft' ? 'active' : ''}`}
+              onClick={() => setFilterType('draft')}
+            >
+              📝 Drafts ({draftCount})
+            </div>
+            <div
+              className={`chip ${filterType === 'pending_approval' ? 'active' : ''}`}
+              onClick={() => setFilterType('pending_approval')}
+            >
+              ⏳ Pending Review ({pendingCount})
+            </div>
+            {isSuperAdmin && rejectedCount > 0 && (
+              <div
+                className={`chip ${filterType === 'rejected' ? 'active !bg-rose-100 !text-rose-800 !border-rose-300' : ''}`}
+                onClick={() => setFilterType('rejected')}
+              >
+                🚫 Rejected ({rejectedCount})
+              </div>
+            )}
 
-        {/* KPIs */}
-        <div className="kpi-row">
-          <div className="kpi-card">
-            <div className="lbl">Total Items</div>
-            <div className="val">{items.length}</div>
-            <div className="trend flat">Across 7 categories</div>
+            <div className="flex-1 max-w-xs ml-auto">
+              <input
+                type="text"
+                placeholder="Search code, name, category..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="search-mini w-full"
+              />
+            </div>
           </div>
-          <div className="kpi-card">
-            <div className="lbl">Drafts in Progress</div>
-            <div className="val text-amber-700">{draftCount}</div>
-            <div className="trend flat">{draftCount ? 'Auto-saving enabled' : 'Zero drafts'}</div>
-          </div>
-          <div className="kpi-card">
-            <div className="lbl">Pending Approval</div>
-            <div className="val">{pendingCount}</div>
-            <div className="trend flat">{pendingCount ? 'Awaiting QA review' : 'All approved'}</div>
-          </div>
-          <div className="kpi-card">
-            <div className="lbl">Low Stock</div>
-            <div className="val">{lowStockCount}</div>
-            <div className="trend down">Needs purchase requisition</div>
-          </div>
-        </div>
-
-        {/* Filter Bar */}
-        <div className="filter-bar">
-          <div
-            className={`chip ${filterType === 'all' ? 'active' : ''}`}
-            onClick={() => setFilterType('all')}
-          >
-            All Items
-          </div>
-          <div
-            className={`chip ${filterType === 'Finished Good' ? 'active' : ''}`}
-            onClick={() => setFilterType('Finished Good')}
-          >
-            Finished Goods
-          </div>
-          <div
-            className={`chip ${filterType === 'Raw Material' ? 'active' : ''}`}
-            onClick={() => setFilterType('Raw Material')}
-          >
-            Raw Materials
-          </div>
-          <div
-            className={`chip ${filterType === 'Masterbatch' ? 'active' : ''}`}
-            onClick={() => setFilterType('Masterbatch')}
-          >
-            Masterbatch
-          </div>
-          <div
-            className={`chip ${filterType === 'Regrind' ? 'active' : ''}`}
-            onClick={() => setFilterType('Regrind')}
-          >
-            Regrind
-          </div>
-          <div
-            className={`chip ${filterType === 'draft' ? 'active' : ''}`}
-            onClick={() => setFilterType('draft')}
-          >
-            📝 Drafts ({draftCount})
-          </div>
-          <div
-            className={`chip ${filterType === 'pending_approval' ? 'active' : ''}`}
-            onClick={() => setFilterType('pending_approval')}
-          >
-            ⏳ Pending Review ({pendingCount})
-          </div>
-
-          <div className="flex-1 max-w-xs ml-auto">
-            <input
-              type="text"
-              placeholder="Search code, name, category..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="search-mini w-full"
-            />
-          </div>
-        </div>
 
         {/* Bulk Actions Toolbar */}
         {selectedItemCodes.length > 0 && (
@@ -500,20 +668,14 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                             {item.approval === 'pending' && (
                               <>
                                 <button
-                                  onClick={() => {
-                                    onUpdateItem({ ...item, approval: 'approved' });
-                                    showToast(`Approved ${item.code}`);
-                                  }}
+                                  onClick={() => handleApproveItem(item)}
                                   className="px-2 py-0.5 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-semibold text-[10px] flex items-center gap-1 transition-colors"
                                   title="Quick Approve Item"
                                 >
                                   <ThumbsUp className="w-3 h-3" /> Approve
                                 </button>
                                 <button
-                                  onClick={() => {
-                                    onUpdateItem({ ...item, approval: 'rejected' });
-                                    showToast(`Rejected ${item.code}`);
-                                  }}
+                                  onClick={() => handleRejectItem(item)}
                                   className="px-2 py-0.5 rounded bg-rose-100 hover:bg-rose-200 text-rose-800 font-semibold text-[10px] flex items-center gap-1 transition-colors"
                                   title="Reject Item"
                                 >
@@ -623,32 +785,6 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
             itemName="items"
           />
         </div>
-
-        {/* 10-Step Item Wizard Modal */}
-        <CreateItemWizardModal
-          isOpen={isItemWizardOpen}
-          onClose={() => setIsItemWizardOpen(false)}
-          onSaveItem={handleSaveWizardItem}
-          editItem={wizardEditItem}
-          showToast={showToast}
-        />
-
-        {/* 9-Step Manufacturing BOM Wizard Modal */}
-        {isMfgBomWizardOpen && bomWizardParentItem && (
-          <ManufacturingBomWizardModal
-            isOpen={isMfgBomWizardOpen}
-            onClose={() => setIsMfgBomWizardOpen(false)}
-            parentItem={bomWizardParentItem}
-            allItems={items}
-            existingBoms={boms}
-            onSaveBom={(newBom) => {
-              onCreateBom(newBom);
-              setIsMfgBomWizardOpen(false);
-            }}
-            showToast={showToast}
-            onViewBomDetails={(b) => onNavigate('bomDetail', { id: b.id })}
-          />
-        )}
       </div>
     );
   }
@@ -738,6 +874,16 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               <Edit2 className="w-3.5 h-3.5" /> Edit in 10-Step Wizard
             </button>
             <button
+              className="btn btn-sm btn-ghost flex items-center gap-1.5"
+              onClick={() => {
+                setAuditTarget({ type: 'ITEM_MASTER', code: item.code, name: item.name });
+                setIsAuditModalOpen(true);
+              }}
+              title="View change history for this item in PostgreSQL vault"
+            >
+              <History className="w-3.5 h-3.5 text-[#0F8B8D]" /> Audit History
+            </button>
+            <button
               className="btn btn-sm btn-ghost"
               onClick={() => showToast(`Label sent to Zebra printer for ${item.code}`)}
             >
@@ -764,15 +910,22 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
             >
               <Layers className="w-3.5 h-3.5" /> Create Manufacturing BOM
             </button>
-            <button
-              className="btn btn-sm btn-ghost border-[#E4E0D6]"
-              onClick={() => {
-                onUpdateItem({ ...item, status: 'active', approval: 'approved' });
-                showToast(`Item ${item.code} approved and released`);
-              }}
-            >
-              Approve &amp; Release
-            </button>
+            {item.approval !== 'approved' && (
+              <button
+                className="btn btn-sm btn-ghost border-[#E4E0D6] text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+                onClick={() => handleApproveItem(item)}
+              >
+                Approve &amp; Release
+              </button>
+            )}
+            {item.approval !== 'rejected' && isSuperAdmin && (
+              <button
+                className="btn btn-sm btn-ghost border-[#E4E0D6] text-rose-700 bg-rose-50 hover:bg-rose-100"
+                onClick={() => handleRejectItem(item)}
+              >
+                Reject Item
+              </button>
+            )}
           </div>
         </div>
 
@@ -865,7 +1018,9 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
           <div className="space-y-4">
             {/* Post-Production Routing Destination Banner */}
             <div className={`p-4 rounded-xl border flex items-center justify-between flex-wrap gap-3 ${
-              (item.isDeflash || item.routingDestination === 'DEFLASH')
+              (item.isWip || item.routingDestination === 'WIP')
+                ? 'bg-blue-50/80 border-blue-200 text-blue-900'
+                : (item.isDeflash || item.routingDestination === 'DEFLASH')
                 ? 'bg-amber-50/80 border-amber-200 text-amber-900'
                 : (item.isAssembly || item.routingDestination === 'ASSEMBLY')
                 ? 'bg-purple-50/80 border-purple-200 text-purple-900'
@@ -875,7 +1030,9 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                 <div className="text-xs font-bold flex items-center gap-2">
                   <span>Default Post-Molding Store Routing:</span>
                   <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-white border shadow-2xs">
-                    {(item.isDeflash || item.routingDestination === 'DEFLASH')
+                    {(item.isWip || item.routingDestination === 'WIP')
+                      ? 'WIP &rarr; WIP-STORE'
+                      : (item.isDeflash || item.routingDestination === 'DEFLASH')
                       ? 'DEFLASH &rarr; DEFLASH-STORE'
                       : (item.isAssembly || item.routingDestination === 'ASSEMBLY')
                       ? 'ASSEMPLY &rarr; ASSEMBLY-STORE'
@@ -883,7 +1040,9 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   </span>
                 </div>
                 <div className="text-[11px] text-slate-600 mt-1">
-                  {(item.isDeflash || item.routingDestination === 'DEFLASH')
+                  {(item.isWip || item.routingDestination === 'WIP')
+                    ? 'Configured in Item Wizard Step 5 (WIP checked): After daily production entry is saved, output routes to WIP-STORE intermediate staging floor awaiting QA sampling or secondary routing.'
+                    : (item.isDeflash || item.routingDestination === 'DEFLASH')
                     ? 'Configured in Item Wizard Step 5 (DEFLASH checked): After daily production entry is saved, output routes directly to DEFLASH-STORE for gate trimming and deburring.'
                     : (item.isAssembly || item.routingDestination === 'ASSEMBLY')
                     ? 'Configured in Item Wizard Step 5 (ASSEMPLY checked): After daily production entry is saved, output routes directly to ASSEMBLY-STORE for secondary assembly.'
@@ -891,7 +1050,9 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                 </div>
               </div>
               <div className="text-xs font-mono font-bold px-3 py-1.5 rounded-lg bg-white border">
-                Target Store: {(item.isDeflash || item.routingDestination === 'DEFLASH')
+                Target Store: {(item.isWip || item.routingDestination === 'WIP')
+                  ? 'WIP-STORE'
+                  : (item.isDeflash || item.routingDestination === 'DEFLASH')
                   ? 'DEFLASH-STORE'
                   : (item.isAssembly || item.routingDestination === 'ASSEMBLY')
                   ? 'ASSEMBLY-STORE'
@@ -1183,32 +1344,6 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
             </p>
           </div>
         )}
-
-        {/* 10-Step Item Wizard Modal */}
-        <CreateItemWizardModal
-          isOpen={isItemWizardOpen}
-          onClose={() => setIsItemWizardOpen(false)}
-          onSaveItem={handleSaveWizardItem}
-          editItem={wizardEditItem}
-          showToast={showToast}
-        />
-
-        {/* 9-Step Manufacturing BOM Wizard Modal */}
-        {isMfgBomWizardOpen && bomWizardParentItem && (
-          <ManufacturingBomWizardModal
-            isOpen={isMfgBomWizardOpen}
-            onClose={() => setIsMfgBomWizardOpen(false)}
-            parentItem={bomWizardParentItem}
-            allItems={items}
-            existingBoms={boms}
-            onSaveBom={(newBom) => {
-              onCreateBom(newBom);
-              setIsMfgBomWizardOpen(false);
-            }}
-            showToast={showToast}
-            onViewBomDetails={(b) => onNavigate('bomDetail', { id: b.id })}
-          />
-        )}
       </div>
     );
   }
@@ -1366,23 +1501,6 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
             </tbody>
           </table>
         </div>
-
-        {/* 9-Step Manufacturing BOM Wizard Modal */}
-        {isMfgBomWizardOpen && bomWizardParentItem && (
-          <ManufacturingBomWizardModal
-            isOpen={isMfgBomWizardOpen}
-            onClose={() => setIsMfgBomWizardOpen(false)}
-            parentItem={bomWizardParentItem}
-            allItems={items}
-            existingBoms={boms}
-            onSaveBom={(newBom) => {
-              onCreateBom(newBom);
-              setIsMfgBomWizardOpen(false);
-            }}
-            showToast={showToast}
-            onViewBomDetails={(b) => onNavigate('bomDetail', { id: b.id })}
-          />
-        )}
       </div>
     );
   }
@@ -1679,5 +1797,64 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
     );
   }
 
-  return null;
+    return null;
+  };
+
+  return (
+    <>
+      {renderViewContent()}
+
+      {/* 10-Step Item Wizard Modal */}
+      <CreateItemWizardModal
+        key={wizardEditItem ? `edit-${wizardEditItem.code}` : 'new-item-wizard'}
+        isOpen={isItemWizardOpen}
+        onClose={() => {
+          setIsItemWizardOpen(false);
+          setWizardEditItem(null);
+        }}
+        onSaveItem={handleSaveWizardItem}
+        editItem={wizardEditItem}
+        allItems={items}
+        showToast={showToast}
+      />
+
+      {/* 9-Step Manufacturing BOM Wizard Modal */}
+      {isMfgBomWizardOpen && bomWizardParentItem && (
+        <ManufacturingBomWizardModal
+          key={bomWizardParentItem.code}
+          isOpen={isMfgBomWizardOpen}
+          onClose={() => {
+            setIsMfgBomWizardOpen(false);
+            setBomWizardParentItem(null);
+          }}
+          parentItem={bomWizardParentItem}
+          allItems={items}
+          existingBoms={boms}
+          onSaveBom={(newBom) => {
+            onCreateBom(newBom);
+            setIsMfgBomWizardOpen(false);
+            setBomWizardParentItem(null);
+          }}
+          showToast={showToast}
+          onViewBomDetails={(b) => onNavigate('bomDetail', { id: b.id })}
+        />
+      )}
+
+      {/* Task 3: PostgreSQL Audit & Change History Modal */}
+      <AuditHistoryModal
+        isOpen={isAuditModalOpen}
+        onClose={() => setIsAuditModalOpen(false)}
+        targetFilter={auditTarget}
+        onNavigate={onNavigate}
+      />
+
+      {/* Task 4: Governance & RBAC Configuration Modal */}
+      <GovernancePermissionsModal
+        isOpen={isGovModalOpen}
+        onClose={() => setIsGovModalOpen(false)}
+        permissions={govPerms}
+        showToast={showToast}
+      />
+    </>
+  );
 };

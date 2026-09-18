@@ -45,8 +45,12 @@ import { ScmReportsView } from './ScmReportsView';
 import { ScmSettingsView } from './ScmSettingsView';
 import { ScmRbacView } from './ScmRbacView';
 
+import { ItemMaster, BomMaster } from '../../types';
+
 interface ScmViewsProps {
   activeSubView?: string;
+  items?: ItemMaster[];
+  boms?: BomMaster[];
   onNavigate: (view: string, param?: any) => void;
   showToast: (msg: string) => void;
 }
@@ -65,6 +69,8 @@ interface ScmNavGroup {
 
 export const ScmViews: React.FC<ScmViewsProps> = ({
   activeSubView = 'scmControlTower',
+  items = [],
+  boms = [],
   onNavigate,
   showToast,
 }) => {
@@ -176,7 +182,7 @@ export const ScmViews: React.FC<ScmViewsProps> = ({
           <ScmInventoryPlanningView onNavigate={handleSubNavigate} showToast={showToast} />
         )}
         {currentView === 'scmMRP' && (
-          <ScmMrpView onNavigate={handleSubNavigate} showToast={showToast} />
+          <ScmMrpView items={items} boms={boms} onNavigate={handleSubNavigate} showToast={showToast} />
         )}
         {currentView === 'scmReplenishment' && (
           <ScmReplenishmentView onNavigate={handleSubNavigate} showToast={showToast} />

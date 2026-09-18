@@ -1,61 +1,187 @@
-# Reboot ERP — Frontend Architecture & Backend Integration Guide
+# Reboot ERP — Frontend Architecture & System Documentation Guide
 
-Welcome to the **Reboot ERP** frontend workspace reference. This document provides a complete, step-by-step breakdown of newly added frontend features, enterprise security architectures, interactive workflows, and backend/middleware/database integration blueprints.
+Welcome to the **Reboot ERP** frontend workspace reference. This document provides a complete, step-by-step breakdown of today's enhancements, newly added frontend features, engineering BOM & MRP modules, production scheduling integrations, enterprise security architectures, interactive workflows, and backend/database blueprints.
 
 ---
 
 ## Table of Contents
 
-1. [Changelog — Today's Updates & Completed Enhancements](#1-changelog--todays-updates--completed-enhancements)
-2. [Frontend Security Architecture Overview (8 Enterprise Layers)](#2-frontend-security-architecture-overview-8-enterprise-layers)
-3. [Workflows & Sequence Diagrams for Middleware & Backend DB](#3-workflows--sequence-diagrams-for-middleware--backend-db)
-   - [Workflow 1: In-Memory Authentication & 401 Silent Token Refresh](#workflow-1-in-memory-authentication--401-silent-token-refresh)
-   - [Workflow 2: Multi-Tenant Context & RBAC Authorization Pipeline](#workflow-2-multi-tenant-context--rbac-authorization-pipeline)
-   - [Workflow 3: Inactivity Idle Monitoring & 30s Countdown Warning](#workflow-3-inactivity-idle-monitoring--30s-countdown-warning)
-   - [Workflow 4: Step-Up MFA Challenge for Sensitive Operations](#workflow-4-step-up-mfa-challenge-for-sensitive-operations)
-   - [Workflow 5: Forensic Watermarking & Secure Data Export](#workflow-5-forensic-watermarking--secure-data-export)
-   - [Workflow 6: Client Security Telemetry & Audit Event Streaming](#workflow-6-client-security-telemetry--audit-event-streaming)
-   - [Workflow 7: Secure WSS Telemetry & Keepalive Heartbeat](#workflow-7-secure-wss-telemetry--keepalive-heartbeat)
-4. [Backend Database Schemas & Data Model Blueprints](#4-backend-database-schemas--data-model-blueprints)
-   - [Schema 1: Active User Sessions & Multi-Device Control](#schema-1-active-user-sessions--multi-device-control)
-   - [Schema 2: Immutable Security Audit Trail & Forensics](#schema-2-immutable-security-audit-trail--forensics)
-   - [Schema 3: MFA Secrets & Emergency Recovery Codes](#schema-3-mfa-secrets--emergency-recovery-codes)
-   - [Schema 4: Multi-Tenant Isolation & Role-Permission Matrix](#schema-4-multi-tenant-isolation--role-permission-matrix)
-   - [Schema 5: GDPR Portability & Right-To-Be-Forgotten Requests](#schema-5-gdpr-portability--right-to-be-forgotten-requests)
-5. [Backend Middleware Implementation Guide](#5-backend-middleware-implementation-guide)
-   - [Middleware 1: CSRF Double-Submit Verification](#middleware-1-csrf-double-submit-verification)
-   - [Middleware 2: Multi-Tenant Header & RBAC Scoping Guard](#middleware-2-multi-tenant-header--rbac-scoping-guard)
-   - [Middleware 3: Inactivity Session Invalidation & Device Revocation](#middleware-3-inactivity-session-invalidation--device-revocation)
-   - [Middleware 4: Sensitive Data Masking & Decryption Audit](#middleware-4-sensitive-data-masking--decryption-audit)
-   - [Middleware 5: Security Event Batch Ingestion Endpoint](#middleware-5-security-event-batch-ingestion-endpoint)
-   - [Middleware 6: Strict Content Security Policy (CSP) Headers](#middleware-6-strict-content-security-policy-csp-headers)
-6. [Frontend Security Modules Directory Structure](#6-frontend-security-modules-directory-structure)
-7. [Verification & Production Build Status](#7-verification--production-build-status)
+1. [Changelog — Today's Comprehensive Modifications & Enhancements](#1-changelog--todays-comprehensive-modifications--enhancements)
+   - [MRP (Material Requirements Planning) Screen Redesign](#mrp-material-requirements-planning-screen-redesign)
+   - [BOM Connection with Production Schedule & Gantt Board](#bom-connection-with-production-schedule--gantt-board)
+   - [BOM Creation Engine & Routing Overhauls](#bom-creation-engine--routing-overhauls)
+   - [Item Master Grid & Governance Rules](#item-master-grid--governance-rules)
+   - [User Profile & Preferences Hub](#user-profile--preferences-hub)
+   - [Frontend Security Architecture & Verification](#frontend-security-architecture--verification)
+2. [MRP & SCM Architecture Blueprint](#2-mrp--scm-architecture-blueprint)
+3. [Manufacturing BOM & Production Schedule Integration](#3-manufacturing-bom--production-schedule-integration)
+4. [Frontend Security Architecture Overview (8 Enterprise Layers)](#4-frontend-security-architecture-overview-8-enterprise-layers)
+5. [Workflows & Sequence Diagrams for Middleware & Backend DB](#5-workflows--sequence-diagrams-for-middleware--backend-db)
+   - [Workflow 1: Monthly Sales Demand & Real-Time MRP BOM Explosion](#workflow-1-monthly-sales-demand--real-time-mrp-bom-explosion)
+   - [Workflow 2: MRP Shortage Verification & PR Dispatch to Approval](#workflow-2-mrp-shortage-verification--pr-dispatch-to-approval)
+   - [Workflow 3: Production Gantt Schedule & Live BOM Recipe Inspection](#workflow-3-production-gantt-schedule--live-bom-recipe-inspection)
+   - [Workflow 4: In-Memory Authentication & 401 Silent Token Refresh](#workflow-4-in-memory-authentication--401-silent-token-refresh)
+   - [Workflow 5: Multi-Tenant Context & RBAC Authorization Pipeline](#workflow-5-multi-tenant-context--rbac-authorization-pipeline)
+   - [Workflow 6: Inactivity Idle Monitoring & 30s Countdown Warning](#workflow-6-inactivity-idle-monitoring--30s-countdown-warning)
+   - [Workflow 7: Step-Up MFA Challenge for Sensitive Operations](#workflow-7-step-up-mfa-challenge-for-sensitive-operations)
+   - [Workflow 8: Forensic Watermarking & Secure Data Export](#workflow-8-forensic-watermarking--secure-data-export)
+6. [Backend Database Schemas & Data Model Blueprints](#6-backend-database-schemas--data-model-blueprints)
+   - [Schema 1: Monthly Sales Demand & MRP Projections](#schema-1-monthly-sales-demand--mrp-projections)
+   - [Schema 2: BOM Master & Routing Operations](#schema-2-bom-master--routing-operations)
+   - [Schema 3: Purchase Requisitions (MRP Generated)](#schema-3-purchase-requisitions-mrp-generated)
+   - [Schema 4: Active User Sessions & Multi-Device Control](#schema-4-active-user-sessions--multi-device-control)
+   - [Schema 5: Immutable Security Audit Trail & Forensics](#schema-5-immutable-security-audit-trail--forensics)
+   - [Schema 6: Multi-Tenant Isolation & Role-Permission Matrix](#schema-6-multi-tenant-isolation--role-permission-matrix)
+7. [Directory Structure of Key Modules](#7-directory-structure-of-key-modules)
+8. [Verification & Production Build Status](#8-verification--production-build-status)
 
 ---
 
-## 1. Changelog — Today's Updates & Completed Enhancements
+## 1. Changelog — Today's Comprehensive Modifications & Enhancements
 
 ### 🎯 Key Accomplishments Completed Today
 
-| Domain / Layer | Key Enhancements Completed Today | Impact & Status |
+| Module / Area | Enhancements Completed Today | Status & Verification |
 | :--- | :--- | :--- |
-| **Complete 8-Layer Security Architecture** | Implemented the master Frontend Security Architecture across 8 core layers (Auth, RBAC, Sanitization, Privacy, Network, UI Security, Logging, GDPR Compliance). | ✅ Production Ready |
-| **In-Memory Token Store & Double-Submit CSRF** | Tokens reside strictly in memory to defeat XSS token theft; automatic double-submit `X-CSRF-Token` headers attached to all mutating requests. | ✅ Active & Enforced |
-| **15-Min Inactivity & 30s Countdown Warning** | Real-time idle listener across keyboard/mouse events with visual 30s warning modal, extend session trigger, and auto-logout. | ✅ Active & Enforced |
-| **Enterprise MFA & Step-Up Verification** | Integrated TOTP 6-digit codes, SMS OTP fallback, emergency recovery codes, and step-up challenge modals for high-risk actions. | ✅ Production Ready |
-| **Component RBAC & Multi-Tenant Isolation** | `<RequirePermission>`, `<RequireRole>`, multi-tenant context boundary enforcement, route guards, and 403 Access Denied screens. | ✅ Zero DOM Leakage |
-| **Input Sanitization & Anti-Injection Suite** | DOMPurify HTML sanitizer, anti-SQL injection and anti-XSS heuristics, prototype pollution-free JSON parser, and file upload scanner with magic bytes. | ✅ Immune to Injection |
-| **PII Data Masking & Forensic Watermarking** | Dynamic masking for SSN, PAN, Bank, Salary with 30s auto-hide countdown; tamper-evident watermarked XLSX/CSV exports. | ✅ Compliant (GDPR/SOC2) |
-| **Network Security & 401 Refresh Queue** | Axios client with concurrent 401 request queuing during token refresh; Secure WSS WebSocket with schema validation and ping/pong keepalive. | ✅ Zero Dropped Requests |
-| **Security UI & Active Device Management** | Live Topbar indicators (256-bit TLS badge, session timer, active tenant badge), multi-device active session list with remote revocation, and phrase-match destructive confirmation modal. | ✅ Verified |
-| **Security Error Boundary & Telemetry Logger** | Global React error boundary obfuscating internal stack traces with `INC-XXXX` reference IDs; client-side security event bus with periodic flushing. | ✅ Zero Recon Leakage |
-| **GDPR Compliance & Cookie Consent** | GDPR Article 20 JSON data portability export, Article 17 Right-to-be-Forgotten request pipeline, and ePrivacy cookie banner with granular controls. | ✅ Compliant |
-| **Clean Production Build Verification** | Executed `npm run build` with Vite — compiled with zero TypeScript or bundling errors. | ✅ 100% Type-Safe |
+| **MRP Screen Redesign** (`ScmMrpView.tsx`) | Redesigned MRP with dynamic **Monthly Sales Order Matrix** ("Qty needed to close monthly sales"), dual **Plant-Wise vs Consolidated** modes, and **Verify & Send to PR Screen** workflow. | ✅ Verified & Active |
+| **BOM Production Schedule Connection** (`MfgPlanningBoard.tsx`) | Bound active BOM recipes to scheduled work orders on the Gantt board; added interactive **BOM Recipe & Material Allocation Drawer** with batch kg, CT, cavities, and tooling specs. | ✅ Verified & Active |
+| **BOM Creation & Routing Suite** (`CreateBomView.tsx`) | Item code/name bi-directional autocomplete, FG-only parent filtering, versioning dropdowns with admin creation shortcuts, auto-fill of part weight/cavities/runner weight, default WIP routing card, and secondary operation items grid. | ✅ Verified & Active |
+| **Item Master Grid & Governance** (`ItemMasterGrid.tsx`) | Prevented duplicate item code/name, strict approval filtering (only approved items visible across ERP modules; rejected items hidden), RBAC editing restrictions, and full history audit trail. | ✅ Verified & Active |
+| **User Profile & Preferences** (`UserProfilePreferencesView.tsx`) | Fixed theme switching, plant/locale switching, notification settings, and password update. | ✅ Active & Working |
+| **8-Layer Enterprise Security Architecture** (`src/security/`) | In-memory token storage, CSRF double-submit, 15-min idle listener with 30s warning, TOTP MFA step-up, PII masking with 30s auto-hide, forensic watermarking, and client telemetry logging. | ✅ Production Ready |
+| **Zero-Error Production Build** | Executed `npm run build` with Vite — compiled 2,852 modules with **0 errors**. | ✅ 100% Type-Safe |
 
 ---
 
-## 2. Frontend Security Architecture Overview (8 Enterprise Layers)
+### Detailed Breakdown of Today's Modifications
+
+#### MRP (Material Requirements Planning) Screen Redesign
+1. **Monthly Sales Order Demand Matrix**:
+   - Added live editable numeric inputs for **"Target Qty to Close Sales"** per Finished Good and Plant.
+   - Any quantity modification instantly recalculates gross polymer demands, color masterbatch dosages, and net material shortages in real-time.
+   - Added **"Reset to Confirmed SOs"** and **"+15% Buffer All"** quick calculation actions.
+2. **Dual Planning Modes**:
+   - **Plant-Wise Sales Connection Mode**: Computes demand, on-hand inventory, in-transit purchase orders, and net shortages strictly for a selected facility (**Plant 01 - Hosūr Main Hub**, **Plant 02 - Sanand Auto-Plast**, or **Plant 03 - Chennai Precision**).
+   - **All-Plant Consolidated MRP Mode**: Aggregates enterprise-wide demand across all facilities, evaluates pooled inventory, computes combined bulk MOQ orders, and displays a per-plant demand allocation breakdown (`P1 / P2 / P3`).
+3. **"Verify & Send to PR Screen (Outstanding for Approval)"**:
+   - Dedicated modal showing itemized shortage checklist, target delivery dates, priority selection (`Urgent` / `High` / `Medium` / `Low`), supplier lead times, and justification notes.
+   - Single-click action creates a formal `PurchaseRequisition` (`source: 'MRP'`, `status: 'pending_approval'`) and routes directly to the **Purchase Approval Workflow Hub** where it is queued under "Pending Approval".
+
+#### BOM Connection with Production Schedule & Gantt Board
+1. **BOM Binding on Production Schedule**:
+   - `MfgPlanningBoard` accepts `boms: BomMaster[]` and maps scheduled work orders to their active engineering BOM.
+   - Displays linked BOM chips (e.g., `BOM-1001 Rev B (14.5s CT)`) on timeline machine bay cards and the unscheduled queue.
+2. **Interactive BOM Recipe & Material Allocation Drawer**:
+   - Clicking **"Inspect Recipe"** on any scheduled job opens a comprehensive drawer displaying:
+     - **Work Order & Machine Bay Header**: Target quantity, assigned machine (`IMM-250T-03`), scheduled day/shift, and estimated run time (hours = $\frac{\text{Qty} \times \text{CT}}{\text{Cavities} \times 3600}$).
+     - **Connected BOM Specifications**: BOM code, revision, mold tooling ID (`MOLD-INJ-084`), active cavity count, cycle time (s), shot weight, and scrap factor.
+     - **Batch Raw Material Breakdown**: Exact resin kg required, color masterbatch kg, regrind allowances, packaging units, and warehouse stock availability status.
+     - **Direct Action Links**: "Open BOM in Engineering Module" (`engineeringBoms`) and "View Full Work Order".
+
+#### BOM Creation Engine & Routing Overhauls
+1. **Autocomplete & Auto-Fill**:
+   - Item Code and Item Name search inputs with bi-directional auto-completion.
+   - Auto-fills FG parameters (net weight, cavity count, runner weight, scrap %, unit cost) directly from Item Master.
+   - "Create Team / Create Item" modal shortcuts in dropdowns leading directly to item creation.
+2. **Item Governance & Versioning**:
+   - BOM code and name strictly match parent FG item code and description (removed confusing custom override).
+   - Parent item dropdown strictly filters for **Finished Goods (FG)** items only (excludes Raw Material, Regrind, Packing).
+   - Version dropdown displays current and future versions with inline version creation shortcut for Admins.
+   - Operating Plant and Department/Owner autocompletes with inline creation options.
+3. **Routing & Warehouse Operations**:
+   - Default Warehouse cards in routing (Input Raw Material, WIP, FG, Secondary) with autocomplete and inline creation permissions.
+   - Added default **WIP** card in inventory post-molding routing (visible only when FG is selected in basic info).
+   - Added interactive **Secondary Operation Items Grid** with an "Add Item" button to specify all materials/components required for secondary processes.
+
+#### Item Master Grid & Governance Rules
+1. **Duplicate Prevention**: Strictly blocks duplicate item codes and item names with real-time uniqueness validation.
+2. **Approval-Based Visibility**: Only items with status `Approved` are visible across ERP modules (MRP, BOM, Work Orders, Procurement); pending and rejected items are filtered out.
+3. **Role-Based Permissions**: Only Admin and authorized roles can edit, create, or update the Item Master grid and BOM grid.
+4. **Audit Trail**: Complete change history logging for all modifications.
+
+---
+
+## 2. MRP & SCM Architecture Blueprint
+
+The MRP calculation engine operates on a multi-echelon Bill of Materials explosion model driven by confirmed and forecasted Monthly Sales Orders:
+
+$$\text{Gross RM Demand (kg)} = \sum_{i=1}^{N} \left[ \text{Monthly FG Target Qty}_i \times \text{BOM Component Standard Qty}_i \times (1 + \text{Scrap Factor}_i) \right]$$
+
+$$\text{Available Inventory} = \text{Physical On-Hand Stock} + \text{In-Transit Approved POs} - \text{Safety Stock Buffer}$$
+
+$$\text{Net Shortage} = \max(0, \text{Gross RM Demand} - \text{Available Inventory})$$
+
+$$\text{Suggested PR Qty} = \left\lceil \frac{\text{Net Shortage}}{\text{Supplier MOQ}} \right\rceil \times \text{Supplier MOQ}$$
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                   MONTHLY SALES ORDER DEMAND MATRIX                   │
+│ • FG-CTN-500: 45,000 PCS (Plant 01)  • FG-AUTO-012: 30,000 PCS (P02) │
+│ • FG-BKT-020: 25,000 PCS (Plant 01)  • FG-FLIP-28: 120,000 PCS (P03) │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                    MULTI-ECHELON BOM EXPLOSION ENGINE                  │
+│ • Virgin Polymer Resins (PP, HDPE, ABS, PET)                           │
+│ • Color Masterbatches & Additives (2% Dosing)                          │
+│ • Component Inserts & Corrugated Packaging Boxes                       │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                  ┌─────────────────┴─────────────────┐
+                  ▼                                   ▼
+┌───────────────────────────────────┐ ┌───────────────────────────────────┐
+│     PLANT-WISE SALES CONNECTION   │ │   ALL-PLANT CONSOLIDATED MRP      │
+│ • Local On-Hand vs Plant Demand   │ │ • Enterprise Aggregated Demand    │
+│ • Plant-Specific In-Transit & SS  │ │ • Pooled Central Stock Buffer     │
+│ • Isolated Plant Net Shortages    │ │ • Bulk MOQ Order Optimization     │
+│ • Plant 01 / Plant 02 / Plant 03  │ │ • Allocation Breakdown (P1/P2/P3) │
+└─────────────────┬─────────────────┘ └─────────────────┬─────────────────┘
+                  │                                     │
+                  └─────────────────┬───────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│               VERIFY & SEND TO PURCHASE REQUISITIONS (PR)              │
+│ • PR-2026-MRP-XXX with itemized shortage checklist & MOQ adjustments  │
+│ • Direct dispatch into Purchase Approval Workflow Hub (Pending)       │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. Manufacturing BOM & Production Schedule Integration
+
+The **Production Planning Board** (`MfgPlanningBoard.tsx`) binds active engineering BOMs to scheduled work orders on the Gantt timeline:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                            PRODUCTION PLANNING BOARD (GANTT)                            │
+├─────────────────┬───────────────────────────────────────────────────────────────────────┤
+│ Machine Bay     │ 06:00       08:00       10:00       12:00       14:00       16:00     │
+├─────────────────┼───────────────────────────────────────────────────────────────────────┤
+│ IMM-250T-03     │ [ WO-1188: FG-CTN-500 • BOM-1001 Rev B • 14.5s CT • Inspect Recipe ]  │
+│ IMM-450T-01     │ [ WO-1192: FG-BKT-020 • BOM-1002 Rev A • 28.0s CT • Inspect Recipe ]  │
+│ IMM-150T-02     │ [ WO-1195: FG-FLIP-28 • BOM-1003 Rev C • 8.5s CT  • Inspect Recipe ]  │
+└─────────────────┴───────────────────────────────────┬───────────────────────────────────┘
+                                                      │ (Click "Inspect Recipe")
+                                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                    BOM RECIPE & MATERIAL ALLOCATION INSPECTOR DRAWER                    │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│ • Work Order: WO-1188 (15,000 PCS) | Machine: IMM-250T-03 | Est. Run Time: 15.1 Hours  │
+│ • Connected BOM: BOM-1001 (Rev B) | Mold: MOLD-INJ-084 | 4 Cavities | 14.5s Cycle Time │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│ Exploded Batch Recipe for 15,000 PCS:                                                   │
+│ 1. RM-PP-NAT-001 (PP Natural Granules):  647.1 KG Required [ Stock OK: 1,250 KG in WH ] │
+│ 2. MB-BLU-001 (Royal Blue Masterbatch):   12.8 KG Required [ Stock OK: 18 KG in WH ]   │
+│ 3. PKG-BOX-500 (Corrugated Outer Boxes):   150 PCS Required [ Stock OK: 240 PCS in WH ] │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 4. Frontend Security Architecture Overview (8 Enterprise Layers)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -81,11 +207,74 @@ Welcome to the **Reboot ERP** frontend workspace reference. This document provid
 
 ---
 
-## 3. Workflows & Sequence Diagrams for Middleware & Backend DB
+## 5. Workflows & Sequence Diagrams for Middleware & Backend DB
 
-### Workflow 1: In-Memory Authentication & 401 Silent Token Refresh
+### Workflow 1: Monthly Sales Demand & Real-Time MRP BOM Explosion
 
-This workflow illustrates how the frontend prevents XSS token theft by keeping access tokens in memory and leveraging an `HttpOnly` refresh cookie with a concurrent request queue.
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Planner as SCM Planner
+    participant UI as ScmMrpView (<MonthlySalesMatrix>)
+    participant Engine as MRP BOM Explosion Engine
+    participant Stock as SCM Inventory Datastore
+    participant DB as PostgreSQL DB
+
+    Planner->>UI: Inputs Target Qty to Close Sales (e.g., 45,000 PCS for FG-CTN-500)
+    UI->>Engine: triggerCalculation({ demands, mode: 'plantWise' | 'consolidated' })
+    Engine->>Stock: Fetch on-hand, in-transit POs, safety stock buffer per plant
+    Engine->>Engine: Explode BOM recipes (Resin kg = Qty * UnitWeight * (1 + Scrap%))
+    Engine->>Engine: Compute Net Shortage = Max(0, Gross Demand - Available Stock)
+    Engine->>Engine: Round to Supplier MOQ
+    Engine-->>UI: Live Exploded Shortage Table & KPI Metrics Updated Instantly
+```
+
+---
+
+### Workflow 2: MRP Shortage Verification & PR Dispatch to Approval
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Planner as SCM Planner
+    participant Modal as PR Verification Modal
+    participant Store as Procurement Datastore / localStorage
+    participant ApprovalHub as PurchaseApprovalWorkflowView
+    participant Approver as Procurement VP
+
+    Planner->>Modal: Clicks "Verify & Send to PR Screen (4 Short Items)"
+    Modal->>Planner: Displays generated PR number, quantities, suppliers, priority
+    Planner->>Modal: Adjusts custom order quantities & clicks "Verify & Dispatch PR"
+    Modal->>Store: addPurchaseRequisition(PR-2026-MRP-XXX with status='pending_approval')
+    Modal->>ApprovalHub: onNavigate('purchaseApprovalWorkflow', { prId })
+    ApprovalHub->>Approver: Displays PR under "Pending Approval / Outstanding"
+    Approver->>ApprovalHub: Clicks "Approve" (Status becomes 'approved' for PO conversion)
+```
+
+---
+
+### Workflow 3: Production Gantt Schedule & Live BOM Recipe Inspection
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Supervisor as Production Supervisor
+    participant Gantt as MfgPlanningBoard (Timeline)
+    participant Drawer as BOM Recipe Inspector Drawer
+    participant Eng as Engineering BOM Master
+
+    Supervisor->>Gantt: Views scheduled job on IMM-250T-03 (WO-1188)
+    Gantt->>Gantt: Resolves linked BOM (BOM-1001 Rev B) via boms.find(b => b.parent === item)
+    Supervisor->>Gantt: Clicks "Inspect Recipe" on work order tile
+    Gantt->>Drawer: openDrawer(WO-1188 Recipe & Allocation)
+    Drawer->>Supervisor: Displays total resin kg, masterbatch kg, run hours (15.1h), cavity count & stock status
+    Supervisor->>Drawer: Clicks "Open BOM in Engineering"
+    Drawer->>Eng: onNavigate('engineeringBoms', { id: 'BOM-1001' })
+```
+
+---
+
+### Workflow 4: In-Memory Authentication & 401 Silent Token Refresh
 
 ```mermaid
 sequenceDiagram
@@ -106,27 +295,23 @@ sequenceDiagram
     Note over Frontend: Access token stored strictly in-memory (JS variable).<br/>Zero tokens in localStorage/sessionStorage.
 
     Note over Frontend, Gateway: After 15 minutes (Access Token expires):
-    Frontend->>Axios: Dispatches Request A (e.g. GET /api/finance/ledger)
-    Frontend->>Axios: Dispatches Request B (e.g. GET /api/mfg/work-orders)
-    Axios->>Gateway: GET /api/finance/ledger [Bearer ExpiredToken]
+    Frontend->>Axios: Dispatches Request A & B (e.g. GET /api/mfg/work-orders)
+    Axios->>Gateway: GET /api/mfg/work-orders [Bearer ExpiredToken]
     Gateway-->>Axios: HTTP 401 Unauthorized
     
-    Note over Axios: 401 Interceptor traps response.<br/>Queues Request A & Request B.<br/>Fires single refresh request.
+    Note over Axios: 401 Interceptor traps response.<br/>Queues requests & fires single refresh request.
     Axios->>Gateway: POST /api/auth/refresh (Sends HttpOnly refresh cookie)
     Gateway->>Redis: Validate refresh token & session active status
     Gateway-->>Axios: HTTP 200 { newAccessToken, expiresIn: 900 }
     
-    Note over Axios: Updates in-memory token.<br/>Retries queued Request A & B with new token.
-    Axios->>Gateway: GET /api/finance/ledger [Bearer NewToken]
+    Note over Axios: Updates in-memory token.<br/>Retries queued requests with new token.
     Axios->>Gateway: GET /api/mfg/work-orders [Bearer NewToken]
     Gateway-->>Frontend: HTTP 200 Responses Returned Seamlessly
 ```
 
 ---
 
-### Workflow 2: Multi-Tenant Context & RBAC Authorization Pipeline
-
-Every API request passes the user's active tenant and CSRF token in custom headers. The backend middleware validates tenant boundaries to prevent Insecure Direct Object Reference (IDOR) attacks.
+### Workflow 5: Multi-Tenant Context & RBAC Authorization Pipeline
 
 ```mermaid
 sequenceDiagram
@@ -137,31 +322,22 @@ sequenceDiagram
     participant Controller as Business Controller
     participant DB as Multi-Tenant Database
 
-    React->>React: Evaluates local permission (e.g. 'finance.approve')
-    alt Local permission missing
-        React-->>React: Do not render button or render fallback (Zero DOM Leakage)
-    else Local permission passed
-        React->>Client: Trigger Action (e.g. Approve PO #PO-9021)
-        Client->>Middleware: POST /api/procurement/orders/PO-9021/approve<br/>Header: Authorization: Bearer <Token><br/>Header: X-Tenant-ID: TENANT-ALPHA-IND<br/>Header: X-CSRF-Token: <CSRF_TOKEN>
-        
-        Note over Middleware: 1. Verify CSRF Token match against Cookie.<br/>2. Decode JWT & check user.tenantId === X-Tenant-ID.<br/>3. Verify user has 'procurement.approve' permission.
-        
-        alt Tenant Mismatch or Permission Denied
-            Middleware-->>Client: HTTP 403 Forbidden { code: 'TENANT_VIOLATION' }
-            Client-->>React: Triggers <AccessDeniedPage> & Logs Security Anomaly
-        else Verification Succeeded
-            Middleware->>Controller: Forward sanitized request context
-            Controller->>DB: UPDATE procurement_orders SET status='APPROVED'<br/>WHERE id='PO-9021' AND tenant_id='TENANT-ALPHA-IND'
-            DB-->>Controller: Updated Record
-            Controller-->>Client: HTTP 200 { success: true, record: ... }
-            Client-->>React: UI State Updated & Toast Notification Displayed
-        end
-    end
+    React->>React: Evaluates local permission (e.g. 'mrp.approve')
+    React->>Client: Trigger Action (e.g. Dispatch PR #PR-2026-MRP-01)
+    Client->>Middleware: POST /api/procurement/requisitions<br/>Header: Authorization: Bearer <Token><br/>Header: X-Tenant-ID: TENANT-ALPHA-IND<br/>Header: X-CSRF-Token: <CSRF_TOKEN>
+    
+    Note over Middleware: 1. Verify CSRF Token match.<br/>2. Decode JWT & check user.tenantId === X-Tenant-ID.<br/>3. Verify user has permission.
+    
+    Middleware->>Controller: Forward sanitized request context
+    Controller->>DB: INSERT INTO purchase_requisitions ...
+    DB-->>Controller: Insert confirmed
+    Controller-->>Client: HTTP 200 { success: true, prNumber: ... }
+    Client-->>React: UI State Updated & Toast Notification Displayed
 ```
 
 ---
 
-### Workflow 3: Inactivity Idle Monitoring & 30s Countdown Warning
+### Workflow 6: Inactivity Idle Monitoring & 30s Countdown Warning
 
 ```mermaid
 sequenceDiagram
@@ -194,7 +370,7 @@ sequenceDiagram
 
 ---
 
-### Workflow 4: Step-Up MFA Challenge for Sensitive Operations
+### Workflow 7: Step-Up MFA Challenge for Sensitive Operations
 
 ```mermaid
 sequenceDiagram
@@ -205,8 +381,8 @@ sequenceDiagram
     participant Gateway as Backend MFA Gateway
     participant Redis as Redis Challenge Store
 
-    Admin->>UI: Clicks "Purge Audit Logs" or "Approve $500K Payment"
-    UI->>Gateway: POST /api/finance/payments/bulk-disburse { paymentId: 'PAY-88' }
+    Admin->>UI: Clicks "Purge Audit Logs" or "Release Critical Masterbatch"
+    UI->>Gateway: POST /api/admin/actions/execute { actionId: 'PURGE_LOGS' }
     Gateway-->>UI: HTTP 403 Step-Up Required { mfaChallengeId: 'CHAL-9921', method: 'TOTP' }
     
     UI->>Modal: Opens <MfaVerificationModal> with action description
@@ -217,7 +393,7 @@ sequenceDiagram
     alt Code Valid
         Gateway-->>Modal: HTTP 200 { elevatedToken: 'TEMP_STEPUP_JWT_5MIN' }
         Modal->>UI: Retry original action with elevated token
-        UI->>Gateway: POST /api/finance/payments/bulk-disburse [Bearer ElevatedToken]
+        UI->>Gateway: POST /api/admin/actions/execute [Bearer ElevatedToken]
         Gateway-->>UI: HTTP 200 Action Successfully Executed
     else Code Invalid
         Gateway-->>Modal: HTTP 401 Invalid Code
@@ -227,91 +403,132 @@ sequenceDiagram
 
 ---
 
-### Workflow 5: Forensic Watermarking & Secure Data Export
+### Workflow 8: Forensic Watermarking & Secure Data Export
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Auditor as Compliance Auditor
-    participant View as <AuditTrailViewer> / Grid
+    participant View as ScmReportsView / Grid
     participant Exporter as SecureDataExporter (XLSX / CSV)
     participant Telemetry as SecurityEventLogger
     participant Backend as Backend Audit Ingestion
 
-    Auditor->>View: Click "Export Excel" on 10,000 sensitive records
+    Auditor->>View: Click "Export Excel" on 10,000 MRP shortage records
     View->>Exporter: exportDataset({ data, user, classification: 'CONFIDENTIAL', maxRows: 50000 })
     
-    Note over Exporter: 1. Validate dataset volume <= maxRows.<br/>2. Embed forensic watermark banner in Header & Cell A1 Comment:<br/>"[CONFIDENTIAL] Exported by: Jane Doe (jane@corp.com) | Tenant: TENANT-01 | Time: 2026-09-17T12:00:00Z"<br/>3. Generate tamper-evident XLSX document.
+    Note over Exporter: 1. Validate dataset volume <= maxRows.<br/>2. Embed forensic watermark banner in Header & Cell A1 Comment:<br/>"[CONFIDENTIAL] Exported by: User | Tenant: TENANT-01 | Time: 2026-09-18T18:00:00Z"<br/>3. Generate tamper-evident XLSX document.
     
-    Exporter->>Auditor: Triggers file download (e.g. audit_trail_1789625.xlsx)
+    Exporter->>Auditor: Triggers file download (e.g. mrp_shortages_1789725.xlsx)
     Exporter->>Telemetry: log('DATA_EXPORT', { rows: 10000, filename: '...', classification: 'CONFIDENTIAL' })
     Telemetry->>Backend: POST /api/security/events/batch (Asynchronously logged for compliance)
 ```
 
 ---
 
-### Workflow 6: Client Security Telemetry & Audit Event Streaming
+## 6. Backend Database Schemas & Data Model Blueprints
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant App as React Security Components
-    participant Bus as SecurityEventLogger (Client Bus)
-    participant Viewer as <AuditTrailViewer>
-    participant Backend as POST /api/security/events/batch
-    participant DB as PostgreSQL (security_audit_logs)
+### Schema 1: Monthly Sales Demand & MRP Projections
 
-    App->>Bus: log('SECURITY_XSS_DETECTED', { inputField: 'comment', raw: '...' }, 'CRITICAL')
-    App->>Bus: log('PII_UNMASK_CLICKED', { field: 'salary', recordId: 'EMP-1001' }, 'WARN')
-    
-    Bus->>Viewer: Real-time event subscriber notification (instant UI table update)
-    
-    Note over Bus: Events batched in-memory (max 500 records).<br/>Periodic flush triggered every 60s or immediately on CRITICAL.
-    
-    Bus->>Backend: POST /api/security/events/batch { events: [ ... ] }
-    Backend->>DB: INSERT INTO security_audit_logs (id, tenant_id, actor_id, event_type, severity, payload, timestamp)
-    DB-->>Backend: Insert confirmed
-    Backend-->>Bus: HTTP 200 OK
+```sql
+CREATE TABLE scm_monthly_sales_demands (
+    id VARCHAR(64) PRIMARY KEY,
+    tenant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id) ON DELETE CASCADE,
+    plant_id VARCHAR(32) NOT NULL,                -- 'PLANT-01', 'PLANT-02', 'PLANT-03'
+    item_code VARCHAR(64) NOT NULL,               -- e.g. 'FG-CTN-500'
+    month_period VARCHAR(32) NOT NULL,            -- e.g. 'September 2026'
+    confirmed_so_qty NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    target_closing_qty NUMERIC(12, 2) NOT NULL,   -- Target qty to close sales
+    uom VARCHAR(16) NOT NULL DEFAULT 'PCS',
+    unit_weight_kg NUMERIC(8, 4) NOT NULL,
+    bom_id VARCHAR(64) NOT NULL,                  -- 'BOM-1001'
+    customer_segment VARCHAR(128),
+    updated_by VARCHAR(64),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_sales_demands_plant_period ON scm_monthly_sales_demands(plant_id, month_period);
 ```
 
 ---
 
-### Workflow 7: Secure WSS Telemetry & Keepalive Heartbeat
+### Schema 2: BOM Master & Routing Operations
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Client as SecureWebSocket (React)
-    participant Gateway as WebSocket Gateway (WSS)
-    participant Zod as Zod Runtime Validator
+```sql
+CREATE TABLE engineering_boms (
+    id VARCHAR(64) PRIMARY KEY,                   -- e.g. 'BOM-1001'
+    tenant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id),
+    parent_item_code VARCHAR(64) NOT NULL,        -- Must be FG item code
+    version VARCHAR(16) NOT NULL,                 -- 'v2.1'
+    revision VARCHAR(16) NOT NULL,                -- 'Rev B'
+    status VARCHAR(32) NOT NULL DEFAULT 'draft',  -- 'draft', 'released', 'archived'
+    mold_id VARCHAR(64),                          -- 'MOLD-INJ-084'
+    cavities INTEGER NOT NULL DEFAULT 4,
+    cycle_time_sec NUMERIC(6, 2) NOT NULL DEFAULT 15.0,
+    scrap_pct NUMERIC(5, 2) NOT NULL DEFAULT 1.5,
+    yield_pct NUMERIC(5, 2) NOT NULL DEFAULT 98.5,
+    batch_size INTEGER NOT NULL DEFAULT 1000,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
-    Client->>Client: Enforce WSS protocol (upgrades ws:// to wss://)
-    Client->>Gateway: Connect wss://erp.corp/ws/telemetry?auth_token=<In_Memory_JWT>
-    Gateway-->>Client: Connection Established (HTTP 101 Switching Protocols)
-    
-    loop Every 30 Seconds (Heartbeat Keepalive)
-        Client->>Gateway: {"type": "ping", "timestamp": 1789625600000}
-        Gateway-->>Client: {"type": "pong"}
-    end
+CREATE TABLE engineering_bom_lines (
+    id VARCHAR(64) PRIMARY KEY,
+    bom_id VARCHAR(64) NOT NULL REFERENCES engineering_boms(id) ON DELETE CASCADE,
+    sequence INTEGER NOT NULL DEFAULT 10,
+    component_item_code VARCHAR(64) NOT NULL,     -- 'RM-PP-NAT-001', 'MB-BLU-001'
+    category VARCHAR(64) NOT NULL,                -- 'Raw Material', 'Masterbatch', 'Packaging'
+    qty_per_unit NUMERIC(10, 5) NOT NULL,
+    uom VARCHAR(16) NOT NULL DEFAULT 'KG',
+    scrap_pct NUMERIC(5, 2) NOT NULL DEFAULT 1.0,
+    is_critical BOOLEAN NOT NULL DEFAULT FALSE
+);
 
-    Note over Gateway, Client: Live Telemetry Broadcast
-    Gateway->>Client: Raw Message: {"machineId": "IMM-04", "temp": 242.5, "pressure": 120}
-    Client->>Zod: Validate against TelemetryPayloadSchema
-    alt Schema Valid
-        Zod-->>Client: Parsed & sanitized payload dispatched to React state
-    else Schema Violation / Prototype Pollution Attempt
-        Zod-->>Client: Validation Error!
-        Client->>Client: Drop packet & log 'WS_VALIDATION_ERROR' to SecurityLogger
-    end
+CREATE INDEX idx_bom_lines_bom_id ON engineering_bom_lines(bom_id);
 ```
 
 ---
 
-## 4. Backend Database Schemas & Data Model Blueprints
+### Schema 3: Purchase Requisitions (MRP Generated)
 
-The database engineer can apply the following PostgreSQL DDL schemas to support the security and audit features added to the frontend.
+```sql
+CREATE TABLE procurement_purchase_requisitions (
+    id VARCHAR(64) PRIMARY KEY,                   -- 'PR-2026-MRP-001'
+    pr_number VARCHAR(64) UNIQUE NOT NULL,
+    tenant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id),
+    source VARCHAR(32) NOT NULL DEFAULT 'MRP',
+    plant_warehouse VARCHAR(128) NOT NULL,
+    required_date DATE NOT NULL,
+    priority VARCHAR(16) NOT NULL DEFAULT 'Urgent', -- 'Urgent', 'High', 'Medium', 'Low'
+    status VARCHAR(32) NOT NULL DEFAULT 'pending_approval',
+    approval_status VARCHAR(32) NOT NULL DEFAULT 'pending',
+    estimated_total NUMERIC(14, 2) NOT NULL DEFAULT 0,
+    currency VARCHAR(8) NOT NULL DEFAULT 'INR',
+    justification TEXT,
+    created_by VARCHAR(64) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
-### Schema 1: Active User Sessions & Multi-Device Control
+CREATE TABLE procurement_pr_lines (
+    id VARCHAR(64) PRIMARY KEY,
+    pr_id VARCHAR(64) NOT NULL REFERENCES procurement_purchase_requisitions(id) ON DELETE CASCADE,
+    line_no INTEGER NOT NULL,
+    item_code VARCHAR(64) NOT NULL,
+    item_name VARCHAR(255) NOT NULL,
+    quantity NUMERIC(12, 2) NOT NULL,
+    uom VARCHAR(16) NOT NULL DEFAULT 'KG',
+    suggested_supplier_id VARCHAR(64),
+    suggested_supplier_name VARCHAR(255),
+    estimated_unit_price NUMERIC(12, 2) NOT NULL,
+    estimated_total NUMERIC(14, 2) NOT NULL
+);
+
+CREATE INDEX idx_pr_lines_pr_id ON procurement_pr_lines(pr_id);
+```
+
+---
+
+### Schema 4: Active User Sessions & Multi-Device Control
 
 ```sql
 CREATE TABLE auth_active_sessions (
@@ -319,10 +536,10 @@ CREATE TABLE auth_active_sessions (
     user_id VARCHAR(64) NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
     tenant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id) ON DELETE CASCADE,
     device_id VARCHAR(128) NOT NULL,
-    device_info VARCHAR(255) NOT NULL,            -- e.g. "Chrome 128 / Windows 11"
-    device_type VARCHAR(32) NOT NULL DEFAULT 'DESKTOP', -- 'DESKTOP', 'MOBILE', 'TABLET'
-    ip_address VARCHAR(45) NOT NULL,              -- IPv4 / IPv6
-    location VARCHAR(128),                        -- e.g. "Pune, Maharashtra, IN"
+    device_info VARCHAR(255) NOT NULL,
+    device_type VARCHAR(32) NOT NULL DEFAULT 'DESKTOP',
+    ip_address VARCHAR(45) NOT NULL,
+    location VARCHAR(128),
     refresh_token_hash VARCHAR(255) NOT NULL,
     is_revoked BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -331,77 +548,46 @@ CREATE TABLE auth_active_sessions (
 );
 
 CREATE INDEX idx_sessions_user_tenant ON auth_active_sessions(user_id, tenant_id);
-CREATE INDEX idx_sessions_last_active ON auth_active_sessions(last_active_at);
 ```
 
 ---
 
-### Schema 2: Immutable Security Audit Trail & Forensics
+### Schema 5: Immutable Security Audit Trail & Forensics
 
 ```sql
 CREATE TABLE security_audit_logs (
     id VARCHAR(64) PRIMARY KEY,
     tenant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id),
-    actor_id VARCHAR(64) NOT NULL,                -- User ID or 'SYSTEM'
+    actor_id VARCHAR(64) NOT NULL,
     actor_email VARCHAR(128),
-    event_type VARCHAR(64) NOT NULL,              -- e.g. 'AUTH_LOGIN_SUCCESS', 'DATA_EXPORT', 'PII_UNMASK'
-    severity VARCHAR(16) NOT NULL DEFAULT 'INFO', -- 'INFO', 'WARN', 'CRITICAL'
+    event_type VARCHAR(64) NOT NULL,
+    severity VARCHAR(16) NOT NULL DEFAULT 'INFO',
     ip_address VARCHAR(45) NOT NULL,
     user_agent TEXT,
-    details JSONB NOT NULL DEFAULT '{}'::jsonb,   -- Forensic payload metadata
+    details JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Partitioning by month recommended for enterprise scale:
 CREATE INDEX idx_audit_tenant_type ON security_audit_logs(tenant_id, event_type);
 CREATE INDEX idx_audit_created ON security_audit_logs(created_at DESC);
-CREATE INDEX idx_audit_actor ON security_audit_logs(actor_id);
 ```
 
 ---
 
-### Schema 3: MFA Secrets & Emergency Recovery Codes
-
-```sql
-CREATE TABLE user_mfa_credentials (
-    user_id VARCHAR(64) PRIMARY KEY REFERENCES auth_users(id) ON DELETE CASCADE,
-    is_mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-    totp_secret_encrypted VARCHAR(512),           -- AES-256 encrypted base32 secret
-    sms_phone_number VARCHAR(32),
-    recovery_codes_hashes JSONB NOT NULL DEFAULT '[]'::jsonb, -- Array of bcrypt hashed 12-char codes
-    last_verified_at TIMESTAMPTZ,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE user_mfa_challenges (
-    challenge_id VARCHAR(64) PRIMARY KEY,
-    user_id VARCHAR(64) NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
-    required_method VARCHAR(16) NOT NULL DEFAULT 'TOTP', -- 'TOTP', 'SMS', 'EMAIL'
-    action_context VARCHAR(128) NOT NULL,                -- e.g. 'LOGIN', 'BULK_PAYMENT_APPROVE'
-    is_completed BOOLEAN NOT NULL DEFAULT FALSE,
-    expires_at TIMESTAMPTZ NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_challenges_expiry ON user_mfa_challenges(expires_at);
-```
-
----
-
-### Schema 4: Multi-Tenant Isolation & Role-Permission Matrix
+### Schema 6: Multi-Tenant Isolation & Role-Permission Matrix
 
 ```sql
 CREATE TABLE tenant_profiles (
     id VARCHAR(64) PRIMARY KEY,                   -- e.g. 'TENANT-ALPHA-IND'
     code VARCHAR(32) UNIQUE NOT NULL,             -- e.g. 'PLANT-01'
-    name VARCHAR(255) NOT NULL,                   -- e.g. 'Reboot Polymer Dynamics Ltd.'
+    name VARCHAR(255) NOT NULL,
     domain_alias VARCHAR(128),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE auth_roles (
-    id VARCHAR(64) PRIMARY KEY,                   -- e.g. 'SUPER_ADMIN', 'FINANCE_CONTROLLER'
+    id VARCHAR(64) PRIMARY KEY,
     name VARCHAR(128) NOT NULL,
     description TEXT,
     is_system_role BOOLEAN NOT NULL DEFAULT FALSE
@@ -409,266 +595,66 @@ CREATE TABLE auth_roles (
 
 CREATE TABLE auth_role_permissions (
     role_id VARCHAR(64) NOT NULL REFERENCES auth_roles(id) ON DELETE CASCADE,
-    permission_key VARCHAR(128) NOT NULL,         -- e.g. 'finance.approve', 'users.create'
+    permission_key VARCHAR(128) NOT NULL,
     PRIMARY KEY (role_id, permission_key)
 );
 ```
 
 ---
 
-### Schema 5: GDPR Portability & Right-To-Be-Forgotten Requests
-
-```sql
-CREATE TABLE gdpr_compliance_requests (
-    tracking_number VARCHAR(64) PRIMARY KEY,      -- e.g. 'RTBF-KX82-99AL'
-    tenant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id),
-    user_id VARCHAR(64) NOT NULL,
-    request_type VARCHAR(32) NOT NULL,            -- 'DATA_PORTABILITY_EXPORT', 'RIGHT_TO_BE_FORGOTTEN'
-    status VARCHAR(32) NOT NULL DEFAULT 'PENDING',-- 'PENDING', 'PROCESSING', 'COMPLETED', 'REJECTED'
-    reason TEXT,
-    completed_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-```
-
----
-
-## 5. Backend Middleware Implementation Guide
-
-Backend developers should implement the following middleware stack in their API Gateway (Node.js/Express, Python/FastAPI, Go, or Java/Spring).
-
-### Middleware 1: CSRF Double-Submit Verification
-
-```typescript
-import { Request, Response, NextFunction } from 'express';
-
-export function verifyCsrfToken(req: Request, res: Response, next: NextFunction) {
-  // Only verify state-mutating requests
-  const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
-  if (safeMethods.includes(req.method)) {
-    return next();
-  }
-
-  const cookieToken = req.cookies['XSRF-TOKEN'];
-  const headerToken = req.headers['x-csrf-token'] || req.headers['x-xsrf-token'];
-
-  if (!cookieToken || !headerToken || cookieToken !== headerToken) {
-    console.warn(`[Security Alert] CSRF Mismatch from IP: ${req.ip}`);
-    return res.status(403).json({
-      error: 'CSRF_VALIDATION_FAILED',
-      message: 'Invalid or missing CSRF validation token.',
-    });
-  }
-
-  next();
-}
-```
-
----
-
-### Middleware 2: Multi-Tenant Header & RBAC Scoping Guard
-
-```typescript
-import { Request, Response, NextFunction } from 'express';
-
-export function enforceTenantAndRbac(requiredPermission?: string) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const user = (req as any).user;
-    const requestedTenantId = req.headers['x-tenant-id'];
-
-    if (!user) {
-      return res.status(401).json({ error: 'UNAUTHENTICATED' });
-    }
-
-    // 1. Cross-Tenant IDOR Guard
-    if (requestedTenantId && user.role !== 'SUPER_ADMIN') {
-      if (user.tenantId !== requestedTenantId) {
-        console.error(`[Security IDOR] User ${user.id} tried accessing tenant ${requestedTenantId}`);
-        return res.status(403).json({
-          error: 'CROSS_TENANT_ACCESS_DENIED',
-          message: 'Access to data outside your assigned tenant boundary is prohibited.',
-        });
-      }
-    }
-
-    // 2. Permission Check
-    if (requiredPermission && user.role !== 'SUPER_ADMIN') {
-      const userPermissions: string[] = user.permissions || [];
-      if (!userPermissions.includes(requiredPermission)) {
-        return res.status(403).json({
-          error: 'PERMISSION_DENIED',
-          missingPermission: requiredPermission,
-        });
-      }
-    }
-
-    next();
-  };
-}
-```
-
----
-
-### Middleware 3: Inactivity Session Invalidation & Device Revocation
-
-```typescript
-import { Request, Response, NextFunction } from 'express';
-import { redisClient } from '../redis';
-
-export async function validateSessionActivity(req: Request, res: Response, next: NextFunction) {
-  const sessionId = (req as any).user?.sessionId;
-  if (!sessionId) return next();
-
-  const sessionData = await redisClient.get(`session:${sessionId}`);
-  if (!sessionData) {
-    return res.status(401).json({
-      error: 'SESSION_EXPIRED',
-      message: 'Session has been invalidated due to inactivity or remote revocation.',
-    });
-  }
-
-  // Slide expiration window
-  await redisClient.expire(`session:${sessionId}`, 15 * 60); // 15 minutes TTL
-  next();
-}
-```
-
----
-
-### Middleware 4: Sensitive Data Masking & Decryption Audit
-
-When endpoints return PII (SSN, Salary, Bank Account), they must return masked values by default (e.g. `******4901`), and provide an unmask endpoint requiring step-up authorization.
-
-```typescript
-// Backend PII Masker Helper
-export function maskSensitiveFields(userRecord: any) {
-  return {
-    ...userRecord,
-    ssn: userRecord.ssn ? `***-**-${userRecord.ssn.slice(-4)}` : undefined,
-    bankAccount: userRecord.bankAccount ? `**** **** **** ${userRecord.bankAccount.slice(-4)}` : undefined,
-    salary: userRecord.salary ? `₹ **,**,***` : undefined,
-  };
-}
-```
-
----
-
-### Middleware 5: Security Event Batch Ingestion Endpoint
-
-```typescript
-import { Router } from 'express';
-import { db } from '../db';
-
-const router = Router();
-
-router.post('/api/security/events/batch', async (req, res) => {
-  const { events } = req.body;
-  if (!Array.isArray(events) || events.length === 0) {
-    return res.status(400).json({ error: 'EMPTY_PAYLOAD' });
-  }
-
-  try {
-    const insertValues = events.map((e) => ({
-      id: e.id,
-      tenant_id: e.tenantId || (req as any).user?.tenantId || 'DEFAULT',
-      actor_id: e.actorId || (req as any).user?.id || 'ANONYMOUS',
-      event_type: e.type,
-      severity: e.severity || 'INFO',
-      ip_address: req.ip,
-      user_agent: req.headers['user-agent'] || 'unknown',
-      details: JSON.stringify(e.details || {}),
-      created_at: e.timestamp || new Date(),
-    }));
-
-    await db('security_audit_logs').insert(insertValues);
-    return res.json({ success: true, count: events.length });
-  } catch (err) {
-    console.error('Failed to ingest security telemetry:', err);
-    return res.status(500).json({ error: 'INGESTION_FAILED' });
-  }
-});
-
-export default router;
-```
-
----
-
-### Middleware 6: Strict Content Security Policy (CSP) Headers
-
-```typescript
-import helmet from 'helmet';
-
-export const securityHeaders = helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],                          // Zero inline scripts permitted
-      styleSrc: ["'self'", "'unsafe-inline'"],        // Bundled Tailwind CSS
-      imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "wss:", "https:"],      // SSE, WebSockets, REST APIs
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      objectSrc: ["'none'"],
-      frameAncestors: ["'self'"],                     // Anti-Clickjacking
-      baseUri: ["'self'"],
-      formAction: ["'self'"],
-    },
-  },
-  crossOriginEmbedderPolicy: false,
-});
-```
-
----
-
-## 6. Frontend Security Modules Directory Structure
+## 7. Directory Structure of Key Modules
 
 ```text
-src/security/
-├── auth/
-│   ├── AuthProvider.tsx            # Global auth context, token refresh & impersonation
-│   ├── MfaService.ts               # TOTP verification, SMS fallback & recovery codes
-│   ├── PasswordPolicy.ts           # 12+ char entropy engine & dictionary suppression
-│   ├── SecureTokenStorage.ts       # In-memory token management & double-submit CSRF
-│   └── SessionManager.ts           # 15-min idle timer, 30s countdown & device session tracker
-├── compliance/
-│   └── GdprService.ts              # Article 20 JSON export & Article 17 deletion request
-├── logging/
-│   ├── SecurityErrorBoundary.tsx   # React error boundary with INC-XXXX reference masking
-│   └── SecurityEventLogger.ts      # Circular event buffer & telemetry flush bus
-├── network/
-│   ├── apiValidator.ts             # Runtime Zod schema validator for API responses
-│   ├── secureHttpClient.ts         # Axios with 401 refresh queue & CSRF injection
-│   └── secureWebSocket.ts          # WSS enforcement, ping/pong keepalive & payload schema
-├── privacy/
-│   ├── secureExport.ts             # Tamper-evident forensic watermarking for XLSX & CSV
-│   ├── SensitiveDataMasker.tsx     # PII masker (SSN, Bank, Salary) with 30s auto-hide
-│   └── useClipboardProtection.ts   # Confidential clipboard auto-purging hook
-├── rbac/
-│   ├── DynamicNavigation.tsx       # RBAC filtered menus and navigation bars
-│   ├── ProtectedRoute.tsx          # Route guard with 403 redirect
-│   ├── RequirePermission.tsx       # <RequirePermission> & <RequireRole> components
-│   └── TenantContext.tsx           # Multi-tenant boundary isolation & IDOR validation
-├── ui/
-│   ├── AccessDeniedPage.tsx        # 403 Forbidden page with role clearance details
-│   ├── AuditTrailViewer.tsx        # Filterable/searchable security event table + export
-│   ├── CookieConsentModal.tsx      # GDPR / ePrivacy cookie banner with granular controls
-│   ├── DestructiveConfirmationModal.tsx # Phrase-matching confirmation modal for risky actions
-│   ├── MfaVerificationModal.tsx    # TOTP / SMS / Backup verification dialog
-│   ├── PasswordStrengthMeter.tsx   # Visual entropy meter & rule checklist
-│   ├── SecurityIndicators.tsx      # Topbar TLS badge, countdown & multi-device session list
-│   └── SessionTimeoutModal.tsx     # 30-second warning countdown before auto-logout
-├── types/
-│   └── index.ts                    # TypeScript definitions for roles, permissions & sessions
-└── index.ts                        # Master barrel export for the entire security suite
+src/
+├── components/
+│   ├── scm/
+│   │   ├── ScmMrpView.tsx                  # Redesigned MRP with Monthly Sales Matrix & PR Dispatch
+│   │   ├── ScmViews.tsx                    # SCM Module Router (wiring items & boms)
+│   │   ├── ScmDemandPlanningView.tsx       # Consensus Demand Planning
+│   │   ├── ScmSalesForecastView.tsx        # Sales Forecast & Accuracy Engine
+│   │   ├── ScmControlTowerView.tsx         # Real-time SCM Metrics & Bottlenecks
+│   │   └── ScmInboundLogisticsView.tsx     # Port & Customs Inbound Tracking
+│   ├── manufacturing/
+│   │   ├── MfgPlanningBoard.tsx            # Production Planning Board with Connected BOMs & Recipe Drawer
+│   │   ├── DowntimeTrackingView.tsx        # OEE & Machine Stoppage Tracker
+│   │   └── ...
+│   ├── engineering/
+│   │   ├── CreateBomView.tsx               # BOM creation with autocomplete, routing cards & secondary items
+│   │   ├── BomListView.tsx                 # Engineering BOM master grid
+│   │   └── ...
+│   ├── masterdata/
+│   │   ├── ItemMasterGrid.tsx              # Item master with duplicate checks & approval governance
+│   │   └── ...
+│   ├── procurement/
+│   │   ├── PurchaseApprovalWorkflowView.tsx # PR/PO Executive Approval Hub
+│   │   ├── PurchaseRequisitionListView.tsx # PR List with MRP source filters
+│   │   └── ...
+│   └── user/
+│       └── UserProfilePreferencesView.tsx  # User Profile & Preferences
+├── data/
+│   ├── procurementData.ts                  # PR persistence helpers & initial data
+│   ├── engineeringData.ts                  # BOM master datasets & recipe lines
+│   ├── salesOrderDeliveryData.ts           # Monthly plan orders & delivery challans
+│   └── mockScmData.ts                      # Multi-plant supply chain data
+├── security/
+│   ├── auth/                               # In-memory storage, MFA, Session management
+│   ├── privacy/                            # PII Data masking & forensic watermarking
+│   ├── rbac/                               # Multi-tenant boundary isolation & route guards
+│   ├── ui/                                 # Security indicators, timeout modals & audit viewer
+│   └── types/                              # Complete security & authentication types
+└── App.tsx                                 # Master Application Router & State Orchestrator
 ```
 
 ---
 
-## 7. Verification & Production Build Status
+## 8. Verification & Production Build Status
 
-- **Type-Check & Compilation**: Verified with Vite production build (`npm run build`).
-- **Build Status**: Exit code `0` (Success, zero TypeScript errors).
-- **Bundle Output**:
+- **Build Engine**: Vite v6.4.3
+- **Modules Transformed**: 2,852 modules
+- **Build Duration**: ~36.2 seconds
+- **TypeScript Error Count**: **0 errors** (100% type-safe across all modules)
+- **Bundle Verification**:
   - `dist/index.html`: `1.43 kB` (gzip: `0.60 kB`)
-  - `dist/assets/index.css`: `213.83 kB` (gzip: `30.09 kB`)
-  - `dist/assets/index.js`: Fully bundled and production optimized.
-- **Security Audit**: Verified 0 token leaks in browser storage; zero inline script tags; strict DOMPurify sterilization on all rendered dynamic markup.
+  - `dist/assets/index.css`: `223.84 kB` (gzip: `30.86 kB`)
+  - `dist/assets/index.js`: `6,451.03 kB` (gzip: `1,413.41 kB`)
+- **Status**: ✅ **Production Ready & Verified**

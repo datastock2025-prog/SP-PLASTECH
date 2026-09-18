@@ -241,6 +241,15 @@ export interface InboundShipment {
 }
 
 export interface OutboundShipment {
+  id?: string;
+  customer?: string;
+  destinationPlant?: string;
+  scheduledDeparture?: string;
+  driverPhone?: string;
+  sealNumber?: string;
+  deliveredAt?: string;
+  totalQty?: number;
+  routeType?: string;
   deliveryNoteNumber: string;
   salesOrderNumber: string;
   customerName: string;
@@ -251,7 +260,7 @@ export interface OutboundShipment {
   expectedDeliveryDate: string;
   actualDeliveryDate?: string;
   status: 'Planned' | 'Picking' | 'Packed' | 'Ready to Ship' | 'Dispatched' | 'In Transit' | 'Out for Delivery' | 'Delivered' | 'Partially Delivered' | 'Delayed' | 'Returned';
-  podStatus: 'Signed e-POD Verified' | 'Pending Gate Entry' | 'OTP Confirmed' | 'Missing POD';
+  podStatus: 'Signed e-POD Verified' | 'Pending Gate Entry' | 'OTP Confirmed' | 'Missing POD' | 'Confirmed e-POD';
   itemSummary: string;
   quantityMolded: number;
   uom: string;
@@ -291,6 +300,7 @@ export interface SupplierRiskProfile {
   supplierId: string;
   supplierName: string;
   category: 'Polymer Resin Producer' | 'Masterbatch Compounder' | 'Chemical Additives' | 'Packaging & Corrugated' | 'Tooling & Steel';
+  materialCategory?: string;
   country: string;
   onTimeDeliveryPct: number;
   qualityAcceptancePct: number;
@@ -298,7 +308,8 @@ export interface SupplierRiskProfile {
   priceVariancePct: number;
   overallGrade: 'A' | 'B' | 'C' | 'D';
   riskScore: number; // 0-100 (high is riskier)
-  riskLevel: 'Low Risk' | 'Moderate Risk' | 'High Risk' | 'Severe Risk';
+  compositeRiskScore?: number;
+  riskLevel: 'Low Risk' | 'Moderate Risk' | 'Medium Risk' | 'High Risk' | 'Severe Risk';
   riskCategories: {
     delivery: number;
     quality: number;
@@ -309,6 +320,11 @@ export interface SupplierRiskProfile {
     esgRating: number;
     capacityRisk: number;
   };
+  singleSourceDependency?: boolean;
+  financialHealthGrade?: string;
+  geopoliticalRisk?: string;
+  alternateSupplierAvailable?: boolean;
+  esgCompliancePct?: number;
   keyIssueDescription?: string;
   mitigationPlan?: string;
   owner: string;
@@ -455,4 +471,8 @@ export interface TraceabilityRecord {
   dispatchInvoice?: string;
   lotNumber?: string;
   itemCode?: string;
+  itemName?: string;
+  supplier?: string;
+  resinGrade?: string;
+  inboundPo?: string;
 }
