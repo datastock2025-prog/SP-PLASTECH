@@ -17,6 +17,8 @@ import {
   ChevronRight,
   Clock,
   Package,
+  MoreVertical,
+  FileText,
 } from 'lucide-react';
 import {
   WorkOrder,
@@ -32,29 +34,35 @@ import {
 } from './jit/jitTypes';
 import {
   DEFAULT_CONNECTED_STORES,
+  getPlantConnectedStores,
+  calculateExpectedFinish,
   calculatePcsFromHours,
+  calculateHoursFromPcs,
   explodePlanRequirements,
-  exportJitPlanToExcel,
-  exportJitPlanToCsv,
+  exportConsolidatedMatrixToExcel,
+  exportSingleJobToExcel,
+  exportSingleJobToCsv,
+  generateUniqueWorkOrderId,
+  generateUniqueScheduleNumber,
 } from './jit/jitCalculations';
-import { JitMachineRow } from './jit/JitMachineRow';
-import { JitRecipeModal } from './jit/JitRecipeModal';
-import { JitStoreFeasibilityView } from './jit/JitStoreFeasibilityView';
 import { JitCommonComposer } from './jit/JitCommonComposer';
 import { JitSingleScheduleGrid } from './jit/JitSingleScheduleGrid';
+import { JitConsolidatedScheduleWorkOrders } from './jit/JitConsolidatedScheduleWorkOrders';
+import { JitRecipeModal } from './jit/JitRecipeModal';
+import { JitStoreInventoryModal } from './jit/JitStoreInventoryModal';
 
 interface Props {
   workOrders: WorkOrder[];
   machines: MachineMaster[];
   items: ItemMaster[];
-  boms: BomMaster[];
-  molds: MoldMaster[];
-  onNavigate: (view: string, param?: any) => void;
+  molds?: MoldMaster[];
+  boms?: BomMaster[];
+  onNavigate: (view: string, params?: any) => void;
   onUpdateWO: (wo: WorkOrder) => void;
   onCreateWO: (wo: WorkOrder) => void;
-  openDrawer: (title: string, content: React.ReactNode, footer?: React.ReactNode) => void;
-  closeDrawer: () => void;
-  openConfirm: (title: string, message: string, onConfirm: () => void) => void;
+  openDrawer?: (title: string, content: React.ReactNode, footer?: React.ReactNode) => void;
+  closeDrawer?: () => void;
+  openConfirm?: (title: string, message: string, onConfirm: () => void) => void;
   showToast: (msg: string) => void;
 }
 
@@ -62,16 +70,17 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
   workOrders,
   machines,
   items,
-  boms,
-  molds,
+  molds = [],
+  boms = [],
   onNavigate,
   onUpdateWO,
   onCreateWO,
-  openDrawer,
-  closeDrawer,
   openConfirm,
   showToast,
 }) => {
+  // Top 3-dot menu state (Task 2)
+  const [isTopMenuOpen, setIsTopMenuOpen] = useState(false);
+
   // Compute Tomorrow's Date (Default for next-day production plan)
   const tomorrowStr = useMemo(() => {
     const d = new Date();
@@ -100,7 +109,7 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
   // Modal states
   const [inspectedJob, setInspectedJob] = useState<PlannedMachineJob | null>(null);
 
-  // Initial planned jobs under tomorrow's date
+  // Initial planned jobs under tomorrow's date (Task 1: Operator default ideal empty)
   const [jobs, setJobs] = useState<PlannedMachineJob[]>([
     {
       id: 'job-imm-01',
@@ -120,7 +129,7 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
       calculationMode: 'hours_to_pcs',
       shift: 'Full Day 24H',
       efficiencyPct: 95,
-      operator: 'R. Sharma',
+      operator: '',
       priority: 'High',
       status: 'Draft',
     },
@@ -142,7 +151,7 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
       calculationMode: 'hours_to_pcs',
       shift: 'Shift A (06:00 - 14:00)',
       efficiencyPct: 95,
-      operator: 'K. Patel',
+      operator: '',
       priority: 'Normal',
       status: 'Draft',
     },
@@ -164,7 +173,7 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
       calculationMode: 'hours_to_pcs',
       shift: 'Shift B (14:00 - 22:00)',
       efficiencyPct: 95,
-      operator: 'M. Ali',
+      operator: '',
       priority: 'High',
       status: 'Draft',
     },
@@ -186,7 +195,7 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
       calculationMode: 'hours_to_pcs',
       shift: 'Full Day 24H',
       efficiencyPct: 95,
-      operator: 'R. Sharma',
+      operator: '',
       priority: 'Normal',
       status: 'Draft',
     },
@@ -208,7 +217,7 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
       calculationMode: 'hours_to_pcs',
       shift: 'Shift A (06:00 - 14:00)',
       efficiencyPct: 95,
-      operator: 'S. Verma',
+      operator: '',
       priority: 'High',
       status: 'Draft',
     },
@@ -230,7 +239,7 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
       calculationMode: 'hours_to_pcs',
       shift: 'Full Day 24H',
       efficiencyPct: 95,
-      operator: 'V. Nair',
+      operator: '',
       priority: 'Urgent',
       status: 'Released',
       workOrderId: `WO-${todayStr.replace(/-/g, '')}-01`,
@@ -293,30 +302,33 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
     showToast('Removed machine from daily plan');
   };
 
-  // Release a single machine job as a Work Order
-  const handleReleaseSingleJob = (job: PlannedMachineJob) => {
-    const woId = `WO-JIT-${job.planDate.replace(/-/g, '').slice(2)}-${Date.now().toString().slice(-4)}`;
+  // Release a single machine job as a Work Order (Task 1 & Task 3)
+  const handleReleaseSingleJob = (job: PlannedMachineJob, onlyWo: boolean = false) => {
+    const targetDate = job.planDate || planDate;
+    const datePrefix = targetDate.replace(/-/g, '').slice(2);
+    const woId = generateUniqueWorkOrderId(workOrders, `WO-JIT-${datePrefix}`);
     const woPriority: 'Low' | 'Medium' | 'High' =
       job.priority === 'High' || job.priority === 'Urgent' ? 'High' : 'Medium';
     const targetPlant = job.plant || plannerPlant || 'PLANT-01';
     const targetPlantName = job.plantName || 'Plant 01: Injection Molding Unit';
-    const schId = `SCH-${job.planDate.replace(/-/g, '')}-01`;
+    const schId = job.scheduleNumber || `SCH-${targetDate.replace(/-/g, '')}-01`;
 
     const newWO: WorkOrder = {
       id: woId,
       item: job.itemCode,
       bomId: boms.find((b) => b.parent === job.itemCode)?.id || 'BOM-1001',
       machine: job.machineId,
-      day: job.planDate,
-      planDate: job.planDate,
+      day: targetDate,
+      planDate: targetDate,
       qty: job.calculatedPcs,
       uom: 'PCS',
       completed: 0,
       scrap: 0,
-      status: 'released',
+      status: onlyWo ? 'planned' : 'in_progress',
+      sentToDailyProd: !onlyWo,
       priority: woPriority,
-      dueDate: job.planDate,
-      operator: job.operator || 'Assigned Operator',
+      dueDate: targetDate,
+      operator: job.operator || '',
       downtimeMin: 0,
       mold: job.moldId,
       jitSeq: 1,
@@ -333,7 +345,7 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
       ],
       history: [
         {
-          event: `JIT Work Order dispatched for ${job.planDate} (${job.plannedHours}h on ${job.machineId}, ${targetPlant})`,
+          event: `JIT Work Order dispatched for ${targetDate} (${onlyWo ? 'Released to Work Orders Only' : 'Dispatched to Floor & Daily Production'})`,
           time: new Date().toISOString().replace('T', ' ').slice(0, 19),
         },
       ],
@@ -341,80 +353,103 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
 
     onCreateWO(newWO);
     setJobs((prev) =>
-      prev.map((j) => (j.id === job.id ? { ...j, status: 'Released', workOrderId: woId } : j))
+      prev.map((j) => (j.id === job.id ? { ...j, status: 'Released', workOrderId: woId, sentToDailyProd: !onlyWo } : j))
     );
-    showToast(`Dispatched ${woId} to ${targetPlant} Shopfloor for ${job.itemCode}! Viewable in Work Order Management.`);
+
+    if (onlyWo) {
+      showToast(`📋 Released ${woId} ONLY to Work Order Management. Navigating to Work Orders...`);
+      setTimeout(() => onNavigate('workOrders', { id: woId }), 600);
+    } else {
+      showToast(`🎉 Dispatched ${woId} to both Work Orders & Daily Production grids! Navigating to Daily Production...`);
+      setTimeout(() => onNavigate('prodEntryGrid', { date: targetDate, id: woId }), 600);
+    }
   };
 
-  // Release all jobs under a specific date
-  const handleReleaseDateJobs = (targetDate: string, scheduleNumber?: string) => {
+  // Release all jobs under a specific date (Task 1 & Task 3)
+  const handleReleaseDateJobs = (targetDate: string, scheduleNumber?: string, onlyWo: boolean = false) => {
     const targetJobs = jobs.filter((j) => (j.planDate || planDate) === targetDate);
     if (targetJobs.length === 0) return;
 
-    const schId = scheduleNumber || `SCH-${targetDate.replace(/-/g, '')}-01`;
+    const schId = scheduleNumber || generateUniqueScheduleNumber(jobs, targetDate);
 
-    openConfirm(
-      `Release Work Orders for Schedule ${schId}?`,
-      `This will dispatch official active Work Orders for all ${targetJobs.length} scheduled machines on ${targetDate} to their respective plant facilities.`,
-      () => {
-        let count = 0;
-        targetJobs.forEach((job, idx) => {
-          if (job.status === 'Released') return;
-          const woId = `WO-JIT-${targetDate.replace(/-/g, '').slice(2)}-${idx + 1}`;
-          const woPriority: 'Low' | 'Medium' | 'High' =
-            job.priority === 'High' || job.priority === 'Urgent' ? 'High' : 'Medium';
-          const targetPlant = job.plant || plannerPlant || 'PLANT-01';
-          const targetPlantName = job.plantName || 'Plant 01: Injection Molding Unit';
+    const executeRelease = () => {
+      let count = 0;
+      const currentOrders = [...workOrders];
+      targetJobs.forEach((job) => {
+        if (job.status === 'Released') return;
+        const datePrefix = targetDate.replace(/-/g, '').slice(2);
+        const woId = generateUniqueWorkOrderId(currentOrders, `WO-JIT-${datePrefix}`);
+        const woPriority: 'Low' | 'Medium' | 'High' =
+          job.priority === 'High' || job.priority === 'Urgent' ? 'High' : 'Medium';
+        const targetPlant = job.plant || plannerPlant || 'PLANT-01';
+        const targetPlantName = job.plantName || 'Plant 01: Injection Molding Unit';
 
-          const newWO: WorkOrder = {
-            id: woId,
-            item: job.itemCode,
-            bomId: boms.find((b) => b.parent === job.itemCode)?.id || 'BOM-1001',
-            machine: job.machineId,
-            day: targetDate,
-            planDate: targetDate,
-            qty: job.calculatedPcs,
-            uom: 'PCS',
-            completed: 0,
-            scrap: 0,
-            status: 'released',
-            priority: woPriority,
-            dueDate: targetDate,
-            operator: job.operator || 'Assigned Operator',
-            downtimeMin: 0,
-            mold: job.moldId,
-            jitSeq: idx + 1,
-            shift: job.shift,
-            plant: targetPlant,
-            plantName: targetPlantName,
-            jitScheduleId: schId,
-            outputLogs: [],
-            downtimeLogs: [],
-            checklist: [
-              { label: 'Mold mounted & clamped to tonnage', done: true },
-              { label: 'Cooling water lines & temperature controller connected', done: true },
-              { label: 'Material hopper loaded with verified resin & masterbatch', done: true },
-            ],
-            history: [
-              {
-                event: `JIT Schedule ${schId} dispatched for ${targetDate} (${job.plannedHours}h on ${job.machineId}, ${targetPlant})`,
-                time: new Date().toISOString().replace('T', ' ').slice(0, 19),
-              },
-            ],
-          };
-          onCreateWO(newWO);
-          count++;
-        });
+        const newWO: WorkOrder = {
+          id: woId,
+          item: job.itemCode,
+          bomId: boms.find((b) => b.parent === job.itemCode)?.id || 'BOM-1001',
+          machine: job.machineId,
+          day: targetDate,
+          planDate: targetDate,
+          qty: job.calculatedPcs,
+          uom: 'PCS',
+          completed: 0,
+          scrap: 0,
+          status: onlyWo ? 'planned' : 'in_progress',
+          sentToDailyProd: !onlyWo,
+          priority: woPriority,
+          dueDate: targetDate,
+          operator: job.operator || '',
+          downtimeMin: 0,
+          mold: job.moldId,
+          jitSeq: count + 1,
+          shift: job.shift,
+          plant: targetPlant,
+          plantName: targetPlantName,
+          jitScheduleId: schId,
+          outputLogs: [],
+          downtimeLogs: [],
+          checklist: [
+            { label: 'Mold mounted & clamped to tonnage', done: true },
+            { label: 'Cooling water lines & temperature controller connected', done: true },
+            { label: 'Material hopper loaded with verified resin & masterbatch', done: true },
+          ],
+          history: [
+            {
+              event: `JIT Schedule ${schId} dispatched for ${targetDate} (${onlyWo ? 'Released to Work Orders Only' : 'Dispatched to Floor & Daily Production'})`,
+              time: new Date().toISOString().replace('T', ' ').slice(0, 19),
+            },
+          ],
+        };
+        onCreateWO(newWO);
+        currentOrders.push(newWO);
+        count++;
+      });
 
-        setJobs((prev) =>
-          prev.map((j) =>
-            (j.planDate || planDate) === targetDate ? { ...j, status: 'Released' } : j
-          )
-        );
+      setJobs((prev) =>
+        prev.map((j) =>
+          (j.planDate || planDate) === targetDate ? { ...j, status: 'Released', sentToDailyProd: !onlyWo } : j
+        )
+      );
 
-        showToast(`Released ${count} Work Orders for Schedule ${schId}! Viewable in Work Order Management.`);
+      if (onlyWo) {
+        showToast(`📋 Released ${count} Work Orders for Schedule ${schId} ONLY to Work Order Management!`);
+        setTimeout(() => onNavigate('workOrders', { date: targetDate }), 600);
+      } else {
+        showToast(`🎉 Released ${count} Work Orders for Schedule ${schId} to both Work Orders and Daily Production Entry!`);
+        setTimeout(() => onNavigate('prodEntryGrid', { date: targetDate }), 600);
       }
-    );
+    };
+
+    if (openConfirm) {
+      openConfirm(
+        `Release Work Orders for Schedule ${schId}?`,
+        `This will dispatch official active Work Orders for all ${targetJobs.length} scheduled machines on ${targetDate} (${onlyWo ? 'Destination: Work Orders Only' : 'Destination: Both Work Orders & Daily Production Entry'}).`,
+        executeRelease
+      );
+    } else {
+      executeRelease();
+    }
   };
 
   // Date specific exports
@@ -434,92 +469,100 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
 
   // Run full stock verification
   const handleVerifyStockFeasibility = () => {
-    const reqs = explodePlanRequirements(jobs, boms, items, stores);
-    const hasShortage = reqs.some((r) => r.feasibility === 'Critical_Shortage');
-
-    setJobs((prev) =>
-      prev.map((j) => ({
-        ...j,
-        status: hasShortage ? 'Material_Shortage' : 'Feasible',
-      }))
-    );
-
-    if (hasShortage) {
-      showToast('⚠️ Stock verification completed: Material shortages detected! Check Store Feasibility tab.');
+    const shortageItems = materialRequirements.filter((r) => r.shortageQty > 0);
+    if (shortageItems.length > 0) {
+      showToast(`⚠️ Feasibility Alert: ${shortageItems.length} materials in shortage! Check Store Feasibility tab.`);
     } else {
       showToast('✅ 100% Stock Feasible! All resins, colorants & packaging verified across factory stores.');
     }
   };
 
   // Release Schedule & Generate Work Orders in System
-  const handleReleaseScheduleToShopfloor = () => {
-    openConfirm(
-      'Release Next-Day Schedule to Production?',
-      `This will formalize the ${jobs.length} scheduled machine jobs for ${planDate} into official active Work Orders across respective manufacturing plants and notify shift supervisors.`,
-      () => {
-        const schId = `SCH-${planDate.replace(/-/g, '')}-01`;
-        let createdCount = 0;
-        jobs.forEach((job, idx) => {
-          const woId = `WO-JIT-${planDate.replace(/-/g, '').slice(2)}-${idx + 1}`;
-          const woPriority: 'Low' | 'Medium' | 'High' =
-            job.priority === 'High' || job.priority === 'Critical'
-              ? 'High'
-              : job.priority === 'Low'
-              ? 'Low'
-              : 'Medium';
-          const targetPlant = job.plant || plannerPlant || 'PLANT-01';
-          const targetPlantName = job.plantName || 'Plant 01: Injection Molding Unit';
+  const handleReleaseScheduleToShopfloor = (onlyWo: boolean = false) => {
+    const executeRelease = () => {
+      const schId = generateUniqueScheduleNumber(jobs, planDate);
+      let createdCount = 0;
+      const currentOrders = [...workOrders];
+      jobs.forEach((job) => {
+        const datePrefix = planDate.replace(/-/g, '').slice(2);
+        const woId = generateUniqueWorkOrderId(currentOrders, `WO-JIT-${datePrefix}`);
+        const woPriority: 'Low' | 'Medium' | 'High' =
+          job.priority === 'High' || job.priority === 'Critical'
+            ? 'High'
+            : job.priority === 'Low'
+            ? 'Low'
+            : 'Medium';
+        const targetPlant = job.plant || plannerPlant || 'PLANT-01';
+        const targetPlantName = job.plantName || 'Plant 01: Injection Molding Unit';
 
-          const newWO: WorkOrder = {
-            id: woId,
-            item: job.itemCode,
-            bomId: boms.find((b) => b.parent === job.itemCode)?.id || 'BOM-1042',
-            machine: job.machineId,
-            day: planDate,
-            planDate: planDate,
-            qty: job.calculatedPcs,
-            uom: 'PCS',
-            completed: 0,
-            scrap: 0,
-            status: 'released',
-            priority: woPriority,
-            dueDate: planDate,
-            operator: job.operator || 'Assigned Operator',
-            downtimeMin: 0,
-            mold: job.moldId,
-            jitSeq: idx + 1,
-            shift: job.shift,
-            plant: targetPlant,
-            plantName: targetPlantName,
-            jitScheduleId: schId,
-            outputLogs: [],
-            downtimeLogs: [],
-            checklist: [
-              { label: 'Mold mounted & clamped to tonnage', done: true },
-              { label: 'Cooling water lines & temperature controller connected', done: true },
-              { label: 'Material hopper loaded with verified resin & masterbatch', done: true },
-            ],
-            history: [
-              {
-                event: `JIT Schedule created for ${planDate} (${job.plannedHours}h on ${job.machineId}, ${targetPlant})`,
-                time: new Date().toISOString().replace('T', ' ').slice(0, 19),
-              },
-            ],
-          };
-          onCreateWO(newWO);
-          createdCount++;
-        });
+        const newWO: WorkOrder = {
+          id: woId,
+          item: job.itemCode,
+          bomId: boms.find((b) => b.parent === job.itemCode)?.id || 'BOM-1042',
+          machine: job.machineId,
+          day: planDate,
+          planDate: planDate,
+          qty: job.calculatedPcs,
+          uom: 'PCS',
+          completed: 0,
+          scrap: 0,
+          status: onlyWo ? 'planned' : 'in_progress',
+          sentToDailyProd: !onlyWo,
+          priority: woPriority,
+          dueDate: planDate,
+          operator: job.operator || '',
+          downtimeMin: 0,
+          mold: job.moldId,
+          jitSeq: createdCount + 1,
+          shift: job.shift,
+          plant: targetPlant,
+          plantName: targetPlantName,
+          jitScheduleId: schId,
+          outputLogs: [],
+          downtimeLogs: [],
+          checklist: [
+            { label: 'Mold mounted & clamped to tonnage', done: true },
+            { label: 'Cooling water lines & temperature controller connected', done: true },
+            { label: 'Material hopper loaded with verified resin & masterbatch', done: true },
+          ],
+          history: [
+            {
+              event: `JIT Schedule created for ${planDate} (${onlyWo ? 'Released to Work Orders Only' : 'Dispatched to Floor & Daily Production'})`,
+              time: new Date().toISOString().replace('T', ' ').slice(0, 19),
+            },
+          ],
+        };
+        onCreateWO(newWO);
+        currentOrders.push(newWO);
+        createdCount++;
+      });
 
-        setJobs((prev) =>
-          prev.map((j) => ({
-            ...j,
-            status: 'Released',
-          }))
-        );
+      setJobs((prev) =>
+        prev.map((j) => ({
+          ...j,
+          status: 'Released',
+          sentToDailyProd: !onlyWo,
+        }))
+      );
 
-        showToast(`🎉 Successfully released ${createdCount} Work Orders to Shopfloor for ${planDate}! Viewable in Work Order Management.`);
+      if (onlyWo) {
+        showToast(`📋 Successfully released ${createdCount} Work Orders ONLY to Work Order Management!`);
+        setTimeout(() => onNavigate('workOrders', { date: planDate }), 600);
+      } else {
+        showToast(`🎉 Successfully released ${createdCount} Work Orders to both Work Orders & Daily Production grids!`);
+        setTimeout(() => onNavigate('prodEntryGrid', { date: planDate }), 600);
       }
-    );
+    };
+
+    if (openConfirm) {
+      openConfirm(
+        'Release Next-Day Schedule to Production?',
+        `This will formalize the ${jobs.length} scheduled machine jobs for ${planDate} into official active Work Orders (${onlyWo ? 'Destination: Work Orders Only' : 'Destination: Both Work Orders & Daily Production Entry'}).`,
+        executeRelease
+      );
+    } else {
+      executeRelease();
+    }
   };
 
   // Export handlers
@@ -560,48 +603,62 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
               </span>
               <span className="text-xs text-slate-400">|</span>
               <span className="text-xs font-semibold text-slate-600">
-                Daily Injection Molding Schedule & Feasibility Engine
+                Daily Injection Molding Schedule &amp; Feasibility Engine
               </span>
             </div>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight mt-1">
-              Production Plan for {planDate === tomorrowStr ? 'Tomorrow (Next Day)' : planDate}
+              Production Schedule &amp; Feasibility Engine
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Plan created one day prior: schedule multiple IMMs, calculate output by run hours, explode BOM recipes (RM, MB, Inserts, PCK), and verify stock across all stores.
+              Plan machine jobs, calculate output by run hours, explode BOM recipes, and verify stock feasibility for {planDate}.
             </p>
           </div>
 
-          {/* Quick Actions & Export Buttons */}
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Task 2: 3-dot Dropdown Options Menu */}
+          <div className="relative">
             <button
               type="button"
-              onClick={handleExportExcel}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors"
-              title="Download full multi-sheet production schedule & recipe requirements in Microsoft Excel format"
+              onClick={() => setIsTopMenuOpen((prev) => !prev)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-xs font-bold rounded-xl shadow-xs transition-colors"
+              title="More Actions &amp; Export Options"
             >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>Export Excel (.xlsx)</span>
+              <MoreVertical className="w-4 h-4 text-slate-600" />
+              <span>Actions &amp; Export</span>
             </button>
 
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors"
-              title="Download standard CSV format for ERP/MES import"
-            >
-              <Download className="w-4 h-4" />
-              <span>Export CSV</span>
-            </button>
+            {isTopMenuOpen && (
+              <div
+                className="absolute right-0 mt-1.5 w-56 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-50 text-xs divide-y divide-slate-100"
+                onClick={() => setIsTopMenuOpen(false)}
+              >
+                <button
+                  type="button"
+                  onClick={handleExportExcel}
+                  className="w-full text-left px-3.5 py-2 hover:bg-emerald-50 text-emerald-800 font-semibold flex items-center gap-2 transition-colors"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                  <span>Export Excel (.xlsx)</span>
+                </button>
 
-            <button
-              type="button"
-              onClick={handlePrintPlan}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold rounded-lg shadow-xs transition-colors"
-              title="Print traveler clipboard schedule sheet"
-            >
-              <Printer className="w-4 h-4 text-slate-500" />
-              <span className="hidden sm:inline">Print Traveler</span>
-            </button>
+                <button
+                  type="button"
+                  onClick={handleExportCsv}
+                  className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-800 font-semibold flex items-center gap-2 transition-colors"
+                >
+                  <Download className="w-4 h-4 text-slate-600" />
+                  <span>Export CSV</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePrintPlan}
+                  className="w-full text-left px-3.5 py-2 hover:bg-indigo-50 text-indigo-800 font-semibold flex items-center gap-2 transition-colors"
+                >
+                  <Printer className="w-4 h-4 text-indigo-600" />
+                  <span>Print Traveler Sheet</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

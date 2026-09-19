@@ -16,6 +16,10 @@ import { CapaManagementView } from './quality/CapaManagementView';
 import { CoaManagementView } from './quality/CoaManagementView';
 import { CalibrationEquipmentView } from './quality/CalibrationEquipmentView';
 import { DocControlAuditView } from './quality/DocControlAuditView';
+import { WipStoreQcInspectionView } from './quality/WipStoreQcInspectionView';
+import { WipInventoryRecord } from '../types/operationsWipTypes';
+import { ItemMaster, WorkOrder } from '../types';
+import { INITIAL_WIP_RECORDS } from '../data/operationsWipData';
 
 interface QualityProps {
   view: string;
@@ -24,6 +28,10 @@ interface QualityProps {
   capas: CapaReport[];
   coas: CertificateOfAnalysis[];
   selectedId?: string;
+  wipRecords?: WipInventoryRecord[];
+  items?: ItemMaster[];
+  workOrders?: WorkOrder[];
+  onUpdateWipRecord?: (record: WipInventoryRecord) => void;
   onNavigate: (view: string, param?: any) => void;
   onUpdateNCR: (ncr: NonConformanceReport) => void;
   onCreateNCR: (ncr: NonConformanceReport) => void;
@@ -44,6 +52,10 @@ export const QualityViews: React.FC<QualityProps> = ({
   capas,
   coas,
   selectedId,
+  wipRecords = INITIAL_WIP_RECORDS,
+  items = [],
+  workOrders = [],
+  onUpdateWipRecord = () => {},
   onNavigate,
   onUpdateNCR,
   onCreateNCR,
@@ -56,6 +68,21 @@ export const QualityViews: React.FC<QualityProps> = ({
   openConfirm,
   showToast,
 }) => {
+  /* ----------------------------------------------------
+     0. CONSOLIDATED STORE QUALITY CHECK (WIP / DEFLASH / ASSEMBLY)
+  ---------------------------------------------------- */
+  if (view === 'wipStoreQc' || view === 'storeQcCheck' || view === 'wipQcInspection') {
+    return (
+      <WipStoreQcInspectionView
+        wipRecords={wipRecords}
+        items={items}
+        workOrders={workOrders}
+        onUpdateWipRecord={onUpdateWipRecord}
+        onNavigate={onNavigate}
+        showToast={showToast}
+      />
+    );
+  }
   /* ----------------------------------------------------
      1. QUALITY COMMAND CENTER (DASHBOARD)
   ---------------------------------------------------- */

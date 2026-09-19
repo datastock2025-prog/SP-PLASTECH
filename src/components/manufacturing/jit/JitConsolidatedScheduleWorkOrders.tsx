@@ -48,8 +48,8 @@ interface Props {
   activeScheduleDate: string;
   onSelectScheduleDate: (date: string) => void;
   onNavigateToScheduleGrid: (date: string) => void;
-  onReleaseSingleJob: (job: PlannedMachineJob) => void;
-  onReleaseSchedule: (date: string, scheduleNumber: string) => void;
+  onReleaseSingleJob: (job: PlannedMachineJob, onlyWo?: boolean) => void;
+  onReleaseSchedule: (date: string, scheduleNumber: string, onlyWo?: boolean) => void;
   onViewRecipe: (job: PlannedMachineJob) => void;
   onExportExcel?: (date: string, scheduleNumber: string) => void;
   onExportCsv?: (date: string, scheduleNumber: string) => void;
@@ -91,7 +91,7 @@ export const JitConsolidatedScheduleWorkOrders: React.FC<Props> = ({
   onExportExcel,
   onExportCsv,
 }) => {
-  // Navigation & filter state
+  const [isOnlyWoChecked, setIsOnlyWoChecked] = useState<boolean>(false);
   const [selectedScheduleNumber, setSelectedScheduleNumber] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'DRAFT' | 'RELEASED' | 'SHORTAGE' | 'FEASIBLE'>('ALL');
@@ -447,18 +447,33 @@ export const JitConsolidatedScheduleWorkOrders: React.FC<Props> = ({
                 <span>Export WO CSV</span>
               </button>
 
+              {/* Task 1: Checkbox for Only WO */}
+              <label
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-semibold text-slate-700 cursor-pointer border border-slate-200 select-none"
+                title="When checked, releases work orders ONLY to the Work Order management screen (omits from Daily Production entry until floor dispatch)"
+              >
+                <input
+                  type="checkbox"
+                  checked={isOnlyWoChecked}
+                  onChange={(e) => setIsOnlyWoChecked(e.target.checked)}
+                  className="rounded text-indigo-600 focus:ring-0 focus:ring-offset-0 cursor-pointer w-3.5 h-3.5"
+                />
+                <span className="text-[11px] font-bold">Only WO</span>
+              </label>
+
               <button
                 type="button"
                 disabled={currentSchedule.isAllReleased}
-                onClick={() => onReleaseSchedule(currentSchedule.planDate, currentSchedule.scheduleNumber)}
+                onClick={() => onReleaseSchedule(currentSchedule.planDate, currentSchedule.scheduleNumber, isOnlyWoChecked)}
                 className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                   currentSchedule.isAllReleased
                     ? 'bg-emerald-600 text-white opacity-90 cursor-default'
                     : 'bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer shadow-xs'
                 }`}
+                title={`Release work orders (${isOnlyWoChecked ? 'Work Orders Only' : 'Both Work Orders & Daily Production'})`}
               >
                 <Send className="w-3.5 h-3.5" />
-                <span>{currentSchedule.isAllReleased ? 'Released to Floor' : 'Release All WOs'}</span>
+                <span>{currentSchedule.isAllReleased ? 'Released to Floor' : isOnlyWoChecked ? 'Release to WO Only' : 'Release All WOs'}</span>
               </button>
             </div>
           </div>
@@ -993,7 +1008,6 @@ export const JitConsolidatedScheduleWorkOrders: React.FC<Props> = ({
                   <th className="py-3 px-4">Production Date</th>
                   <th className="py-3 px-4">Plant Facility</th>
                   <th className="py-3 px-4">Scheduled WOs / IMMs</th>
-                  <th className="py-3 px-4">Scheduled Parts</th>
                   <th className="py-3 px-4">Total Runtime</th>
                   <th className="py-3 px-4 text-right">Forecast Output</th>
                   <th className="py-3 px-4">Store Feasibility</th>
@@ -1079,26 +1093,6 @@ export const JitConsolidatedScheduleWorkOrders: React.FC<Props> = ({
                           <div className="text-[10px] text-slate-400 truncate max-w-[140px]" title={sch.machines.map((m) => m.id).join(', ')}>
                             {sch.machines.map((m) => m.id).join(', ')}
                           </div>
-                        </div>
-                      </td>
-
-                      {/* Scheduled Items */}
-                      <td className="py-3 px-4">
-                        <div className="flex flex-wrap items-center gap-1 max-w-[220px]">
-                          {sch.items.slice(0, 2).map((item) => (
-                            <span
-                              key={item.code}
-                              className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-mono font-medium truncate max-w-[100px]"
-                              title={`${item.code}: ${item.name}`}
-                            >
-                              {item.code}
-                            </span>
-                          ))}
-                          {sch.items.length > 2 && (
-                            <span className="text-[10px] text-slate-400 font-bold">
-                              +{sch.items.length - 2} more
-                            </span>
-                          )}
                         </div>
                       </td>
 

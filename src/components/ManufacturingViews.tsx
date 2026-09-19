@@ -32,6 +32,7 @@ import { BulkWizardModal } from './manufacturing/BulkWizardModal';
 import { ExcelImportModal } from './manufacturing/ExcelImportModal';
 import { JitSchedulingPlanner } from './manufacturing/JitSchedulingPlanner';
 import { WipOperationsManager } from './manufacturing/WipOperationsManager';
+import { WipStoreQcInspectionView } from './quality/WipStoreQcInspectionView';
 import {
   INITIAL_WIP_RECORDS,
   INITIAL_PLANT_STORE_ITEMS,
@@ -133,17 +134,17 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
     let requiresDeflash = false;
     let requiresAssembly = false;
 
-    if (targetItem?.isDeflash || targetItem?.routingDestination === 'DEFLASH') {
+    if (targetItem?.isDeflash || targetItem?.routingDestination === 'DEFLASH' || targetItem?.defaultLocation === 'DEFLASH-STORE') {
       targetStore = 'DEFLASH-STORE';
       targetStage = 'Deflashing';
       qcStatus = 'transferred_deflash';
       requiresDeflash = true;
-    } else if (targetItem?.isAssembly || targetItem?.routingDestination === 'ASSEMBLY') {
+    } else if (targetItem?.isAssembly || targetItem?.routingDestination === 'ASSEMBLY' || targetItem?.defaultLocation === 'ASSEMBLY-STORE') {
       targetStore = 'ASSEMBLY-STORE';
       targetStage = 'Assembly';
       qcStatus = 'transferred_assembly';
       requiresAssembly = true;
-    } else if (targetItem?.isDol || targetItem?.routingDestination === 'DOL') {
+    } else if (targetItem?.isDol || targetItem?.routingDestination === 'DOL' || targetItem?.defaultLocation === 'FG-STORE') {
       // DOL (Direct On Line) -> directly to FG-STORE
       targetStore = 'FG-STORE';
       targetStage = 'FG Inventory';
@@ -375,6 +376,7 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
           machines={machines}
           items={items}
           molds={INITIAL_MOLDS}
+          boms={boms}
           onNavigate={onNavigate}
           onUpdateWO={onUpdateWO}
           onCreateWO={onCreateWO}
@@ -542,6 +544,18 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
           onAddWipRecord={handleAddWipRecord}
           onUpdatePlantStoreItems={handleUpdatePlantStoreItems}
           onAddMaterialTransfer={handleAddMaterialTransfer}
+          onNavigate={onNavigate}
+          showToast={showToast}
+        />
+      )}
+
+      {/* 21. Consolidated Store QC Check Screen */}
+      {(view === 'wipStoreQc' || view === 'storeQcCheck' || view === 'wipQcInspection') && (
+        <WipStoreQcInspectionView
+          wipRecords={wipRecords}
+          items={items}
+          workOrders={workOrders}
+          onUpdateWipRecord={handleUpdateWipRecord}
           onNavigate={onNavigate}
           showToast={showToast}
         />

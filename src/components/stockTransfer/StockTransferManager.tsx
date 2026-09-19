@@ -18,6 +18,7 @@ import {
   Eye,
   Sliders,
   X,
+  Factory,
 } from 'lucide-react';
 import {
   StockTransferRecord,
@@ -39,6 +40,7 @@ import { ReturnableDCScreen } from './ReturnableDCScreen';
 import { AssetMoldTransferScreen } from './AssetMoldTransferScreen';
 import { InterPlantTaxComplianceScreen } from './InterPlantTaxComplianceScreen';
 import { TransferTrackingAuditDrawer } from './TransferTrackingAuditDrawer';
+import { IntraPlantRequisitionsView } from './IntraPlantRequisitionsView';
 
 interface StockTransferManagerProps {
   onBackToWarehouse?: () => void;
@@ -71,7 +73,7 @@ export const StockTransferManager: React.FC<StockTransferManagerProps> = ({
 
   // Navigation & View States
   const [currentTab, setCurrentTab] = useState<
-    'DASHBOARD' | 'CREATE' | 'RECEIPT' | 'RETURNABLE' | 'ASSETS' | 'TAX_COMPLIANCE'
+    'DASHBOARD' | 'REQUISITIONS' | 'CREATE' | 'RECEIPT' | 'RETURNABLE' | 'ASSETS' | 'TAX_COMPLIANCE'
   >('DASHBOARD');
   const [selectedTransferForReceipt, setSelectedTransferForReceipt] = useState<string>('');
   const [activeTrackingTransfer, setActiveTrackingTransfer] = useState<StockTransferRecord | null>(null);
@@ -273,10 +275,11 @@ export const StockTransferManager: React.FC<StockTransferManagerProps> = ({
           </div>
         </div>
 
-        {/* Global Navigation Tabs (All 8 Modules from Spec) */}
+        {/* Global Navigation Tabs (All Modules) */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center gap-1 overflow-x-auto border-t border-slate-100">
           {[
             { id: 'DASHBOARD', label: 'Transfer Dashboard', icon: Layers },
+            { id: 'REQUISITIONS', label: 'Schedule Requisitions & CMR', icon: Factory },
             { id: 'CREATE', label: 'Create Transfer (Wizard)', icon: Plus },
             { id: 'RECEIPT', label: 'Inbound Receipt & GRN', icon: QrCode },
             { id: 'RETURNABLE', label: 'Returnable Packaging DCs', icon: RotateCcw },
@@ -368,6 +371,8 @@ export const StockTransferManager: React.FC<StockTransferManagerProps> = ({
               if (tab === 'RECEIPT' || tab === 'receipt') {
                 if (transferId) setSelectedTransferForReceipt(transferId);
                 setCurrentTab('RECEIPT');
+              } else if (tab === 'REQUISITIONS' || tab === 'requisitions') {
+                setCurrentTab('REQUISITIONS');
               } else if (tab === 'RETURNABLE' || tab === 'returnable') {
                 setCurrentTab('RETURNABLE');
               } else if (tab === 'ASSETS' || tab === 'assets') {
@@ -399,6 +404,104 @@ export const StockTransferManager: React.FC<StockTransferManagerProps> = ({
             }}
             onSelectTransferForTracking={(transfer) => {
               setActiveTrackingTransfer(transfer);
+            }}
+            showToast={showToast}
+          />
+        )}
+
+        {/* Task-1, Task-4, Task-5, Task-6: Requisitions & PRD-UNIT-1 View */}
+        {currentTab === 'REQUISITIONS' && (
+          <IntraPlantRequisitionsView
+            onTransferCMRSuccess={(cmr, mixRef) => {
+              const newTransferRecord: StockTransferRecord = {
+                id: `ISTN-2026-${Math.floor(10000 + Math.random() * 90000)}`,
+                transferType: 'INTRA_PLANT',
+                status: 'Dispatched / In Transit',
+                sourcePlant: 'Unit 1 - Pimpri Auto-Plastics',
+                destPlant: 'Unit 1 - Pimpri Auto-Plastics',
+                sourceStore: 'Pimpri RM Warehouse (Silo & Bagged)',
+                destStore: 'PRD-UNIT-1 (Production Store Unit 1 - Shop Floor Hopper & Mixing Bay)',
+                createdDate: cmr.scheduleDate,
+                expectedDeliveryDate: cmr.scheduleDate,
+                department: 'Injection Molding Shop Floor',
+                requestedBy: `Production Shift In-Charge (${cmr.shift})`,
+                priority: 'Urgent',
+                remarks: `BOM Mixing Material Issue for Schedule ${cmr.scheduleNumber} / Finished Good ${cmr.finishedGoodSku}. Mixing Ref: ${mixRef}`,
+                items: cmr.mixingMaterials.map((mat) => ({
+                  id: `ITEM-${mat.materialSku}`,
+                  itemCode: mat.materialSku,
+                  itemName: mat.materialName,
+                  materialType: 'RM',
+                  batchLotNumber: mat.lotNumber,
+                  uom: mat.uom,
+                  availableStock: mat.requiredQtyKg * 2,
+                  transferQty: mat.requiredQtyKg,
+                  pickLocation: 'SILO-01-A / VAULT-B-01',
+                  standardCost: mat.unitCostInr,
+                  hsnCode: '39021000',
+                  gstRatePct: 18,
+                })),
+                auditTrail: [
+                  {
+                    id: `AUD-${Date.now()}`,
+                    timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
+                    userName: 'Warehouse Dispatcher',
+                    userRole: currentUserRole,
+                    action: 'CMR Mixing Material Transferred',
+                    location: 'Pimpri Central RM Store',
+                    deviceIp: '192.168.1.12',
+                    changesMade: `Dispatched ${cmr.mixingMaterials.length} materials to PRD-UNIT-1 for Schedule ${cmr.scheduleNumber}. Assigned Mixing Ref: ${mixRef}`,
+                  },
+                ],
+              };
+              setTransfers((prev) => [newTransferRecord, ...prev]);
+            }}
+            onReturnSuccess={(ret) => {
+              const returnTransfer: StockTransferRecord = {
+                id: `MRN-2026-${Math.floor(10000 + Math.random() * 90000)}`,
+                transferType: 'INTRA_PLANT',
+                status: 'Received / Completed',
+                sourcePlant: 'Unit 1 - Pimpri Auto-Plastics',
+                destPlant: 'Unit 1 - Pimpri Auto-Plastics',
+                sourceStore: 'PRD-UNIT-1 (Production Store Unit 1)',
+                destStore: 'Pimpri RM Warehouse (WH-RM-01 Silo Zone A)',
+                createdDate: ret.returnDate,
+                expectedDeliveryDate: ret.returnDate,
+                actualDeliveryDate: ret.returnDate,
+                department: 'Injection Molding Shop Floor',
+                requestedBy: ret.authorizedBy,
+                priority: 'Routine',
+                remarks: `Material Return from PRD-UNIT-1. Mixing Ref: ${ret.mixingReferenceNumber} (${ret.notes})`,
+                items: ret.returnedItems.map((item) => ({
+                  id: `ITEM-${item.sku}`,
+                  itemCode: item.sku,
+                  itemName: item.name,
+                  materialType: 'RM',
+                  batchLotNumber: item.lotNumber,
+                  uom: item.uom,
+                  availableStock: item.returnedQty,
+                  transferQty: item.returnedQty,
+                  receivedQty: item.returnedQty,
+                  acceptedQty: item.returnedQty,
+                  pickLocation: 'PRD-UNIT-1-BAY',
+                  standardCost: item.unitCostInr,
+                  hsnCode: '39021000',
+                  gstRatePct: 18,
+                })),
+                auditTrail: [
+                  {
+                    id: `AUD-${Date.now()}`,
+                    timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
+                    userName: ret.receivedBy,
+                    userRole: currentUserRole,
+                    action: 'Material Return Reconciled in Main Warehouse',
+                    location: 'Main RM Store',
+                    deviceIp: '192.168.1.15',
+                    changesMade: `Reconciled ${ret.returnedItems.length} returned items from PRD-UNIT-1 referencing ${ret.mixingReferenceNumber}.`,
+                  },
+                ],
+              };
+              setTransfers((prev) => [returnTransfer, ...prev]);
             }}
             showToast={showToast}
           />

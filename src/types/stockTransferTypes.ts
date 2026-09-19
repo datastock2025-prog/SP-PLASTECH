@@ -6,6 +6,7 @@ export type StoreType =
   | 'RM Store'
   | 'FG Store'
   | 'WIP Store'
+  | 'Production Store'
   | 'Machine Hopper'
   | 'Tool Room'
   | 'Transit / Receiving Store'
@@ -13,6 +14,99 @@ export type StoreType =
   | 'Returnable Packaging Store'
   | 'Consumables Store'
   | 'Spares Store';
+
+export interface ProductionScheduleCMR {
+  id: string;                      // e.g. "CMR-2026-0919-01"
+  scheduleNumber: string;          // e.g. "SCH-2026-0919-01"
+  scheduleDate: string;            // e.g. "2026-09-19"
+  shift: 'Shift A' | 'Shift B' | 'Shift C';
+  machineId: string;               // e.g. "IMM-250T-03"
+  machineBay: string;              // e.g. "Molding Bay #4"
+  finishedGoodSku: string;         // e.g. "FG-AUTO-HOUSING-01"
+  finishedGoodName: string;        // e.g. "Automotive Electrical Junction Box Top Housing"
+  plannedQty: number;              // e.g. 1250
+  uom: string;                     // "PCS"
+  bomVersion: string;              // "BOM-v2.1"
+  targetProductionStore: string;   // "PRD-UNIT-1"
+  mixingReferenceNumber?: string;  // e.g. "MIX-AUTO-HOUSING-20260919-01"
+  transferStatus: 'PENDING_TRANSFER' | 'TRANSFERRED' | 'RETURNED' | 'PARTIALLY_RETURNED';
+  transferredAt?: string;
+  transferredBy?: string;
+  mixingMaterials: {
+    materialSku: string;
+    materialName: string;
+    materialType: 'Raw Polymer' | 'Masterbatch' | 'Additive' | 'Regrind';
+    requiredQtyKg: number;
+    issuedQtyKg?: number;
+    returnedQtyKg?: number;
+    lotNumber: string;
+    uom: string;
+    unitCostInr: number;
+  }[];
+}
+
+export interface AssemblyRequisition {
+  id: string;                      // e.g. "ASM-REQ-2026-081"
+  date: string;
+  scheduleNumber: string;
+  targetLine: string;              // e.g. "Ultrasonic Assembly Line #2"
+  finishedGoodSku: string;
+  finishedGoodName: string;
+  plannedQty: number;
+  uom: string;
+  requiredParts: {
+    sku: string;
+    name: string;
+    qty: number;
+    uom: string;
+    lot: string;
+    storeLocation: string;
+  }[];
+  status: 'PENDING' | 'ISSUED' | 'COMPLETED';
+  issuedAt?: string;
+  issuedBy?: string;
+}
+
+export interface DeflashRequisition {
+  id: string;                      // e.g. "DFL-REQ-2026-042"
+  date: string;
+  scheduleNumber: string;
+  targetBay: string;               // e.g. "Secondary Deflash Station #3"
+  wipItemSku: string;
+  wipItemName: string;
+  qty: number;
+  uom: string;
+  toolsRequired: string[];
+  status: 'PENDING' | 'ISSUED' | 'COMPLETED';
+  issuedAt?: string;
+  issuedBy?: string;
+}
+
+export interface ProductionStoreReturnRecord {
+  id: string;                      // e.g. "MRN-2026-PRD1-001"
+  returnDate: string;
+  returnTime: string;
+  mixingReferenceNumber: string;   // e.g. "MIX-AUTO-HOUSING-20260919-01"
+  cmrReference: string;            // e.g. "CMR-2026-0919-01"
+  scheduleNumber: string;          // e.g. "SCH-2026-0919-01"
+  sourceStore: string;             // "PRD-UNIT-1"
+  destinationWarehouse: string;    // "WH-RM-01 / Silo Zone A"
+  finishedGoodSku: string;
+  finishedGoodName: string;
+  returnedItems: {
+    sku: string;
+    name: string;
+    lotNumber: string;
+    returnedQty: number;
+    uom: string;
+    unitCostInr: number;
+    reason: string;
+  }[];
+  authorizedBy: string;
+  receivedBy: string;
+  status: 'COMPLETED';
+  notes?: string;
+}
 
 export type TransferStatus =
   | 'Draft'
@@ -75,6 +169,11 @@ export interface StockTransferItem {
   uom: string;
   availableStock: number;
   transferQty: number;
+  requiredQty?: number;
+  requisitionRefNumber?: string;
+  scheduleNumber?: string;
+  mixingRefNumber?: string;
+  targetStoreCode?: string;
   receivedQty?: number;
   acceptedQty?: number;
   rejectedQty?: number;

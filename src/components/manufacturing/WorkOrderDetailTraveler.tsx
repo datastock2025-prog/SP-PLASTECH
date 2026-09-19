@@ -23,8 +23,10 @@ import {
   Inbox,
   Check,
   Plus,
-  Trash2
+  Trash2,
+  Lock,
 } from 'lucide-react';
+import { isWorkOrderInputStarted } from './jit/jitCalculations';
 
 interface TravelerProps {
   workOrder: WorkOrder;
@@ -152,6 +154,17 @@ export const WorkOrderDetailTraveler: React.FC<TravelerProps> = ({
               {wo.jitScheduleId && (
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                   ⚡ {wo.jitScheduleId}
+                </span>
+              )}
+              {isWorkOrderInputStarted(wo) && (
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1 shadow-2xs">
+                  <Lock className="w-3 h-3 text-amber-700" />
+                  Floor Active ({wo.completed} Good, {wo.scrap} Scrap)
+                </span>
+              )}
+              {wo.sentToDailyProd === false && (
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                  WO Only (Pending Floor Release)
                 </span>
               )}
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${

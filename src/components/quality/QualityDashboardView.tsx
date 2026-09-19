@@ -386,8 +386,9 @@ export const QualityDashboardView: React.FC<Props> = ({
       </div>
 
       {/* Quality Modules Navigation Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
         {[
+          { id: 'wipStoreQc', name: 'Store QC Gate', desc: 'WIP, Deflash & Assembly', icon: Layers },
           { id: 'inspectionPlanList', name: 'Inspection Plans', desc: 'AQL test protocols', icon: Ruler },
           { id: 'incomingInspection', name: 'Incoming IQC', desc: 'Resin & MB inspection', icon: Inbox },
           { id: 'spcMonitor', name: 'In-Process SPC', desc: 'X̄-R charts & Cpk', icon: BarChart3 },

@@ -2,6 +2,7 @@ export type StockItemStatus = 'in_stock' | 'low_stock' | 'out_of_stock' | 'in_qu
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
 export type CountStatus = 'scheduled' | 'in_progress' | 'under_review' | 'reconciled' | 'variance_flagged';
 export type QuarantineDisposition = 'pending_disposition' | 'released_to_production' | 'returned_to_vendor' | 'send_to_regrind' | 'scrap_destroy';
+export type LedgerTransactionStatus = 'OPEN' | 'CLOSED' | 'IN TRANSIT';
 
 export interface WarehouseLocation {
   id: string;
@@ -32,13 +33,81 @@ export interface InventoryStockLot {
   status: 'released' | 'quarantine' | 'reserved' | 'depleted';
   grnReference: string;
   expiryDate?: string;
+
+  // "Where From In" (Inward Origin)
+  inwardSource?: string;         // e.g. "Vendor Inward (Reliance Petrochemicals Ltd)", "Production Shift A (IMM-250T-03)"
+  inwardOriginLocation?: string; // e.g. "Inward Receiving Dock #1", "Molding Shopfloor Bay 4"
+  inwardDocumentRef?: string;    // e.g. "GRN-2026-001 / PO-9921", "WO-20260919-01"
+  inwardReceivedBy?: string;     // e.g. "Ramesh K. (Inward Storekeeper)"
+
+  // "What Purpose Is Out" (Outward Purpose)
+  outwardPurpose?: string;       // e.g. "Issued to Molding Work Order", "Dispatched for Customer Tax Invoice"
+  outwardDestination?: string;   // e.g. "PRD-STORE (Machine Line #3)", "FG-STORE (Loading Dock #2)"
+  outwardReference?: string;     // e.g. "WO-2026-0881", "INV-2026-9042"
+  outwardAuthorizedBy?: string;  // e.g. "Suresh P. (Production Supervisor)"
 }
+
+export interface StockMovementLedgerEntry {
+  id: string;
+  timestamp: string;
+  ledgerDate: string;            // e.g. "18/09/2026"
+  docType: 'TRANSFERS' | 'RECEIPTS' | 'ISSUES' | 'DISPATCHES' | 'ADJUSTMENTS';
+  docNumber: string;             // e.g. "TF26-0852", "GR26-1069"
+  location: string;              // e.g. "U1RM-DOCK", "WIP-STAGING-01", "CON-STORE"
+  locationType: string;          // e.g. "DOCK", "WAREHOUSE", "SHOPFLOOR", "ASSEMBLY", "QUARANTINE"
+  customer?: string;             // e.g. "TATA MOTORS", "BAJAJ AUTO", ""
+  supplier?: string;             // e.g. "KINGFA SCIENCE & TECHN BAN", "RELIANCE INDUSTRIES"
+  sku: string;
+  itemName: string;
+  lotNumber?: string;
+  unitPrice?: number;            // e.g. 447.00
+  parentDocType?: string;        // e.g. "PO", "WO", "MTN", "SO"
+  parentDocNumber?: string;      // e.g. "202600600"
+  referenceNumber?: string;      // e.g. "1712-2601475"
+  qtyPerUom?: number;            // e.g. 1
+  movementType: 'IN' | 'OUT';
+  quantity: number;
+  qtyIn: number;                 // e.g. 3325.0000
+  qtyOut: number;                // e.g. 450.0000
+  uom: string;
+  status: LedgerTransactionStatus; // 'OPEN' | 'CLOSED' | 'IN TRANSIT'
+
+  // "Where From In" (Inward Origin)
+  sourceType?: 'VENDOR_GRN' | 'PRODUCTION_OUTPUT' | 'DEFLASH_RETURN' | 'REGRIND_RECOVERY' | 'INTER_PLANT_TRANSFER' | 'INITIAL_OPENING';
+  sourceOrigin: string;          // e.g. "Reliance Petrochemicals (PO-2026-081)"
+  sourceReference: string;       // e.g. "GRN-2026-001"
+  sourceLocation: string;        // e.g. "Inward Receiving Dock #1"
+
+  // "What Purpose Is Out" (Outward Purpose)
+  purposeType?: 'PRODUCTION_ISSUE' | 'ASSEMBLY_REQUISITION' | 'DEFLASH_TRIMMING' | 'CUSTOMER_DISPATCH' | 'QC_REJECTION_SCRAP' | 'SUBCONTRACT_JOB';
+  purposeDescription: string;    // e.g. "Issued for Automotive Bumper Housing Molding"
+  destinationStore: string;      // e.g. "PRD-STORE (IMM Line #3)"
+  outwardReference: string;      // e.g. "WO-2026-0881"
+
+  authorizedBy: string;          // e.g. "Ramesh K. (Store In-Charge)"
+  runningBalance: number;
+  notes?: string;
+}
+
+export type StoreCategoryType =
+  | 'Virgin Polymer'
+  | 'Masterbatch'
+  | 'Additive'
+  | 'Regrind Polymer'
+  | 'Molded Part (FG)'
+  | 'Insert / Hardware'
+  | 'Packaging Material'
+  | 'WIP Store'
+  | 'Consumables'
+  | 'Packaging Store'
+  | 'BOP Store';
 
 export interface InventoryStockItem {
   id: string;
   sku: string;
   name: string;
-  category: 'Virgin Polymer' | 'Masterbatch' | 'Additive' | 'Regrind Polymer' | 'Molded Part (FG)' | 'Insert / Hardware' | 'Packaging Material';
+  category: StoreCategoryType;
+  storeType?: 'RM' | 'WIP' | 'CON' | 'PCK' | 'BOP' | 'FG';
   subCategory: string;
   resinGrade?: string;
   primaryWarehouse: string;

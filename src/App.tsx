@@ -474,6 +474,7 @@ export const App: React.FC = () => {
       inspectionPlanList: ['Quality Management', 'Inspection Plans & AQL Protocols'],
       inspectionPlanDetail: ['Quality Management', 'Inspection Plan', viewParams.id || 'Detail'],
       incomingInspection: ['Quality Management', 'Incoming Material Inspection (IQC)'],
+      wipStoreQc: ['Quality Management', 'Consolidated Store QC Check (WIP, Deflash & Assembly)'],
       spcMonitor: ['Quality Management', 'In-Process SPC Control Charts'],
       finalInspection: ['Quality Management', 'Final Product Release (FQC)'],
       ncrList: ['Quality Management', 'Non-Conformance Reports (NCR)'],
@@ -768,6 +769,9 @@ export const App: React.FC = () => {
     'qualityDash',
     'inspectionPlanList',
     'incomingInspection',
+    'wipStoreQc',
+    'storeQcCheck',
+    'wipQcInspection',
     'spcMonitor',
     'finalInspection',
     'ncrList',
@@ -1043,7 +1047,7 @@ export const App: React.FC = () => {
                 setWorkOrders((prev) => prev.map((w) => (w.id === updated.id ? updated : w)));
               }}
               onCreateWO={(newWO) => {
-                setWorkOrders((prev) => [newWO, ...prev]);
+                setWorkOrders((prev) => (prev.some((w) => w.id === newWO.id) ? prev : [newWO, ...prev]));
               }}
               onDeleteWO={(id) => {
                 setWorkOrders((prev) => prev.filter((w) => w.id !== id));
@@ -1169,6 +1173,8 @@ export const App: React.FC = () => {
               ncrs={ncrs}
               capas={capas}
               coas={coas}
+              items={items}
+              workOrders={workOrders}
               selectedId={viewParams.id}
               onNavigate={handleNavigate}
               onUpdateNCR={(updated) => {

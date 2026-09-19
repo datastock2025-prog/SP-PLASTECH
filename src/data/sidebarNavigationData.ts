@@ -181,6 +181,7 @@ export const NAVIGATION_GROUPS: NavGroupDef[] = [
       { id: 'nav-subcontract', label: 'Subcontracting (Job Work)', view: 'subcontractList', icon: 'GitPullRequest', subGroup: 'Warehouse' },
       // Quality
       { id: 'nav-quality-dash', label: 'Quality Command Center', view: 'qualityDash', icon: 'Award', subGroup: 'Quality' },
+      { id: 'nav-store-qc', label: 'Store QC Inspection (WIP / FG)', view: 'wipStoreQc', icon: 'ShieldCheck', subGroup: 'Quality' },
       { id: 'nav-inspections', label: 'Inspection Plans & Checklists', view: 'inspectionPlanList', icon: 'CheckSquare', subGroup: 'Quality' },
       { id: 'nav-ncr-list', label: 'Non-Conformance Reports (NCR)', view: 'ncrList', icon: 'AlertTriangle', badge: '2 Open', badgeColor: 'bg-rose-500', subGroup: 'Quality' },
       { id: 'nav-capa-list', label: 'CAPA Management', view: 'capaList', icon: 'CheckCircle2', subGroup: 'Quality' },

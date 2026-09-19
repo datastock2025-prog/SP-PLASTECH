@@ -575,6 +575,9 @@ export interface WorkOrder {
   releasedBy?: string;
   releasedDate?: string;
   coaId?: string;
+  sentToDailyProd?: boolean;
+  isLockedByInput?: boolean;
+  adminUnlockedBy?: string;
   outputLogs: Array<{ time: string; good: number; scrap: number; by: string; rejReason?: string }>;
   downtimeLogs: Array<{ time: string; reason: string; min: number; by: string }>;
   checklist: Array<{ label: string; done: boolean }>;

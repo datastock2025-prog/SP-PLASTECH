@@ -534,6 +534,25 @@ export const mockWarehouseLocations: WarehouseLocationConfig[] = [
     isBlocked: true,
     barcodeScannable: true,
   },
+  {
+    id: 'LOC-PRD-01',
+    warehouseCode: 'PRD-UNIT-1',
+    warehouseName: 'PRD-UNIT-1 (Production Store Unit 1 - Shop Floor Hopper & Mixing Bay)',
+    plantId: 'PLANT-01',
+    plantName: 'Pune / Pimpri Unit 1',
+    zoneCode: 'Z-PRD-MIX',
+    zoneName: 'Production Staging & Hopper Mixing Bay',
+    zoneType: 'Raw Polymer Silos',
+    aisle: 'PRD-1',
+    rack: 'MIX-BAY',
+    shelf: '01',
+    binCode: 'PRD-UNIT-1-BAY',
+    maxCapacityKg: 15000,
+    currentOccupancyKg: 4850,
+    temperatureControlled: false,
+    isBlocked: false,
+    barcodeScannable: true,
+  },
 ];
 
 // -------------------------------------------------------------

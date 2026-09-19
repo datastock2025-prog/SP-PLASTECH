@@ -11,8 +11,12 @@ export interface PlannedMachineJob {
   itemName: string;
   moldId: string;
   moldName: string;
+  bomId?: string;
   cavities: number;
   cycleTimeSec: number;
+  isCustomCavity?: boolean;
+  isCustomCycleTime?: boolean;
+  isCustomOverride?: boolean;
   plannedHours: number;
   calculatedPcs: number;
   targetPcs: number;
@@ -24,10 +28,16 @@ export interface PlannedMachineJob {
   plant?: string;
   plantName?: string;
   priority: 'High' | 'Normal' | 'Urgent';
+  expectedFinishDate?: string;
+  expectedFinishTime?: string;
   status: 'Draft' | 'Feasible' | 'Material_Shortage' | 'Released';
   workOrderGenerated?: string;
   workOrderId?: string;
+  scheduleNumber?: string;
+  sentToDailyProd?: boolean;
+  isLockedByInput?: boolean;
   releasedAt?: string;
+  auditLog?: Array<{ timestamp: string; action: string; user?: string }>;
 }
 
 export type MaterialCategory = 'RM' | 'MB' | 'INSERT' | 'PCK' | 'OTHER';
@@ -60,6 +70,7 @@ export interface StoreInventoryNode {
   type: 'FG' | 'SFG' | 'RM' | 'MB' | 'PCK' | 'SPARE' | 'CUSTOM';
   description: string;
   zone: string;
+  plantId?: string;
   isCustom?: boolean;
   totalItemsCount?: number;
   totalWeightKg?: number;
@@ -74,3 +85,16 @@ export interface JitProductionPlan {
   notes: string;
   targetDayLabel: string;
 }
+
+export interface CrudEligibilityUser {
+  id: string;
+  name: string;
+  role: string;
+  department: string;
+  canEditReleased: boolean;
+  canDeleteReleased: boolean;
+  canAddReleased: boolean;
+  canRollbackInputWO?: boolean;
+}
+
+

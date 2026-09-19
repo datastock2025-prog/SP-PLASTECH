@@ -21,8 +21,14 @@ import {
   User,
   Clock,
   Info,
-  QrCode,
   Sparkles,
+  Factory,
+  Cpu,
+  Check,
+  CheckSquare,
+  Square,
+  Send,
+  ListPlus,
 } from 'lucide-react';
 import {
   TransferType,
@@ -34,12 +40,16 @@ import {
   PlantMaster,
   StoreMaster,
   UserRolePerspective,
+  ProductionScheduleCMR,
 } from '../../types/stockTransferTypes';
 import {
   MASTER_PLANTS,
   MASTER_STORES,
   MASTER_ITEMS_CATALOG,
   MASTER_MOLDS_CATALOG,
+  INITIAL_PRODUCTION_CMRS,
+  INITIAL_ASSEMBLY_REQUISITIONS,
+  INITIAL_DEFLASH_REQUISITIONS,
 } from '../../data/stockTransferData';
 
 interface CreateTransferWizardProps {
@@ -85,6 +95,223 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
   const [selectedAsset, setSelectedAsset] = useState<AssetMoldItem | null>(preselectedAsset || null);
   const [itemSearchQuery, setItemSearchQuery] = useState<string>('');
   const [barcodeInput, setBarcodeInput] = useState<string>('');
+
+  // Step 3: Requisition & CMR Selection (Task 2)
+  const [itemSourceTab, setItemSourceTab] = useState<'REQUISITIONS' | 'CATALOG'>('REQUISITIONS');
+  const [reqFilterCategory, setReqFilterCategory] = useState<'ALL' | 'CMR' | 'ASSEMBLY' | 'DEFLASH'>('ALL');
+  const [selectedReqKeys, setSelectedReqKeys] = useState<Set<string>>(new Set());
+  const [inlineReqQuantities, setInlineReqQuantities] = useState<{ [key: string]: number }>({});
+
+  // Flattened Available Requisitions & CMR Items (Task 2)
+  const availableRequisitionItems = useMemo(() => {
+    const list: Array<{
+      key: string;
+      category: 'CMR' | 'ASSEMBLY' | 'DEFLASH';
+      requisitionRef: string;
+      scheduleNumber: string;
+      finishedGoodSku?: string;
+      finishedGoodName?: string;
+      itemCode: string;
+      itemName: string;
+      materialType: MaterialType;
+      targetStore: string;
+      targetStoreId: string;
+      lotNumber: string;
+      pickLocation: string;
+      requiredQty: number;
+      availableStock: number;
+      uom: string;
+      unitCost: number;
+      hsnCode: string;
+    }> = [];
+
+    // 1. CMR mixing materials
+    INITIAL_PRODUCTION_CMRS.forEach((cmr) => {
+      cmr.mixingMaterials.forEach((mat) => {
+        list.push({
+          key: `cmr-${cmr.id}-${mat.materialSku}`,
+          category: 'CMR',
+          requisitionRef: cmr.id,
+          scheduleNumber: cmr.scheduleNumber,
+          finishedGoodSku: cmr.finishedGoodSku,
+          finishedGoodName: cmr.finishedGoodName,
+          itemCode: mat.materialSku,
+          itemName: `${mat.materialName} (for ${cmr.finishedGoodSku})`,
+          materialType: 'RM',
+          targetStore: cmr.targetProductionStore || 'PRD-UNIT-1',
+          targetStoreId: 'STR-PMP-PRD1',
+          lotNumber: mat.lotNumber,
+          pickLocation: 'WH-RM-SILO-01',
+          requiredQty: mat.requiredQtyKg,
+          availableStock: 5000,
+          uom: mat.uom,
+          unitCost: mat.unitCostInr,
+          hsnCode: '39021000',
+        });
+      });
+    });
+
+    // 2. Assembly Requisitions
+    INITIAL_ASSEMBLY_REQUISITIONS.forEach((asm) => {
+      asm.requiredParts.forEach((part) => {
+        list.push({
+          key: `asm-${asm.id}-${part.sku}`,
+          category: 'ASSEMBLY',
+          requisitionRef: asm.id,
+          scheduleNumber: asm.scheduleNumber,
+          finishedGoodSku: asm.finishedGoodSku,
+          finishedGoodName: asm.finishedGoodName,
+          itemCode: part.sku,
+          itemName: `${part.name} (for ${asm.finishedGoodSku})`,
+          materialType: 'BOP',
+          targetStore: asm.targetLine,
+          targetStoreId: 'STR-PMP-ASM',
+          lotNumber: part.lot,
+          pickLocation: part.storeLocation,
+          requiredQty: part.qty,
+          availableStock: 1200,
+          uom: part.uom,
+          unitCost: 14.5,
+          hsnCode: '84099900',
+        });
+      });
+    });
+
+    // 3. Deflash Requisitions
+    INITIAL_DEFLASH_REQUISITIONS.forEach((dfl) => {
+      list.push({
+        key: `dfl-${dfl.id}-${dfl.wipItemSku}`,
+        category: 'DEFLASH',
+        requisitionRef: dfl.id,
+        scheduleNumber: dfl.scheduleNumber,
+        finishedGoodSku: dfl.wipItemSku,
+        finishedGoodName: dfl.wipItemName,
+        itemCode: dfl.wipItemSku,
+        itemName: `${dfl.wipItemName} (Deflash Stage)`,
+        materialType: 'WIP',
+        targetStore: dfl.targetBay,
+        targetStoreId: 'STR-PMP-DFL',
+        lotNumber: 'LOT-WIP-2026-042',
+        pickLocation: 'WIP-AREA-STG',
+        requiredQty: dfl.qty,
+        availableStock: 1500,
+        uom: dfl.uom,
+        unitCost: 48.0,
+        hsnCode: '39269099',
+      });
+    });
+
+    return list;
+  }, []);
+
+  // Filtered Requisitions for Step 3
+  const filteredRequisitionItems = useMemo(() => {
+    return availableRequisitionItems.filter((item) => {
+      const matchCat = reqFilterCategory === 'ALL' || item.category === reqFilterCategory;
+      const matchQuery =
+        !itemSearchQuery ||
+        item.itemCode.toLowerCase().includes(itemSearchQuery.toLowerCase()) ||
+        item.itemName.toLowerCase().includes(itemSearchQuery.toLowerCase()) ||
+        item.requisitionRef.toLowerCase().includes(itemSearchQuery.toLowerCase()) ||
+        item.scheduleNumber.toLowerCase().includes(itemSearchQuery.toLowerCase());
+      return matchCat && matchQuery;
+    });
+  }, [availableRequisitionItems, reqFilterCategory, itemSearchQuery]);
+
+  // Toggle Requisition Selection
+  const handleToggleReqSelect = (key: string) => {
+    setSelectedReqKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  // Select All Requisitions in current filter
+  const handleSelectAllReqs = () => {
+    if (selectedReqKeys.size === filteredRequisitionItems.length) {
+      setSelectedReqKeys(new Set());
+    } else {
+      setSelectedReqKeys(new Set(filteredRequisitionItems.map((i) => i.key)));
+    }
+  };
+
+  // Update inline quantity for a requisition
+  const handleInlineReqQtyChange = (key: string, val: number) => {
+    setInlineReqQuantities((prev) => ({
+      ...prev,
+      [key]: Math.max(0, val),
+    }));
+  };
+
+  // Bulk Add Selected Requisitions to Transfer Lines (Task 2)
+  const handleBulkAddRequisitions = () => {
+    if (selectedReqKeys.size === 0) {
+      showToast('Please select at least one requisition item for bulk transfer.');
+      return;
+    }
+
+    const itemsToAdd: StockTransferItem[] = [];
+    let hasCmr = false;
+
+    availableRequisitionItems.forEach((reqItem) => {
+      if (selectedReqKeys.has(reqItem.key)) {
+        const qtyToTransfer =
+          inlineReqQuantities[reqItem.key] !== undefined
+            ? inlineReqQuantities[reqItem.key]
+            : reqItem.requiredQty;
+
+        if (qtyToTransfer > 0) {
+          if (reqItem.category === 'CMR') hasCmr = true;
+
+          const existingIdx = selectedItems.findIndex(
+            (i) => i.id === reqItem.key || (i.itemCode === reqItem.itemCode && i.requisitionRefNumber === reqItem.requisitionRef)
+          );
+
+          if (existingIdx === -1) {
+            const cleanSku = (reqItem.finishedGoodSku || reqItem.itemCode).replace('FG-', '').replace('RM-', '');
+            const dateStr = transferDate.replace(/-/g, '');
+            const seq = Math.floor(10 + Math.random() * 90);
+            const mixRef = reqItem.category === 'CMR' ? `MIX-${cleanSku}-${dateStr}-${seq}` : undefined;
+
+            itemsToAdd.push({
+              id: reqItem.key,
+              itemCode: reqItem.itemCode,
+              itemName: reqItem.itemName,
+              materialType: reqItem.materialType,
+              batchLotNumber: reqItem.lotNumber,
+              pickLocation: reqItem.pickLocation,
+              availableStock: reqItem.availableStock,
+              requiredQty: reqItem.requiredQty,
+              transferQty: qtyToTransfer,
+              uom: reqItem.uom,
+              standardCost: reqItem.unitCost,
+              hsnCode: reqItem.hsnCode,
+              gstRatePct: 18,
+              requisitionRefNumber: reqItem.requisitionRef,
+              scheduleNumber: reqItem.scheduleNumber,
+              mixingRefNumber: mixRef,
+              targetStoreCode: reqItem.targetStore,
+              netWeightKg: qtyToTransfer,
+            });
+          }
+        }
+      }
+    });
+
+    if (itemsToAdd.length === 0) {
+      showToast('Selected items are already present in line items.');
+      return;
+    }
+
+    if (hasCmr) {
+      setToStoreId('STR-PMP-PRD1');
+    }
+
+    setSelectedItems((prev) => [...prev, ...itemsToAdd]);
+    showToast(`Bulk added ${itemsToAdd.length} requisition item(s) to transfer lines.`);
+  };
 
   // Step 4: Logistics & Indian Tax Compliance
   const [vehicleNumber, setVehicleNumber] = useState<string>('MH-12-RN-8833');
@@ -371,8 +598,14 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
       fromStoreName: activeFromStore?.name || '',
       toPlantId,
       toPlantName: toPlant.name,
-      toStoreId,
-      toStoreName: activeToStore?.name || '',
+      toStoreId:
+        selectedItems.some((i) => i.targetStoreCode === 'PRD-UNIT-1' || i.requisitionRefNumber?.startsWith('CMR'))
+          ? 'STR-PMP-PRD1'
+          : toStoreId,
+      toStoreName:
+        selectedItems.some((i) => i.targetStoreCode === 'PRD-UNIT-1' || i.requisitionRefNumber?.startsWith('CMR'))
+          ? 'PRD-UNIT-1 (Production Store Unit 1 - Shop Floor Hopper & Mixing Bay)'
+          : activeToStore?.name || '',
       items: selectedItems,
       assetDetails: transferType === 'ASSET_MOLD' && selectedAsset ? selectedAsset : undefined,
       logistics:
@@ -888,79 +1121,318 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                 )}
               </div>
             ) : (
-              /* Standard / Returnable Material Item Grid */
+              /* Standard / Requisition Material Item View (Task 2) */
               <div className="space-y-4">
-                {/* Search & Barcode Quick Add Toolbar */}
-                <div className="flex flex-col md:flex-row items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                  <div className="relative w-full md:w-80">
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                    <input
-                      type="text"
-                      placeholder="Search code, polymer grade, batch..."
-                      value={itemSearchQuery}
-                      onChange={(e) => setItemSearchQuery(e.target.value)}
-                      className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  {/* Barcode Scanner Simulator Input */}
-                  <form onSubmit={handleBarcodeSubmit} className="flex items-center gap-2 w-full md:w-auto">
-                    <div className="relative flex-1 md:w-64">
-                      <Barcode className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                      <input
-                        type="text"
-                        placeholder="Scan barcode / LOT tag..."
-                        value={barcodeInput}
-                        onChange={(e) => setBarcodeInput(e.target.value)}
-                        className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
-                      />
-                    </div>
+                {/* Item Source Tabs: Schedule Requisitions & CMRs vs Manual Catalog */}
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <div className="flex items-center gap-2">
                     <button
-                      type="submit"
-                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold whitespace-nowrap shadow-2xs"
+                      type="button"
+                      onClick={() => setItemSourceTab('REQUISITIONS')}
+                      className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${
+                        itemSourceTab === 'REQUISITIONS'
+                          ? 'bg-[#14213D] text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
                     >
-                      Scan Add
+                      <Factory className="w-3.5 h-3.5 text-blue-400" />
+                      <span>Schedule Requisitions &amp; CMRs (Bulk Transfer)</span>
+                      <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-blue-500/30 text-white">
+                        {availableRequisitionItems.length}
+                      </span>
                     </button>
-                  </form>
+
+                    <button
+                      type="button"
+                      onClick={() => setItemSourceTab('CATALOG')}
+                      className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${
+                        itemSourceTab === 'CATALOG'
+                          ? 'bg-[#14213D] text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Item Master Catalog &amp; Barcode</span>
+                    </button>
+                  </div>
+
+                  <div className="text-xs text-slate-500 hidden sm:block">
+                    Target Store: <strong className="text-blue-700">{activeToStore?.name || 'PRD-UNIT-1'}</strong>
+                  </div>
                 </div>
 
-                {/* Quick Catalog Picker Dropdown / Suggestions */}
-                <div className="border border-slate-200 rounded-xl p-3 bg-white">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                    Available Catalog Items (Click to Add to Line Grid):
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {MASTER_ITEMS_CATALOG.filter((i) =>
-                      itemSearchQuery
-                        ? i.itemName.toLowerCase().includes(itemSearchQuery.toLowerCase()) ||
-                          i.itemCode.toLowerCase().includes(itemSearchQuery.toLowerCase())
-                        : true
-                    ).map((catItem) => (
+                {/* ================= SUB-VIEW A: REQUISITIONS & CMRs ================= */}
+                {itemSourceTab === 'REQUISITIONS' && (
+                  <div className="space-y-3 bg-slate-50/50 p-3.5 rounded-2xl border border-slate-200">
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-2">
+                      {/* Category Filter Pills */}
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 text-xs">
+                        <span className="text-[11px] font-bold text-slate-500 mr-1">Filter:</span>
+                        {[
+                          { id: 'ALL', label: 'All Requests' },
+                          { id: 'CMR', label: 'Production CMRs (PRD-UNIT-1)' },
+                          { id: 'ASSEMBLY', label: 'Assembly Requisitions' },
+                          { id: 'DEFLASH', label: 'Deflash Requisitions' },
+                        ].map((cat) => (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => setReqFilterCategory(cat.id as any)}
+                            className={`px-2.5 py-1 rounded-lg font-semibold text-xs transition whitespace-nowrap ${
+                              reqFilterCategory === cat.id
+                                ? 'bg-blue-600 text-white shadow-2xs'
+                                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            {cat.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Search */}
+                      <div className="relative w-full md:w-64">
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                        <input
+                          type="text"
+                          placeholder="Search requisition, SKU, schedule..."
+                          value={itemSearchQuery}
+                          onChange={(e) => setItemSearchQuery(e.target.value)}
+                          className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Requisitions Grid with Inline Editable Transfer Quantities */}
+                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200 text-[11px]">
+                          <tr>
+                            <th className="py-2.5 px-3 text-center w-10">
+                              <input
+                                type="checkbox"
+                                aria-label="Select All Requisitions"
+                                checked={
+                                  filteredRequisitionItems.length > 0 &&
+                                  selectedReqKeys.size === filteredRequisitionItems.length
+                                }
+                                onChange={handleSelectAllReqs}
+                                className="rounded text-blue-600 focus:ring-blue-500"
+                              />
+                            </th>
+                            <th className="py-2.5 px-3">Item Code &amp; Description</th>
+                            <th className="py-2.5 px-3">Requisition &bull; Schedule</th>
+                            <th className="py-2.5 px-3">Type</th>
+                            <th className="py-2.5 px-3">Target Store</th>
+                            <th className="py-2.5 px-3 font-mono">Lot #</th>
+                            <th className="py-2.5 px-3 text-right">Required</th>
+                            <th className="py-2.5 px-3 text-right">Avail. Stock</th>
+                            <th className="py-2.5 px-3 text-right w-36">Transfer Qty (Inline)</th>
+                            <th className="py-2.5 px-3 text-center">Quick Fill</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {filteredRequisitionItems.length === 0 ? (
+                            <tr>
+                              <td colSpan={10} className="py-8 text-center text-slate-400">
+                                No pending requisitions found matching your filter.
+                              </td>
+                            </tr>
+                          ) : (
+                            filteredRequisitionItems.map((reqItem) => {
+                              const isSelected = selectedReqKeys.has(reqItem.key);
+                              const currentQty =
+                                inlineReqQuantities[reqItem.key] !== undefined
+                                  ? inlineReqQuantities[reqItem.key]
+                                  : reqItem.requiredQty;
+
+                              return (
+                                <tr
+                                  key={reqItem.key}
+                                  className={`transition-colors ${
+                                    isSelected ? 'bg-blue-50/50' : 'hover:bg-slate-50/70'
+                                  }`}
+                                >
+                                  <td className="py-2 px-3 text-center">
+                                    <input
+                                      type="checkbox"
+                                      aria-label={`Select ${reqItem.itemCode} from ${reqItem.requisitionRef}`}
+                                      checked={isSelected}
+                                      onChange={() => handleToggleReqSelect(reqItem.key)}
+                                      className="rounded text-blue-600 focus:ring-blue-500"
+                                    />
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <div className="font-mono font-bold text-slate-900">{reqItem.itemCode}</div>
+                                    <div className="text-[11px] text-slate-600 truncate max-w-xs">{reqItem.itemName}</div>
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <div className="font-mono font-bold text-blue-700">{reqItem.requisitionRef}</div>
+                                    <div className="text-[10px] text-slate-500">SCH: {reqItem.scheduleNumber}</div>
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <span
+                                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                        reqItem.materialType === 'RM'
+                                          ? 'bg-blue-100 text-blue-800'
+                                          : reqItem.materialType === 'BOP'
+                                          ? 'bg-purple-100 text-purple-800'
+                                          : 'bg-orange-100 text-orange-800'
+                                      }`}
+                                    >
+                                      {reqItem.materialType}
+                                    </span>
+                                  </td>
+                                  <td className="py-2 px-3 text-[11px] font-semibold text-blue-700">
+                                    {reqItem.targetStore}
+                                  </td>
+                                  <td className="py-2 px-3 font-mono text-[11px] text-teal-700">
+                                    {reqItem.lotNumber}
+                                  </td>
+                                  <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
+                                    {reqItem.requiredQty.toFixed(1)} {reqItem.uom}
+                                  </td>
+                                  <td className="py-2 px-3 text-right font-mono text-slate-600">
+                                    {reqItem.availableStock.toLocaleString()} {reqItem.uom}
+                                  </td>
+                                  <td className="py-2 px-3 text-right">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      max={reqItem.availableStock}
+                                      value={currentQty}
+                                      onChange={(e) =>
+                                        handleInlineReqQtyChange(reqItem.key, parseFloat(e.target.value) || 0)
+                                      }
+                                      className="w-28 text-right bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900 focus:ring-1 focus:ring-blue-500"
+                                    />
+                                  </td>
+                                  <td className="py-2 px-3 text-center">
+                                    <div className="flex items-center justify-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleInlineReqQtyChange(reqItem.key, reqItem.requiredQty)}
+                                        className="px-1.5 py-0.5 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded"
+                                        title="Fill Required Quantity"
+                                      >
+                                        Req
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleInlineReqQtyChange(reqItem.key, reqItem.availableStock)}
+                                        className="px-1.5 py-0.5 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded"
+                                        title="Fill Maximum Available Stock"
+                                      >
+                                        Max
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Bulk Transfer Action Bar */}
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-1">
+                      <div className="text-xs text-slate-600">
+                        <strong className="text-blue-700">{selectedReqKeys.size}</strong> item(s) selected for bulk transfer
+                      </div>
+
                       <button
-                        key={catItem.id}
                         type="button"
-                        onClick={() => handleAddItem(catItem)}
-                        className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:border-blue-400 bg-slate-50 hover:bg-blue-50/50 text-left text-xs transition-colors flex items-center gap-2"
+                        onClick={handleBulkAddRequisitions}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition"
                       >
-                        <span className="font-mono font-bold text-blue-700">{catItem.itemCode}</span>
-                        <span className="text-slate-700 max-w-xs truncate">{catItem.itemName}</span>
-                        <span className="text-[10px] text-slate-400">({catItem.uom})</span>
-                        <Plus className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <ListPlus className="w-4 h-4" />
+                        <span>Bulk Add Selected Items to Transfer Lines</span>
                       </button>
-                    ))}
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* ================= SUB-VIEW B: MANUAL CATALOG & BARCODE ================= */}
+                {itemSourceTab === 'CATALOG' && (
+                  <div className="space-y-4">
+                    {/* Search & Barcode Quick Add Toolbar */}
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                      <div className="relative w-full md:w-80">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                        <input
+                          type="text"
+                          placeholder="Search code, polymer grade, batch..."
+                          value={itemSearchQuery}
+                          onChange={(e) => setItemSearchQuery(e.target.value)}
+                          className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      {/* Barcode Scanner Simulator Input */}
+                      <form onSubmit={handleBarcodeSubmit} className="flex items-center gap-2 w-full md:w-auto">
+                        <div className="relative flex-1 md:w-64">
+                          <Barcode className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                          <input
+                            type="text"
+                            placeholder="Scan barcode / LOT tag..."
+                            value={barcodeInput}
+                            onChange={(e) => setBarcodeInput(e.target.value)}
+                            className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold whitespace-nowrap shadow-2xs"
+                        >
+                          Scan Add
+                        </button>
+                      </form>
+                    </div>
+
+                    {/* Quick Catalog Picker Dropdown / Suggestions */}
+                    <div className="border border-slate-200 rounded-xl p-3 bg-white">
+                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                        Available Catalog Items (Click to Add to Line Grid):
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {MASTER_ITEMS_CATALOG.filter((i) =>
+                          itemSearchQuery
+                            ? i.itemName.toLowerCase().includes(itemSearchQuery.toLowerCase()) ||
+                              i.itemCode.toLowerCase().includes(itemSearchQuery.toLowerCase())
+                            : true
+                        ).map((catItem) => (
+                          <button
+                            key={catItem.id}
+                            type="button"
+                            onClick={() => handleAddItem(catItem)}
+                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:border-blue-400 bg-slate-50 hover:bg-blue-50/50 text-left text-xs transition-colors flex items-center gap-2"
+                          >
+                            <span className="font-mono font-bold text-blue-700">{catItem.itemCode}</span>
+                            <span className="text-slate-700 max-w-xs truncate">{catItem.itemName}</span>
+                            <span className="text-[10px] text-slate-400">({catItem.uom})</span>
+                            <Plus className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Selected Transfer Lines Table */}
-                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs bg-white">
                   <div className="bg-slate-100 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-800">
-                      Transfer Line Items ({selectedItems.length})
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-800">
+                        Transfer Line Items ({selectedItems.length})
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        (Ready for dispatch to requested store)
+                      </span>
+                    </div>
                     <span className="text-xs text-slate-500">
                       Total Weight:{' '}
                       <strong className="text-slate-800">
-                        {selectedItems.reduce((acc, i) => acc + (i.transferQty * 1), 0)} KG
+                        {selectedItems.reduce((acc, i) => acc + (i.transferQty * 1), 0).toFixed(1)} KG
                       </strong>
                     </span>
                   </div>
@@ -969,6 +1441,7 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                     <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
                       <tr>
                         <th className="py-2.5 px-3 font-bold">Item Code &amp; Description</th>
+                        <th className="py-2.5 px-3 font-bold">Requisition &bull; Mix Ref</th>
                         <th className="py-2.5 px-3 font-bold">Type</th>
                         <th className="py-2.5 px-3 font-bold">Batch / Lot #</th>
                         <th className="py-2.5 px-3 font-bold">Pick Bin</th>
@@ -983,8 +1456,8 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                     <tbody className="divide-y divide-slate-100">
                       {selectedItems.length === 0 ? (
                         <tr>
-                          <td colSpan={10} className="py-8 text-center text-slate-400">
-                            No items added yet. Search or click above catalog items to add to transfer.
+                          <td colSpan={11} className="py-8 text-center text-slate-400">
+                            No items added yet. Select pending requisitions above or click catalog items.
                           </td>
                         </tr>
                       ) : (
@@ -995,11 +1468,27 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                               <div className="text-[11px] text-slate-600">{item.itemName}</div>
                             </td>
                             <td className="py-2.5 px-3">
+                              {item.requisitionRefNumber ? (
+                                <div>
+                                  <div className="font-mono font-bold text-blue-700 text-[11px]">
+                                    {item.requisitionRefNumber}
+                                  </div>
+                                  {item.mixingRefNumber && (
+                                    <div className="font-mono text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 inline-block">
+                                      {item.mixingRefNumber}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 text-[11px] italic">Ad-hoc Issue</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3">
                               <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[10px]">
                                 {item.materialType}
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 font-mono text-[11px] text-slate-700">
+                            <td className="py-2.5 px-3 font-mono text-[11px] text-teal-700">
                               {item.batchLotNumber}
                             </td>
                             <td className="py-2.5 px-3 text-[11px] text-slate-600 font-mono">
@@ -1029,6 +1518,7 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                             </td>
                             <td className="py-2.5 px-3 text-center">
                               <button
+                                type="button"
                                 onClick={() => handleRemoveItem(item.id)}
                                 className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
                               >

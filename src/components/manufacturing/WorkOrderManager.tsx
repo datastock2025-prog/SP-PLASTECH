@@ -26,10 +26,17 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  Building2
+  Building2,
+  Lock,
+  Send,
 } from 'lucide-react';
 import { PaginationBar } from '../common/PaginationBar';
 import { JIT_PLANT_OPTIONS } from './jit/JitCommonComposer';
+import {
+  generateUniqueWorkOrderId,
+  isWorkOrderNumberUnique,
+  isWorkOrderInputStarted,
+} from './jit/jitCalculations';
 
 interface WorkOrderManagerProps {
   workOrders: WorkOrder[];
@@ -193,9 +200,10 @@ export const WorkOrderManager: React.FC<WorkOrderManagerProps> = ({
     const handleSave = () => {
       const itemObj = items.find((i) => i.code === itemCode);
       const bom = boms.find((b) => b.parent === itemCode && b.status === 'released');
+      const newWoId = generateUniqueWorkOrderId(workOrders, 'WO-');
 
       const newWO: WorkOrder = {
-        id: `WO-${1193 + workOrders.length}`,
+        id: newWoId,
         item: itemCode,
         bomId: bom ? bom.id : null,
         machine,
@@ -352,25 +360,11 @@ export const WorkOrderManager: React.FC<WorkOrderManagerProps> = ({
 
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => (onOpenBulkWizard ? onOpenBulkWizard() : onNavigate('createWoGrid'))}
-            className="px-3 py-2 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-            Bulk Creation Wizard (100+)
-          </button>
-          <button
             onClick={handleExportCSV}
             className="px-3 py-2 rounded-xl bg-white hover:bg-slate-50 border border-[#E4E0D6] text-xs font-bold text-[#14213D] flex items-center gap-1.5 transition-colors"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
             Export Excel/CSV
-          </button>
-          <button
-            onClick={openCreateModal}
-            className="px-3 py-2 rounded-xl bg-[#0F8B8D] text-white hover:bg-[#0c7072] text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            + New Work Order
           </button>
         </div>
       </div>
@@ -633,6 +627,23 @@ export const WorkOrderManager: React.FC<WorkOrderManagerProps> = ({
                     <td className="p-3">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-mono font-bold text-[#0F8B8D]">{wo.id}</span>
+                        {isWorkOrderInputStarted(wo) && (
+                          <span
+                            className="inline-flex items-center gap-1 font-mono text-[9px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.5 rounded shadow-2xs"
+                            title="Floor production input active. Master specifications locked against modification."
+                          >
+                            <Lock className="w-2.5 h-2.5 text-amber-700" />
+                            Active Floor
+                          </span>
+                        )}
+                        {wo.sentToDailyProd === false && (
+                          <span
+                            className="font-mono text-[9px] font-bold bg-slate-100 text-slate-700 border border-slate-300 px-1.5 py-0.5 rounded"
+                            title="Work order released only to Work Orders screen (omitted from Daily Production entry)"
+                          >
+                            WO Only
+                          </span>
+                        )}
                         {wo.plant && (
                           <span
                             className="font-mono text-[9px] font-bold bg-[#14213D] text-white px-1.5 py-0.5 rounded shadow-2xs"
@@ -696,6 +707,19 @@ export const WorkOrderManager: React.FC<WorkOrderManagerProps> = ({
 
                     <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-1">
+                        {wo.sentToDailyProd === false && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onUpdateWO({ ...wo, sentToDailyProd: true, status: 'in_progress' });
+                              showToast(`🚀 Dispatched ${wo.id} to Daily Production Data grid!`);
+                            }}
+                            className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700"
+                            title="Dispatch to Daily Production Data Entry Grid"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         <button
                           onClick={() => onNavigate('woDetail', { id: wo.id })}
                           className="p-1.5 rounded-lg bg-[#F6F4EF] hover:bg-[#FAF9F5] text-[#14213D]"
