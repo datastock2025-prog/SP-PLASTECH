@@ -111,6 +111,7 @@ export interface SecurityEvent {
   resource?: string;
   ipAddress?: string;
   details?: Record<string, any>;
+  userAgent?: string;
   severity: 'INFO' | 'WARNING' | 'CRITICAL' | 'WARN';
 }
 
@@ -130,8 +131,9 @@ export interface CookieConsentPreferences {
   essential: boolean; // Always true
   analytics: boolean;
   functional: boolean;
+  marketing?: boolean;
   timestamp: string;
-  version: string;
+  version?: string;
 }
 
 export type CookieConsent = CookieConsentPreferences;

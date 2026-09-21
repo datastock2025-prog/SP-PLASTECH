@@ -98,13 +98,13 @@ export const SupplierDetailView: React.FC<Props> = ({
     '9. Quality & Inspection',
     '10. Performance Scorecard',
     '11. Supply Contracts',
-    '12. Document Vault',
-    '13. ESG & Compliance',
-    '14. Approvals & Audit Trail',
+    '12. Documents & Compliance',
+    '13. Risk & Financials',
+    '14. Audit Trail / Activity Log',
   ];
 
   return (
-    <div className="space-y-5 pb-12">
+    <div className="space-y-5 pb-12 animate-fadeIn">
       {/* Back Button & Header */}
       <div className="flex items-center justify-between">
         <button
@@ -122,18 +122,23 @@ export const SupplierDetailView: React.FC<Props> = ({
                 onUpdateSupplier(updated);
                 showToast(`Unblocked supplier ${supplier.name}`);
               }}
-              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-sm transition"
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-sm transition"
             >
               Unblock Supplier
             </button>
           ) : (
             <button
               onClick={() => {
-                const updated = { ...supplier, blocked: true, status: 'blocked' as const, blockedReason: 'Manual hold by Quality & Procurement manager' };
+                const updated = {
+                  ...supplier,
+                  blocked: true,
+                  status: 'blocked' as const,
+                  blockedReason: 'Manual hold by Quality & Procurement manager',
+                };
                 onUpdateSupplier(updated);
                 showToast(`Blocked supplier ${supplier.name}`);
               }}
-              className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold shadow-sm transition"
+              className="px-3.5 py-1.5 bg-[#E63946] hover:bg-red-700 text-white rounded-lg text-xs font-semibold shadow-sm transition"
             >
               Block Supplier
             </button>
@@ -141,8 +146,12 @@ export const SupplierDetailView: React.FC<Props> = ({
 
           <button
             onClick={() => {
-              showToast(`Drafting Purchase Order for ${supplier.name}`);
-              onNavigate('poList');
+              showToast(`Opening PO Creation for ${supplier.name}`);
+              onNavigate('poList', {
+                supplierId: supplier.id,
+                supplierName: supplier.name,
+                openCreateModal: true,
+              });
             }}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#0F8B8D] hover:bg-[#0d797b] text-white rounded-lg text-xs font-semibold shadow-sm transition"
           >
@@ -206,19 +215,26 @@ export const SupplierDetailView: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* 14 Tabs Navigation Bar */}
-        <div className="flex items-center gap-1 overflow-x-auto mt-6 pt-2 border-t border-slate-100 scrollbar-thin">
+        {/* 14 Tabs Navigation Bar (No Slide Bar - Responsive Wrap Layout) */}
+        <div className="flex flex-wrap items-center gap-1.5 mt-5 pt-3 border-t border-slate-100">
           {tabs.map((tab, idx) => (
             <button
               key={idx}
               onClick={() => setActiveTab(idx)}
-              className={`px-3 py-2 text-xs font-semibold whitespace-nowrap rounded-lg transition ${
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
                 activeTab === idx
-                  ? 'bg-[#14213D] text-white shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'bg-[#14213D] text-white shadow-sm ring-1 ring-[#14213D]'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/80 hover:border-slate-300'
               }`}
             >
-              {tab}
+              <span
+                className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                  activeTab === idx ? 'bg-white/20 text-white' : 'bg-slate-200/70 text-slate-600'
+                }`}
+              >
+                {idx + 1}
+              </span>
+              <span>{tab.replace(/^\d+\.\s*/, '')}</span>
             </button>
           ))}
         </div>
@@ -733,30 +749,74 @@ export const SupplierDetailView: React.FC<Props> = ({
           </div>
         )}
 
-        {/* ----------------- TAB 11: DOCUMENTS ----------------- */}
+        {/* ----------------- TAB 11: DOCUMENTS & COMPLIANCE ----------------- */}
         {activeTab === 11 && (
-          <div className="space-y-4 text-xs">
+          <div className="space-y-6 text-xs">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-sm text-[#14213D]">Compliance Documents & Certificates</h3>
+              <div>
+                <h3 className="font-bold text-sm text-[#14213D]">Compliance Documents & Certificate Vault</h3>
+                <p className="text-slate-500 text-[11px]">Statutory registrations, ISO accreditations, and food-grade declarations</p>
+              </div>
               <button
                 onClick={() => showToast('Document upload dialog triggered')}
-                className="flex items-center gap-1 text-xs font-semibold text-[#0F8B8D] hover:underline"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0F8B8D] hover:bg-[#0d797b] text-white rounded-lg text-xs font-semibold shadow-sm transition"
               >
                 <Upload className="w-3.5 h-3.5" /> Upload Certificate
               </button>
             </div>
 
+            {/* Regulatory Status Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-3.5 bg-slate-50 border rounded-xl">
+                <div className="text-slate-400 font-semibold text-[10px] uppercase">ISO 9001:2015 QMS</div>
+                <div className="font-bold text-emerald-700 text-sm mt-1 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Verified Valid
+                </div>
+                <div className="text-[10px] text-slate-500 mt-0.5">Expires: {supplier.compliance.iso9001Expiry || '2028-06-30'}</div>
+              </div>
+              <div className="p-3.5 bg-slate-50 border rounded-xl">
+                <div className="text-slate-400 font-semibold text-[10px] uppercase">FDA Food Contact</div>
+                <div className="font-bold text-emerald-700 text-sm mt-1 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> 21 CFR 177.1520
+                </div>
+                <div className="text-[10px] text-slate-500 mt-0.5">Polyolefin Food Grade</div>
+              </div>
+              <div className="p-3.5 bg-slate-50 border rounded-xl">
+                <div className="text-slate-400 font-semibold text-[10px] uppercase">REACH & RoHS</div>
+                <div className="font-bold text-emerald-700 text-sm mt-1 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> SVHC Compliant
+                </div>
+                <div className="text-[10px] text-slate-500 mt-0.5">Zero Heavy Metals</div>
+              </div>
+              <div className="p-3.5 bg-slate-50 border rounded-xl">
+                <div className="text-slate-400 font-semibold text-[10px] uppercase">ESG Sustainability</div>
+                <div className="font-bold text-[#14213D] text-sm mt-1 flex items-center gap-1">
+                  <Award className="w-3.5 h-3.5 text-amber-500" /> Grade {supplier.compliance.esgRating} ({supplier.compliance.esgScore}/100)
+                </div>
+                <div className="text-[10px] text-slate-500 mt-0.5">Audited: {supplier.compliance.lastAuditDate}</div>
+              </div>
+            </div>
+
+            {/* Document List */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {supplier.documents.map((doc) => (
-                <div key={doc.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex items-start justify-between gap-3">
+                <div key={doc.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex items-start justify-between gap-3 hover:bg-slate-50 transition">
                   <div>
-                    <div className="font-bold text-[#14213D]">{doc.title}</div>
-                    <div className="text-slate-500 text-[11px] mt-0.5">{doc.type} • Ref: {doc.documentNumber}</div>
-                    <div className="text-slate-400 text-[10px] mt-1">Valid Until: {doc.expiryDate}</div>
+                    <div className="font-bold text-[#14213D] text-sm">{doc.title}</div>
+                    <div className="text-slate-500 text-[11px] mt-0.5 flex items-center gap-2">
+                      <span className="font-medium text-slate-700">{doc.type}</span>
+                      <span>•</span>
+                      <span className="font-mono">Ref: {doc.documentNumber}</span>
+                    </div>
+                    <div className="text-slate-400 text-[10px] mt-1.5 flex items-center gap-3">
+                      <span>Issued: {doc.issueDate}</span>
+                      <span>Valid Until: {doc.expiryDate}</span>
+                    </div>
                   </div>
                   <button
                     onClick={() => showToast(`Downloaded ${doc.fileName}`)}
-                    className="p-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-[#14213D]"
+                    className="p-2 rounded-lg bg-white border border-slate-200 hover:bg-[#14213D] hover:text-white text-[#14213D] shadow-xs transition"
+                    title="Download Document"
                   >
                     <Download className="w-4 h-4" />
                   </button>
@@ -766,47 +826,78 @@ export const SupplierDetailView: React.FC<Props> = ({
           </div>
         )}
 
-        {/* ----------------- TAB 12: ESG & COMPLIANCE ----------------- */}
+        {/* ----------------- TAB 12: RISK & FINANCIALS ----------------- */}
         {activeTab === 12 && (
-          <div className="space-y-5 text-xs">
-            <h3 className="font-bold text-sm text-[#14213D]">ESG & Regulatory Certifications</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="p-3 bg-slate-50 border rounded-xl">
-                <div className="text-slate-400">ISO 9001:2015</div>
-                <div className="font-bold text-emerald-700 mt-1">Verified Valid</div>
-                <div className="text-[10px] text-slate-500">{supplier.compliance.iso9001Expiry}</div>
+          <div className="space-y-6 text-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-sm text-[#14213D]">Supplier Financial Health & Risk Assessment</h3>
+                <p className="text-slate-500 text-[11px]">Credit limits, exposure risk, single-source dependency, and payment terms tracking</p>
               </div>
-              <div className="p-3 bg-slate-50 border rounded-xl">
-                <div className="text-slate-400">FDA 21 CFR Food Grade</div>
-                <div className="font-bold text-emerald-700 mt-1">Compliant</div>
-                <div className="text-[10px] text-slate-500">21 CFR 177.1520</div>
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                  supplier.riskLevel === 'Low'
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                    : supplier.riskLevel === 'Medium'
+                    ? 'bg-sky-50 text-sky-800 border-sky-200'
+                    : 'bg-red-50 text-red-800 border-red-200'
+                }`}
+              >
+                Overall Risk: {supplier.riskLevel}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50">
+                <div className="text-slate-500">Approved Credit Limit</div>
+                <div className="text-xl font-bold font-['Space_Grotesk'] text-[#14213D] mt-1">₹25.00 Lakhs</div>
+                <div className="text-[10px] text-slate-500 mt-1">30 Days Standard Revolving</div>
               </div>
-              <div className="p-3 bg-slate-50 border rounded-xl">
-                <div className="text-slate-400">REACH / RoHS</div>
-                <div className="font-bold text-emerald-700 mt-1">Declared Safe</div>
-                <div className="text-[10px] text-slate-500">SVHC Compliant</div>
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50">
+                <div className="text-slate-500">Current Outstanding Balance</div>
+                <div className="text-xl font-bold font-['Space_Grotesk'] text-emerald-700 mt-1">
+                  ₹{(supplier.outstandingBalance / 100000).toFixed(2)} Lakhs
+                </div>
+                <div className="text-[10px] text-emerald-600 mt-1">33.6% Credit Limit Utilized</div>
               </div>
-              <div className="p-3 bg-slate-50 border rounded-xl">
-                <div className="text-slate-400">ESG Sustainability</div>
-                <div className="font-bold text-emerald-700 mt-1">Rating {supplier.compliance.esgRating}</div>
-                <div className="text-[10px] text-slate-500">{supplier.compliance.esgScore} / 100</div>
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50">
+                <div className="text-slate-500">Single Source Dependency</div>
+                <div className="text-xl font-bold font-['Space_Grotesk'] text-[#14213D] mt-1">Low (Primary)</div>
+                <div className="text-[10px] text-slate-500 mt-1">IOCL & GAIL as Backup Qualified</div>
+              </div>
+            </div>
+
+            {/* Credit Utilization Bar */}
+            <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2">
+              <div className="flex justify-between font-semibold text-slate-700 text-xs">
+                <span>Credit Exposure Utilization</span>
+                <span>₹{(supplier.outstandingBalance / 100000).toFixed(2)}L / ₹25.00L (33.6%)</span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                <div className="bg-[#0F8B8D] h-3 rounded-full transition-all" style={{ width: '33.6%' }} />
               </div>
             </div>
           </div>
         )}
 
-        {/* ----------------- TAB 13: APPROVALS & ACTIVITY ----------------- */}
+        {/* ----------------- TAB 13: AUDIT TRAIL & LOGS ----------------- */}
         {activeTab === 13 && (
           <div className="space-y-4 text-xs">
-            <h3 className="font-bold text-sm text-[#14213D]">Vendor Onboarding Audit Log</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-sm text-[#14213D]">Vendor Onboarding & Governance Audit Trail</h3>
+              <span className="text-slate-500 text-[11px]">{supplier.activityHistory.length} Recorded Events</span>
+            </div>
             <div className="space-y-2.5">
               {supplier.activityHistory.map((act) => (
-                <div key={act.id} className="p-3 rounded-xl border border-slate-100 bg-slate-50 flex items-start gap-3">
+                <div key={act.id} className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 flex items-start gap-3">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="font-bold text-[#14213D]">{act.action}</div>
-                    <div className="text-slate-600 text-[11px]">{act.details}</div>
-                    <div className="text-slate-400 text-[10px] mt-0.5">By {act.user} • {act.date}</div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <div className="font-bold text-[#14213D]">{act.action}</div>
+                      <div className="text-slate-400 text-[10px]">{act.date}</div>
+                    </div>
+                    <div className="text-slate-600 text-[11px] mt-0.5">{act.details}</div>
+                    <div className="text-slate-400 text-[10px] mt-1">Executed by: <span className="font-medium text-slate-700">{act.user}</span></div>
                   </div>
                 </div>
               ))}

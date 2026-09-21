@@ -39,10 +39,10 @@ export const SalesDeliveryScheduleView: React.FC<Props> = ({ sos, onNavigate, sh
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return (
-      d.dc.toLowerCase().includes(q) ||
-      d.soId.toLowerCase().includes(q) ||
-      d.customer.toLowerCase().includes(q) ||
-      d.transporter.toLowerCase().includes(q)
+      (d.dc || '').toLowerCase().includes(q) ||
+      (d.soId || '').toLowerCase().includes(q) ||
+      (d.customer || '').toLowerCase().includes(q) ||
+      (d.transporter || '').toLowerCase().includes(q)
     );
   });
 

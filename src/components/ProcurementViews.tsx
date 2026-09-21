@@ -50,11 +50,15 @@ import { SupplierRiskComplianceView } from './procurement/SupplierRiskCompliance
 import { ProcurementReportsAnalyticsView } from './procurement/ProcurementReportsAnalyticsView';
 import { ProcurementSettingsView } from './procurement/ProcurementSettingsView';
 
+import { ItemMaster } from '../types';
+import { INITIAL_ITEMS } from '../data/initialData';
+
 interface Props {
   view?: string;
   currentSubView?: string;
   viewParams?: any;
   selectedParam?: any;
+  items?: ItemMaster[];
   suppliers?: SupplierMaster[];
   prs?: PurchaseRequisition[];
   rfqs?: RequestForQuotation[];
@@ -63,6 +67,7 @@ interface Props {
   invoices?: SupplierInvoiceRecord[];
   mrpSuggestions?: MrpPurchaseSuggestion[];
   onNavigate: (view: string, param?: any) => void;
+  onUpdateItem?: (item: ItemMaster) => void;
   onUpdateSupplier?: (s: SupplierMaster) => void;
   onCreateSupplier?: (s: SupplierMaster) => void;
   onUpdatePR?: (pr: PurchaseRequisition) => void;
@@ -83,6 +88,7 @@ export const ProcurementViews: React.FC<Props> = ({
   currentSubView,
   viewParams,
   selectedParam,
+  items: propItems,
   suppliers: propSuppliers,
   prs: propPrs,
   rfqs: propRfqs,
@@ -91,6 +97,7 @@ export const ProcurementViews: React.FC<Props> = ({
   invoices: propInvoices,
   mrpSuggestions: propMrpSuggestions,
   onNavigate,
+  onUpdateItem: propOnUpdateItem,
   onUpdateSupplier: propOnUpdateSupplier,
   onCreateSupplier: propOnCreateSupplier,
   onUpdatePR: propOnUpdatePR,
@@ -109,6 +116,7 @@ export const ProcurementViews: React.FC<Props> = ({
   const activeParam = viewParams || selectedParam;
 
   // Local state for full interactive procurement lifecycle
+  const [items, setItems] = useState<ItemMaster[]>(propItems || INITIAL_ITEMS);
   const [suppliers, setSuppliers] = useState<SupplierMaster[]>(propSuppliers || INITIAL_PROCUREMENT_SUPPLIERS);
   const [prs, setPrs] = useState<PurchaseRequisition[]>(propPrs || INITIAL_PURCHASE_REQUISITIONS);
   const [rfqs, setRfqs] = useState<RequestForQuotation[]>(propRfqs || INITIAL_PROCUREMENT_RFQS);
@@ -117,11 +125,16 @@ export const ProcurementViews: React.FC<Props> = ({
   const [invoices, setInvoices] = useState<SupplierInvoiceRecord[]>(propInvoices || INITIAL_SUPPLIER_INVOICES);
   const [returns, setReturns] = useState<SupplierReturnRecord[]>(INITIAL_PROCUREMENT_RETURNS);
   const [contracts] = useState<SupplierContractRecord[]>(INITIAL_PROCUREMENT_CONTRACTS);
-  const [priceLists] = useState<SupplierPriceListEntry[]>(INITIAL_SUPPLIER_PRICE_LISTS);
+  const [priceLists, setPriceLists] = useState<SupplierPriceListEntry[]>(INITIAL_SUPPLIER_PRICE_LISTS);
   const [mrpSuggestions] = useState<MrpPurchaseSuggestion[]>(propMrpSuggestions || INITIAL_MRP_SUGGESTIONS);
   const [risks] = useState<SupplierRiskItem[]>(INITIAL_SUPPLIER_RISKS);
 
   // Updaters with optional prop delegators
+  const handleUpdateItem = (updated: ItemMaster) => {
+    setItems((prev) => prev.map((i) => (i.code === updated.code ? updated : i)));
+    propOnUpdateItem?.(updated);
+  };
+
   const handleUpdateSupplier = (updated: SupplierMaster) => {
     setSuppliers((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
     propOnUpdateSupplier?.(updated);
@@ -167,6 +180,22 @@ export const ProcurementViews: React.FC<Props> = ({
     propOnUpdateInvoice?.(updated);
   };
 
+  const handleUpdateReturn = (updated: SupplierReturnRecord) => {
+    setReturns((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+  };
+
+  const handleCreateReturn = (created: SupplierReturnRecord) => {
+    setReturns((prev) => [created, ...prev]);
+  };
+
+  const handleUpdatePriceList = (updated: SupplierPriceListEntry) => {
+    setPriceLists((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+  };
+
+  const handleCreatePriceList = (created: SupplierPriceListEntry) => {
+    setPriceLists((prev) => [created, ...prev]);
+  };
+
   // View Router mapping all alias variations
   switch (activeView) {
     case 'supplierList':
@@ -175,6 +204,7 @@ export const ProcurementViews: React.FC<Props> = ({
       return (
         <SupplierMasterListView
           suppliers={suppliers}
+          activeParam={activeParam}
           onNavigate={onNavigate}
           onUpdateSupplier={handleUpdateSupplier}
           onCreateSupplier={handleCreateSupplier}
@@ -266,6 +296,8 @@ export const ProcurementViews: React.FC<Props> = ({
         />
       );
 
+    case 'poCreate':
+    case 'newPO':
     case 'poList':
     case 'pos':
     case 'purchaseOrders':
@@ -273,9 +305,13 @@ export const ProcurementViews: React.FC<Props> = ({
         <PurchaseOrderListView
           pos={pos}
           suppliers={suppliers}
+          items={items}
+          prs={prs}
+          activeParam={activeParam || (activeView === 'poCreate' || activeView === 'newPO' ? { openCreateModal: true } : undefined)}
           onNavigate={onNavigate}
           onUpdatePO={handleUpdatePO}
           onCreatePO={handleCreatePO}
+          onUpdatePR={handleUpdatePR}
           openDrawer={openDrawer}
           closeDrawer={closeDrawer}
           showToast={showToast}
@@ -286,7 +322,7 @@ export const ProcurementViews: React.FC<Props> = ({
     case 'purchaseOrderDetail':
       return (
         <PurchaseOrderDetailView
-          poId={activeParam?.id || pos[0]?.id || 'PO-2026-001'}
+          poId={activeParam?.id || activeParam?.poNumber || (typeof activeParam === 'string' ? activeParam : undefined) || pos[0]?.id || 'PO-2026-001'}
           pos={pos}
           grns={grns}
           invoices={invoices}
@@ -300,7 +336,7 @@ export const ProcurementViews: React.FC<Props> = ({
     case 'purchaseOrderPrint':
       return (
         <PurchaseOrderPrintView
-          poId={activeParam?.id || pos[0]?.id || 'PO-2026-001'}
+          poId={activeParam?.id || activeParam?.poNumber || (typeof activeParam === 'string' ? activeParam : undefined) || pos[0]?.id || 'PO-2026-001'}
           pos={pos}
           onNavigate={onNavigate}
         />
@@ -331,8 +367,11 @@ export const ProcurementViews: React.FC<Props> = ({
         <GoodsReceiptNoteView
           grns={grns}
           pos={pos}
+          items={items}
           onNavigate={onNavigate}
           onUpdateGRN={handleUpdateGRN}
+          onUpdatePO={handleUpdatePO}
+          onUpdateItem={handleUpdateItem}
           openDrawer={openDrawer}
           closeDrawer={closeDrawer}
           showToast={showToast}
@@ -394,7 +433,11 @@ export const ProcurementViews: React.FC<Props> = ({
       return (
         <SupplierPriceListView
           priceLists={priceLists}
+          suppliers={suppliers}
+          items={items}
           onNavigate={onNavigate}
+          onUpdatePriceList={handleUpdatePriceList}
+          onCreatePriceList={handleCreatePriceList}
           showToast={showToast}
         />
       );
@@ -405,7 +448,12 @@ export const ProcurementViews: React.FC<Props> = ({
       return (
         <PurchaseReturnsView
           returns={returns}
+          suppliers={suppliers}
+          pos={pos}
+          grns={grns}
           onNavigate={onNavigate}
+          onUpdateReturn={handleUpdateReturn}
+          onCreateReturn={handleCreateReturn}
           showToast={showToast}
         />
       );

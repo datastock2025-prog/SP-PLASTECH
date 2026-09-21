@@ -546,9 +546,9 @@ export const LiveGrnEntryModal: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Section 2: PO Line Receiving Grid */}
+          {/* Section 2: PO Line Receiving Grid (No Sliding Bar Layout) */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-            <div className="p-3.5 bg-slate-100/70 border-b border-slate-200 flex items-center justify-between">
+            <div className="p-3 bg-slate-100/70 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-slate-800 text-xs">Line Items Receiving Grid</span>
                 <span className="text-[11px] text-slate-500">
@@ -556,183 +556,192 @@ export const LiveGrnEntryModal: React.FC<Props> = ({
                 </span>
               </div>
               <span className="text-[11px] text-slate-500">
-                Editable fields: <strong>Arrived Qty</strong>, <strong>Counted Qty</strong>, <strong>Current Received Qty</strong>, <strong>Rejected Qty</strong>
+                Editable fields: <strong className="text-slate-700">Arrived</strong>, <strong className="text-slate-700">Counted</strong>, <strong className="text-teal-700">Receiving Qty</strong>, <strong className="text-rose-700">Rejected</strong>
               </span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
+            <div className="w-full">
+              <table className="w-full text-xs text-left border-collapse">
                 <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] tracking-wider border-b border-slate-200">
                   <tr>
-                    <th className="py-2.5 px-3 font-semibold">Line #</th>
-                    <th className="py-2.5 px-3 font-semibold">Item Details</th>
-                    <th className="py-2.5 px-2 font-semibold text-center">UOM</th>
-                    <th className="py-2.5 px-2 font-semibold text-right">Ordered</th>
-                    <th className="py-2.5 px-2 font-semibold text-right">Open PO</th>
-                    <th className="py-2.5 px-2 font-semibold text-center bg-teal-50/50">Arrived Qty</th>
-                    <th className="py-2.5 px-2 font-semibold text-center bg-teal-50/50">Counted Qty</th>
-                    <th className="py-2.5 px-2 font-semibold text-center bg-teal-100/50 font-bold text-teal-900">
-                      Receiving Qty *
+                    <th className="py-2.5 px-3 font-semibold w-[26%]">Item & Material</th>
+                    <th className="py-2.5 px-2 font-semibold text-center w-[12%]">PO Balance</th>
+                    <th className="py-2.5 px-2 font-semibold text-center w-[34%] bg-teal-50/40">
+                      <div className="grid grid-cols-4 gap-1 text-center font-bold text-teal-950">
+                        <span>Arrived</span>
+                        <span>Counted</span>
+                        <span className="text-teal-800">Receiving *</span>
+                        <span className="text-rose-700">Rejected</span>
+                      </div>
                     </th>
-                    <th className="py-2.5 px-2 font-semibold text-right">Rejected</th>
-                    <th className="py-2.5 px-2 font-semibold text-right">Remaining PO</th>
-                    <th className="py-2.5 px-2 font-semibold text-center">Tolerance</th>
-                    <th className="py-2.5 px-3 font-semibold">Lot & Warehouse Bin</th>
-                    <th className="py-2.5 px-2 font-semibold text-right">Actions</th>
+                    <th className="py-2.5 px-2 font-semibold text-center w-[13%]">Remaining / Tol.</th>
+                    <th className="py-2.5 px-3 font-semibold text-right w-[15%]">Lot & Bin Details</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {lines.map((line, idx) => (
                     <tr key={idx} className="hover:bg-slate-50/70 transition">
-                      {/* Line # */}
-                      <td className="py-3 px-3 font-mono font-semibold text-slate-500">
-                        #{line.poLineNo}
-                      </td>
-
-                      {/* Item Details */}
-                      <td className="py-3 px-3 max-w-[200px]">
-                        <div className="font-bold text-slate-900 truncate" title={line.itemName}>
-                          {line.itemName}
-                        </div>
-                        <div className="text-[10px] font-mono text-slate-500">{line.itemCode}</div>
-                        <div className="text-[10px] text-slate-400 truncate">{line.description}</div>
-                      </td>
-
-                      {/* UOM */}
-                      <td className="py-3 px-2 text-center font-bold text-slate-700">{line.uom}</td>
-
-                      {/* Ordered Qty */}
-                      <td className="py-3 px-2 text-right text-slate-600">
-                        {line.orderedQty.toLocaleString()}
-                      </td>
-
-                      {/* Open PO Qty */}
-                      <td className="py-3 px-2 text-right font-medium text-blue-700">
-                        {line.openPoQty.toLocaleString()}
-                      </td>
-
-                      {/* Arrived Qty (editable) */}
-                      <td className="py-3 px-2 text-center bg-teal-50/30">
-                        <input
-                          type="number"
-                          value={line.arrivedQty}
-                          onChange={(e) => {
-                            const val = Number(e.target.value);
-                            setLines((prev) => {
-                              const next = [...prev];
-                              next[idx] = { ...next[idx], arrivedQty: val };
-                              return next;
-                            });
-                          }}
-                          className="w-20 px-1.5 py-1 border border-slate-300 rounded text-center text-xs font-semibold bg-white"
-                        />
-                      </td>
-
-                      {/* Counted Qty (editable) */}
-                      <td className="py-3 px-2 text-center bg-teal-50/30">
-                        <input
-                          type="number"
-                          value={line.countedQty}
-                          onChange={(e) => {
-                            const val = Number(e.target.value);
-                            setLines((prev) => {
-                              const next = [...prev];
-                              next[idx] = { ...next[idx], countedQty: val };
-                              return next;
-                            });
-                          }}
-                          className="w-20 px-1.5 py-1 border border-slate-300 rounded text-center text-xs font-semibold bg-white"
-                        />
-                      </td>
-
-                      {/* Current Received Qty (main live input) */}
-                      <td className="py-3 px-2 text-center bg-teal-100/30">
-                        <input
-                          type="number"
-                          value={line.currentReceivedQty}
-                          onChange={(e) => handleCurrentReceivedQtyChange(idx, Number(e.target.value))}
-                          className="w-24 px-2 py-1 border border-teal-500 rounded text-center text-xs font-bold text-[#14213D] bg-white shadow-2xs focus:ring-2 focus:ring-[#0F8B8D]"
-                        />
-                      </td>
-
-                      {/* Rejected Qty (editable) */}
-                      <td className="py-3 px-2 text-right">
-                        <input
-                          type="number"
-                          value={line.rejectedQty}
-                          onChange={(e) => handleRejectedQtyChange(idx, Number(e.target.value))}
-                          className="w-16 px-1.5 py-1 border border-slate-300 rounded text-right text-xs font-semibold text-rose-600 bg-white"
-                        />
-                      </td>
-
-                      {/* Remaining PO Qty */}
-                      <td className="py-3 px-2 text-right font-bold text-slate-700">
-                        {line.remainingPoQty.toLocaleString()}
-                      </td>
-
-                      {/* Tolerance Indicator */}
-                      <td className="py-3 px-2 text-center">
-                        {line.toleranceWarning === 'ok' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-semibold border border-emerald-200">
-                            <CheckCircle2 className="w-3 h-3" /> Exact
-                          </span>
-                        ) : line.toleranceWarning === 'short_supply' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-semibold border border-amber-200">
-                            <AlertTriangle className="w-3 h-3" /> Partial
-                          </span>
-                        ) : line.toleranceWarning === 'over_tolerance_warning' ? (
-                          <span
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold border border-amber-300"
-                            title="Over-receipt within allowable 5% tolerance"
-                          >
-                            <AlertTriangle className="w-3 h-3 text-amber-600" /> +Over Tol
-                          </span>
-                        ) : (
-                          <span
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-bold border border-rose-300"
-                            title="Exceeds allowable tolerance! Requires approval"
-                          >
-                            <ShieldAlert className="w-3 h-3 text-rose-600" /> Exceeds
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Lot & Bin Info */}
+                      {/* Item & Material */}
                       <td className="py-3 px-3">
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setActiveLotModalLineIndex(idx)}
-                            className="font-mono font-bold text-blue-700 hover:underline flex items-center gap-1"
-                          >
-                            {line.lotBatchNumber}
-                          </button>
-                        </div>
-                        <div className="text-[10px] text-slate-500 font-mono">
-                          Bin: {line.bin}
+                        <div className="flex items-start gap-2">
+                          <span className="font-mono font-bold text-[11px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded flex-shrink-0">
+                            #{line.poLineNo}
+                          </span>
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-900 leading-tight" title={line.itemName}>
+                              {line.itemName}
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-mono mt-0.5 flex items-center gap-1.5">
+                              <span>{line.itemCode}</span>
+                              <span>•</span>
+                              <span className="font-bold text-slate-700">{line.uom}</span>
+                            </div>
+                            {line.description && (
+                              <div className="text-[10px] text-slate-400 truncate max-w-[200px]">
+                                {line.description}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </td>
 
-                      {/* Row Actions */}
-                      <td className="py-3 px-2 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setActiveLotModalLineIndex(idx)}
-                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-[11px] font-semibold text-slate-700 transition"
-                            title="Open Lot / Batch Details"
-                          >
-                            Lot Data
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleSplitLine(idx)}
-                            className="p-1 hover:bg-slate-100 rounded text-slate-500 transition"
-                            title="Split line for multiple lots"
-                          >
-                            <Split className="w-3.5 h-3.5" />
-                          </button>
+                      {/* PO Balance */}
+                      <td className="py-3 px-2 text-center">
+                        <div className="inline-flex flex-col items-center justify-center p-1.5 bg-slate-50 rounded-lg border border-slate-200/80">
+                          <div className="text-[10px] text-slate-400 font-medium">Open / Ordered</div>
+                          <div className="font-bold text-slate-800 text-xs">
+                            <span className="text-blue-700">{line.openPoQty}</span>
+                            <span className="text-slate-400 font-normal"> / {line.orderedQty}</span>
+                          </div>
                         </div>
+                      </td>
+
+                      {/* Live Inward Quantities (4-column inline inputs) */}
+                      <td className="py-3 px-2 bg-teal-50/20">
+                        <div className="grid grid-cols-4 gap-1.5 items-center">
+                          {/* Arrived */}
+                          <div>
+                            <input
+                              type="number"
+                              min={0}
+                              value={line.arrivedQty}
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                setLines((prev) => {
+                                  const next = [...prev];
+                                  next[idx] = { ...next[idx], arrivedQty: val };
+                                  return next;
+                                });
+                              }}
+                              className="w-full px-1.5 py-1 border border-slate-300 rounded text-center text-xs font-semibold bg-white focus:ring-1 focus:ring-[#0F8B8D]"
+                              title="Arrived Qty"
+                            />
+                          </div>
+
+                          {/* Counted */}
+                          <div>
+                            <input
+                              type="number"
+                              min={0}
+                              value={line.countedQty}
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                setLines((prev) => {
+                                  const next = [...prev];
+                                  next[idx] = { ...next[idx], countedQty: val };
+                                  return next;
+                                });
+                              }}
+                              className="w-full px-1.5 py-1 border border-slate-300 rounded text-center text-xs font-semibold bg-white focus:ring-1 focus:ring-[#0F8B8D]"
+                              title="Counted Qty"
+                            />
+                          </div>
+
+                          {/* Current Received Qty (Key Input) */}
+                          <div>
+                            <input
+                              type="number"
+                              min={0}
+                              value={line.currentReceivedQty}
+                              onChange={(e) => handleCurrentReceivedQtyChange(idx, Number(e.target.value))}
+                              className="w-full px-1.5 py-1 border-2 border-teal-500 rounded text-center text-xs font-bold text-[#14213D] bg-white shadow-xs focus:ring-2 focus:ring-[#0F8B8D]"
+                              title="Receiving Qty"
+                            />
+                          </div>
+
+                          {/* Rejected */}
+                          <div>
+                            <input
+                              type="number"
+                              min={0}
+                              value={line.rejectedQty}
+                              onChange={(e) => handleRejectedQtyChange(idx, Number(e.target.value))}
+                              className="w-full px-1 py-1 border border-slate-300 rounded text-center text-xs font-semibold text-rose-600 bg-white focus:ring-1 focus:ring-rose-500"
+                              title="Rejected Qty"
+                            />
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Remaining / Tolerance */}
+                      <td className="py-3 px-2 text-center">
+                        <div className="font-bold text-slate-800 text-xs">
+                          {line.remainingPoQty} <span className="text-[10px] text-slate-400 font-normal">{line.uom}</span>
+                        </div>
+                        <div className="mt-1">
+                          {line.toleranceWarning === 'ok' ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-semibold border border-emerald-200">
+                              <CheckCircle2 className="w-2.5 h-2.5" /> Exact
+                            </span>
+                          ) : line.toleranceWarning === 'short_supply' ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-semibold border border-amber-200">
+                              <AlertTriangle className="w-2.5 h-2.5" /> Partial
+                            </span>
+                          ) : line.toleranceWarning === 'over_tolerance_warning' ? (
+                            <span
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold border border-amber-300"
+                              title="Over-receipt within allowable 5% tolerance"
+                            >
+                              <AlertTriangle className="w-2.5 h-2.5 text-amber-600" /> +Tol
+                            </span>
+                          ) : (
+                            <span
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-bold border border-rose-300"
+                              title="Exceeds allowable tolerance!"
+                            >
+                              <ShieldAlert className="w-2.5 h-2.5 text-rose-600" /> Exceeds
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Lot & Bin Details */}
+                      <td className="py-3 px-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setActiveLotModalLineIndex(idx)}
+                          className="w-full text-left p-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition group/lot cursor-pointer"
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-mono font-bold text-[11px] text-[#0F8B8D] group-hover/lot:underline truncate flex items-center gap-1">
+                              <QrCode className="w-3 h-3 flex-shrink-0" />
+                              {line.lots && line.lots.length > 1
+                                ? `${line.lots.length} Lots Split`
+                                : line.lotBatchNumber}
+                            </span>
+                            {line.lots && line.lots.length > 1 && (
+                              <span className="text-[9px] font-bold bg-purple-100 text-purple-800 px-1 py-0.2 rounded">
+                                Multi
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-500 font-mono mt-0.5 flex items-center justify-between">
+                            <span>Bin: {line.bin}</span>
+                            <span className="text-[#0F8B8D] font-bold text-[9px] uppercase group-hover/lot:text-teal-800">
+                              Edit →
+                            </span>
+                          </div>
+                        </button>
                       </td>
                     </tr>
                   ))}

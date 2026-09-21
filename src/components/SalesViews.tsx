@@ -217,8 +217,10 @@ export const SalesViews: React.FC<SalesProps> = ({
     if (newGatePass) {
       setGatePasses((prev) => [newGatePass, ...prev.filter((x) => x.gatePassNumber !== newGatePass.gatePassNumber)]);
     }
+    setSelectedDelivery(null);
     setDispatchSubNav('challans');
     showToast(`Delivery Challan ${newDeliv.id} created. All-in-One E-Invoice, E-Way Bill & Gate Pass generated!`);
+    onNavigate('deliveryChallans');
   };
 
   const handleApproveGateOut = (passId: string) => {
@@ -911,7 +913,14 @@ export const SalesViews: React.FC<SalesProps> = ({
           <CreateDeliveryChallan
             salesOrders={plasticSalesOrders}
             onSaveDelivery={handleSaveDelivery}
-            onCancel={() => setDispatchSubNav('challans')}
+            onCancel={() => {
+              setSelectedDelivery(null);
+              setDispatchSubNav('challans');
+              onNavigate('deliveryChallans');
+            }}
+            onNavigate={(targetView, param) => {
+              handleDispatchNavigate(targetView, param);
+            }}
             showToast={showToast}
           />
         )}

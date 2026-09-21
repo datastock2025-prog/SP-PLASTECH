@@ -54,7 +54,7 @@ interface UiState {
 }
 
 export const useUiStore = create<UiState>((set) => ({
-  isSidebarCollapsed: false,
+  isSidebarCollapsed: true,
   isMobileSidebarOpen: false,
   activePlant: 'Unit 1: Blow & Injection Molding',
   activeShift: 'Shift A (06:00 - 14:00)',

@@ -807,9 +807,11 @@ export const LegacyBomBuilderView: React.FC<LegacyBomBuilderViewProps> = ({
     showToast(`Exported formulation specification for ${currentBom.id}`);
   };
 
-  // Filtered Catalog Items
+  // Filtered Catalog Items (Strictly Approved/Released items)
   const filteredCatalogItems = useMemo(() => {
     return items.filter((item) => {
+      if (item.approval !== 'approved' && item.approval !== 'released') return false;
+      if (item.status === 'rejected' || item.status === 'blocked' || item.status === 'inactive') return false;
       const matchesSearch =
         catalogSearch === '' ||
         item.code.toLowerCase().includes(catalogSearch.toLowerCase()) ||

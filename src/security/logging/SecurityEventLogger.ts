@@ -28,6 +28,7 @@ class SecurityEventLoggerClass {
       id: `sec_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
       timestamp: new Date().toISOString(),
       type,
+      eventType: type,
       severity,
       actorId: actorId || 'current_user',
       tenantId: tenantId || 'tenant_default',

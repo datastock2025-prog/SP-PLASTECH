@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   Filter,
@@ -42,6 +42,7 @@ import {
   LedgerTransactionStatus,
 } from '../../types/warehouse';
 import { INITIAL_INVENTORY_STOCK, INITIAL_STOCK_MOVEMENT_LEDGER } from '../../data/warehouseData';
+import { getStockMovementLedger } from '../../utils/warehouseSync';
 import { WarehouseStatusBadge } from './WarehouseStatusBadge';
 import { PaginationBar } from '../common/PaginationBar';
 
@@ -85,8 +86,25 @@ export const StockLedgerListView: React.FC<Props> = ({
   // Outward Ledger Filter State ("What Purpose Is Out")
   const [outwardPurposeFilter, setOutwardPurposeFilter] = useState<string>('ALL');
 
-  // Movement Ledger Entries state (preloaded with initial rich records)
-  const [movementLedger, setMovementLedger] = useState<StockMovementLedgerEntry[]>(INITIAL_STOCK_MOVEMENT_LEDGER);
+  // Customer Filter State for 100,000+ Customer Accounts
+  const [ledgerCustomerSearch, setLedgerCustomerSearch] = useState<string>('');
+  const [modalCustomerSearch, setModalCustomerSearch] = useState<string>('');
+  const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+  const [expandedModalRowId, setExpandedModalRowId] = useState<string | null>(null);
+
+  // Movement Ledger Entries state (synchronized with warehouse storage)
+  const [movementLedger, setMovementLedger] = useState<StockMovementLedgerEntry[]>(() => getStockMovementLedger());
+
+  // Listen for real-time ledger updates from GRN Putaway
+  useEffect(() => {
+    const handleLedgerUpdate = (e: any) => {
+      if (e.detail?.ledger) {
+        setMovementLedger(e.detail.ledger);
+      }
+    };
+    window.addEventListener('warehouse_ledger_updated', handleLedgerUpdate);
+    return () => window.removeEventListener('warehouse_ledger_updated', handleLedgerUpdate);
+  }, []);
 
   // Store Type Definitions (Task-3)
   const storeTypes = [
@@ -962,24 +980,29 @@ export const StockLedgerListView: React.FC<Props> = ({
         </div>
       )}
 
-      {/* TAB 2: LEDGER ITEMS (ATTACHED SCREENSHOT FORMAT - Task-2 & Task-4) */}
+      {/* TAB 2: LEDGER ITEMS (SLIDER-FREE FORMAT WITH CUSTOMER SEARCH FOR 100,000+ ACCOUNTS) */}
       {activeLedgerTab === 'ledger_items' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          {/* Header Bar matching screenshot: Blue gradient bar with Ledger Items & Pagination */}
-          <div className="bg-gradient-to-r from-[#3B82F6] to-[#60A5FA] px-4 py-2.5 flex items-center justify-between text-white">
+          {/* Header Bar: Blue gradient bar with Ledger Items, Customer Search & Pagination */}
+          <div className="bg-gradient-to-r from-[#2563EB] via-[#3B82F6] to-[#60A5FA] px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-white">
             <div className="flex items-center gap-2">
-              <Search className="w-4 h-4 text-white/80" />
-              <h3 className="font-bold text-sm tracking-wide">Ledger Items</h3>
+              <Search className="w-4 h-4 text-white/90" />
+              <h3 className="font-bold text-sm tracking-wide">Master Ledger Items</h3>
+              <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/20 text-white font-mono font-semibold">
+                {filteredLedgerEntries.length} Records
+              </span>
             </div>
+
             <div className="flex items-center gap-3 text-xs">
-              <span className="text-white/90 font-medium">
-                Page <strong className="text-white">{currentPage}</strong> of <strong>{totalPages}</strong> | {filteredLedgerEntries.length} Records
+              <span className="text-white/90 font-medium hidden md:inline">
+                Page <strong className="text-white">{currentPage}</strong> of <strong>{totalPages}</strong>
               </span>
               <div className="flex items-center gap-1 bg-white/20 rounded-lg p-0.5">
                 <button
                   disabled={currentPage <= 1}
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   className="p-1 hover:bg-white/30 rounded disabled:opacity-30 transition"
+                  title="Previous Page"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
@@ -987,6 +1010,7 @@ export const StockLedgerListView: React.FC<Props> = ({
                   disabled={currentPage >= totalPages}
                   onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                   className="p-1 hover:bg-white/30 rounded disabled:opacity-30 transition"
+                  title="Next Page"
                 >
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
@@ -994,91 +1018,164 @@ export const StockLedgerListView: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Ledger Items Table (Columns strictly matching the screenshot) */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse font-sans">
+          {/* Slider-Free Proportional Table */}
+          <div className="overflow-hidden">
+            <table className="w-full text-left text-xs border-collapse font-sans table-fixed">
+              <colgroup>
+                <col className="w-[15%]" />
+                <col className="w-[20%]" />
+                <col className="w-[18%]" />
+                <col className="w-[20%]" />
+                <col className="w-[14%]" />
+                <col className="w-[13%]" />
+              </colgroup>
               <thead>
-                <tr className="border-b border-slate-200 bg-[#EFF6FF] text-slate-700 font-bold text-[11px] whitespace-nowrap">
-                  <th className="py-2.5 px-3 border-r border-slate-200">Ledger Date</th>
-                  <th className="py-2.5 px-3 border-r border-slate-200">Doc. Type</th>
-                  <th className="py-2.5 px-3 border-r border-slate-200">Doc #</th>
-                  <th className="py-2.5 px-3 border-r border-slate-200">Location</th>
-                  <th className="py-2.5 px-3 border-r border-slate-200">Location Type</th>
-                  <th className="py-2.5 px-3 border-r border-slate-200">Customer</th>
-                  <th className="py-2.5 px-3 border-r border-slate-200">Supplier</th>
-                  <th className="py-2.5 px-3 border-r border-slate-200">Lot #</th>
-                  <th className="py-2.5 px-3 text-right border-r border-slate-200">Unit Price</th>
-                  <th className="py-2.5 px-3 border-r border-slate-200">Parent Doc. Type</th>
-                  <th className="py-2.5 px-3 border-r border-slate-200">Parent Doc #</th>
-                  <th className="py-2.5 px-3 border-r border-slate-200">Reference #</th>
-                  <th className="py-2.5 px-3 text-center border-r border-slate-200">Qty/UOM</th>
-                  <th className="py-2.5 px-3 border-r border-slate-200">UOM</th>
-                  <th className="py-2.5 px-3 text-right border-r border-slate-200 bg-emerald-50/50">Qty IN</th>
-                  <th className="py-2.5 px-3 text-right border-r border-slate-200 bg-amber-50/50">Qty OUT</th>
-                  <th className="py-2.5 px-3 text-center">Status</th>
+                <tr className="border-b border-slate-200 bg-[#EFF6FF] text-slate-700 font-bold text-[10px] uppercase tracking-wider">
+                  <th className="py-2.5 px-3 border-r border-slate-200">Date &amp; Doc #</th>
+                  <th className="py-2.5 px-3 border-r border-slate-200">Material &amp; SKU</th>
+                  <th className="py-2.5 px-3 border-r border-slate-200">Lot # &amp; Location</th>
+                  <th className="py-2.5 px-3 border-r border-slate-200">Customer / Supplier</th>
+                  <th className="py-2.5 px-3 text-right border-r border-slate-200">Movement Qty</th>
+                  <th className="py-2.5 px-3 text-center">Status &amp; Audit</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {paginatedLedgerItems.map((row, idx) => (
-                  <tr
-                    key={row.id}
-                    className={`hover:bg-blue-50/70 transition font-mono text-[11px] ${
-                      idx % 2 === 1 ? 'bg-amber-50/30' : 'bg-white'
-                    }`}
-                  >
-                    <td className="py-2 px-3 border-r border-slate-100 text-slate-800 whitespace-nowrap">
-                      {row.ledgerDate}
-                    </td>
-                    <td className="py-2 px-3 border-r border-slate-100 font-bold text-slate-700">
-                      {row.docType}
-                    </td>
-                    <td className="py-2 px-3 border-r border-slate-100 font-bold text-[#2563EB]">
-                      {row.docNumber}
-                    </td>
-                    <td className="py-2 px-3 border-r border-slate-100 text-slate-700">
-                      {row.location}
-                    </td>
-                    <td className="py-2 px-3 border-r border-slate-100 text-slate-600">
-                      {row.locationType}
-                    </td>
-                    <td className="py-2 px-3 border-r border-slate-100 text-slate-800 font-sans font-medium">
-                      {row.customer || ''}
-                    </td>
-                    <td className="py-2 px-3 border-r border-slate-100 text-slate-800 font-sans font-semibold">
-                      {row.supplier || ''}
-                    </td>
-                    <td className="py-2 px-3 border-r border-slate-100 text-slate-800 font-bold">
-                      {row.lotNumber || ''}
-                    </td>
-                    <td className="py-2 px-3 border-r border-slate-100 text-right text-slate-800">
-                      {row.unitPrice !== undefined ? row.unitPrice.toFixed(2) : ''}
-                    </td>
-                    <td className="py-2 px-3 border-r border-slate-100 font-bold text-slate-600">
-                      {row.parentDocType || ''}
-                    </td>
-                    <td className="py-2 px-3 border-r border-slate-100 text-slate-700">
-                      {row.parentDocNumber || ''}
-                    </td>
-                    <td className="py-2 px-3 border-r border-slate-100 text-slate-700">
-                      {row.referenceNumber || ''}
-                    </td>
-                    <td className="py-2 px-3 border-r border-slate-100 text-center text-slate-700">
-                      {row.qtyPerUom || 1}
-                    </td>
-                    <td className="py-2 px-3 border-r border-slate-100 text-slate-700 font-bold">
-                      {row.uom}
-                    </td>
-                    <td className="py-2 px-3 border-r border-slate-100 text-right font-bold text-emerald-700 bg-emerald-50/30">
-                      {row.qtyIn > 0 ? row.qtyIn.toFixed(4) : ''}
-                    </td>
-                    <td className="py-2 px-3 border-r border-slate-100 text-right font-bold text-rose-700 bg-amber-50/30">
-                      {row.qtyOut > 0 ? row.qtyOut.toFixed(4) : ''}
-                    </td>
-                    <td className="py-2 px-3 text-center">
-                      {renderLedgerStatusBadge(row.status)}
-                    </td>
-                  </tr>
-                ))}
+                {paginatedLedgerItems.map((row, idx) => {
+                  const isExpanded = expandedRowId === row.id;
+
+                  return (
+                    <React.Fragment key={row.id}>
+                      <tr
+                        onClick={() => setExpandedRowId(isExpanded ? null : row.id)}
+                        className={`hover:bg-blue-50/70 transition cursor-pointer font-mono text-[11px] ${
+                          idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'
+                        } ${isExpanded ? 'bg-blue-50/60 border-l-4 border-l-[#2563EB]' : ''}`}
+                      >
+                        {/* Date & Doc */}
+                        <td className="py-2.5 px-3 border-r border-slate-100">
+                          <div className="font-bold text-[#2563EB] truncate">{row.docNumber}</div>
+                          <div className="text-[10px] text-slate-500 font-sans flex items-center gap-1 mt-0.5">
+                            <span>{row.ledgerDate}</span>
+                            <span className="text-slate-300">&bull;</span>
+                            <span className="font-semibold text-slate-600 uppercase text-[9px]">{row.docType}</span>
+                          </div>
+                        </td>
+
+                        {/* Material & SKU */}
+                        <td className="py-2.5 px-3 border-r border-slate-100 font-sans">
+                          <div className="font-bold text-slate-800 text-xs truncate">{row.itemName}</div>
+                          <div className="font-mono text-[10px] text-[#0F8B8D] font-bold mt-0.5">{row.sku}</div>
+                        </td>
+
+                        {/* Lot & Location */}
+                        <td className="py-2.5 px-3 border-r border-slate-100">
+                          <span className="font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">
+                            {row.lotNumber || 'BULK'}
+                          </span>
+                          <div className="text-[10px] text-slate-500 font-sans mt-0.5 truncate" title={row.location}>
+                            {row.location}
+                          </div>
+                        </td>
+
+                        {/* Customer / Supplier Party */}
+                        <td className="py-2.5 px-3 border-r border-slate-100 font-sans">
+                          {row.customer ? (
+                            <div className="flex items-center gap-1.5 text-blue-900 font-semibold truncate" title={row.customer}>
+                              <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                              <span className="truncate">{row.customer}</span>
+                            </div>
+                          ) : row.supplier ? (
+                            <div className="flex items-center gap-1.5 text-slate-800 font-semibold truncate" title={row.supplier}>
+                              <Truck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                              <span className="truncate">{row.supplier}</span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic text-[10px]">Internal Transfer</span>
+                          )}
+                          {row.parentDocNumber && (
+                            <div className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">
+                              Ref: {row.parentDocNumber}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Movement Qty */}
+                        <td className="py-2.5 px-3 border-r border-slate-100 text-right">
+                          {row.qtyIn > 0 ? (
+                            <span className="inline-block font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[11px]">
+                              +{row.qtyIn.toLocaleString()} {row.uom}
+                            </span>
+                          ) : row.qtyOut > 0 ? (
+                            <span className="inline-block font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded text-[11px]">
+                              -{row.qtyOut.toLocaleString()} {row.uom}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">0.00</span>
+                          )}
+                          {row.unitPrice !== undefined && (
+                            <div className="text-[10px] text-slate-500 font-sans mt-0.5">
+                              @ ₹{row.unitPrice.toFixed(2)}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Status & Audit */}
+                        <td className="py-2.5 px-3 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {renderLedgerStatusBadge(row.status)}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedRowId(isExpanded ? null : row.id);
+                              }}
+                              className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                              title={isExpanded ? 'Collapse details' : 'Expand full details'}
+                            >
+                              <ChevronRight
+                                className={`w-3.5 h-3.5 transition-transform ${isExpanded ? 'rotate-90 text-[#2563EB]' : ''}`}
+                              />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Expandable Audit Lineage Details */}
+                      {isExpanded && (
+                        <tr className="bg-gradient-to-r from-blue-50/50 to-indigo-50/30 font-sans text-xs">
+                          <td colSpan={6} className="p-3.5 border-b border-blue-200/60">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-3 rounded-xl border border-blue-100 shadow-xs">
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase">Parent Document</div>
+                                <div className="font-mono font-bold text-slate-800 text-xs">
+                                  {row.parentDocType || 'N/A'}: {row.parentDocNumber || '—'}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase">External Reference #</div>
+                                <div className="font-mono font-semibold text-slate-800 text-xs">
+                                  {row.referenceNumber || 'N/A'}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase">Location Type &amp; Facility</div>
+                                <div className="font-semibold text-slate-800 text-xs">
+                                  {row.location} ({row.locationType || 'WAREHOUSE'})
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 font-semibold uppercase">Line Valuation</div>
+                                <div className="font-mono font-bold text-emerald-700 text-xs">
+                                  ₹{((row.qtyIn || row.qtyOut || 0) * (row.unitPrice || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1346,107 +1443,213 @@ export const StockLedgerListView: React.FC<Props> = ({
               </div>
             </div>
 
-            {/* SECTION 1: Exact Ledger Items Grid matching screenshot */}
-            <div className="space-y-2">
-              <div className="bg-gradient-to-r from-[#3B82F6] to-[#60A5FA] px-3.5 py-2 rounded-t-xl flex items-center justify-between text-white">
+            {/* SECTION 1: Slider-Free Ledger Items Grid with Customer Search & Provenance */}
+            <div className="space-y-2.5">
+              <div className="bg-gradient-to-r from-[#2563EB] via-[#3B82F6] to-[#60A5FA] px-4 py-2.5 rounded-t-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-white">
                 <div className="flex items-center gap-2">
-                  <Search className="w-3.5 h-3.5 text-white/80" />
-                  <span className="font-bold text-xs tracking-wide">Ledger Items for {selectedItemForLots.sku}</span>
+                  <Search className="w-4 h-4 text-white/90" />
+                  <span className="font-bold text-xs tracking-wide">
+                    Ledger Items for {selectedItemForLots.sku}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/20 text-white font-mono font-semibold">
+                    {movementLedger.filter((m) => m.sku === selectedItemForLots.sku).length} Records
+                  </span>
                 </div>
-                <span className="text-[11px] text-white/90">
-                  {movementLedger.filter((m) => m.sku === selectedItemForLots.sku).length} Ledger Rows
-                </span>
+
+                {/* Search across 100,000+ Customer / Supplier accounts */}
+                <div className="relative min-w-[240px]">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search customer, lot, doc #..."
+                    value={modalCustomerSearch}
+                    onChange={(e) => setModalCustomerSearch(e.target.value)}
+                    className="w-full pl-8 pr-6 py-1 text-xs text-slate-800 bg-white/95 rounded-lg border-none focus:outline-none focus:ring-2 focus:ring-white/50 placeholder:text-slate-400 font-sans"
+                  />
+                  {modalCustomerSearch && (
+                    <button
+                      onClick={() => setModalCustomerSearch('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <div className="border border-slate-200 rounded-b-xl overflow-hidden overflow-x-auto text-xs">
-                <table className="w-full text-left border-collapse font-sans">
+              {/* Slider-Free Table with Fixed Proportions */}
+              <div className="border border-slate-200 rounded-b-xl overflow-hidden text-xs bg-white">
+                <table className="w-full text-left border-collapse font-sans table-fixed">
+                  <colgroup>
+                    <col className="w-[16%]" />
+                    <col className="w-[18%]" />
+                    <col className="w-[24%]" />
+                    <col className="w-[15%]" />
+                    <col className="w-[13%]" />
+                    <col className="w-[14%]" />
+                  </colgroup>
                   <thead>
-                    <tr className="border-b border-slate-200 bg-[#EFF6FF] text-slate-700 font-bold text-[10px] whitespace-nowrap">
-                      <th className="py-2 px-2.5 border-r border-slate-200">Ledger Date</th>
-                      <th className="py-2 px-2.5 border-r border-slate-200">Doc. Type</th>
-                      <th className="py-2 px-2.5 border-r border-slate-200">Doc #</th>
-                      <th className="py-2 px-2.5 border-r border-slate-200">Location</th>
-                      <th className="py-2 px-2.5 border-r border-slate-200">Location Type</th>
-                      <th className="py-2 px-2.5 border-r border-slate-200">Customer</th>
-                      <th className="py-2 px-2.5 border-r border-slate-200">Supplier</th>
-                      <th className="py-2 px-2.5 border-r border-slate-200">Lot #</th>
-                      <th className="py-2 px-2.5 text-right border-r border-slate-200">Unit Price</th>
-                      <th className="py-2 px-2.5 border-r border-slate-200">Parent Doc. Type</th>
-                      <th className="py-2 px-2.5 border-r border-slate-200">Parent Doc #</th>
-                      <th className="py-2 px-2.5 border-r border-slate-200">Reference #</th>
-                      <th className="py-2 px-2.5 text-center border-r border-slate-200">Qty/UOM</th>
-                      <th className="py-2 px-2.5 border-r border-slate-200">UOM</th>
-                      <th className="py-2 px-2.5 text-right border-r border-slate-200 bg-emerald-50/50">Qty IN</th>
-                      <th className="py-2 px-2.5 text-right border-r border-slate-200 bg-amber-50/50">Qty OUT</th>
-                      <th className="py-2 px-2.5 text-center">Status</th>
+                    <tr className="border-b border-slate-200 bg-[#EFF6FF] text-slate-700 font-bold text-[10px] uppercase tracking-wider">
+                      <th className="py-2.5 px-3 border-r border-slate-200">Date &amp; Doc #</th>
+                      <th className="py-2.5 px-3 border-r border-slate-200">Lot # &amp; Bin</th>
+                      <th className="py-2.5 px-3 border-r border-slate-200">Party (Customer / Vendor)</th>
+                      <th className="py-2.5 px-3 text-right border-r border-slate-200">Movement Qty</th>
+                      <th className="py-2.5 px-3 text-right border-r border-slate-200">Rate (₹)</th>
+                      <th className="py-2.5 px-3 text-center">Status &amp; Audit</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {movementLedger
                       .filter((m) => m.sku === selectedItemForLots.sku)
-                      .map((row, idx) => (
-                        <tr
-                          key={row.id}
-                          className={`hover:bg-blue-50/70 transition font-mono text-[10px] ${
-                            idx % 2 === 1 ? 'bg-amber-50/30' : 'bg-white'
-                          }`}
-                        >
-                          <td className="py-1.5 px-2.5 border-r border-slate-100 text-slate-800 whitespace-nowrap">
-                            {row.ledgerDate}
-                          </td>
-                          <td className="py-1.5 px-2.5 border-r border-slate-100 font-bold text-slate-700">
-                            {row.docType}
-                          </td>
-                          <td className="py-1.5 px-2.5 border-r border-slate-100 font-bold text-[#2563EB]">
-                            {row.docNumber}
-                          </td>
-                          <td className="py-1.5 px-2.5 border-r border-slate-100 text-slate-700">
-                            {row.location}
-                          </td>
-                          <td className="py-1.5 px-2.5 border-r border-slate-100 text-slate-600">
-                            {row.locationType}
-                          </td>
-                          <td className="py-1.5 px-2.5 border-r border-slate-100 text-slate-800 font-sans font-medium">
-                            {row.customer || ''}
-                          </td>
-                          <td className="py-1.5 px-2.5 border-r border-slate-100 text-slate-800 font-sans font-semibold">
-                            {row.supplier || ''}
-                          </td>
-                          <td className="py-1.5 px-2.5 border-r border-slate-100 text-slate-800 font-bold">
-                            {row.lotNumber || ''}
-                          </td>
-                          <td className="py-1.5 px-2.5 border-r border-slate-100 text-right text-slate-800">
-                            {row.unitPrice !== undefined ? row.unitPrice.toFixed(2) : ''}
-                          </td>
-                          <td className="py-1.5 px-2.5 border-r border-slate-100 font-bold text-slate-600">
-                            {row.parentDocType || ''}
-                          </td>
-                          <td className="py-1.5 px-2.5 border-r border-slate-100 text-slate-700">
-                            {row.parentDocNumber || ''}
-                          </td>
-                          <td className="py-1.5 px-2.5 border-r border-slate-100 text-slate-700">
-                            {row.referenceNumber || ''}
-                          </td>
-                          <td className="py-1.5 px-2.5 border-r border-slate-100 text-center text-slate-700">
-                            {row.qtyPerUom || 1}
-                          </td>
-                          <td className="py-1.5 px-2.5 border-r border-slate-100 text-slate-700 font-bold">
-                            {row.uom}
-                          </td>
-                          <td className="py-1.5 px-2.5 border-r border-slate-100 text-right font-bold text-emerald-700 bg-emerald-50/30">
-                            {row.qtyIn > 0 ? row.qtyIn.toFixed(4) : ''}
-                          </td>
-                          <td className="py-1.5 px-2.5 border-r border-slate-100 text-right font-bold text-rose-700 bg-amber-50/30">
-                            {row.qtyOut > 0 ? row.qtyOut.toFixed(4) : ''}
-                          </td>
-                          <td className="py-1.5 px-2.5 text-center">
-                            {renderLedgerStatusBadge(row.status)}
-                          </td>
-                        </tr>
-                      ))}
+                      .filter((entry) => {
+                        if (!modalCustomerSearch) return true;
+                        const term = modalCustomerSearch.toLowerCase();
+                        return (
+                          (entry.customer && entry.customer.toLowerCase().includes(term)) ||
+                          (entry.supplier && entry.supplier.toLowerCase().includes(term)) ||
+                          (entry.lotNumber && entry.lotNumber.toLowerCase().includes(term)) ||
+                          (entry.docNumber && entry.docNumber.toLowerCase().includes(term)) ||
+                          (entry.referenceNumber && entry.referenceNumber.toLowerCase().includes(term))
+                        );
+                      })
+                      .map((row, idx) => {
+                        const isExpanded = expandedModalRowId === row.id;
+
+                        return (
+                          <React.Fragment key={row.id}>
+                            <tr
+                              onClick={() => setExpandedModalRowId(isExpanded ? null : row.id)}
+                              className={`hover:bg-blue-50/70 transition cursor-pointer font-mono text-[11px] ${
+                                idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'
+                              } ${isExpanded ? 'bg-blue-50/60 border-l-4 border-l-[#2563EB]' : ''}`}
+                            >
+                              {/* Date & Doc */}
+                              <td className="py-2 px-3 border-r border-slate-100">
+                                <div className="font-bold text-[#2563EB] truncate">{row.docNumber}</div>
+                                <div className="text-[10px] text-slate-500 font-sans flex items-center gap-1 mt-0.5">
+                                  <span>{row.ledgerDate}</span>
+                                  <span className="text-slate-300">&bull;</span>
+                                  <span className="font-semibold text-slate-600 uppercase text-[9px]">
+                                    {row.docType}
+                                  </span>
+                                </div>
+                              </td>
+
+                              {/* Lot & Location */}
+                              <td className="py-2 px-3 border-r border-slate-100">
+                                <span className="font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">
+                                  {row.lotNumber || 'BULK'}
+                                </span>
+                                <div className="text-[10px] text-slate-500 font-sans mt-0.5 truncate" title={row.location}>
+                                  {row.location}
+                                </div>
+                              </td>
+
+                              {/* Party (Customer / Supplier) */}
+                              <td className="py-2 px-3 border-r border-slate-100 font-sans">
+                                {row.customer ? (
+                                  <div className="flex items-center gap-1.5 text-blue-900 font-semibold truncate" title={row.customer}>
+                                    <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                    <span className="truncate">{row.customer}</span>
+                                  </div>
+                                ) : row.supplier ? (
+                                  <div className="flex items-center gap-1.5 text-slate-800 font-semibold truncate" title={row.supplier}>
+                                    <Truck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                    <span className="truncate">{row.supplier}</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-400 italic text-[10px]">Internal Movement</span>
+                                )}
+                                {row.parentDocNumber && (
+                                  <div className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">
+                                    Ref: {row.parentDocNumber}
+                                  </div>
+                                )}
+                              </td>
+
+                              {/* Movement Qty */}
+                              <td className="py-2 px-3 border-r border-slate-100 text-right">
+                                {row.qtyIn > 0 ? (
+                                  <span className="inline-block font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[11px]">
+                                    +{row.qtyIn.toLocaleString()} {row.uom}
+                                  </span>
+                                ) : row.qtyOut > 0 ? (
+                                  <span className="inline-block font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded text-[11px]">
+                                    -{row.qtyOut.toLocaleString()} {row.uom}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">0.00</span>
+                                )}
+                              </td>
+
+                              {/* Unit Price */}
+                              <td className="py-2 px-3 border-r border-slate-100 text-right">
+                                <div className="font-bold text-slate-800">
+                                  {row.unitPrice !== undefined ? `₹${row.unitPrice.toFixed(2)}` : '—'}
+                                </div>
+                                <div className="text-[9px] text-slate-400 font-sans">per {row.uom}</div>
+                              </td>
+
+                              {/* Status & Audit */}
+                              <td className="py-2 px-3 text-center">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  {renderLedgerStatusBadge(row.status)}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setExpandedModalRowId(isExpanded ? null : row.id);
+                                    }}
+                                    className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                                    title={isExpanded ? 'Collapse audit details' : 'Expand full audit trail'}
+                                  >
+                                    <ChevronRight
+                                      className={`w-3.5 h-3.5 transition-transform ${isExpanded ? 'rotate-90 text-[#2563EB]' : ''}`}
+                                    />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+
+                            {/* Expanded Audit Drawer Row */}
+                            {isExpanded && (
+                              <tr className="bg-gradient-to-r from-blue-50/50 to-indigo-50/30 font-sans text-xs">
+                                <td colSpan={6} className="p-3.5 border-b border-blue-200/60">
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-3 rounded-xl border border-blue-100 shadow-xs">
+                                    <div>
+                                      <div className="text-[10px] text-slate-400 font-semibold uppercase">Parent Document</div>
+                                      <div className="font-mono font-bold text-slate-800 text-xs">
+                                        {row.parentDocType || 'N/A'}: {row.parentDocNumber || '—'}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-[10px] text-slate-400 font-semibold uppercase">External Reference #</div>
+                                      <div className="font-mono font-semibold text-slate-800 text-xs">
+                                        {row.referenceNumber || 'N/A'}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-[10px] text-slate-400 font-semibold uppercase">Location Facility</div>
+                                      <div className="font-semibold text-slate-800 text-xs">
+                                        {row.location} ({row.locationType || 'WAREHOUSE'})
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-[10px] text-slate-400 font-semibold uppercase">Line Valuation</div>
+                                      <div className="font-mono font-bold text-emerald-700 text-xs">
+                                        ₹{((row.qtyIn || row.qtyOut || 0) * (row.unitPrice || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
                     {movementLedger.filter((m) => m.sku === selectedItemForLots.sku).length === 0 && (
                       <tr>
-                        <td colSpan={17} className="py-6 text-center text-slate-400">
+                        <td colSpan={6} className="py-8 text-center text-slate-400">
                           No transaction ledger history recorded for this SKU.
                         </td>
                       </tr>

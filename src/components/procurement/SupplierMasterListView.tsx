@@ -27,9 +27,11 @@ import {
 import { ProcurementStatusBadge } from './ProcurementStatusBadge';
 import { PaginationBar } from '../common/PaginationBar';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
+import { SupplierOnboardingModal } from './SupplierOnboardingModal';
 
 interface Props {
   suppliers: SupplierMaster[];
+  activeParam?: any;
   onNavigate: (view: string, param?: any) => void;
   onUpdateSupplier: (supplier: SupplierMaster) => void;
   onCreateSupplier: (supplier: SupplierMaster) => void;
@@ -40,6 +42,7 @@ interface Props {
 
 export const SupplierMasterListView: React.FC<Props> = ({
   suppliers,
+  activeParam,
   onNavigate,
   onUpdateSupplier,
   onCreateSupplier,
@@ -47,6 +50,13 @@ export const SupplierMasterListView: React.FC<Props> = ({
   closeDrawer,
   showToast,
 }) => {
+  const [isOnboardModalOpen, setIsOnboardModalOpen] = useState(false);
+
+  React.useEffect(() => {
+    if (activeParam?.openOnboard) {
+      setIsOnboardModalOpen(true);
+    }
+  }, [activeParam]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedStatus, setSelectedStatus] = useState<string>('All');
@@ -437,7 +447,7 @@ export const SupplierMasterListView: React.FC<Props> = ({
             <Download className="w-3.5 h-3.5" /> Export CSV
           </button>
           <button
-            onClick={handleOpenCreateDrawer}
+            onClick={() => setIsOnboardModalOpen(true)}
             className="flex items-center gap-1.5 px-3.5 py-2 bg-[#0F8B8D] hover:bg-[#0d797b] text-white rounded-lg text-xs font-semibold shadow-sm transition"
           >
             <Plus className="w-3.5 h-3.5" /> Onboard Supplier
@@ -644,21 +654,26 @@ export const SupplierMasterListView: React.FC<Props> = ({
 
                     {/* Actions */}
                     <td className="py-3 px-3 text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1.5">
+                      <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => onNavigate('supplierDetail', { id: sup.id })}
-                          className="px-2.5 py-1 text-[11px] font-semibold text-[#0F8B8D] hover:bg-[#0F8B8D]/10 rounded transition"
+                          className="px-2.5 py-1.5 text-xs font-semibold bg-slate-50 hover:bg-[#14213D] text-slate-700 hover:text-white border border-slate-300 rounded-lg transition-all shadow-xs flex items-center gap-1 group/btn"
+                          title="Open 14 Tabs Supplier Profile"
                         >
-                          View 14 Tabs
+                          <Building className="w-3.5 h-3.5 text-[#0F8B8D] group-hover/btn:text-white transition" />
+                          <span>14 Tabs</span>
+                          <span className="text-[10px] text-slate-400 group-hover/btn:text-slate-300">→</span>
                         </button>
                         <button
                           onClick={() => {
                             showToast(`Creating Purchase Order for ${sup.name}`);
-                            onNavigate('poList');
+                            onNavigate('poList', { supplierId: sup.id, supplierName: sup.name, openCreateModal: true });
                           }}
-                          className="px-2.5 py-1 text-[11px] font-semibold bg-[#14213D] hover:bg-[#1f325c] text-white rounded transition shadow-sm"
+                          className="px-2.5 py-1.5 text-xs font-semibold bg-[#0F8B8D] hover:bg-[#0d797b] text-white rounded-lg transition-all shadow-sm flex items-center gap-1"
+                          title="Issue Purchase Order"
                         >
-                          + PO
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Issue PO</span>
                         </button>
                       </div>
                     </td>
@@ -683,6 +698,14 @@ export const SupplierMasterListView: React.FC<Props> = ({
           itemName="suppliers"
         />
       </div>
+
+      {/* Dedicated Onboarding Wizard Modal */}
+      <SupplierOnboardingModal
+        isOpen={isOnboardModalOpen}
+        onClose={() => setIsOnboardModalOpen(false)}
+        onCreateSupplier={onCreateSupplier}
+        showToast={showToast}
+      />
     </div>
   );
 };

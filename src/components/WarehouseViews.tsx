@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ItemMaster,
   PurchaseOrder,
@@ -15,6 +15,7 @@ import {
   INITIAL_REGRIND_RUNS,
   INITIAL_SUBCONTRACT_ORDERS,
 } from '../data/warehouseData';
+import { getWarehouseStock } from '../utils/warehouseSync';
 import {
   WarehouseLocation,
   InventoryStockItem,
@@ -72,15 +73,26 @@ export const WarehouseViews: React.FC<WarehouseProps> = ({
   openConfirm,
   showToast,
 }) => {
-  // Warehouse local state managed with initial seed data
+  // Warehouse local state managed with initial seed data and sync storage
   const [locations, setLocations] = useState<WarehouseLocation[]>(INITIAL_WAREHOUSE_LOCATIONS);
-  const [stockItems, setStockItems] = useState<InventoryStockItem[]>(INITIAL_INVENTORY_STOCK);
+  const [stockItems, setStockItems] = useState<InventoryStockItem[]>(() => getWarehouseStock());
   const [putawayTasks, setPutawayTasks] = useState<PutawayTask[]>(INITIAL_PUTAWAY_TASKS);
   const [pickTasks, setPickTasks] = useState<PickPackTask[]>(INITIAL_PICK_PACK_TASKS);
   const [cycleCounts, setCycleCounts] = useState<CycleCountSession[]>(INITIAL_CYCLE_COUNTS);
   const [quarantineLots, setQuarantineLots] = useState<QuarantineLotRecord[]>(INITIAL_QUARANTINE_LOTS);
   const [regrindRuns, setRegrindRuns] = useState<RegrindScrapRun[]>(INITIAL_REGRIND_RUNS);
   const [subcontractOrders, setSubcontractOrders] = useState<SubcontractOrder[]>(INITIAL_SUBCONTRACT_ORDERS);
+
+  // Sync real-time updates when GRN Putaway posts new items/lots
+  useEffect(() => {
+    const handleStockUpdate = (e: any) => {
+      if (e.detail?.stock) {
+        setStockItems(e.detail.stock);
+      }
+    };
+    window.addEventListener('warehouse_stock_updated', handleStockUpdate);
+    return () => window.removeEventListener('warehouse_stock_updated', handleStockUpdate);
+  }, []);
 
   // 1. Inventory Dashboard
   if (view === 'invDash') {

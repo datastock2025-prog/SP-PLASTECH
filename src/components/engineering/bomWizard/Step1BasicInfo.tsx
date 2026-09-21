@@ -98,8 +98,11 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
     return items.filter((item) => {
       if (!item || !item.code) return false;
 
-      // Task 5: Never show rejected items
-      if (item.approval === 'rejected' || item.status === 'rejected' || item.status === 'blocked') {
+      // Task 1: Strictly show only Approved / Released items
+      if (item.approval !== 'approved' && item.approval !== 'released') {
+        return false;
+      }
+      if (item.status === 'rejected' || item.status === 'blocked' || item.status === 'inactive') {
         return false;
       }
 
@@ -609,7 +612,7 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
             handleSelectParentItem(newItem);
             setIsCreateItemModalOpen(false);
           }}
-          allItems={allItems}
+          allItems={items}
           showToast={showToast}
         />
       )}

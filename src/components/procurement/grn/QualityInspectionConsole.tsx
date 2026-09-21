@@ -1,23 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ShieldCheck,
-  ShieldAlert,
-  AlertTriangle,
   CheckCircle2,
   XCircle,
-  FileText,
   Search,
-  Filter,
-  Eye,
   Check,
   X,
-  Sparkles,
-  ClipboardList,
   Printer,
-  ChevronRight,
   FlaskConical,
+  Calendar,
+  RotateCcw,
+  Download,
 } from 'lucide-react';
 import { GoodsReceiptNoteExt, GrnLineItemExt } from '../../../types/grnTypes';
+import { PaginationBar } from '../../common/PaginationBar';
+import { useEnterpriseDataGrid, TimeHorizonScope } from '../../../hooks/useEnterpriseDataGrid';
 
 interface Props {
   grns: GoodsReceiptNoteExt[];
@@ -33,34 +30,60 @@ export const QualityInspectionConsole: React.FC<Props> = ({
   const [selectedGrn, setSelectedGrn] = useState<GoodsReceiptNoteExt | null>(null);
   const [selectedLineIndex, setSelectedLineIndex] = useState<number>(0);
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
+  const [filterStatus, setFilterStatus] = useState('All');
 
   // Filter GRNs that require QC or have QC status
-  const qcGrns = grns.filter(
-    (g) =>
-      g.inspectionMode === 'QC_BEFORE_GRN' ||
-      g.inspectionMode === 'QC_AFTER_GRN' ||
-      g.status === 'pending_qc' ||
-      g.lines.some((l) => l.qualityStatus !== 'Not Required')
-  );
+  const qcGrns = useMemo(() => {
+    return grns.filter(
+      (g) =>
+        g.inspectionMode === 'QC_BEFORE_GRN' ||
+        g.inspectionMode === 'QC_AFTER_GRN' ||
+        g.status === 'pending_qc' ||
+        g.lines.some((l) => l.qualityStatus !== 'Not Required')
+    );
+  }, [grns]);
 
-  const [filterStatus, setFilterStatus] = useState('All');
-  const [searchTerm, setSearchTerm] = useState('');
+  // Pre-filter with status dropdown
+  const filteredQcData = useMemo(() => {
+    return qcGrns.filter((g) => {
+      if (filterStatus === 'Pending') return g.status === 'pending_qc' || g.inspectionStatus === 'Pending';
+      if (filterStatus === 'Approved') return g.inspectionStatus === 'Approved';
+      if (filterStatus === 'Quarantined') return g.inspectionStatus === 'Quarantined';
+      if (filterStatus === 'Rejected') return g.inspectionStatus === 'Rejected';
+      return true;
+    });
+  }, [qcGrns, filterStatus]);
 
-  const filteredQcGrns = qcGrns.filter((g) => {
-    const matchSearch =
-      g.grnNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      g.poNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      g.supplierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      g.lines.some((l) => l.itemName.toLowerCase().includes(searchTerm.toLowerCase()) || l.lotBatchNumber.toLowerCase().includes(searchTerm.toLowerCase()));
-
-    const matchStatus =
-      filterStatus === 'All' ||
-      (filterStatus === 'Pending' && (g.status === 'pending_qc' || g.inspectionStatus === 'Pending')) ||
-      (filterStatus === 'Approved' && g.inspectionStatus === 'Approved') ||
-      (filterStatus === 'Quarantined' && g.inspectionStatus === 'Quarantined') ||
-      (filterStatus === 'Rejected' && g.inspectionStatus === 'Rejected');
-
-    return matchSearch && matchStatus;
+  const {
+    searchTerm,
+    setSearchTerm,
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    pageSizeOptions,
+    totalPages,
+    totalItems,
+    paginatedData: paginatedQcGrns,
+    timeHorizon,
+    setTimeHorizon,
+    exportChunkedCSV,
+    resetFilters,
+  } = useEnterpriseDataGrid<GoodsReceiptNoteExt>({
+    data: filteredQcData,
+    dateField: (item) => item.receiptDate,
+    searchFields: [
+      (item) => item.grnNumber,
+      (item) => item.poNumber,
+      (item) => item.supplierName,
+      (item) =>
+        item.lines
+          .map((l) => `${l.itemName} ${l.itemCode} ${l.lotBatchNumber} ${l.supplierLotNumber || ''}`)
+          .join(' '),
+    ],
+    initialPageSize: 25,
+    pageSizeOptions: [10, 25, 50, 100, 250, 500],
+    defaultTimeHorizon: 'all',
   });
 
   const handleOpenInspection = (grn: GoodsReceiptNoteExt, lineIdx: number = 0) => {
@@ -129,6 +152,56 @@ export const QualityInspectionConsole: React.FC<Props> = ({
     showToast(`Inspection finalized for ${selectedGrn.grnNumber}: ${result}`);
   };
 
+  const handleResetAll = () => {
+    setFilterStatus('All');
+    resetFilters();
+  };
+
+  const timeHorizonOptions: { label: string; value: TimeHorizonScope }[] = [
+    { label: 'All Time', value: 'all' },
+    { label: 'Today', value: 'today' },
+    { label: 'Last 7 Days', value: '7days' },
+    { label: 'This Month', value: 'month' },
+    { label: 'Last 90 Days', value: '90days' },
+    { label: 'Current Year', value: 'year' },
+  ];
+
+  const handleExport = () => {
+    exportChunkedCSV(
+      'QC_Inspection_Registry',
+      () => [
+        'GRN Number',
+        'PO Number',
+        'Supplier Name',
+        'Polymer Grade',
+        'Lot Number',
+        'Supplier Lot',
+        'Received Qty',
+        'Accepted Qty',
+        'QC Mode',
+        'QC Status',
+        'Posting Status',
+      ],
+      (g) => {
+        const line = g.lines[0];
+        return [
+          g.grnNumber,
+          g.poNumber,
+          g.supplierName,
+          line?.itemName || '',
+          line?.lotBatchNumber || '',
+          line?.supplierLotNumber || '',
+          line?.currentReceivedQty || 0,
+          line?.acceptedQty || 0,
+          g.inspectionMode,
+          line?.qualityStatus || g.inspectionStatus,
+          g.inventoryPostingStatus,
+        ];
+      }
+    );
+    showToast(`Exported ${totalItems.toLocaleString()} QC records to CSV`);
+  };
+
   return (
     <div className="space-y-4">
       {/* Top Banner */}
@@ -137,6 +210,9 @@ export const QualityInspectionConsole: React.FC<Props> = ({
           <h2 className="text-lg font-bold font-['Space_Grotesk'] text-[#14213D] flex items-center gap-2">
             <FlaskConical className="w-5 h-5 text-[#0F8B8D]" />
             Incoming Material Quality Inspection Console
+            <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-mono font-bold">
+              {totalItems.toLocaleString()} lots
+            </span>
           </h2>
           <p className="text-xs text-slate-500">
             Verify plastic raw materials against ASTM / ISO specs before inventory release (QC Before GRN) or quarantine release (QC After GRN)
@@ -147,57 +223,117 @@ export const QualityInspectionConsole: React.FC<Props> = ({
           <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
             {qcGrns.filter((g) => g.status === 'pending_qc').length} Quarantine Lots Pending
           </span>
-        </div>
-      </div>
-
-      {/* Filter Bar */}
-      <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-        <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search by GRN #, lot number, polymer grade, supplier..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
-          />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-2 border border-slate-200 rounded-lg bg-white text-slate-700"
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 bg-white hover:bg-slate-50 rounded-lg text-xs font-semibold text-slate-700 transition shadow-2xs cursor-pointer"
           >
-            <option value="All">All QC Statuses</option>
-            <option value="Pending">Pending Inspection</option>
-            <option value="Approved">Passed QC / Released</option>
-            <option value="Quarantined">Quarantine / Partial</option>
-            <option value="Rejected">Rejected</option>
-          </select>
+            <Download className="w-3.5 h-3.5" /> Export ({totalItems.toLocaleString()})
+          </button>
         </div>
       </div>
 
-      {/* QC Lots Table */}
+      {/* Enterprise Filter Bar */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
+        {/* Row 1: Search & Time Horizon */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search by GRN #, lot number, polymer grade, supplier..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
+            />
+          </div>
+
+          {/* Time Horizon Pills */}
+          <div className="flex items-center gap-1 overflow-x-auto pb-1 lg:pb-0 text-xs">
+            <span className="text-[11px] font-semibold text-slate-500 mr-1 flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5" /> Horizon:
+            </span>
+            {timeHorizonOptions.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setTimeHorizon(opt.value)}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition cursor-pointer whitespace-nowrap ${
+                  timeHorizon === opt.value
+                    ? 'bg-[#14213D] text-white shadow-2xs'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Row 2: Status & Quick Actions */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1 text-xs">
+          <div className="flex items-center gap-2">
+            <select
+              value={filterStatus}
+              onChange={(e) => {
+                setFilterStatus(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="px-3 py-1.5 border border-slate-200 rounded-lg bg-white text-slate-700"
+            >
+              <option value="All">All QC Statuses</option>
+              <option value="Pending">Pending Inspection</option>
+              <option value="Approved">Passed QC / Released</option>
+              <option value="Quarantined">Quarantine / Partial</option>
+              <option value="Rejected">Rejected</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleResetAll}
+              className="inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-800 transition cursor-pointer"
+            >
+              <RotateCcw className="w-3 h-3" /> Reset Filters
+            </button>
+            <span className="text-slate-300">|</span>
+            <span className="text-[11px] text-slate-500">
+              Showing <strong>{paginatedQcGrns.length}</strong> of <strong>{totalItems.toLocaleString()}</strong> QC lots
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* QC Lots Table - Slider-Free */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
+        <div className="w-full">
+          <table className="w-full text-xs text-left table-fixed">
+            <colgroup>
+              <col className="w-[12%]" />
+              <col className="w-[14%]" />
+              <col className="w-[16%]" />
+              <col className="w-[12%]" />
+              <col className="w-[8%]" />
+              <col className="w-[8%]" />
+              <col className="w-[8%]" />
+              <col className="w-[8%]" />
+              <col className="w-[7%]" />
+              <col className="w-[7%]" />
+            </colgroup>
             <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] tracking-wider border-b border-slate-200">
               <tr>
-                <th className="py-3 px-3 font-semibold">GRN & PO Number</th>
-                <th className="py-3 px-3 font-semibold">Supplier</th>
-                <th className="py-3 px-3 font-semibold">Polymer Grade / Material</th>
-                <th className="py-3 px-3 font-semibold">Lot / Batch #</th>
-                <th className="py-3 px-3 font-semibold text-right">Received Qty</th>
-                <th className="py-3 px-3 font-semibold text-right">Accepted Qty</th>
-                <th className="py-3 px-3 font-semibold text-center">QC Mode</th>
-                <th className="py-3 px-3 font-semibold text-center">QC Status</th>
-                <th className="py-3 px-3 font-semibold text-center">Inventory Posting</th>
-                <th className="py-3 px-3 font-semibold text-right">Actions</th>
+                <th className="py-2.5 px-2 font-semibold">GRN & PO #</th>
+                <th className="py-2.5 px-2 font-semibold">Supplier</th>
+                <th className="py-2.5 px-2 font-semibold">Polymer Grade / Material</th>
+                <th className="py-2.5 px-2 font-semibold">Lot / Batch #</th>
+                <th className="py-2.5 px-2 font-semibold text-right">Received</th>
+                <th className="py-2.5 px-2 font-semibold text-right">Accepted</th>
+                <th className="py-2.5 px-1.5 font-semibold text-center">QC Mode</th>
+                <th className="py-2.5 px-1.5 font-semibold text-center">QC Status</th>
+                <th className="py-2.5 px-1.5 font-semibold text-center">Posting</th>
+                <th className="py-2.5 px-2 font-semibold text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredQcGrns.length === 0 ? (
+              {paginatedQcGrns.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="py-12 text-center text-slate-400">
                     <ShieldCheck className="w-8 h-8 mx-auto text-slate-300 mb-1" />
@@ -205,77 +341,77 @@ export const QualityInspectionConsole: React.FC<Props> = ({
                   </td>
                 </tr>
               ) : (
-                filteredQcGrns.map((grn) => {
+                paginatedQcGrns.map((grn) => {
                   const line = grn.lines[0];
                   return (
                     <tr key={grn.id} className="hover:bg-slate-50/80 transition">
-                      <td className="py-3 px-3">
-                        <div className="font-mono font-bold text-slate-900">{grn.grnNumber}</div>
+                      <td className="py-2.5 px-2 align-top">
+                        <div className="font-mono font-bold text-slate-900 text-xs">{grn.grnNumber}</div>
                         <div className="text-[10px] text-blue-700 font-mono">PO: {grn.poNumber}</div>
                       </td>
 
-                      <td className="py-3 px-3">
-                        <div className="font-semibold text-slate-800">{grn.supplierName}</div>
-                        <div className="text-[10px] text-slate-400">Challan: {grn.deliveryChallanNo}</div>
+                      <td className="py-2.5 px-2 align-top">
+                        <div className="font-semibold text-slate-800 text-xs truncate" title={grn.supplierName}>{grn.supplierName}</div>
+                        <div className="text-[10px] text-slate-400 truncate">Challan: {grn.deliveryChallanNo}</div>
                       </td>
 
-                      <td className="py-3 px-3 max-w-[200px]">
-                        <div className="font-semibold text-slate-900 truncate">{line?.itemName}</div>
-                        <div className="text-[10px] font-mono text-slate-500">{line?.itemCode}</div>
+                      <td className="py-2.5 px-2 align-top">
+                        <div className="font-semibold text-slate-900 truncate text-xs" title={line?.itemName}>{line?.itemName}</div>
+                        <div className="text-[10px] font-mono text-slate-500 truncate">{line?.itemCode}</div>
                       </td>
 
-                      <td className="py-3 px-3">
-                        <div className="font-mono font-bold text-purple-700">{line?.lotBatchNumber}</div>
-                        <div className="text-[10px] text-slate-500 font-mono">Sup: {line?.supplierLotNumber}</div>
+                      <td className="py-2.5 px-2 align-top">
+                        <div className="font-mono font-bold text-purple-700 text-xs truncate">{line?.lotBatchNumber}</div>
+                        <div className="text-[10px] text-slate-500 font-mono truncate">Sup: {line?.supplierLotNumber}</div>
                       </td>
 
-                      <td className="py-3 px-3 text-right font-bold text-slate-900">
-                        {line?.currentReceivedQty?.toLocaleString()} {line?.uom}
+                      <td className="py-2.5 px-2 text-right font-bold text-slate-900 text-xs align-top whitespace-nowrap">
+                        {line?.currentReceivedQty?.toLocaleString()} <span className="text-[10px] text-slate-400 font-normal">{line?.uom}</span>
                       </td>
 
-                      <td className="py-3 px-3 text-right font-semibold text-emerald-700">
-                        {line?.acceptedQty?.toLocaleString()} {line?.uom}
+                      <td className="py-2.5 px-2 text-right font-semibold text-emerald-700 text-xs align-top whitespace-nowrap">
+                        {line?.acceptedQty?.toLocaleString()} <span className="text-[10px] text-emerald-600 font-normal">{line?.uom}</span>
                       </td>
 
-                      <td className="py-3 px-3 text-center">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                          {grn.inspectionMode === 'QC_BEFORE_GRN' ? 'QC Before GRN' : 'QC After GRN'}
+                      <td className="py-2.5 px-1.5 text-center align-top">
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 inline-block whitespace-nowrap">
+                          {grn.inspectionMode === 'QC_BEFORE_GRN' ? 'QC Before' : 'QC After'}
                         </span>
                       </td>
 
-                      <td className="py-3 px-3 text-center">
+                      <td className="py-2.5 px-1.5 text-center align-top">
                         {line?.qualityStatus === 'Passed QC' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
-                            <CheckCircle2 className="w-3 h-3" /> QC Passed
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold whitespace-nowrap">
+                            <CheckCircle2 className="w-2.5 h-2.5" /> Passed
                           </span>
                         ) : line?.qualityStatus === 'Failed QC' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold">
-                            <XCircle className="w-3 h-3" /> Rejected
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold whitespace-nowrap">
+                            <XCircle className="w-2.5 h-2.5" /> Rejected
                           </span>
                         ) : line?.qualityStatus === 'Concession Approved' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold">
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold whitespace-nowrap">
                             Concession
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold animate-pulse">
-                            Pending QC
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold animate-pulse whitespace-nowrap">
+                            Pending
                           </span>
                         )}
                       </td>
 
-                      <td className="py-3 px-3 text-center">
-                        <span className="text-[10px] font-medium text-slate-600 block">
+                      <td className="py-2.5 px-1.5 text-center align-top">
+                        <span className="text-[10px] font-medium text-slate-600 block truncate" title={grn.inventoryPostingStatus}>
                           {grn.inventoryPostingStatus}
                         </span>
                       </td>
 
-                      <td className="py-3 px-3 text-right">
+                      <td className="py-2.5 px-2 text-right align-top">
                         <button
                           onClick={() => handleOpenInspection(grn, 0)}
-                          className="px-3 py-1.5 bg-[#0F8B8D] hover:bg-[#0d797b] text-white rounded-lg text-xs font-semibold shadow-2xs transition flex items-center gap-1 ml-auto"
+                          className="px-2 py-1 bg-[#0F8B8D] hover:bg-[#0d797b] text-white rounded text-[11px] font-semibold shadow-2xs transition flex items-center gap-1 ml-auto cursor-pointer whitespace-nowrap"
                         >
-                          <FlaskConical className="w-3.5 h-3.5" />
-                          {line?.qualityStatus === 'Passed QC' ? 'Review Test' : 'Run Inspection'}
+                          <FlaskConical className="w-3 h-3" />
+                          {line?.qualityStatus === 'Passed QC' ? 'Review' : 'Inspect'}
                         </button>
                       </td>
                     </tr>
@@ -285,6 +421,20 @@ export const QualityInspectionConsole: React.FC<Props> = ({
             </tbody>
           </table>
         </div>
+
+        <PaginationBar
+          currentPage={currentPage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          totalItems={totalItems}
+          pageSizeOptions={pageSizeOptions}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(sz) => {
+            setPageSize(sz);
+            setCurrentPage(1);
+          }}
+          itemName="QC inspection lots"
+        />
       </div>
 
       {/* Interactive Quality Inspection Test Modal */}
@@ -347,8 +497,6 @@ const QualityTestModal: React.FC<TestModalProps> = ({
     'MFI and density confirmed within ASTM D1238 tolerance. COA matched supplier heat sheet.'
   );
 
-  const allPassed = testRows.every((t) => t.passed);
-
   const handleTestPassToggle = (idx: number) => {
     setTestRows((prev) => {
       const next = [...prev];
@@ -385,7 +533,7 @@ const QualityTestModal: React.FC<TestModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition"
+            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -449,7 +597,7 @@ const QualityTestModal: React.FC<TestModalProps> = ({
                       <button
                         type="button"
                         onClick={() => handleTestPassToggle(idx)}
-                        className={`px-3 py-1 rounded-full text-xs font-bold transition flex items-center gap-1 mx-auto ${
+                        className={`px-3 py-1 rounded-full text-xs font-bold transition flex items-center gap-1 mx-auto cursor-pointer ${
                           test.passed
                             ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
                             : 'bg-rose-100 text-rose-800 hover:bg-rose-200'
@@ -526,7 +674,7 @@ const QualityTestModal: React.FC<TestModalProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
-              className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-100 text-xs font-semibold"
+              className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-100 text-xs font-semibold cursor-pointer"
             >
               Cancel
             </button>
@@ -535,7 +683,7 @@ const QualityTestModal: React.FC<TestModalProps> = ({
               onClick={() =>
                 onComplete('Rejected', 0, line.currentReceivedQty, 0, inspectorNotes, testRows)
               }
-              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow-sm transition flex items-center gap-1.5"
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow-sm transition flex items-center gap-1.5 cursor-pointer"
             >
               <XCircle className="w-3.5 h-3.5" />
               Reject Batch
@@ -545,7 +693,7 @@ const QualityTestModal: React.FC<TestModalProps> = ({
               onClick={() =>
                 onComplete('Concession', acceptedQty, rejectedQty, concessionQty || 100, inspectorNotes, testRows)
               }
-              className="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-semibold shadow-sm transition"
+              className="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-semibold shadow-sm transition cursor-pointer"
             >
               Concession Approval
             </button>
@@ -554,7 +702,7 @@ const QualityTestModal: React.FC<TestModalProps> = ({
               onClick={() =>
                 onComplete('Approved', acceptedQty, rejectedQty, 0, inspectorNotes, testRows)
               }
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-sm transition flex items-center gap-1.5"
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-sm transition flex items-center gap-1.5 cursor-pointer"
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
               Approve & Release Stock

@@ -61,6 +61,10 @@ export interface SCMException {
   status: 'Open' | 'Assigned' | 'Under Review' | 'Action Planned' | 'In Progress' | 'Resolved' | 'Closed';
   dueDate: string;
   recommendedAction: string;
+  title?: string;
+  capaStep?: string;
+  actionTaken?: string;
+  assignedTo?: string;
   auditHistory?: Array<{ date: string; action: string; user: string }>;
 }
 
@@ -282,6 +286,15 @@ export interface CarrierMaster {
   performanceRating: number; // e.g. 4.8 / 5.0
   activeStatus: 'Active' | 'Suspended' | 'Under Review';
   activeTrips: number;
+  id?: string;
+  contractType?: string;
+  fleetSize?: number;
+  status?: string;
+  ratePerKm?: number | string;
+  validUntil?: string;
+  onTimePerformancePct?: number;
+  damageClaimPct?: number;
+  servicedRoutes?: string[];
 }
 
 export interface TrackTraceNode {
@@ -370,6 +383,8 @@ export interface ESGSustainabilityMetric {
 // Aliases and additional interfaces
 export type FreightCarrier = CarrierMaster;
 export type OutboundDelivery = OutboundShipment;
+export type MrpSuggestion = MRPSuggestion;
+export type ScmException = SCMException;
 
 export interface InventoryAgingRecord {
   itemCode: string;
@@ -389,6 +404,11 @@ export interface InventoryAgingRecord {
   dispositionRecommendation?: 'Scrap & Regrind' | 'Return to Vendor' | 'Expedite Consumption' | 'Repackage & Resell' | 'Quality Recertification';
   shelfLifeExpiryDate?: string;
   moistureSensitive?: boolean;
+  id?: string;
+  warehouseLocation?: string;
+  daysInStock?: number;
+  agingBucket?: string;
+  expiryDate?: string;
 }
 
 export interface OrderTimelineItem {
@@ -402,11 +422,18 @@ export interface OrderTimelineItem {
   currentStage: string;
   status: 'On Track' | 'Delayed' | 'Critical Alert' | 'Delivered';
   targetDeliveryDate: string;
+  salesOrderNumber?: string;
+  customer?: string;
+  partName?: string;
+  onTimeRisk?: string;
+  promisedDeliveryDate?: string;
   stages: Array<{
     name: string;
-    status: 'Completed' | 'In Progress' | 'Pending' | 'Delayed';
+    status: 'Completed' | 'In Progress' | 'Pending' | 'Delayed' | 'completed' | 'in-progress';
     date: string;
     notes?: string;
+    timestamp?: string;
+    exceptionNote?: string;
   }>;
 }
 

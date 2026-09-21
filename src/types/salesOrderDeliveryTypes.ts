@@ -43,6 +43,7 @@ export type DeliveryStatus =
   | 'Compliance Pending'
   | 'Ready for Dispatch'
   | 'Gate Pass Created'
+  | 'Gate Pass Issued'
   | 'Dispatched'
   | 'In Transit'
   | 'Delivered'

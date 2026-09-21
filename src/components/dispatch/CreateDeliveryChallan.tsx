@@ -167,6 +167,7 @@ interface CreateDeliveryChallanProps {
     gatePass?: GatePassRecord
   ) => void;
   onCancel: () => void;
+  onNavigate?: (view: string, param?: any) => void;
   showToast: (msg: string) => void;
 }
 
@@ -175,6 +176,7 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
   preSelectedSoId,
   onSaveDelivery,
   onCancel,
+  onNavigate,
   showToast,
 }) => {
   const [currentStep, setCurrentStep] = useState(1);
@@ -667,12 +669,19 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
 
   const handleCommitSavedResult = () => {
     if (!generatedResult) return;
+    const { delivery, eInvoice, eWayBill, gatePass } = generatedResult;
+    setGeneratedResult(null);
     onSaveDelivery(
-      generatedResult.delivery,
-      generatedResult.eInvoice,
-      generatedResult.eWayBill,
-      generatedResult.gatePass
+      delivery,
+      eInvoice,
+      eWayBill,
+      gatePass
     );
+    if (onNavigate) {
+      onNavigate('deliveryChallans');
+    } else {
+      onCancel();
+    }
   };
 
   return (
@@ -681,7 +690,10 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-gray-100 pb-5">
         <div className="flex items-center gap-3">
           <button
-            onClick={onCancel}
+            onClick={() => {
+              if (onNavigate) onNavigate('deliveryChallans');
+              else onCancel();
+            }}
             className="p-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 transition-colors"
             title="Return to Delivery Register"
           >

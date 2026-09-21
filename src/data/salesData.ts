@@ -62,6 +62,7 @@ export interface CreditExposure {
   lastPaymentDate: string;
   creditStatus: 'good_standing' | 'near_limit' | 'over_limit' | 'credit_blocked' | 'under_review' | 'default';
   reviewDueDate: string;
+  segment?: string;
 }
 
 export interface BillingRecord {

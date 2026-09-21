@@ -181,7 +181,7 @@ export const ScmViews: React.FC<ScmViewsProps> = ({
         {currentView === 'scmInventoryPlanning' && (
           <ScmInventoryPlanningView onNavigate={handleSubNavigate} showToast={showToast} />
         )}
-        {currentView === 'scmMRP' && (
+        {(currentView === 'scmMRP' || currentView === 'mrpRun') && (
           <ScmMrpView items={items} boms={boms} onNavigate={handleSubNavigate} showToast={showToast} />
         )}
         {currentView === 'scmReplenishment' && (

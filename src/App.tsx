@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 
 // ============================================================================
 // MODULAR MONOLITHIC & DOMAIN-DRIVEN IMPORT ARCHITECTURE
@@ -169,7 +169,7 @@ export const App: React.FC = () => {
   // Toast Notification State
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(true);
 
   // Auto-close mobile drawer when window expands to desktop size
   useEffect(() => {
@@ -388,7 +388,7 @@ export const App: React.FC = () => {
       rfqComparison: ['Procurement & Sourcing', 'RFQ Bid Comparison Matrix'],
       poList: ['Procurement & Sourcing', 'Purchase Orders (PO)'],
       pos: ['Procurement & Sourcing', 'Purchase Orders (PO)'],
-      poDetail: ['Procurement & Sourcing', 'Purchase Orders', viewParams.id || 'Detail'],
+      poDetail: ['Procurement & Sourcing', 'Purchase Orders', viewParams.id || viewParams.poNumber || 'Detail'],
       poPrint: ['Procurement & Sourcing', 'Purchase Order Print View'],
       poApprovals: ['Procurement & Sourcing', 'Multi-Tier PO Approval Hub'],
       procApprovals: ['Procurement & Sourcing', 'Multi-Tier PO Approval Hub'],
@@ -807,6 +807,7 @@ export const App: React.FC = () => {
     'hrReports',
   ].includes(currentView) || currentView.startsWith('hr');
   const isScm = currentView.startsWith('scm') || [
+    'mrpRun',
     'scmControlTower',
     'scmDemandPlanning',
     'scmSalesForecast',
@@ -830,6 +831,19 @@ export const App: React.FC = () => {
   ].includes(currentView);
   const isCrm = currentView.startsWith('crm');
   const isAdmin = currentView.startsWith('admin');
+
+  // Task 1: Strictly approved/released items for all operational modules & BOM builders
+  const approvedItems = useMemo(
+    () =>
+      items.filter(
+        (i) =>
+          (i.approval === 'approved' || i.approval === 'released') &&
+          i.status !== 'blocked' &&
+          i.status !== 'inactive' &&
+          i.status !== 'rejected'
+      ),
+    [items]
+  );
 
   const activeWOCount = workOrders.filter((w) => !['completed', 'cancelled'].includes(w.status)).length;
   const lowStockCount = items.filter((i) => i.status === 'low').length;
@@ -969,7 +983,7 @@ export const App: React.FC = () => {
           {isEngineering && (
             <EngineeringViews
               view={currentView}
-              items={items}
+              items={approvedItems}
               boms={boms}
               selectedId={viewParams.id}
               onNavigate={handleNavigate}
@@ -1037,7 +1051,7 @@ export const App: React.FC = () => {
             <ManufacturingViews
               view={currentView}
               workOrders={workOrders}
-              items={items}
+              items={approvedItems}
               machines={machines}
               boms={boms}
               stockTxns={initialStockTransactions}
@@ -1066,6 +1080,10 @@ export const App: React.FC = () => {
             <ProcurementViews
               view={currentView}
               viewParams={viewParams}
+              items={approvedItems}
+              onUpdateItem={(updated) => {
+                setItems((prev) => prev.map((i) => (i.code === updated.code ? updated : i)));
+              }}
               onNavigate={handleNavigate}
               openDrawer={openDrawer}
               closeDrawer={closeDrawer}
@@ -1077,7 +1095,7 @@ export const App: React.FC = () => {
           {isWarehouse && (
             <WarehouseViews
               view={currentView}
-              items={items}
+              items={approvedItems}
               pos={purchaseOrders}
               subcontracts={initialSubcontractOrders}
               stockTxns={initialStockTransactions}
@@ -1173,7 +1191,7 @@ export const App: React.FC = () => {
               ncrs={ncrs}
               capas={capas}
               coas={coas}
-              items={items}
+              items={approvedItems}
               workOrders={workOrders}
               selectedId={viewParams.id}
               onNavigate={handleNavigate}
@@ -1222,7 +1240,7 @@ export const App: React.FC = () => {
           {isScm && (
             <ScmViews
               activeSubView={currentView}
-              items={items}
+              items={approvedItems}
               boms={boms}
               onNavigate={handleNavigate}
               showToast={showToast}

@@ -78,6 +78,24 @@ export interface ConfirmedPoQueueItem {
   inspectionPlan: string;
 }
 
+export interface GrnLineLotAllocation {
+  id: string;
+  lotBatchNumber: string;
+  supplierLotNumber?: string;
+  quantity: number;
+  uom: string;
+  mfgDate: string;
+  expiryDate: string;
+  bagCount?: number;
+  bin?: string;
+  palletId?: string;
+  coaStatus?: 'Verified' | 'Pending' | 'Missing' | 'Failed';
+  coaReference?: string;
+  qualityStatus?: GrnLineQualityStatus;
+  storageCondition?: string;
+  remarks?: string;
+}
+
 export interface GrnLineItemExt {
   lineNo: number;
   poLineNo: number;
@@ -118,6 +136,7 @@ export interface GrnLineItemExt {
   toleranceReasonCode?: string;
   shortReasonCode?: string;
   remarks: string;
+  lots?: GrnLineLotAllocation[];
   qcParameters?: Array<{
     testName: string;
     standard: string;

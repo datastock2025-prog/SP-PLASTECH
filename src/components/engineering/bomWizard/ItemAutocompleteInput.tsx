@@ -68,8 +68,11 @@ export const ItemAutocompleteInput: React.FC<ItemAutocompleteInputProps> = ({
     return items.filter((item) => {
       if (!item || !item.code) return false;
 
-      // Task 5: Never show rejected items in operational autocompletes
-      if (item.approval === 'rejected' || item.status === 'rejected' || item.status === 'blocked') {
+      // Task 1: Strictly show only Approved / Released items in BOM creation and operational autocompletes
+      if (item.approval !== 'approved' && item.approval !== 'released') {
+        return false;
+      }
+      if (item.status === 'rejected' || item.status === 'blocked' || item.status === 'inactive') {
         return false;
       }
 

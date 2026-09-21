@@ -731,10 +731,15 @@ export interface SalesOrder {
   }>;
   dispatchLogs: Array<{
     date: string;
-    item: string;
+    item?: string;
     qty: number;
-    uom: string;
-    txnId: string;
+    uom?: string;
+    txnId?: string;
+    dc?: string;
+    invoice?: string;
+    transporter?: string;
+    eWay?: string;
+    status?: string;
   }>;
   history: Array<{ event: string; time: string }>;
 }

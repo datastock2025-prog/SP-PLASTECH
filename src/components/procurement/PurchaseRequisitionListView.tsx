@@ -251,17 +251,15 @@ export const PurchaseRequisitionListView: React.FC<Props> = ({
                     {/* Actions */}
                     <td className="py-3 px-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
-                        {pr.status === 'approved' && (
                           <button
                             onClick={() => {
-                              showToast(`Converted ${pr.prNumber} into Purchase Order`);
-                              onNavigate('poList');
+                              showToast(`Opening PO creation wizard with lines from ${pr.prNumber}`);
+                              onNavigate('poList', { openCreateModal: true, sourcePr: pr.prNumber, pr: pr });
                             }}
-                            className="px-2 py-1 bg-[#0F8B8D] text-white rounded text-[11px] font-semibold hover:bg-[#0d797b]"
+                            className="px-2.5 py-1 bg-[#0F8B8D] text-white rounded-lg text-[11px] font-semibold hover:bg-[#0d797b] transition shadow-2xs"
                           >
-                            + Create PO
+                            + Issue PO
                           </button>
-                        )}
                         {pr.status === 'pending_approval' && (
                           <button
                             onClick={() => onNavigate('prDetail', { id: pr.id })}

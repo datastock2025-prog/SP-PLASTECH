@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Truck,
   Layers,
@@ -41,12 +41,18 @@ import { GrnReversalModal } from './grn/GrnReversalModal';
 import { MobileBarcodeReceivingModal } from './grn/MobileBarcodeReceivingModal';
 import { GrnPrintViewModal } from './grn/GrnPrintViewModal';
 import { GrnSettingsModal } from './grn/GrnSettingsModal';
+import { postPutawayTasksToWarehouse } from '../../utils/warehouseSync';
+
+import { ItemMaster } from '../../types';
 
 interface Props {
   grns: GoodsReceiptNote[];
   pos: ExtendedPurchaseOrder[];
+  items?: ItemMaster[];
   onNavigate: (view: string, param?: any) => void;
   onUpdateGRN: (grn: GoodsReceiptNote) => void;
+  onUpdatePO?: (po: ExtendedPurchaseOrder) => void;
+  onUpdateItem?: (item: ItemMaster) => void;
   openDrawer: (title: string, content: React.ReactNode, footer?: React.ReactNode) => void;
   closeDrawer: () => void;
   showToast: (msg: string) => void;
@@ -55,8 +61,11 @@ interface Props {
 export const GoodsReceiptNoteView: React.FC<Props> = ({
   grns: propGrns,
   pos,
+  items = [],
   onNavigate,
   onUpdateGRN,
+  onUpdatePO,
+  onUpdateItem,
   openDrawer,
   closeDrawer,
   showToast,
@@ -70,6 +79,60 @@ export const GoodsReceiptNoteView: React.FC<Props> = ({
   const [putawayTasks, setPutawayTasks] = useState<GrnPutawayTask[]>(INITIAL_PUTAWAY_TASKS);
   const [toleranceSettings, setToleranceSettings] = useState<GrnToleranceSettings>(DEFAULT_GRN_SETTINGS);
 
+  // Synchronize PO Queue from POs state dynamically
+  useEffect(() => {
+    pos.forEach((po) => {
+      if (po.status === 'sent_to_supplier' || po.status === 'approved' || po.status === 'partially_received') {
+        po.lines.forEach((l, idx) => {
+          const remaining = (l.orderedQty || 0) - (l.receivedQty || 0);
+          if (remaining > 0) {
+            setPoQueue((prev) => {
+              const exists = prev.some((q) => q.poNumber === po.poNumber && q.poLineNo === (l.lineNo || idx + 1));
+              if (exists) return prev;
+              const newQueueItem: ConfirmedPoQueueItem = {
+                id: `PO-QUEUE-${po.poNumber}-${idx + 1}`,
+                poNumber: po.poNumber,
+                poLineNo: l.lineNo || idx + 1,
+                poDate: po.poDate,
+                supplierId: po.supplierId,
+                supplierCode: po.supplierCode || po.supplierId,
+                supplierName: po.supplierName,
+                supplierGstin: '24AAACG1234F1Z8',
+                expectedDate: po.expectedDeliveryDate,
+                arrivalDateTime: `${po.expectedDeliveryDate} 08:45 AM`,
+                plant: 'Plant 1 (Vapi Polymer Works)',
+                warehouse: l.warehouse || po.plantWarehouse || 'RM-WH-01',
+                receivingDock: 'Dock 2 (Heavy Resin Ramp)',
+                itemCode: l.itemCode,
+                itemName: l.itemName,
+                itemCategory: l.description || 'Raw Material Resin',
+                materialType: 'RM',
+                uom: l.uom,
+                orderedQty: l.orderedQty,
+                previouslyReceivedQty: l.receivedQty || 0,
+                openPoQty: remaining,
+                unitPrice: l.unitPrice,
+                poStatus: po.status === 'partially_received' ? 'Partially Received' : 'Confirmed',
+                qualityRequired: true,
+                asnReceived: true,
+                vehicleArrived: true,
+                transporterName: (po as any).deliveryTracking?.transporterName || 'Vapi Express Highway Logistics',
+                vehicleNumber: 'GJ-15-XY-9081',
+                driverName: 'Suresh Parmar',
+                deliveryChallanNo: `DC-${po.poNumber}-01`,
+                toleranceOverPct: 5.0,
+                toleranceUnderPct: 10.0,
+                qcMode: 'QC_BEFORE_GRN',
+                inspectionPlan: 'Standard Polyolefin Injection & Blow QC Assay',
+              };
+              return [newQueueItem, ...prev];
+            });
+          }
+        });
+      }
+    });
+  }, [pos]);
+
   // Modals
   const [isLiveCreateOpen, setIsLiveCreateOpen] = useState(false);
   const [selectedPoItemForCreate, setSelectedPoItemForCreate] = useState<ConfirmedPoQueueItem | undefined>(undefined);
@@ -82,9 +145,120 @@ export const GoodsReceiptNoteView: React.FC<Props> = ({
   const [isMobileScanOpen, setIsMobileScanOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  // Helper to post received/accepted lots to inventory items
+  const postLotsToInventory = (grn: GoodsReceiptNoteExt) => {
+    if (!onUpdateItem || items.length === 0) return;
+
+    grn.lines.forEach((line) => {
+      const targetItem = items.find((i) => i.code === line.itemCode);
+      if (!targetItem) return;
+
+      const acceptedVolume = line.acceptedQty > 0 ? line.acceptedQty : line.currentReceivedQty;
+      if (acceptedVolume <= 0) return;
+
+      const newLotsToPost: any[] = [];
+
+      if (line.lots && line.lots.length > 0) {
+        // Multi-Lot Allocation Posting
+        line.lots.forEach((lot) => {
+          newLotsToPost.push({
+            lotId: lot.lotBatchNumber,
+            qty: lot.quantity,
+            uom: lot.uom || line.uom,
+            mfgDate: lot.mfgDate || line.mfgDate,
+            expiryDate: lot.expiryDate || line.expiryDate,
+            status: 'available',
+            bin: lot.bin || line.bin,
+            supplierRef: grn.poNumber,
+            qcRequired: false,
+          });
+        });
+      } else {
+        // Single Lot Posting
+        newLotsToPost.push({
+          lotId: line.lotBatchNumber,
+          qty: acceptedVolume,
+          uom: line.uom,
+          mfgDate: line.mfgDate,
+          expiryDate: line.expiryDate,
+          status: 'available',
+          bin: line.bin,
+          supplierRef: grn.poNumber,
+          qcRequired: false,
+        });
+      }
+
+      const existingLots = targetItem.lots || [];
+      const updatedLots = [...newLotsToPost, ...existingLots];
+      
+      const parseNumeric = (val?: string | number) => {
+        if (typeof val === 'number') return val;
+        if (!val) return 0;
+        return parseFloat(val.replace(/[^0-9.-]/g, '')) || 0;
+      };
+
+      const curStockNum = parseNumeric(targetItem.stock || (targetItem as any).currentStock);
+      const curAvailNum = parseNumeric(targetItem.avail || (targetItem as any).availableStock);
+      const newStockNum = curStockNum + acceptedVolume;
+      const newAvailNum = curAvailNum + acceptedVolume;
+
+      const updatedItem: ItemMaster = {
+        ...targetItem,
+        stock: `${newStockNum.toLocaleString()} ${line.uom || 'KG'}`,
+        avail: `${newAvailNum.toLocaleString()} ${line.uom || 'KG'}`,
+        lots: updatedLots,
+      };
+
+      onUpdateItem(updatedItem);
+      showToast(`✓ Posted ${newLotsToPost.length} lot(s) (${acceptedVolume} ${line.uom}) to Inventory for ${targetItem.name}`);
+    });
+  };
+
   // Save new GRN
   const handleSaveGrn = (newGrn: GoodsReceiptNoteExt, isDraft: boolean) => {
     setExtendedGrns((prev) => [newGrn, ...prev]);
+
+    // Update PO Received Quantities and Status
+    const targetPo = pos.find((p) => p.poNumber === newGrn.poNumber || p.id === newGrn.poNumber);
+    if (targetPo && onUpdatePO) {
+      let totalReceivedNow = targetPo.receivedAmount || 0;
+      const updatedPoLines = targetPo.lines.map((pLine) => {
+        const matchingGrnLine = newGrn.lines.find(
+          (gl) => gl.poLineNo === pLine.lineNo || gl.itemCode === pLine.itemCode
+        );
+        if (matchingGrnLine) {
+          const newRcvd = (pLine.receivedQty || 0) + matchingGrnLine.currentReceivedQty;
+          const newRem = Math.max(0, pLine.orderedQty - newRcvd);
+          totalReceivedNow += matchingGrnLine.currentReceivedQty * pLine.unitPrice;
+          return {
+            ...pLine,
+            receivedQty: newRcvd,
+            remainingQty: newRem,
+            status: (newRem === 0 ? 'received' : 'partially_received') as any,
+          };
+        }
+        return pLine;
+      });
+
+      const allPoReceived = updatedPoLines.every((l) => l.remainingQty === 0);
+      const updatedPo: ExtendedPurchaseOrder = {
+        ...targetPo,
+        lines: updatedPoLines,
+        receivedAmount: totalReceivedNow,
+        status: allPoReceived ? 'received' : 'partially_received',
+        grnList: [...(targetPo.grnList || []), newGrn.grnNumber],
+        activityHistory: [
+          ...(targetPo.activityHistory || []),
+          {
+            date: newGrn.receiptDate,
+            event: `Inward GRN ${newGrn.grnNumber} recorded (${newGrn.lines.reduce((s, l) => s + l.currentReceivedQty, 0)} KG)`,
+            by: newGrn.receivedBy,
+          },
+        ],
+      };
+
+      onUpdatePO(updatedPo);
+    }
 
     // If created from PO queue, update or remove queue item
     setPoQueue((prev) =>
@@ -97,13 +271,18 @@ export const GoodsReceiptNoteView: React.FC<Props> = ({
               ...p,
               previouslyReceivedQty: p.previouslyReceivedQty + receivedInThisGrn,
               openPoQty: newOpen,
-              poStatus: newOpen === 0 ? 'Closed' : 'Partially Received',
+              poStatus: (newOpen === 0 ? 'Confirmed' : 'Partially Received') as 'Approved' | 'Confirmed' | 'Partially Received' | 'On Hold',
             };
           }
           return p;
         })
         .filter((p) => p.openPoQty > 0)
     );
+
+    // If NO_QC or Approved immediately, post to inventory
+    if (!isDraft && (newGrn.inspectionMode === 'NO_QC' || newGrn.inspectionStatus === 'Approved')) {
+      postLotsToInventory(newGrn);
+    }
 
     // If not draft and QC not required or after GRN, generate putaway task
     if (!isDraft) {
@@ -112,7 +291,6 @@ export const GoodsReceiptNoteView: React.FC<Props> = ({
         const newTask: GrnPutawayTask = {
           id: `PTW-${Math.floor(1000 + Math.random() * 9000)}`,
           grnNumber: newGrn.grnNumber,
-          poNumber: newGrn.poNumber,
           itemCode: firstLine.itemCode,
           itemName: firstLine.itemName,
           lotNumber: firstLine.lotBatchNumber,
@@ -176,32 +354,68 @@ export const GoodsReceiptNoteView: React.FC<Props> = ({
     }
   };
 
-  // Update existing GRN
+  // Update existing GRN and trigger inventory posting if QC passed
   const handleUpdateGrn = (updated: GoodsReceiptNoteExt) => {
     setExtendedGrns((prev) => prev.map((g) => (g.id === updated.id ? updated : g)));
     if (selectedGrnForDetail?.id === updated.id) {
       setSelectedGrnForDetail(updated);
     }
+
+    if (
+      updated.inspectionStatus === 'Approved' ||
+      updated.status === 'accepted' ||
+      updated.inventoryPostingStatus === 'Posted to Available Stock'
+    ) {
+      postLotsToInventory(updated);
+    }
   };
 
-  // Complete Putaway Task
+  // Complete Putaway Task & Post to Warehouse Stock & Lot Ledger
   const handleCompletePutaway = (taskId: string, actualLocation: string, binCode: string) => {
+    const targetTask = putawayTasks.find((t) => t.id === taskId);
+    if (!targetTask) return;
+
+    const completedTask: GrnPutawayTask = {
+      ...targetTask,
+      putawayStatus: 'Completed',
+      actualLocation,
+      binCode,
+      putawayBy: 'Dharmesh Solanki (Forklift Bay #2)',
+      completedAt: new Date().toISOString(),
+    };
+
     setPutawayTasks((prev) =>
-      prev.map((t) => {
-        if (t.id === taskId) {
-          return {
-            ...t,
-            putawayStatus: 'Completed',
-            actualLocation,
-            binCode,
-            putawayBy: 'Dharmesh Solanki (Forklift Bay #2)',
-            putawayDate: new Date().toISOString().slice(0, 10),
-            putawayTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          };
-        }
-        return t;
-      })
+      prev.map((t) => (t.id === taskId ? completedTask : t))
     );
+
+    // Synchronize into Warehouse Stock Overview & Lot Ledger
+    postPutawayTasksToWarehouse([completedTask], { [taskId]: actualLocation });
+  };
+
+  // Bulk Complete Putaway Tasks & Post to Warehouse Stock & Lot Ledger
+  const handleBulkSendToWarehouse = (selectedTasks: GrnPutawayTask[], customBins?: Record<string, string>) => {
+    const updatedTaskMap = new Map<string, GrnPutawayTask>();
+    const nowIsoStr = new Date().toISOString();
+
+    selectedTasks.forEach((t) => {
+      const targetBin = customBins?.[t.id] || t.recommendedLocation;
+      updatedTaskMap.set(t.id, {
+        ...t,
+        putawayStatus: 'Completed',
+        actualLocation: targetBin,
+        binCode: targetBin.split('-').pop() || 'BIN-01',
+        putawayBy: 'Dharmesh Solanki (Forklift Bay #2)',
+        completedAt: nowIsoStr,
+      });
+    });
+
+    setPutawayTasks((prev) =>
+      prev.map((t) => (updatedTaskMap.has(t.id) ? updatedTaskMap.get(t.id)! : t))
+    );
+
+    // Synchronize all selected tasks into Warehouse Stock Overview & Lot Ledger
+    const completedTasksList = Array.from(updatedTaskMap.values());
+    postPutawayTasksToWarehouse(completedTasksList, customBins);
   };
 
   // Submit Supplier Return / Debit Note
@@ -234,12 +448,22 @@ export const GoodsReceiptNoteView: React.FC<Props> = ({
         ...target.exceptions,
         {
           id: 'EXC-' + Math.floor(1000 + Math.random() * 9000),
-          grnLineNo: 1,
-          type: 'Damaged',
-          quantity: qty,
+          grnNumber: target.grnNumber,
+          poLineNo: 1,
+          itemCode: updatedLines[0]?.itemCode || '',
+          itemName: updatedLines[0]?.itemName || '',
+          lotBatchNumber: updatedLines[0]?.lotBatchNumber || '',
+          exceptionType: 'Damaged Material',
+          quantityAffected: qty,
+          uom: uom,
           reason,
-          debitNoteGenerated: true,
-          debitNoteNumber: `DN-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
+          supplierNotificationRequired: true,
+          returnRequired: true,
+          ncrRequired: true,
+          debitNoteRequired: true,
+          disposition: 'Return to supplier',
+          status: 'Open',
+          createdAt: new Date().toISOString(),
         },
       ],
       auditTrail: [
@@ -264,8 +488,8 @@ export const GoodsReceiptNoteView: React.FC<Props> = ({
 
     const reversed: GoodsReceiptNoteExt = {
       ...target,
-      status: 'rejected',
-      inventoryPostingStatus: 'Reversed / Cancelled',
+      status: 'reversed',
+      inventoryPostingStatus: 'Not Posted',
       auditTrail: [
         ...target.auditTrail,
         {
@@ -492,7 +716,7 @@ export const GoodsReceiptNoteView: React.FC<Props> = ({
             setIsLiveCreateOpen(true);
           }}
           onViewPoDetails={(poNum) => {
-            onNavigate('orders', { poNumber: poNum });
+            onNavigate('poDetail', { id: poNum, poNumber: poNum });
           }}
           showToast={showToast}
         />
@@ -524,6 +748,7 @@ export const GoodsReceiptNoteView: React.FC<Props> = ({
         <PutawayInventoryPostingTab
           tasks={putawayTasks}
           onCompleteTask={handleCompletePutaway}
+          onBulkSendToWarehouse={handleBulkSendToWarehouse}
           showToast={showToast}
         />
       )}
