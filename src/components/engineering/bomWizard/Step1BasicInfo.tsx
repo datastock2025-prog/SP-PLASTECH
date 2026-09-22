@@ -4,7 +4,6 @@ import { ItemMaster } from '../../../types';
 import { ItemAutocompleteInput } from './ItemAutocompleteInput';
 import { masterDataGovernanceService } from '../../../services/masterDataGovernanceService';
 import { adminEventBus } from '../../../services/adminService';
-import { CreateItemWizardModal } from '../../masterdata/CreateItemWizardModal';
 import {
   Sparkles,
   Edit3,
@@ -42,7 +41,6 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
   const { parentItem } = state;
 
   // Modals state
-  const [isCreateItemModalOpen, setIsCreateItemModalOpen] = useState(false);
   const [isNewVersionModalOpen, setIsNewVersionModalOpen] = useState(false);
   const [isNewPlantModalOpen, setIsNewPlantModalOpen] = useState(false);
   const [isNewOwnerModalOpen, setIsNewOwnerModalOpen] = useState(false);
@@ -244,14 +242,6 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setIsCreateItemModalOpen(true)}
-            className="btn btn-sm btn-primary bg-[#0066CC] hover:bg-blue-700 text-white text-xs flex items-center gap-1 shadow-sm"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            + Create New FG Item
-          </button>
         </div>
 
         {/* Dual Autocomplete Grid */}
@@ -264,7 +254,6 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
               label="Search / Select by Item Number (FG Only)"
               placeholder="Search FG Item Code (e.g. FG-BMP-NEXON-F)..."
               onSelect={handleSelectParentItem}
-              onCreateNewItem={() => setIsCreateItemModalOpen(true)}
               error={errors.parentItem}
             />
           </div>
@@ -277,7 +266,6 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
               label="Search / Select by Item Name (FG Only)"
               placeholder="Search FG Item Name (e.g. Front Bumper Cladding)..."
               onSelect={handleSelectParentItem}
-              onCreateNewItem={() => setIsCreateItemModalOpen(true)}
             />
           </div>
         </div>
@@ -326,15 +314,7 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
           </div>
         ) : (
           <div className="text-center py-3 bg-white/60 rounded-xl border border-dashed border-blue-200 text-xs text-gray-500">
-            No Finished Good item selected yet. Use either box above to search, or click{' '}
-            <button
-              type="button"
-              onClick={() => setIsCreateItemModalOpen(true)}
-              className="text-[#0066CC] font-bold hover:underline inline-flex items-center gap-0.5 ml-1"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              + Create New FG Item in Master Data
-            </button>
+            No Finished Good item selected yet. Please select an existing Finished Good from the search boxes above.
           </div>
         )}
       </div>
@@ -593,24 +573,10 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
       </div>
 
       {/* ========================================================= */}
-      {/* SUBMODALS: Create Item, Create Version, Plant, Owner     */}
+      {/* SUBMODALS: Create Version, Plant, Owner                   */}
       {/* ========================================================= */}
 
-      {/* 1. Create FG Item Wizard Modal */}
-      {isCreateItemModalOpen && (
-        <CreateItemWizardModal
-          isOpen={isCreateItemModalOpen}
-          onClose={() => setIsCreateItemModalOpen(false)}
-          onSaveItem={(newItem) => {
-            handleSelectParentItem(newItem);
-            setIsCreateItemModalOpen(false);
-          }}
-          allItems={items}
-          showToast={showToast}
-        />
-      )}
-
-      {/* 2. Create BOM Version Modal */}
+      {/* 1. Create BOM Version Modal */}
       {isNewVersionModalOpen && (
         <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto animate-fade-in">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden my-auto animate-in zoom-in-95 duration-150">

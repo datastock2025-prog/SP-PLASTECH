@@ -181,6 +181,11 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
 
   // Helper for inline cell save
   const handleSaveInlineCell = (bomId: string, field: string) => {
+    if (!masterDataGovernanceService.canUserPerformAction('edit_bom')) {
+      showToast('Admin permission required to edit BOM specifications.');
+      setEditingCell(null);
+      return;
+    }
     const targetBom = boms.find((b) => b.id === bomId);
     if (!targetBom) return;
 
@@ -199,6 +204,10 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
 
   // Multi-select bulk approval
   const handleBulkApprove = () => {
+    if (!masterDataGovernanceService.canUserPerformAction('approve_bom')) {
+      showToast('Admin or Quality Lead permission required for bulk approval.');
+      return;
+    }
     if (selectedBomIds.length === 0) {
       showToast('Select at least one BOM for bulk approval');
       return;
@@ -229,6 +238,10 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
   };
 
   const handleBulkRelease = () => {
+    if (!masterDataGovernanceService.canUserPerformAction('approve_bom')) {
+      showToast('Admin or Operations Lead permission required for bulk release.');
+      return;
+    }
     if (selectedBomIds.length === 0) {
       showToast('Select at least one BOM for bulk release');
       return;
@@ -992,7 +1005,13 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
                         <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1">
                             <button
-                              onClick={() => setQuickModifyBom(bom)}
+                              onClick={() => {
+                                if (!masterDataGovernanceService.canUserPerformAction('edit_bom')) {
+                                  showToast('Admin permission required to modify BOM recipes.');
+                                  return;
+                                }
+                                setQuickModifyBom(bom);
+                              }}
                               title="Quick Modify Recipe Parameters"
                               className="p-1 text-[#6B7280] hover:text-[#E8622C] hover:bg-orange-50 rounded"
                             >
@@ -1007,6 +1026,10 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
                             </button>
                             <button
                               onClick={() => {
+                                if (!masterDataGovernanceService.canUserPerformAction('edit_bom')) {
+                                  showToast('Admin permission required to modify BOM recipes.');
+                                  return;
+                                }
                                 const pItem = items.find((i) => i.code === bom.parent) || (items.length > 0 ? items[0] : null);
                                 if (pItem) {
                                   setWizardParentItem(pItem);
@@ -1022,6 +1045,10 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
                             </button>
                             <button
                               onClick={() => {
+                                if (!masterDataGovernanceService.canUserPerformAction('delete_bom')) {
+                                  showToast('Admin permission required to delete BOM records.');
+                                  return;
+                                }
                                 openConfirm(`Delete ${bom.id}?`, `Delete recipe for ${bom.parentName}?`, () => {
                                   onDeleteBom(bom.id);
                                   showToast(`BOM ${bom.id} deleted`);
@@ -1850,6 +1877,10 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
                 <button
                   type="button"
                   onClick={() => {
+                    if (!masterDataGovernanceService.canUserPerformAction('edit_bom')) {
+                      showToast('Admin permission required to save BOM changes.');
+                      return;
+                    }
                     onUpdateBom(quickModifyBom);
                     showToast(`✓ BOM ${quickModifyBom.id} (${quickModifyBom.parentName}) updated successfully!`);
                     setQuickModifyBom(null);

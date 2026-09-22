@@ -691,8 +691,9 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
 
   // Step 9: Documents
   const [documents, setDocuments] = useState<
-    { name: string; type: string; size: string; uploadedOn: string }[]
+    { name: string; type: string; size: string; uploadedOn: string; url?: string }[]
   >([]);
+  const [isDocDragging, setIsDocDragging] = useState<boolean>(false);
 
   // Step 10: Review & Workflow
   const [workflowRoute, setWorkflowRoute] = useState<string>(
@@ -728,6 +729,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
         setPreferredSupplier(editItem.supplier || '');
         setHsnCode(editItem.hsCode || '');
         setLeadTimeDays(editItem.leadTime ? parseInt(editItem.leadTime) : 0);
+        setDocuments((editItem.documents as any) || []);
       } else {
         // Clean blank slate for new live item entry
         setCurrentStep(1);
@@ -768,6 +770,8 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
         setQualityTestParams([]);
         setPreferredSupplier('');
         setStandardPurchasePrice(0);
+        setDocuments([]);
+        setIsDocDragging(false);
         setHsnCode('');
         setLeadTimeDays(0);
         setPurchaseMoq(0);
@@ -1013,6 +1017,8 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       isDol,
       isAssembly,
       isDeflash,
+      moldToolId: moldTool || 'MOLD-001',
+      documents: documents.length > 0 ? documents : editItem?.documents || [],
     };
     onSaveItem(draftItem);
     showToast(`Draft item ${draftItem.code} saved successfully.`);
@@ -1084,6 +1090,8 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       isDol,
       isAssembly,
       isDeflash,
+      moldToolId: moldTool || 'MOLD-001',
+      documents: documents.length > 0 ? documents : editItem?.documents || [],
     };
 
     onSaveItem(finalItem);

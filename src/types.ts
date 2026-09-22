@@ -99,6 +99,17 @@ export interface ItemMaster {
   isDol?: boolean;
   isAssembly?: boolean;
   isDeflash?: boolean;
+  moldToolId?: string;
+  documents?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    version?: string;
+    link?: string;
+    fileSize?: string;
+    uploadedDate?: string;
+    uploadedBy?: string;
+  }>;
 }
 
 export interface BomLine {

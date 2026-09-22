@@ -1257,6 +1257,7 @@ class MasterDataGovernanceService {
       canCreateBomRoles: ['admin', 'super_admin', 'tooling_lead', 'engineering_manager'],
       canEditBomRoles: ['admin', 'super_admin', 'tooling_lead', 'engineering_manager'],
       canApproveBomRoles: ['admin', 'super_admin', 'plant_operations_director'],
+      canDeleteBomRoles: ['admin', 'super_admin'],
     };
 
     try {
@@ -1288,7 +1289,7 @@ class MasterDataGovernanceService {
   }
 
   public canUserPerformAction(
-    action: 'create_item' | 'edit_item' | 'approve_item' | 'delete_item' | 'create_bom' | 'edit_bom' | 'approve_bom',
+    action: 'create_item' | 'edit_item' | 'approve_item' | 'delete_item' | 'create_bom' | 'edit_bom' | 'approve_bom' | 'delete_bom',
     userRole?: string
   ): boolean {
     const roleKey = (userRole || 'admin').toLowerCase().trim().replace(/[\s-]+/g, '_');
@@ -1327,6 +1328,9 @@ class MasterDataGovernanceService {
       case 'approve_bom':
         allowedList = perms.canApproveBomRoles;
         break;
+      case 'delete_bom':
+        allowedList = perms.canDeleteBomRoles || ['admin', 'super_admin'];
+        break;
     }
 
     return allowedList.some((allowed) => {
@@ -1357,6 +1361,7 @@ export interface MasterDataGovernancePermissions {
   canCreateBomRoles: string[];
   canEditBomRoles: string[];
   canApproveBomRoles: string[];
+  canDeleteBomRoles?: string[];
 }
 
 export const masterDataGovernanceService = new MasterDataGovernanceService();
