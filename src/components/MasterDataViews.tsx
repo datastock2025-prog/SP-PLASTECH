@@ -3178,40 +3178,193 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
           </div>
         </div>
 
-        {/* Component Lines Table */}
-        <div className="panel">
-          <div className="panel-head">
-            <h3>Component Recipe Lines</h3>
-            <span className="text-xs font-mono font-bold text-[#E8622C]">Unit Material Cost: ₹{totalCost.toFixed(2)}</span>
-          </div>
-          <div className="panel-body p-0">
-            <table>
-              <thead>
-                <tr>
-                  <th>Component Item</th>
-                  <th>Quantity / Unit</th>
-                  <th>UOM</th>
-                  <th>Scrap Factor %</th>
-                  <th>Line Cost</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bom.lines.map((line, idx) => (
-                  <tr key={idx} onClick={() => onNavigate('itemDetail', { code: line.item })}>
-                    <td>
-                      <span className="cell-code">{line.item}</span>
-                      <div className="cell-sub">{line.name}</div>
-                    </td>
-                    <td className="font-mono font-bold">{line.qty}</td>
-                    <td>{line.uom}</td>
-                    <td>{line.scrap}%</td>
-                    <td className="font-mono font-semibold">₹{line.cost.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {/* Component Lines Table with Unique Formula Code and Core Material Summation */}
+        {(() => {
+          const recipeCode = bom.recipeCode || bom.formulaCode || `RCP-${bom.id}-${bom.version || 'v1.0'}`;
+          
+          const isAuxiliaryLine = (line: BomLine) => {
+            const code = (line.item || '').toUpperCase();
+            const cat = (line.category || '').toUpperCase();
+            const uom = (line.uom || '').toUpperCase();
+            return (
+              code.startsWith('BOP-') ||
+              code.startsWith('CON-') ||
+              code.startsWith('PK-') ||
+              code.startsWith('PCK-') ||
+              cat.includes('PACK') ||
+              cat.includes('BOUGHT') ||
+              cat.includes('CONSUMABLE') ||
+              cat.includes('HARDWARE') ||
+              uom === 'PCS' ||
+              uom === 'SET' ||
+              uom === 'BOX' ||
+              uom === 'ROLL'
+            );
+          };
+
+          const getLineRoleBadge = (line: BomLine) => {
+            const code = (line.item || '').toUpperCase();
+            const cat = (line.category || '').toUpperCase();
+            if (code.startsWith('PK-') || code.startsWith('PCK-') || cat.includes('PACK')) {
+              return <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">PCK &middot; Packaging</span>;
+            }
+            if (code.startsWith('BOP-') || cat.includes('BOUGHT') || cat.includes('HARDWARE')) {
+              return <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">BOP &middot; Bought Out</span>;
+            }
+            if (code.startsWith('CON-') || cat.includes('CONSUMABLE')) {
+              return <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">CON &middot; Consumable</span>;
+            }
+            if (code.startsWith('MB-')) {
+              return <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">MB &middot; Masterbatch</span>;
+            }
+            if (code.startsWith('AD-')) {
+              return <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">AD &middot; Additive</span>;
+            }
+            if (code.startsWith('RG-')) {
+              return <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">RG &middot; Regrind</span>;
+            }
+            return <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">RM &middot; Core Resin</span>;
+          };
+
+          const coreMaterialLines = (bom.lines || []).filter((l) => !isAuxiliaryLine(l));
+          const auxiliaryLines = (bom.lines || []).filter((l) => isAuxiliaryLine(l));
+
+          const totalMaterialUnitQty = coreMaterialLines.reduce((sum, l) => sum + (Number(l.qty) || 0), 0);
+          const totalMaterialBatchQty = totalMaterialUnitQty * (bom.batchSize || 1000);
+          const materialUom = coreMaterialLines[0]?.uom || 'KG';
+
+          return (
+            <div className="space-y-4">
+              {/* Top Formula Formulation Header Card */}
+              <div className="p-4 bg-gradient-to-r from-blue-50/80 via-emerald-50/60 to-teal-50/70 border border-blue-200 rounded-xl space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-100 pb-2.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 px-3 py-1 bg-white border border-blue-300 rounded-lg text-xs font-mono font-bold text-blue-900 shadow-2xs">
+                      <Fingerprint className="w-3.5 h-3.5 text-blue-600" />
+                      <span>RECIPE / FORMULA ID: {recipeCode}</span>
+                    </div>
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100/70 text-blue-800 border border-blue-200">
+                      Linked to BOM {bom.id} (v{bom.version})
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-600 font-medium">
+                    Batch Size: <strong className="text-[#14213D] font-mono">{bom.batchSize || 1000} {bom.baseUOM || 'PCS'}</strong>
+                  </div>
+                </div>
+
+                {/* Summary Metrics: Core Material Sum (excluding BOP, CON, PCK) */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="p-2.5 bg-white/95 rounded-lg border border-blue-100 shadow-2xs">
+                    <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">
+                      Core Material Sum Unit Qty
+                    </span>
+                    <span className="font-mono text-base font-bold text-blue-900">
+                      {totalMaterialUnitQty.toFixed(4)} {materialUom} <span className="text-[10px] text-gray-400 font-normal">/ PC</span>
+                    </span>
+                  </div>
+                  <div className="p-2.5 bg-white/95 rounded-lg border border-emerald-100 shadow-2xs">
+                    <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">
+                      Core Material Sum Batch Qty
+                    </span>
+                    <span className="font-mono text-base font-bold text-emerald-800">
+                      {totalMaterialBatchQty.toFixed(2)} {materialUom} <span className="text-[10px] text-gray-400 font-normal">/ Batch</span>
+                    </span>
+                  </div>
+                  <div className="p-2.5 bg-white/95 rounded-lg border border-teal-100 shadow-2xs">
+                    <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">
+                      Core Formulation Blend
+                    </span>
+                    <span className="font-mono text-base font-bold text-teal-800">
+                      {coreMaterialLines.length} Material{coreMaterialLines.length !== 1 ? 's' : ''} (100%)
+                    </span>
+                  </div>
+                  <div className="p-2.5 bg-white/95 rounded-lg border border-amber-100 shadow-2xs">
+                    <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">
+                      Excluded Auxiliaries
+                    </span>
+                    <span className="font-mono text-base font-bold text-amber-800">
+                      {auxiliaryLines.length} Items (BOP/CON/PCK)
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recipe Lines Table */}
+              <div className="panel bg-white border border-[#E4E0D6] rounded-xl overflow-hidden shadow-xs">
+                <div className="panel-head p-4 bg-[#F9F8F5] border-b border-[#E4E0D6] flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-[#14213D] flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-[#0F8B8D]" /> Formula &amp; Recipe Components ({bom.lines?.length || 0})
+                  </h3>
+                  <span className="text-xs font-mono font-bold text-[#E8622C]">Unit Material Cost: ₹{totalCost.toFixed(2)}</span>
+                </div>
+                <div className="panel-body p-0">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-[#F6F4EF] text-[#14213D] border-b border-[#E4E0D6] font-semibold">
+                        <th className="py-2.5 px-3">Component Item</th>
+                        <th className="py-2.5 px-3">Role / Classification</th>
+                        <th className="py-2.5 px-3 text-right">Quantity / Unit</th>
+                        <th className="py-2.5 px-3 text-center">UOM</th>
+                        <th className="py-2.5 px-3 text-right">Formula %</th>
+                        <th className="py-2.5 px-3 text-right">Scrap Factor %</th>
+                        <th className="py-2.5 px-3 text-right">Line Cost</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {bom.lines.map((line, idx) => {
+                        const isAux = isAuxiliaryLine(line);
+                        const formulaPct = !isAux && totalMaterialUnitQty > 0
+                          ? ((Number(line.qty) / totalMaterialUnitQty) * 100).toFixed(1)
+                          : null;
+
+                        return (
+                          <tr
+                            key={idx}
+                            onClick={() => onNavigate('itemDetail', { code: line.item })}
+                            className={`hover:bg-gray-50 cursor-pointer ${isAux ? 'bg-amber-50/20' : ''}`}
+                          >
+                            <td className="py-2.5 px-3">
+                              <span className="cell-code font-bold text-[#0F8B8D]">{line.item}</span>
+                              <div className="cell-sub text-gray-600">{line.name}</div>
+                            </td>
+                            <td className="py-2.5 px-3">{getLineRoleBadge(line)}</td>
+                            <td className="py-2.5 px-3 font-mono font-bold text-right text-[#14213D]">{line.qty}</td>
+                            <td className="py-2.5 px-3 text-center font-mono text-gray-600">{line.uom}</td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold">
+                              {formulaPct ? (
+                                <span className="text-blue-700">{formulaPct}%</span>
+                              ) : (
+                                <span className="text-gray-400 text-[10px]">N/A (BOP)</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-rose-600">{line.scrap}%</td>
+                            <td className="py-2.5 px-3 font-mono font-semibold text-right text-gray-800">₹{line.cost.toFixed(2)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-[#F9F8F5] border-t-2 border-[#E4E0D6] font-semibold text-xs text-[#14213D]">
+                      <tr className="bg-blue-50/50">
+                        <td colSpan={2} className="py-2.5 px-3 text-blue-900 font-bold">
+                          Core Material Formula Sum (Excl. BOP / CON / PCK):
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-blue-900">
+                          {totalMaterialUnitQty.toFixed(4)}
+                        </td>
+                        <td className="py-2.5 px-3 text-center font-mono text-blue-900">{materialUom}</td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-blue-900">100.0%</td>
+                        <td className="py-2.5 px-3 text-right text-[11px] text-gray-500">Net Resin</td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-800">
+                          ₹{coreMaterialLines.reduce((s, l) => s + (l.cost || 0), 0).toFixed(2)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     );
   }

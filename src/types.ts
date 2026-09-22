@@ -182,6 +182,8 @@ export interface BomMaster {
   parentName: string;
   version: string;
   revision?: string;
+  recipeCode?: string;
+  formulaCode?: string;
   bomType?: BomType;
   processType?: PlasticProcessType;
   status: ApprovalStatus;

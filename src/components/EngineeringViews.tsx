@@ -1754,72 +1754,217 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
                 </div>
               </div>
 
-              {/* Recipe Components Quick Overview Table */}
-              <div className="space-y-2 pt-1">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-[#14213D] uppercase tracking-wider">
-                    Formula Components ({quickModifyBom.lines?.length || 0})
-                  </h4>
-                  <span className="text-[11px] text-gray-500">
-                    Batch Size: {quickModifyBom.batchSize} {quickModifyBom.baseUOM || 'PCS'}
-                  </span>
-                </div>
+              {/* Recipe Components Quick Overview Table with Unique Formula Code and Core Material Summation */}
+              {(() => {
+                const recipeCode = quickModifyBom.recipeCode || quickModifyBom.formulaCode || `RCP-${quickModifyBom.id}-${quickModifyBom.version || 'v1.0'}`;
+                
+                const isAuxiliaryLine = (line: BomLine) => {
+                  const code = (line.item || '').toUpperCase();
+                  const cat = (line.category || '').toUpperCase();
+                  const uom = (line.uom || '').toUpperCase();
+                  return (
+                    code.startsWith('BOP-') ||
+                    code.startsWith('CON-') ||
+                    code.startsWith('PK-') ||
+                    code.startsWith('PCK-') ||
+                    cat.includes('PACK') ||
+                    cat.includes('BOUGHT') ||
+                    cat.includes('CONSUMABLE') ||
+                    cat.includes('HARDWARE') ||
+                    uom === 'PCS' ||
+                    uom === 'SET' ||
+                    uom === 'BOX' ||
+                    uom === 'ROLL'
+                  );
+                };
 
-                <div className="overflow-x-auto border border-[#E4E0D6] rounded-xl [scrollbar-width:none]">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="bg-[#F6F4EF] text-[#14213D] border-b border-[#E4E0D6] font-semibold text-[11px]">
-                        <th className="py-2 px-3">Item Code</th>
-                        <th className="py-2 px-3">Component Name</th>
-                        <th className="py-2 px-3 text-right">Unit Qty</th>
-                        <th className="py-2 px-3 text-center">UOM</th>
-                        <th className="py-2 px-3 text-right">Batch Qty</th>
-                        <th className="py-2 px-3 text-right">Scrap %</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {(quickModifyBom.lines || []).map((line, idx) => (
-                        <tr key={line.id || idx} className="hover:bg-gray-50">
-                          <td className="py-2 px-3 font-mono font-bold text-[#0F8B8D]">{line.item}</td>
-                          <td className="py-2 px-3 font-medium text-[#14213D]">{line.name}</td>
-                          <td className="py-2 px-3 text-right">
-                            <input
-                              type="number"
-                              step="0.001"
-                              value={line.qty}
-                              onChange={(e) => {
-                                const newQty = parseFloat(e.target.value) || 0;
-                                const updatedLines = [...quickModifyBom.lines];
-                                updatedLines[idx] = { ...updatedLines[idx], qty: newQty };
-                                setQuickModifyBom({ ...quickModifyBom, lines: updatedLines });
-                              }}
-                              className="w-20 text-right py-0.5 px-1.5 border border-[#E4E0D6] rounded font-mono text-xs focus:border-[#0F8B8D]"
-                            />
-                          </td>
-                          <td className="py-2 px-3 text-center font-mono text-gray-600">{line.uom}</td>
-                          <td className="py-2 px-3 text-right font-mono font-semibold text-gray-700">
-                            {(line.qty * (quickModifyBom.batchSize || 1000)).toFixed(2)} {line.uom}
-                          </td>
-                          <td className="py-2 px-3 text-right">
-                            <input
-                              type="number"
-                              step="0.1"
-                              value={line.scrapPct ?? 1.5}
-                              onChange={(e) => {
-                                const newScrap = parseFloat(e.target.value) || 0;
-                                const updatedLines = [...quickModifyBom.lines];
-                                updatedLines[idx] = { ...updatedLines[idx], scrapPct: newScrap };
-                                setQuickModifyBom({ ...quickModifyBom, lines: updatedLines });
-                              }}
-                              className="w-16 text-right py-0.5 px-1.5 border border-[#E4E0D6] rounded font-mono text-xs focus:border-[#0F8B8D] text-rose-600"
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                const getLineRoleBadge = (line: BomLine) => {
+                  const code = (line.item || '').toUpperCase();
+                  const cat = (line.category || '').toUpperCase();
+                  if (code.startsWith('PK-') || code.startsWith('PCK-') || cat.includes('PACK')) {
+                    return <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">PCK &middot; Packaging</span>;
+                  }
+                  if (code.startsWith('BOP-') || cat.includes('BOUGHT') || cat.includes('HARDWARE')) {
+                    return <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">BOP &middot; Bought Out</span>;
+                  }
+                  if (code.startsWith('CON-') || cat.includes('CONSUMABLE')) {
+                    return <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">CON &middot; Consumable</span>;
+                  }
+                  if (code.startsWith('MB-')) {
+                    return <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">MB &middot; Masterbatch</span>;
+                  }
+                  if (code.startsWith('AD-')) {
+                    return <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">AD &middot; Additive</span>;
+                  }
+                  if (code.startsWith('RG-')) {
+                    return <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">RG &middot; Regrind</span>;
+                  }
+                  return <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">RM &middot; Core Resin</span>;
+                };
+
+                const coreMaterialLines = (quickModifyBom.lines || []).filter((l) => !isAuxiliaryLine(l));
+                const auxiliaryLines = (quickModifyBom.lines || []).filter((l) => isAuxiliaryLine(l));
+
+                const totalMaterialUnitQty = coreMaterialLines.reduce((sum, l) => sum + (Number(l.qty) || 0), 0);
+                const totalMaterialBatchQty = totalMaterialUnitQty * (quickModifyBom.batchSize || 1000);
+                const materialUom = coreMaterialLines[0]?.uom || 'KG';
+
+                return (
+                  <div className="space-y-3 pt-1">
+                    {/* Top Formula Formulation Header Card */}
+                    <div className="p-3.5 bg-gradient-to-r from-blue-50/80 via-emerald-50/60 to-teal-50/70 border border-blue-200 rounded-xl space-y-2.5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-100 pb-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-blue-300 rounded-lg text-xs font-mono font-bold text-blue-900 shadow-2xs">
+                            <Fingerprint className="w-3.5 h-3.5 text-blue-600" />
+                            <span>RECIPE / FORMULA ID: {recipeCode}</span>
+                          </div>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100/70 text-blue-800 border border-blue-200">
+                            Linked to BOM {quickModifyBom.id} (v{quickModifyBom.version})
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500 font-medium">
+                          Batch Size: <strong className="text-[#14213D] font-mono">{quickModifyBom.batchSize} {quickModifyBom.baseUOM || 'PCS'}</strong>
+                        </div>
+                      </div>
+
+                      {/* Summary Metrics: Material Sum (excluding BOP, CON, PCK) */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                        <div className="p-2 bg-white/90 rounded-lg border border-blue-100 shadow-2xs">
+                          <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">
+                            Core Material Sum Unit Qty
+                          </span>
+                          <span className="font-mono text-sm font-bold text-blue-900">
+                            {totalMaterialUnitQty.toFixed(4)} {materialUom} <span className="text-[10px] text-gray-400 font-normal">/ PC</span>
+                          </span>
+                        </div>
+                        <div className="p-2 bg-white/90 rounded-lg border border-emerald-100 shadow-2xs">
+                          <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">
+                            Core Material Sum Batch Qty
+                          </span>
+                          <span className="font-mono text-sm font-bold text-emerald-800">
+                            {totalMaterialBatchQty.toFixed(2)} {materialUom} <span className="text-[10px] text-gray-400 font-normal">/ Batch</span>
+                          </span>
+                        </div>
+                        <div className="p-2 bg-white/90 rounded-lg border border-teal-100 shadow-2xs">
+                          <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">
+                            Core Formulation Blend
+                          </span>
+                          <span className="font-mono text-sm font-bold text-teal-800">
+                            {coreMaterialLines.length} Material{coreMaterialLines.length !== 1 ? 's' : ''} (100%)
+                          </span>
+                        </div>
+                        <div className="p-2 bg-white/90 rounded-lg border border-amber-100 shadow-2xs">
+                          <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">
+                            Excluded Auxiliaries
+                          </span>
+                          <span className="font-mono text-sm font-bold text-amber-800">
+                            {auxiliaryLines.length} Items (BOP/CON/PCK)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Table Header Bar */}
+                    <div className="flex items-center justify-between px-1">
+                      <h4 className="text-xs font-bold text-[#14213D] uppercase tracking-wider flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5 text-[#0F8B8D]" /> Formula &amp; Part Components ({quickModifyBom.lines?.length || 0})
+                      </h4>
+                      <span className="text-[11px] text-gray-500">
+                        {coreMaterialLines.length} Core Materials &bull; {auxiliaryLines.length} Packaging/BOP
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto border border-[#E4E0D6] rounded-xl [scrollbar-width:none]">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="bg-[#F6F4EF] text-[#14213D] border-b border-[#E4E0D6] font-semibold text-[11px]">
+                            <th className="py-2 px-3">Item Code</th>
+                            <th className="py-2 px-3">Component Name</th>
+                            <th className="py-2 px-3">Role / Classification</th>
+                            <th className="py-2 px-3 text-right">Unit Qty</th>
+                            <th className="py-2 px-3 text-center">UOM</th>
+                            <th className="py-2 px-3 text-right">Batch Qty</th>
+                            <th className="py-2 px-3 text-right">Formula %</th>
+                            <th className="py-2 px-3 text-right">Scrap %</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {(quickModifyBom.lines || []).map((line, idx) => {
+                            const isAux = isAuxiliaryLine(line);
+                            const formulaPct = !isAux && totalMaterialUnitQty > 0
+                              ? ((Number(line.qty) / totalMaterialUnitQty) * 100).toFixed(1)
+                              : null;
+
+                            return (
+                              <tr key={line.id || idx} className={`hover:bg-gray-50 ${isAux ? 'bg-amber-50/20' : ''}`}>
+                                <td className="py-2 px-3 font-mono font-bold text-[#0F8B8D]">{line.item}</td>
+                                <td className="py-2 px-3 font-medium text-[#14213D]">{line.name}</td>
+                                <td className="py-2 px-3">{getLineRoleBadge(line)}</td>
+                                <td className="py-2 px-3 text-right">
+                                  <input
+                                    type="number"
+                                    step="0.0001"
+                                    value={line.qty}
+                                    onChange={(e) => {
+                                      const newQty = parseFloat(e.target.value) || 0;
+                                      const updatedLines = [...quickModifyBom.lines];
+                                      updatedLines[idx] = { ...updatedLines[idx], qty: newQty };
+                                      setQuickModifyBom({ ...quickModifyBom, lines: updatedLines });
+                                    }}
+                                    className="w-20 text-right py-0.5 px-1.5 border border-[#E4E0D6] rounded font-mono text-xs focus:border-[#0F8B8D]"
+                                  />
+                                </td>
+                                <td className="py-2 px-3 text-center font-mono text-gray-600">{line.uom}</td>
+                                <td className="py-2 px-3 text-right font-mono font-semibold text-gray-700">
+                                  {(line.qty * (quickModifyBom.batchSize || 1000)).toFixed(2)} {line.uom}
+                                </td>
+                                <td className="py-2 px-3 text-right font-mono font-bold">
+                                  {formulaPct ? (
+                                    <span className="text-blue-700">{formulaPct}%</span>
+                                  ) : (
+                                    <span className="text-gray-400 text-[10px]">N/A (BOP)</span>
+                                  )}
+                                </td>
+                                <td className="py-2 px-3 text-right">
+                                  <input
+                                    type="number"
+                                    step="0.1"
+                                    value={line.scrapPct ?? 1.5}
+                                    onChange={(e) => {
+                                      const newScrap = parseFloat(e.target.value) || 0;
+                                      const updatedLines = [...quickModifyBom.lines];
+                                      updatedLines[idx] = { ...updatedLines[idx], scrapPct: newScrap };
+                                      setQuickModifyBom({ ...quickModifyBom, lines: updatedLines });
+                                    }}
+                                    className="w-16 text-right py-0.5 px-1.5 border border-[#E4E0D6] rounded font-mono text-xs focus:border-[#0F8B8D] text-rose-600"
+                                  />
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot className="bg-[#F9F8F5] border-t-2 border-[#E4E0D6] font-semibold text-xs text-[#14213D]">
+                          <tr className="bg-blue-50/50">
+                            <td colSpan={3} className="py-2 px-3 text-blue-900 font-bold">
+                              Core Material Formula Sum (Excl. BOP / CON / PCK):
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono font-bold text-blue-900">
+                              {totalMaterialUnitQty.toFixed(4)}
+                            </td>
+                            <td className="py-2 px-3 text-center font-mono text-blue-900">{materialUom}</td>
+                            <td className="py-2 px-3 text-right font-mono font-bold text-emerald-800">
+                              {totalMaterialBatchQty.toFixed(2)} {materialUom}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono font-bold text-blue-900">100.0%</td>
+                            <td className="py-2 px-3 text-right text-[11px] text-gray-500">Net Resin</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Engineering Notes & Remarks */}
               <div>
