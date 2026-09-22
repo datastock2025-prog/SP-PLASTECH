@@ -985,8 +985,269 @@ class MasterDataGovernanceService {
   }
 
   // ==========================================
-  // Task 4: Admin Master Data Governance Permissions
+  // Task 1: Autocomplete & Admin Master Catalog Options
   // ==========================================
+  private getStoredList(key: string, defaults: string[]): string[] {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const set = new Set([...parsed, ...defaults]);
+          return Array.from(set);
+        }
+      }
+    } catch (e) {
+      console.warn(`Failed to load stored list for ${key}`, e);
+    }
+    return defaults;
+  }
+
+  private saveStoredList(key: string, item: string, defaults: string[]): string[] {
+    const clean = item.trim();
+    if (!clean) return this.getStoredList(key, defaults);
+    const list = this.getStoredList(key, defaults);
+    if (!list.some(x => x.toLowerCase() === clean.toLowerCase())) {
+      list.unshift(clean);
+      try {
+        localStorage.setItem(key, JSON.stringify(list));
+      } catch (e) {
+        console.warn(`Failed to save item to ${key}`, e);
+      }
+      adminEventBus.emit('MASTER_OPTIONS_UPDATED', { key, item: clean });
+    }
+    return list;
+  }
+
+  public getCategories(): string[] {
+    return this.getStoredList('reboot_erp_catalog_categories', [
+      'Automotive Exterior',
+      'Automotive Interior Trim',
+      'Under-the-Hood Technical Components',
+      'Virgin Raw Polymer',
+      'Polypropylene Copolymer',
+      'HDPE Blow Grade',
+      'Color Masterbatch',
+      'Additives & Pigments',
+      'Black Masterbatch',
+      'Regrind PP Reprocessed',
+      'Molded Automotive Parts',
+      'Packaging Materials',
+      'Mold & Machine Spares',
+      'Injection Mold Dies',
+      'OEM Tier-1 Customer Component',
+      'Pharma Cleanroom Packaging',
+    ]);
+  }
+
+  public saveCategory(category: string): string[] {
+    return this.saveStoredList('reboot_erp_catalog_categories', category, this.getCategories());
+  }
+
+  public getItemGroups(): string[] {
+    return this.getStoredList('reboot_erp_catalog_item_groups', [
+      'Automotive Assemblies',
+      'Polymer Feedstock',
+      'Colorants & Additives',
+      'Precision Moldings',
+      'Fluid Management Parts',
+      'Extrusion Profiles',
+      'Blow Molded Bottles & Containers',
+      'Pharma Closures & Caps',
+      'Tooling & Mold Spares',
+      'Corrugated & Returnable Packaging',
+      'General Catalog',
+    ]);
+  }
+
+  public saveItemGroup(group: string): string[] {
+    return this.saveStoredList('reboot_erp_catalog_item_groups', group, this.getItemGroups());
+  }
+
+  public getUoms(): string[] {
+    return this.getStoredList('reboot_erp_catalog_uoms', [
+      'Numbers (PCS)',
+      'Kilograms (KG)',
+      'Sets (SET)',
+      'Meters (MTR)',
+      'Liters (LTR)',
+      'Boxes (BOX)',
+      'Metric Ton (MT)',
+      'Grams (GMS)',
+      'Shots (SHOT)',
+    ]);
+  }
+
+  public saveUom(uom: string): string[] {
+    return this.saveStoredList('reboot_erp_catalog_uoms', uom, this.getUoms());
+  }
+
+  public getPlantScopes(): string[] {
+    return this.getStoredList('reboot_erp_catalog_plant_scopes', [
+      'All Plants (Global)',
+      'Plant 01 — Pune / Chakan Hub',
+      'Plant 02 — Sanand Precision Polymers',
+      'Plant 03 — Chennai Auto Component Unit',
+      'Plant 04 — Baddi Pharma Cleanroom Unit',
+      'Pune & Sanand Units',
+      'Chennai Molding Only',
+      'Baddi Cleanroom Only',
+    ]);
+  }
+
+  public savePlantScope(scope: string): string[] {
+    return this.saveStoredList('reboot_erp_catalog_plant_scopes', scope, this.getPlantScopes());
+  }
+
+  public getResinTypes(): string[] {
+    return this.getStoredList('reboot_erp_catalog_resin_types', [
+      'Impact Copolymer PP + 15% EPDM',
+      'Polypropylene Homopolymer (PP-H)',
+      'Polypropylene Random Copolymer (PP-R)',
+      'ABS High-Impact Terpolymer',
+      'Polyamide 66 + 30% Glass Filled (PA66-GF30)',
+      'High-Density Polyethylene (HDPE Blow Grade)',
+      'Polycarbonate (PC Optical Grade)',
+      'Polycarbonate / ABS Alloy (PC+ABS)',
+      'Polyoxymethylene / Acetal (POM Delrin)',
+      'Thermoplastic Elastomer (TPE / TPO)',
+      'PET Bottle & Preform Resin',
+    ]);
+  }
+
+  public saveResinType(resin: string): string[] {
+    return this.saveStoredList('reboot_erp_catalog_resin_types', resin, this.getResinTypes());
+  }
+
+  public getColors(): string[] {
+    return this.getStoredList('reboot_erp_catalog_colors', [
+      'Midnight Black / Painted Gloss',
+      'Natural / Translucent Milky',
+      'Carbon Black (Jet Black RAL 9005)',
+      'Signal Red (RAL 3001)',
+      'Traffic White (RAL 9016)',
+      'Silver Metallic Gloss',
+      'Anthracite Grey (RAL 7016)',
+      'Cobalt Blue (RAL 5013)',
+      'Medical Clear High-Transparency',
+      'Custom OEM Matched Shade',
+    ]);
+  }
+
+  public saveColor(color: string): string[] {
+    return this.saveStoredList('reboot_erp_catalog_colors', color, this.getColors());
+  }
+
+  public getComplianceMandates(): string[] {
+    return this.getStoredList('reboot_erp_catalog_compliance_mandates', [
+      'RoHS, REACH, UL-94 HB, PPAP Level-3',
+      'RoHS 3 (EU 2015/863) & REACH SVHC Compliant',
+      'UL-94 V0 Flame Retardant Certified',
+      'FDA 21 CFR 177.1520 Food Contact Safe',
+      'ISO 10993 Medical Biocompatibility Class VI',
+      'IATF 16949 Automotive OEM Specific Mandate',
+      'IMDS (International Material Data System) Registered',
+      'Bisphenol-A (BPA) & Phthalate Free Declaration',
+    ]);
+  }
+
+  public saveComplianceMandate(mandate: string): string[] {
+    return this.saveStoredList('reboot_erp_catalog_compliance_mandates', mandate, this.getComplianceMandates());
+  }
+
+  public getTestingLabs(): string[] {
+    return this.getStoredList('reboot_erp_catalog_testing_labs', [
+      'In-House Spectrophotometer & MFI Lab',
+      'CIPET Central Institute of Petrochemicals Testing',
+      'TUV Rheinland Polymer & Plastics Testing Center',
+      'SGS India Automotive Materials Laboratory',
+      'Intertek Polymeric Physical & Thermal Testing',
+      'UL India Flame & Electrical Safety Testing Lab',
+      'ARAI Automotive Research Association of India',
+    ]);
+  }
+
+  public saveTestingLab(lab: string): string[] {
+    return this.saveStoredList('reboot_erp_catalog_testing_labs', lab, this.getTestingLabs());
+  }
+
+  public getPackingStandards(): string[] {
+    return this.getStoredList('reboot_erp_catalog_packing_standards', [
+      '25 KG Moisture Barrier Paper Bags with PE Liner',
+      'Returnable PP Corrugated Totes with Honeycomb Divider Cells',
+      'Export Heavy Duty Pallet Box with VCI Anti-Corrosion Liner',
+      'Corrugated Master Carton (50 Pcs / Box) with Bubble Wrap',
+      'Cleanroom Sealed Double PE Bags in Anti-Static Cartons',
+      'Octabin Bulk Polymer Gaylord Container (1,000 KG)',
+      'Individual Thermoformed Blister Pack on 4-Way Wooden Pallet',
+    ]);
+  }
+
+  public savePackingStandard(pkg: string): string[] {
+    return this.saveStoredList('reboot_erp_catalog_packing_standards', pkg, this.getPackingStandards());
+  }
+
+  // ==========================================
+  // Task 3: BOM Recipe Unique Identification Number Linked with Version Code
+  // ==========================================
+  public generateLinkedRecipeCode(
+    version: string,
+    components: Array<{ item?: string; name?: string; percentage?: number; dosageRate?: string; qty?: number }> = []
+  ): {
+    recipeUid: string;
+    version: string;
+    totalPercentage: number;
+    isBalanced: boolean;
+    formulaSummary: string;
+    materialCodes: string[];
+  } {
+    const cleanVer = (version || '1.0').trim().replace(/^[vV]/, '');
+    
+    // Calculate total material formulation percentage
+    let totalPercentage = 0;
+    const materialTokens: string[] = [];
+
+    components.forEach((c) => {
+      const pct = c.percentage !== undefined 
+        ? Number(c.percentage) 
+        : c.dosageRate 
+        ? parseFloat(c.dosageRate) 
+        : (Number(c.qty) || 0);
+      
+      totalPercentage += pct;
+      const cleanName = (c.item || c.name || 'MAT').replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase();
+      materialTokens.push(`${Math.round(pct)}${cleanName}`);
+    });
+
+    const isBalanced = Math.abs(totalPercentage - 100) < 0.05;
+    const roundedSum = Math.round(totalPercentage);
+
+    // Simple deterministic checksum hash based on materials + version + sum
+    const seed = `${cleanVer}:${roundedSum}:${materialTokens.join('-')}`;
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+      hash |= 0;
+    }
+    const hexHash = Math.abs(hash).toString(16).toUpperCase().padStart(4, '0').slice(-4);
+
+    const recipeUid = `RCP-SUM${roundedSum}-v${cleanVer}-${hexHash}`;
+    const formulaSummary = components.length > 0
+      ? components.map(c => {
+          const val = c.percentage !== undefined ? c.percentage : c.dosageRate ? parseFloat(c.dosageRate) : c.qty;
+          return `${val}% ${(c.item || c.name || 'Material').split(' ')[0]}`;
+        }).join(' + ') + ` = ${totalPercentage.toFixed(1)}%`
+      : `0% Material Sum (Pending formulation)`;
+
+    return {
+      recipeUid,
+      version: `v${cleanVer}`,
+      totalPercentage: Number(totalPercentage.toFixed(2)),
+      isBalanced,
+      formulaSummary,
+      materialCodes: materialTokens,
+    };
+  }
   public getGovernancePermissions(): MasterDataGovernancePermissions {
     const defaultPerms: MasterDataGovernancePermissions = {
       canCreateItemRoles: ['admin', 'super_admin', 'engineering_manager', 'plant_operations_director'],

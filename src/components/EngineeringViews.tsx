@@ -69,11 +69,11 @@ import {
   Calendar,
   Tag,
   FileCheck,
-  X,
-  Save,
-  ArrowRight,
-  Maximize2
+  Maximize2,
+  Link2,
+  Fingerprint,
 } from 'lucide-react';
+import { masterDataGovernanceService } from '../services/masterDataGovernanceService';
 
 interface EngineeringViewsProps {
   view: string;
@@ -851,6 +851,15 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
   ========================================================================= */
   if (view === 'recipeFormula') {
     const activeRecipe = recipes[0] || INITIAL_RECIPES[0];
+    const linkedRecipe = masterDataGovernanceService.generateLinkedRecipeCode(
+      '1.0',
+      activeRecipe.lines.map((l) => ({
+        item: l.item,
+        name: l.description,
+        percentage: l.percentage,
+        qty: l.qtyKg,
+      }))
+    );
 
     return (
       <div className="space-y-5">
@@ -870,6 +879,53 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
           >
             <Scale className="w-3.5 h-3.5" /> Simulate Batch Scale
           </button>
+        </div>
+
+        {/* Task 3: Unique Recipe Identification Number & Linked Version Number Card */}
+        <div className="p-4 bg-gradient-to-r from-[#14213D] via-purple-950 to-slate-900 text-white rounded-xl shadow-md border border-purple-800/40 flex flex-col md:flex-row md:items-center justify-between gap-3 animate-in fade-in">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded bg-purple-500/30 text-purple-200 border border-purple-400/40 text-[10px] font-mono font-bold flex items-center gap-1 uppercase tracking-wider">
+                <Fingerprint className="w-3 h-3 text-purple-300" />
+                Unique Recipe Identification Number
+              </span>
+              <span className="text-slate-400 text-xs">&bull;</span>
+              <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-200 border border-blue-400/30 text-[10px] font-mono font-bold flex items-center gap-1">
+                <GitBranch className="w-3 h-3 text-blue-300" />
+                BOM Version: v1.0
+              </span>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <div className="font-mono text-base font-bold text-amber-300 tracking-wider">
+                {linkedRecipe.recipeUid}
+              </div>
+              <span className="text-slate-400 text-xs flex items-center gap-1">
+                <Link2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-emerald-300 text-[11px] font-semibold">Bi-directionally Linked with Version</span>
+              </span>
+            </div>
+            <p className="text-[11px] text-purple-200/80 font-mono">
+              Material Sum: {linkedRecipe.formulaSummary}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 bg-white/10 backdrop-blur-xs p-2.5 rounded-lg border border-white/15 text-xs">
+            <div className="text-right">
+              <div className="text-[10px] text-slate-300 uppercase tracking-wider">Total Material Sum</div>
+              <div className="font-mono font-bold text-sm">
+                {activeRecipe.totalPercentage.toFixed(1)}% / 100%
+              </div>
+            </div>
+            {Math.abs(activeRecipe.totalPercentage - 100) < 0.1 ? (
+              <span className="flex items-center gap-1 text-emerald-300 font-bold bg-emerald-950/80 border border-emerald-500/50 px-2 py-1 rounded text-[11px]">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> 100% Balanced
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-amber-300 font-bold bg-amber-950/80 border border-amber-500/50 px-2 py-1 rounded text-[11px]">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" /> Discrepancy
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Recipe Formulation Card */}

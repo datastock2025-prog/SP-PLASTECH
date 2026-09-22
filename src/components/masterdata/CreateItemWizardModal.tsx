@@ -43,6 +43,7 @@ import { MasterDataRecord } from '../../data/mockAdminExtendedData';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { itemService } from '../../services/itemService';
 import { adminEventBus } from '../../services/adminService';
+import { MasterDataCombobox } from '../common/MasterDataCombobox';
 
 interface ConversionRow {
   id: string;
@@ -82,9 +83,24 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   const [itemGroup, setItemGroup] = useState<string>(editItem?.itemGroup || '');
   const [status, setStatus] = useState<string>(editItem?.approval === 'approved' ? 'Active' : 'Active');
   const [description, setDescription] = useState<string>(editItem?.desc || '');
+  
+  // Live Image State (Task 2)
   const [itemImage, setItemImage] = useState<string | null>(null);
+  const [itemImageName, setItemImageName] = useState<string>('');
+  const [itemImageSize, setItemImageSize] = useState<string>('');
+  const [isImageDragging, setIsImageDragging] = useState<boolean>(false);
 
-  // Master Data Governance Integration State
+  // Master Data Catalogs & Governance Integration (Task 1)
+  const [categoryList, setCategoryList] = useState<string[]>(() => masterDataGovernanceService.getCategories());
+  const [itemGroupList, setItemGroupList] = useState<string[]>(() => masterDataGovernanceService.getItemGroups());
+  const [uomList, setUomList] = useState<string[]>(() => masterDataGovernanceService.getUoms());
+  const [plantScopeList, setPlantScopeList] = useState<string[]>(() => masterDataGovernanceService.getPlantScopes());
+  const [resinTypeList, setResinTypeList] = useState<string[]>(() => masterDataGovernanceService.getResinTypes());
+  const [colorList, setColorList] = useState<string[]>(() => masterDataGovernanceService.getColors());
+  const [complianceList, setComplianceList] = useState<string[]>(() => masterDataGovernanceService.getComplianceMandates());
+  const [testingLabList, setTestingLabList] = useState<string[]>(() => masterDataGovernanceService.getTestingLabs());
+  const [packingStandardList, setPackingStandardList] = useState<string[]>(() => masterDataGovernanceService.getPackingStandards());
+
   const [masterRecords, setMasterRecords] = useState<MasterDataRecord[]>(() =>
     masterDataGovernanceService.getAllRecords()
   );
@@ -153,6 +169,15 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       setSupplierList(masterDataGovernanceService.getSuppliers());
       setWarehouseList(masterDataGovernanceService.getWarehouses());
       setBinList(masterDataGovernanceService.getBins());
+      setCategoryList(masterDataGovernanceService.getCategories());
+      setItemGroupList(masterDataGovernanceService.getItemGroups());
+      setUomList(masterDataGovernanceService.getUoms());
+      setPlantScopeList(masterDataGovernanceService.getPlantScopes());
+      setResinTypeList(masterDataGovernanceService.getResinTypes());
+      setColorList(masterDataGovernanceService.getColors());
+      setComplianceList(masterDataGovernanceService.getComplianceMandates());
+      setTestingLabList(masterDataGovernanceService.getTestingLabs());
+      setPackingStandardList(masterDataGovernanceService.getPackingStandards());
     });
     return unsub;
   }, []);
@@ -1556,63 +1581,47 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                       )}
                     </div>
 
-                    {/* Category */}
+                    {/* Category (Task 1: Autocomplete & Dropdown with Admin + Add) */}
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="block font-semibold text-slate-700">Category</label>
+                        <label className="block font-semibold text-slate-700">Classification / Category *</label>
                         {syncedMasterRecord && (
                           <span className="text-[10px] text-emerald-700 font-medium">✓ Auto-filled</span>
                         )}
                       </div>
-                      <select
+                      <MasterDataCombobox
                         value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                        className={`w-full px-3 py-2 rounded-lg border text-xs bg-white ${
-                          syncedMasterRecord ? 'border-emerald-300 bg-emerald-50/10 font-medium' : 'border-slate-300'
-                        }`}
-                      >
-                        {Array.from(
-                          new Set([
-                            'Raw Material / PP',
-                            'Virgin Raw Polymer',
-                            'Polypropylene Copolymer',
-                            'HDPE Blow Grade',
-                            'Color Masterbatch',
-                            'Additives & Pigments',
-                            'Black Masterbatch',
-                            'Regrind PP Reprocessed',
-                            'Automotive Exterior',
-                            'Molded Automotive Parts',
-                            'Packaging Materials',
-                            'Mold & Machine Spares',
-                            'Injection Mold Dies',
-                            'OEM Tier-1 Customer',
-                            ...(category ? [category] : []),
-                          ])
-                        ).map((cat) => (
-                          <option key={cat} value={cat}>
-                            {cat}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(val) => setCategory(val)}
+                        options={categoryList}
+                        placeholder="Select or type Category..."
+                        entityLabel="Category"
+                        onSaveCustomOption={(newVal) => {
+                          const updated = masterDataGovernanceService.saveCategory(newVal);
+                          setCategoryList(updated);
+                          showToast(`✓ Category "${newVal}" registered in Admin Master Catalog!`);
+                        }}
+                      />
                     </div>
 
-                    {/* Item Group */}
+                    {/* Item Group (Task 1: Autocomplete & Dropdown with Admin + Add) */}
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="block font-semibold text-slate-700">Item group</label>
+                        <label className="block font-semibold text-slate-700">Item Group *</label>
                         {syncedMasterRecord && (
                           <span className="text-[10px] text-emerald-700 font-medium">✓ Auto-filled</span>
                         )}
                       </div>
-                      <input
-                        type="text"
+                      <MasterDataCombobox
                         value={itemGroup}
-                        onChange={(e) => setItemGroup(e.target.value)}
-                        className={`w-full px-3 py-2 rounded-lg border text-xs ${
-                          syncedMasterRecord ? 'border-emerald-300 bg-emerald-50/10 font-medium' : 'border-slate-300'
-                        }`}
-                        placeholder="e.g. Polymer feedstock"
+                        onChange={(val) => setItemGroup(val)}
+                        options={itemGroupList}
+                        placeholder="Select or type Item Group..."
+                        entityLabel="Item Group"
+                        onSaveCustomOption={(newVal) => {
+                          const updated = masterDataGovernanceService.saveItemGroup(newVal);
+                          setItemGroupList(updated);
+                          showToast(`✓ Item Group "${newVal}" registered in Admin Master Catalog!`);
+                        }}
                       />
                     </div>
 
@@ -1802,28 +1811,113 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                       </div>
                     )}
 
-                    {/* Image Upload Box */}
+                    {/* Live Image Upload Box (Task 2: Real live upload, drag & drop, preview, size) */}
                     <div className="md:col-span-2">
                       <label className="block font-semibold text-slate-700 mb-1">Item image</label>
-                      <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:bg-slate-50 transition-colors flex flex-col items-center justify-center gap-2">
-                        <UploadCloud className="w-8 h-8 text-slate-400" />
-                        <div className="font-semibold text-slate-800 text-xs">Drop item photo</div>
-                        <p className="text-[11px] text-slate-400">PNG or JPG, 1:1 preferred</p>
-                        <label className="mt-1 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer">
-                          Browse files
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => {
-                              if (e.target.files && e.target.files[0]) {
-                                setItemImage(URL.createObjectURL(e.target.files[0]));
-                                showToast('Photo uploaded.');
-                              }
-                            }}
-                          />
-                        </label>
-                      </div>
+                      {itemImage ? (
+                        <div className="border border-emerald-300 bg-emerald-50/20 rounded-xl p-4 flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={itemImage}
+                              alt="Item Preview"
+                              className="w-16 h-16 rounded-lg object-cover border border-slate-200 shadow-xs bg-white"
+                            />
+                            <div>
+                              <div className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                {itemImageName || 'Item Photo Attached'}
+                              </div>
+                              <div className="text-[11px] text-slate-500 mt-0.5">
+                                {itemImageSize || 'Live Photo'} &bull; PNG/JPG preview loaded
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer">
+                              Change Photo
+                              <input
+                                type="file"
+                                accept="image/png,image/jpeg,image/webp,image/jpg"
+                                className="hidden"
+                                onChange={(e) => {
+                                  if (e.target.files && e.target.files[0]) {
+                                    const file = e.target.files[0];
+                                    const sizeKb = file.size > 1024 * 1024 
+                                      ? `${(file.size / (1024 * 1024)).toFixed(2)} MB`
+                                      : `${Math.round(file.size / 1024)} KB`;
+                                    setItemImageName(file.name);
+                                    setItemImageSize(sizeKb);
+                                    setItemImage(URL.createObjectURL(file));
+                                    showToast(`✓ Photo "${file.name}" (${sizeKb}) loaded live!`);
+                                  }
+                                }}
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setItemImage(null);
+                                setItemImageName('');
+                                setItemImageSize('');
+                                showToast('Photo removed.');
+                              }}
+                              className="p-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50"
+                              title="Remove photo"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            setIsImageDragging(true);
+                          }}
+                          onDragLeave={() => setIsImageDragging(false)}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            setIsImageDragging(false);
+                            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                              const file = e.dataTransfer.files[0];
+                              const sizeKb = file.size > 1024 * 1024 
+                                ? `${(file.size / (1024 * 1024)).toFixed(2)} MB`
+                                : `${Math.round(file.size / 1024)} KB`;
+                              setItemImageName(file.name);
+                              setItemImageSize(sizeKb);
+                              setItemImage(URL.createObjectURL(file));
+                              showToast(`✓ Photo "${file.name}" (${sizeKb}) loaded live!`);
+                            }
+                          }}
+                          className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors flex flex-col items-center justify-center gap-2 ${
+                            isImageDragging ? 'border-[#0066CC] bg-blue-50/50' : 'border-slate-300 hover:bg-slate-50'
+                          }`}
+                        >
+                          <UploadCloud className={`w-8 h-8 ${isImageDragging ? 'text-[#0066CC]' : 'text-slate-400'}`} />
+                          <div className="font-semibold text-slate-800 text-xs">Drop item photo</div>
+                          <p className="text-[11px] text-slate-400">PNG or JPG, 1:1 preferred</p>
+                          <label className="mt-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer">
+                            Browse files
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp,image/jpg"
+                              className="hidden"
+                              onChange={(e) => {
+                                if (e.target.files && e.target.files[0]) {
+                                  const file = e.target.files[0];
+                                  const sizeKb = file.size > 1024 * 1024 
+                                    ? `${(file.size / (1024 * 1024)).toFixed(2)} MB`
+                                    : `${Math.round(file.size / 1024)} KB`;
+                                  setItemImageName(file.name);
+                                  setItemImageSize(sizeKb);
+                                  setItemImage(URL.createObjectURL(file));
+                                  showToast(`✓ Photo "${file.name}" (${sizeKb}) loaded live!`);
+                                }
+                              }}
+                            />
+                          </label>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1840,17 +1934,18 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
                     <div>
                       <label className="block font-semibold text-slate-700 mb-1">Base UOM</label>
-                      <select
+                      <MasterDataCombobox
                         value={baseUOM}
-                        onChange={(e) => setBaseUOM(e.target.value)}
-                        className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-medium"
-                      >
-                        <option value="KG">KG</option>
-                        <option value="MT">MT</option>
-                        <option value="PCS">PCS</option>
-                        <option value="LTR">LTR</option>
-                        <option value="BOX">BOX</option>
-                      </select>
+                        onChange={(val) => setBaseUOM(val)}
+                        options={uomList}
+                        placeholder="Select UOM..."
+                        entityLabel="Unit of Measure"
+                        onSaveCustomOption={(newVal) => {
+                          const updated = masterDataGovernanceService.saveUom(newVal);
+                          setUomList(updated);
+                          showToast(`✓ UOM "${newVal}" registered in Admin Master Catalog!`);
+                        }}
+                      />
                     </div>
 
                     <div>
@@ -1983,35 +2078,47 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                   )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                    {/* Resin Type (Task 1: Autocomplete & Dropdown with Admin + Add) */}
                     <div>
                       <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                        <span>Resin type *</span>
+                        <span>Resin Type *</span>
                         {syncedMasterRecord?.resinType && (
                           <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-medium border border-emerald-100">✓ Master Synced</span>
                         )}
                       </label>
-                      <input
-                        type="text"
+                      <MasterDataCombobox
                         value={resinType}
-                        onChange={(e) => setResinType(e.target.value)}
-                        className={`w-full px-3 py-2 rounded-lg border transition-colors ${resinType ? 'border-slate-300 bg-white' : 'border-amber-300 bg-amber-50/30'}`}
-                        placeholder="Polypropylene (PP)"
+                        onChange={(val) => setResinType(val)}
+                        options={resinTypeList}
+                        placeholder="Select or type Resin..."
+                        entityLabel="Resin Type"
+                        onSaveCustomOption={(newVal) => {
+                          const updated = masterDataGovernanceService.saveResinType(newVal);
+                          setResinTypeList(updated);
+                          showToast(`✓ Resin "${newVal}" registered in Admin Master Catalog!`);
+                        }}
                       />
                     </div>
 
+                    {/* Color / Finish (Task 1: Autocomplete & Dropdown with Admin + Add) */}
                     <div>
                       <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                        <span>Color *</span>
+                        <span>Color / Finish *</span>
                         {syncedMasterRecord?.color && (
                           <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-medium border border-emerald-100">✓ Master Synced</span>
                         )}
                       </label>
-                      <input
-                        type="text"
+                      <MasterDataCombobox
                         value={color}
-                        onChange={(e) => setColor(e.target.value)}
-                        className={`w-full px-3 py-2 rounded-lg border transition-colors ${color ? 'border-slate-300 bg-white' : 'border-amber-300 bg-amber-50/30'}`}
-                        placeholder="Natural"
+                        onChange={(val) => setColor(val)}
+                        options={colorList}
+                        placeholder="Select or type Color..."
+                        entityLabel="Color"
+                        onSaveCustomOption={(newVal) => {
+                          const updated = masterDataGovernanceService.saveColor(newVal);
+                          setColorList(updated);
+                          showToast(`✓ Color "${newVal}" registered in Admin Master Catalog!`);
+                        }}
                       />
                     </div>
 
@@ -2581,12 +2688,17 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
 
                     <div>
                       <label className="block font-semibold text-slate-700 mb-1">Approved Quality Testing Lab</label>
-                      <input
-                        type="text"
+                      <MasterDataCombobox
                         value={approvedLab}
-                        onChange={(e) => setApprovedLab(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300"
-                        placeholder="e.g. In-House Spectrophotometer & MFI Lab"
+                        onChange={(val) => setApprovedLab(val)}
+                        options={testingLabList}
+                        placeholder="Select or type Testing Lab..."
+                        entityLabel="Testing Lab"
+                        onSaveCustomOption={(newVal) => {
+                          const updated = masterDataGovernanceService.saveTestingLab(newVal);
+                          setTestingLabList(updated);
+                          showToast(`✓ Testing Lab "${newVal}" registered in Admin Master Catalog!`);
+                        }}
                       />
                     </div>
                   </div>
@@ -2840,14 +2952,20 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                       />
                     </div>
 
+                    {/* Finished Goods Packaging Standard (Task 1: Autocomplete & Dropdown with Admin + Add) */}
                     <div>
                       <label className="block font-semibold text-slate-700 mb-1">Finished Goods Packaging Standard</label>
-                      <input
-                        type="text"
+                      <MasterDataCombobox
                         value={packagingStandard}
-                        onChange={(e) => setPackagingStandard(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300"
-                        placeholder="e.g. 25 KG Moisture Barrier Paper Bags"
+                        onChange={(val) => setPackagingStandard(val)}
+                        options={packingStandardList}
+                        placeholder="Select or type Packaging Standard..."
+                        entityLabel="Packaging Standard"
+                        onSaveCustomOption={(newVal) => {
+                          const updated = masterDataGovernanceService.savePackingStandard(newVal);
+                          setPackingStandardList(updated);
+                          showToast(`✓ Packaging Standard "${newVal}" registered in Admin Master Catalog!`);
+                        }}
                       />
                     </div>
                   </div>
@@ -2855,63 +2973,187 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
               )}
 
               {/* ========================================================= */}
-              {/* STEP 9: DOCUMENTS                                         */}
+              {/* STEP 9: DOCUMENTS (Task 2: Live real file uploads)         */}
               {/* ========================================================= */}
               {currentStep === 9 && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-sm font-bold text-slate-900">Technical Documentation &amp; Compliance</h2>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDocuments([
-                          ...documents,
-                          {
-                            name: `RoHS_REACH_Certificate_${itemCode}.pdf`,
-                            type: 'RoHS / REACH Declaration',
-                            size: '850 KB',
-                            uploadedOn: 'Today',
-                          },
-                        ]);
-                        showToast('Sample RoHS / REACH document attached.');
-                      }}
-                      className="px-2.5 py-1 text-xs font-semibold text-[#0066CC] bg-[#F0F7FF] rounded-lg hover:bg-blue-100"
-                    >
+                    <div>
+                      <h2 className="text-sm font-bold text-slate-900">Technical Documentation &amp; Compliance</h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Live repository for genuine TDS, MSDS, 2D Part Drawings, and RoHS / REACH certifications.
+                      </p>
+                    </div>
+                    <label className="px-3 py-1.5 text-xs font-semibold text-[#0066CC] bg-[#F0F7FF] border border-blue-200 rounded-lg hover:bg-blue-100 cursor-pointer flex items-center gap-1.5 shadow-2xs">
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#0066CC]" />
                       + Attach RoHS Compliance
-                    </button>
+                      <input
+                        type="file"
+                        accept=".pdf,.doc,.docx,.png,.jpg"
+                        className="hidden"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            const file = e.target.files[0];
+                            const sizeKb = file.size > 1024 * 1024
+                              ? `${(file.size / (1024 * 1024)).toFixed(2)} MB`
+                              : `${Math.round(file.size / 1024)} KB`;
+                            const fileUrl = URL.createObjectURL(file);
+                            setDocuments([
+                              ...documents,
+                              {
+                                name: file.name,
+                                type: 'RoHS / REACH Declaration',
+                                size: sizeKb,
+                                uploadedOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+                                url: fileUrl,
+                              },
+                            ]);
+                            showToast(`✓ RoHS Compliance document "${file.name}" (${sizeKb}) attached live!`);
+                          }
+                        }}
+                      />
+                    </label>
                   </div>
 
-                  <div className="space-y-2.5 text-xs">
-                    {documents.map((doc, idx) => (
-                      <div
-                        key={idx}
-                        className="p-3 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-red-100 text-red-700 font-bold text-[10px]">PDF</div>
-                          <div>
-                            <div className="font-bold text-slate-900">{doc.name}</div>
-                            <div className="text-[11px] text-slate-500">
-                              {doc.type} &bull; {doc.size} &bull; {doc.uploadedOn}
+                  {documents.length > 0 ? (
+                    <div className="space-y-2.5 text-xs">
+                      {documents.map((doc, idx) => {
+                        const ext = doc.name.split('.').pop()?.toUpperCase() || 'DOC';
+                        const badgeColor =
+                          ext === 'PDF' ? 'bg-rose-100 text-rose-700' :
+                          ext === 'STEP' || ext === 'STP' || ext === 'DWG' ? 'bg-purple-100 text-purple-700' :
+                          ext === 'PNG' || ext === 'JPG' || ext === 'JPEG' ? 'bg-teal-100 text-teal-700' :
+                          'bg-blue-100 text-blue-700';
+
+                        return (
+                          <div
+                            key={idx}
+                            className="p-3 rounded-xl border border-slate-200 bg-slate-50/90 hover:bg-slate-50 flex items-center justify-between transition-colors shadow-2xs"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className={`p-2 rounded-lg font-bold text-[10px] shrink-0 ${badgeColor}`}>
+                                {ext}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-bold text-slate-900 truncate">{doc.name}</div>
+                                <div className="text-[11px] text-slate-500 mt-0.5">
+                                  {doc.type} &bull; <strong className="font-mono text-slate-700">{doc.size}</strong> &bull; {doc.uploadedOn}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              {doc.url && (
+                                <a
+                                  href={doc.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  download={doc.name}
+                                  className="px-2.5 py-1 text-[11px] font-semibold text-[#0066CC] hover:bg-blue-50 rounded-lg flex items-center gap-1 border border-blue-200"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                  View / Download
+                                </a>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDocuments(documents.filter((_, i) => i !== idx));
+                                  showToast(`Removed "${doc.name}"`);
+                                }}
+                                className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer"
+                                title="Delete document"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </div>
                           </div>
-                        </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
 
-                        <button
-                          type="button"
-                          onClick={() => setDocuments(documents.filter((_, i) => i !== idx))}
-                          className="text-slate-400 hover:text-rose-600 p-1"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+                  {/* Drag and Drop Zone for Multiple Documents */}
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDocDragging(true);
+                    }}
+                    onDragLeave={() => setIsDocDragging(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDocDragging(false);
+                      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                        const newDocs = Array.from(e.dataTransfer.files).map((f) => {
+                          const sizeKb = f.size > 1024 * 1024
+                            ? `${(f.size / (1024 * 1024)).toFixed(2)} MB`
+                            : `${Math.round(f.size / 1024)} KB`;
+                          const ext = f.name.split('.').pop()?.toLowerCase();
+                          const type =
+                            ext === 'step' || ext === 'stp' || ext === 'dwg' || ext === 'dxf'
+                              ? 'CAD / 3D STEP Model'
+                              : ext === 'pdf' && f.name.toLowerCase().includes('msds')
+                              ? 'MSDS Sheet'
+                              : ext === 'pdf' && f.name.toLowerCase().includes('tds')
+                              ? 'Technical Data Sheet (TDS)'
+                              : 'Technical Specification';
 
-                  <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:bg-slate-50 cursor-pointer">
-                    <UploadCloud className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                          return {
+                            name: f.name,
+                            type,
+                            size: sizeKb,
+                            uploadedOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+                            url: URL.createObjectURL(f),
+                          };
+                        });
+                        setDocuments([...documents, ...newDocs]);
+                        showToast(`✓ ${newDocs.length} live document(s) uploaded!`);
+                      }
+                    }}
+                    className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors flex flex-col items-center justify-center gap-2 ${
+                      isDocDragging ? 'border-[#0066CC] bg-blue-50/50' : 'border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <UploadCloud className={`w-8 h-8 ${isDocDragging ? 'text-[#0066CC]' : 'text-slate-400'}`} />
                     <div className="font-semibold text-xs text-slate-800">Upload additional technical documents</div>
-                    <p className="text-[11px] text-slate-400 mt-0.5">TDS, MSDS, 2D Part Drawings, CAD STEP models</p>
+                    <p className="text-[11px] text-slate-400">TDS, MSDS, 2D Part Drawings, CAD STEP models</p>
+                    <label className="mt-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer">
+                      Browse technical files
+                      <input
+                        type="file"
+                        multiple
+                        accept=".pdf,.step,.stp,.dwg,.dxf,.png,.jpg,.jpeg,.doc,.docx,.xlsx,.zip"
+                        className="hidden"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files.length > 0) {
+                            const newDocs = Array.from(e.target.files).map((f) => {
+                              const sizeKb = f.size > 1024 * 1024
+                                ? `${(f.size / (1024 * 1024)).toFixed(2)} MB`
+                                : `${Math.round(f.size / 1024)} KB`;
+                              const ext = f.name.split('.').pop()?.toLowerCase();
+                              const type =
+                                ext === 'step' || ext === 'stp' || ext === 'dwg' || ext === 'dxf'
+                                  ? 'CAD / 3D STEP Model'
+                                  : ext === 'pdf' && f.name.toLowerCase().includes('msds')
+                                  ? 'MSDS Sheet'
+                                  : ext === 'pdf' && f.name.toLowerCase().includes('tds')
+                                  ? 'Technical Data Sheet (TDS)'
+                                  : 'Technical Specification';
+
+                              return {
+                                name: f.name,
+                                type,
+                                size: sizeKb,
+                                uploadedOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+                                url: URL.createObjectURL(f),
+                              };
+                            });
+                            setDocuments([...documents, ...newDocs]);
+                            showToast(`✓ ${newDocs.length} live document(s) uploaded!`);
+                          }
+                        }}
+                      />
+                    </label>
                   </div>
                 </div>
               )}
@@ -3159,86 +3401,113 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Classification / Category *</label>
-                  <input
-                    type="text"
-                    required
+                  <MasterDataCombobox
                     value={masterModalForm.category || ''}
-                    onChange={(e) => setMasterModalForm({ ...masterModalForm, category: e.target.value })}
-                    placeholder="e.g. Virgin Raw Polymer"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                    onChange={(val) => setMasterModalForm({ ...masterModalForm, category: val })}
+                    options={categoryList}
+                    placeholder="Select or enter Category..."
+                    entityLabel="Category"
+                    onSaveCustomOption={(newVal) => {
+                      const updated = masterDataGovernanceService.saveCategory(newVal);
+                      setCategoryList(updated);
+                      showToast(`✓ Category "${newVal}" saved to Master Catalog!`);
+                    }}
                   />
                 </div>
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Item Group *</label>
-                  <input
-                    type="text"
-                    required
+                  <MasterDataCombobox
                     value={masterModalForm.itemGroup || ''}
-                    onChange={(e) => setMasterModalForm({ ...masterModalForm, itemGroup: e.target.value })}
-                    placeholder="e.g. Polymer Feedstock"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                    onChange={(val) => setMasterModalForm({ ...masterModalForm, itemGroup: val })}
+                    options={itemGroupList}
+                    placeholder="Select or enter Item Group..."
+                    entityLabel="Item Group"
+                    onSaveCustomOption={(newVal) => {
+                      const updated = masterDataGovernanceService.saveItemGroup(newVal);
+                      setItemGroupList(updated);
+                      showToast(`✓ Item Group "${newVal}" saved to Master Catalog!`);
+                    }}
                   />
                 </div>
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Primary Unit of Measure</label>
-                  <select
-                    value={masterModalForm.primaryUom}
-                    onChange={(e) => setMasterModalForm({ ...masterModalForm, primaryUom: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white font-mono"
-                  >
-                    <option value="Kilograms (KG)">Kilograms (KG)</option>
-                    <option value="Numbers (PCS)">Numbers (PCS)</option>
-                    <option value="Sets (SET)">Sets (SET)</option>
-                    <option value="Meters (MTR)">Meters (MTR)</option>
-                    <option value="Liters (LTR)">Liters (LTR)</option>
-                  </select>
+                  <MasterDataCombobox
+                    value={masterModalForm.primaryUom || 'Kilograms (KG)'}
+                    onChange={(val) => setMasterModalForm({ ...masterModalForm, primaryUom: val })}
+                    options={uomList}
+                    placeholder="Select or enter UOM..."
+                    entityLabel="Unit of Measure"
+                    onSaveCustomOption={(newVal) => {
+                      const updated = masterDataGovernanceService.saveUom(newVal);
+                      setUomList(updated);
+                      showToast(`✓ UOM "${newVal}" saved to Master Catalog!`);
+                    }}
+                  />
                 </div>
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Multi-Plant Scope</label>
-                  <select
-                    value={masterModalForm.plantScope}
-                    onChange={(e) => setMasterModalForm({ ...masterModalForm, plantScope: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
-                  >
-                    <option value="All Plants (Global)">All Plants (Global)</option>
-                    <option value="Pune & Sanand Units">Pune &amp; Sanand Units</option>
-                    <option value="Chennai Molding Only">Chennai Molding Only</option>
-                  </select>
+                  <MasterDataCombobox
+                    value={masterModalForm.plantScope || 'All Plants (Global)'}
+                    onChange={(val) => setMasterModalForm({ ...masterModalForm, plantScope: val })}
+                    options={plantScopeList}
+                    placeholder="Select or enter Plant Scope..."
+                    entityLabel="Plant Scope"
+                    onSaveCustomOption={(newVal) => {
+                      const updated = masterDataGovernanceService.savePlantScope(newVal);
+                      setPlantScopeList(updated);
+                      showToast(`✓ Plant Scope "${newVal}" saved to Master Catalog!`);
+                    }}
+                  />
                 </div>
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Resin Type / Base Material</label>
-                  <input
-                    type="text"
+                  <MasterDataCombobox
                     value={masterModalForm.resinType || ''}
-                    onChange={(e) => setMasterModalForm({ ...masterModalForm, resinType: e.target.value })}
-                    placeholder="e.g. Polypropylene (PP) / ABS / PA66"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                    onChange={(val) => setMasterModalForm({ ...masterModalForm, resinType: val })}
+                    options={resinTypeList}
+                    placeholder="Select or enter Resin..."
+                    entityLabel="Resin Type"
+                    onSaveCustomOption={(newVal) => {
+                      const updated = masterDataGovernanceService.saveResinType(newVal);
+                      setResinTypeList(updated);
+                      showToast(`✓ Resin "${newVal}" saved to Master Catalog!`);
+                    }}
                   />
                 </div>
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Color / Finish</label>
-                  <input
-                    type="text"
+                  <MasterDataCombobox
                     value={masterModalForm.color || ''}
-                    onChange={(e) => setMasterModalForm({ ...masterModalForm, color: e.target.value })}
-                    placeholder="e.g. Natural / Carbon Black RAL 9005"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                    onChange={(val) => setMasterModalForm({ ...masterModalForm, color: val })}
+                    options={colorList}
+                    placeholder="Select or enter Color..."
+                    entityLabel="Color"
+                    onSaveCustomOption={(newVal) => {
+                      const updated = masterDataGovernanceService.saveColor(newVal);
+                      setColorList(updated);
+                      showToast(`✓ Color "${newVal}" saved to Master Catalog!`);
+                    }}
                   />
                 </div>
 
                 <div className="col-span-2">
                   <label className="block font-semibold text-slate-700 mb-1">Compliance &amp; Quality Mandates</label>
-                  <input
-                    type="text"
+                  <MasterDataCombobox
                     value={masterModalForm.complianceCert || ''}
-                    onChange={(e) => setMasterModalForm({ ...masterModalForm, complianceCert: e.target.value })}
-                    placeholder="e.g. RoHS, REACH, UL-94 HB, PPAP Level-3"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                    onChange={(val) => setMasterModalForm({ ...masterModalForm, complianceCert: val })}
+                    options={complianceList}
+                    placeholder="Select or enter Compliance Mandates..."
+                    entityLabel="Compliance Mandate"
+                    onSaveCustomOption={(newVal) => {
+                      const updated = masterDataGovernanceService.saveComplianceMandate(newVal);
+                      setComplianceList(updated);
+                      showToast(`✓ Compliance Mandate "${newVal}" saved to Master Catalog!`);
+                    }}
                   />
                 </div>
               </div>

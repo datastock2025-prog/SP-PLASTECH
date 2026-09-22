@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ManufacturingBomWizardState } from './types';
 import { ItemMaster, BomLine } from '../../../types';
 import { ItemAutocompleteInput } from './ItemAutocompleteInput';
+import { masterDataGovernanceService } from '../../../services/masterDataGovernanceService';
 import {
   Plus,
   Trash2,
@@ -22,6 +23,9 @@ import {
   TrendingDown,
   CheckCircle2,
   Zap,
+  Link2,
+  GitBranch,
+  Fingerprint,
 } from 'lucide-react';
 
 interface Step4Props {
@@ -344,50 +348,103 @@ export const Step4Materials: React.FC<Step4Props> = ({
         </div>
       </div>
 
-      {/* Formula Mode Balance Meter (if Formula BOM selected) */}
-      {isFormulaMode && (
-        <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-xl space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-bold text-purple-900 flex items-center gap-1.5">
-              <Percent className="w-4 h-4 text-purple-600" />
-              Formula Batch Percentage Balance: {totalFormulaPercentage}%
-            </span>
-            <div className="flex items-center gap-2">
-              {totalFormulaPercentage === 100 ? (
-                <span className="flex items-center gap-1 text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded text-[11px]">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Balanced (100%)
+      {/* Task 3: Formula / Recipe Mode Unique Recipe Identification Number & Version Linkage Card */}
+      {isFormulaMode && (() => {
+        const linkedRecipe = masterDataGovernanceService.generateLinkedRecipeCode(
+          state.bomVersion,
+          components.map((c) => ({
+            item: c.item,
+            name: c.name,
+            percentage: c.dosageRate ? parseFloat(c.dosageRate) : c.qty,
+            qty: c.qty,
+          }))
+        );
+
+        return (
+          <div className="space-y-3">
+            {/* Bi-directional linkage card */}
+            <div className="p-4 bg-gradient-to-r from-purple-900 via-[#1E1B4B] to-slate-900 text-white rounded-xl shadow-md border border-purple-800/60 flex flex-col md:flex-row md:items-center justify-between gap-3 animate-in fade-in">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded bg-purple-500/30 text-purple-200 border border-purple-400/40 text-[10px] font-mono font-bold flex items-center gap-1 uppercase tracking-wider">
+                    <Fingerprint className="w-3 h-3 text-purple-300" />
+                    Unique Recipe Identification Number
+                  </span>
+                  <span className="text-slate-400 text-xs">&bull;</span>
+                  <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-200 border border-blue-400/30 text-[10px] font-mono font-bold flex items-center gap-1">
+                    <GitBranch className="w-3 h-3 text-blue-300" />
+                    BOM Version: {state.bomVersion || 'v1.0'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <div className="font-mono text-base font-bold text-amber-300 tracking-wider">
+                    {linkedRecipe.recipeUid}
+                  </div>
+                  <span className="text-slate-400 text-xs flex items-center gap-1">
+                    <Link2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-emerald-300 text-[11px] font-semibold">Bi-directionally Linked</span>
+                  </span>
+                </div>
+                <p className="text-[11px] text-purple-200/80 font-mono">
+                  Formula: {linkedRecipe.formulaSummary}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 bg-white/10 backdrop-blur-xs p-2.5 rounded-lg border border-white/15 text-xs">
+                <div className="text-right">
+                  <div className="text-[10px] text-slate-300 uppercase tracking-wider">Material Sum Check</div>
+                  <div className="font-mono font-bold text-sm">
+                    {totalFormulaPercentage}% / 100%
+                  </div>
+                </div>
+                {totalFormulaPercentage === 100 ? (
+                  <span className="flex items-center gap-1 text-emerald-300 font-bold bg-emerald-950/80 border border-emerald-500/50 px-2 py-1 rounded text-[11px]">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> 100% Balanced
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-amber-300 font-bold bg-amber-950/80 border border-amber-500/50 px-2 py-1 rounded text-[11px]">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                    {(100 - totalFormulaPercentage).toFixed(1)}% Left
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Formula Mode Balance Meter */}
+            <div className="p-3.5 bg-purple-50/80 border border-purple-200 rounded-xl space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-purple-900 flex items-center gap-1.5">
+                  <Percent className="w-4 h-4 text-purple-600" />
+                  Total Recipe Material Formulation Balance: {totalFormulaPercentage}%
                 </span>
-              ) : (
-                <span className="flex items-center gap-1 text-amber-700 font-bold bg-amber-100 px-2 py-0.5 rounded text-[11px]">
-                  <AlertTriangle className="w-3 h-3 text-amber-600" />
-                  Discrepancy: {(100 - totalFormulaPercentage).toFixed(2)}% remaining
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={handleAutoBalanceResin}
-                className="text-[11px] font-bold text-purple-700 hover:text-purple-900 underline"
-              >
-                Auto-rebalance Resin
-              </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleAutoBalanceResin}
+                    className="text-[11px] font-bold text-purple-700 hover:text-purple-900 underline cursor-pointer"
+                  >
+                    Auto-rebalance Virgin Resin to 100%
+                  </button>
+                </div>
+              </div>
+
+              {/* Meter progress bar */}
+              <div className="w-full bg-purple-200 h-2.5 rounded-full overflow-hidden flex">
+                <div
+                  className={`h-full transition-all duration-300 ${
+                    totalFormulaPercentage === 100
+                      ? 'bg-emerald-600'
+                      : totalFormulaPercentage > 100
+                      ? 'bg-rose-600'
+                      : 'bg-purple-600'
+                  }`}
+                  style={{ width: `${Math.min(100, totalFormulaPercentage)}%` }}
+                />
+              </div>
             </div>
           </div>
-
-          {/* Meter progress bar */}
-          <div className="w-full bg-purple-200 h-2.5 rounded-full overflow-hidden flex">
-            <div
-              className={`h-full transition-all duration-300 ${
-                totalFormulaPercentage === 100
-                  ? 'bg-emerald-600'
-                  : totalFormulaPercentage > 100
-                  ? 'bg-rose-600'
-                  : 'bg-purple-600'
-              }`}
-              style={{ width: `${Math.min(100, totalFormulaPercentage)}%` }}
-            />
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Quick Add Component Bar (Autocomplete) */}
       <div className="bg-[#FAF9F5] border border-[#E4E0D6] rounded-xl p-3.5 shadow-2xs">

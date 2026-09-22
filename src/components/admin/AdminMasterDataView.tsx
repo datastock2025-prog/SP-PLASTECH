@@ -28,6 +28,7 @@ import { MasterDataRecord } from '../../data/mockAdminExtendedData';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { adminEventBus } from '../../services/adminService';
 import { PaginationBar } from '../common/PaginationBar';
+import { MasterDataCombobox } from '../common/MasterDataCombobox';
 
 interface AdminMasterDataViewProps {
   showToast?: (msg: string) => void;
@@ -57,11 +58,27 @@ export const AdminMasterDataView: React.FC<AdminMasterDataViewProps> = ({
     };
   });
 
+  // Dynamic Master Catalog Options State
+  const [categories, setCategories] = useState<string[]>(() => masterDataGovernanceService.getCategories());
+  const [itemGroups, setItemGroups] = useState<string[]>(() => masterDataGovernanceService.getItemGroups());
+  const [uoms, setUoms] = useState<string[]>(() => masterDataGovernanceService.getUoms());
+  const [plantScopes, setPlantScopes] = useState<string[]>(() => masterDataGovernanceService.getPlantScopes());
+  const [resinTypes, setResinTypes] = useState<string[]>(() => masterDataGovernanceService.getResinTypes());
+  const [colors, setColors] = useState<string[]>(() => masterDataGovernanceService.getColors());
+  const [complianceMandates, setComplianceMandates] = useState<string[]>(() => masterDataGovernanceService.getComplianceMandates());
+
   // Subscribe to Master Data updates
   React.useEffect(() => {
     const unsub = adminEventBus.subscribe(() => {
       const refreshed = masterDataGovernanceService.getAllRecords();
       setRecords(refreshed);
+      setCategories(masterDataGovernanceService.getCategories());
+      setItemGroups(masterDataGovernanceService.getItemGroups());
+      setUoms(masterDataGovernanceService.getUoms());
+      setPlantScopes(masterDataGovernanceService.getPlantScopes());
+      setResinTypes(masterDataGovernanceService.getResinTypes());
+      setColors(masterDataGovernanceService.getColors());
+      setComplianceMandates(masterDataGovernanceService.getComplianceMandates());
       if (refreshed.length > 0 && !refreshed.some((r) => r.id === selectedRecord?.id)) {
         setSelectedRecord(refreshed[0]);
       }
@@ -642,53 +659,59 @@ export const AdminMasterDataView: React.FC<AdminMasterDataViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Classification / Category</label>
-                  <input
-                    type="text"
+                  <MasterDataCombobox
+                    label="Classification / Category"
                     value={formData.category || ''}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    options={categories}
+                    onChange={(val) => setFormData({ ...formData, category: val })}
+                    onAddNew={(newVal) => {
+                      masterDataGovernanceService.saveCategory(newVal);
+                      showToast(`Added "${newVal}" to Master Categories`);
+                    }}
                     placeholder="e.g. Virgin Raw Polymer"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Item Group</label>
-                  <input
-                    type="text"
+                  <MasterDataCombobox
+                    label="Item Group"
                     value={formData.itemGroup || ''}
-                    onChange={(e) => setFormData({ ...formData, itemGroup: e.target.value })}
+                    options={itemGroups}
+                    onChange={(val) => setFormData({ ...formData, itemGroup: val })}
+                    onAddNew={(newVal) => {
+                      masterDataGovernanceService.saveItemGroup(newVal);
+                      showToast(`Added "${newVal}" to Master Item Groups`);
+                    }}
                     placeholder="e.g. Polymer Feedstock"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Primary Unit of Measure</label>
-                  <select
-                    value={formData.primaryUom}
-                    onChange={(e) => setFormData({ ...formData, primaryUom: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white font-mono"
-                  >
-                    <option value="Kilograms (KG)">Kilograms (KG)</option>
-                    <option value="Pieces (NOS)">Pieces (NOS)</option>
-                    <option value="Sets (SET)">Sets (SET)</option>
-                    <option value="Meters (MTR)">Meters (MTR)</option>
-                    <option value="Liters (LTR)">Liters (LTR)</option>
-                  </select>
+                  <MasterDataCombobox
+                    label="Primary Unit of Measure"
+                    value={formData.primaryUom || 'Kilograms (KG)'}
+                    options={uoms}
+                    onChange={(val) => setFormData({ ...formData, primaryUom: val })}
+                    onAddNew={(newVal) => {
+                      masterDataGovernanceService.saveUom(newVal);
+                      showToast(`Added "${newVal}" to Master UOMs`);
+                    }}
+                    placeholder="e.g. Kilograms (KG)"
+                  />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Multi-Plant Scope</label>
-                  <select
-                    value={formData.plantScope}
-                    onChange={(e) => setFormData({ ...formData, plantScope: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
-                  >
-                    <option value="All Plants (Global)">All Plants (Global)</option>
-                    <option value="Pune & Sanand Units">Pune &amp; Sanand Units</option>
-                    <option value="Chennai Molding Only">Chennai Molding Only</option>
-                  </select>
+                  <MasterDataCombobox
+                    label="Multi-Plant Scope"
+                    value={formData.plantScope || 'All Plants (Global)'}
+                    options={plantScopes}
+                    onChange={(val) => setFormData({ ...formData, plantScope: val })}
+                    onAddNew={(newVal) => {
+                      masterDataGovernanceService.savePlantScope(newVal);
+                      showToast(`Added "${newVal}" to Plant Scopes`);
+                    }}
+                    placeholder="e.g. All Plants (Global)"
+                  />
                 </div>
 
                 <div>
@@ -705,24 +728,30 @@ export const AdminMasterDataView: React.FC<AdminMasterDataViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Resin Type / Base Material</label>
-                  <input
-                    type="text"
+                  <MasterDataCombobox
+                    label="Resin Type / Base Material"
                     value={formData.resinType || ''}
-                    onChange={(e) => setFormData({ ...formData, resinType: e.target.value })}
-                    placeholder="e.g. Polypropylene (PP), ABS"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                    options={resinTypes}
+                    onChange={(val) => setFormData({ ...formData, resinType: val })}
+                    onAddNew={(newVal) => {
+                      masterDataGovernanceService.saveResinType(newVal);
+                      showToast(`Added "${newVal}" to Master Resin Types`);
+                    }}
+                    placeholder="e.g. Impact Copolymer PP + 15% EPDM"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Color / Finish</label>
-                  <input
-                    type="text"
+                  <MasterDataCombobox
+                    label="Color / Finish"
                     value={formData.color || ''}
-                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                    placeholder="e.g. Natural, Carbon Black, Signal Red"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                    options={colors}
+                    onChange={(val) => setFormData({ ...formData, color: val })}
+                    onAddNew={(newVal) => {
+                      masterDataGovernanceService.saveColor(newVal);
+                      showToast(`Added "${newVal}" to Master Colors`);
+                    }}
+                    placeholder="e.g. Midnight Black / Painted Gloss"
                   />
                 </div>
 
@@ -760,13 +789,16 @@ export const AdminMasterDataView: React.FC<AdminMasterDataViewProps> = ({
                 </div>
 
                 <div className="col-span-2">
-                  <label className="block font-semibold text-slate-700 mb-1">Compliance &amp; Quality Mandates</label>
-                  <input
-                    type="text"
+                  <MasterDataCombobox
+                    label="Compliance & Quality Mandates"
                     value={formData.complianceCert || ''}
-                    onChange={(e) => setFormData({ ...formData, complianceCert: e.target.value })}
-                    placeholder="e.g. RoHS, REACH, UL-94 HB, FDA 21 CFR"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                    options={complianceMandates}
+                    onChange={(val) => setFormData({ ...formData, complianceCert: val })}
+                    onAddNew={(newVal) => {
+                      masterDataGovernanceService.saveComplianceMandate(newVal);
+                      showToast(`Added "${newVal}" to Compliance Mandates`);
+                    }}
+                    placeholder="e.g. RoHS, REACH, UL-94 HB, PPAP Level-3"
                   />
                 </div>
               </div>
