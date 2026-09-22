@@ -42,6 +42,13 @@ export interface ItemMaster {
   itemGroup?: string;
   baseUOM: string;
   resinType?: string;
+  polymerGrade?: string;
+  color?: string;
+  masterbatchDosage?: string;
+  packagingStandard?: string;
+  boxDimensions?: string;
+  carrierResin?: string;
+  heatStability?: string;
   mfi?: string;
   density?: string;
   moisture?: string;

@@ -569,14 +569,20 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   const [productionUOM, setProductionUOM] = useState<string>(editItem?.baseUOM || (selectedType === 'Raw Material' ? 'KG' : 'PCS'));
   const [conversions, setConversions] = useState<ConversionRow[]>([]);
 
-  // Step 4: Manufacturing Attributes
+  // Step 4: Manufacturing Attributes & Dynamic Specs
   const [resinType, setResinType] = useState<string>(editItem?.resinType || '');
-  const [polymerGrade, setPolymerGrade] = useState<string>('');
-  const [color, setColor] = useState<string>('');
+  const [polymerGrade, setPolymerGrade] = useState<string>(editItem?.polymerGrade || '');
+  const [color, setColor] = useState<string>(editItem?.color || '');
   const [mfi, setMfi] = useState<string>(editItem?.mfi || '');
   const [density, setDensity] = useState<string>(editItem?.density || '');
   const [additivePercentage, setAdditivePercentage] = useState<string>('');
-  const [masterbatchDosage, setMasterbatchDosage] = useState<string>('');
+  const [masterbatchDosage, setMasterbatchDosage] = useState<string>(editItem?.masterbatchDosage || '');
+  const [carrierResin, setCarrierResin] = useState<string>(editItem?.carrierResin || 'Universal PE/PP Carrier');
+  const [heatStability, setHeatStability] = useState<string>(editItem?.heatStability || '280°C');
+  const [boxDimensions, setBoxDimensions] = useState<string>(editItem?.boxDimensions || '600 x 400 x 350 mm');
+  const [unitsPerPack, setUnitsPerPack] = useState<number | string>(editItem?.unitsPerPack || 250);
+  const [machineFitment, setMachineFitment] = useState<string>(editItem?.machineCompat || 'All Injection Machines');
+  const [spareClass, setSpareClass] = useState<string>('Critical Tooling Spare');
   const [regrindAllowance, setRegrindAllowance] = useState<string>(editItem?.regrind || '');
   const [moistureSensitive, setMoistureSensitive] = useState<boolean>(editItem?.moistureSensitive ?? false);
   const [processingMethod, setProcessingMethod] = useState<string>('Injection Molding');
@@ -980,6 +986,8 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       return;
     }
 
+    const isFgItem = selectedType === 'Finished Good' || selectedType === 'Semi-Finished Good';
+
     const draftItem: ItemMaster = {
       code: itemCode.trim().toUpperCase(),
       name: itemName.trim() || 'Untitled Draft Item',
@@ -992,22 +1000,30 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       lot: lotControlled,
       qc: iqcMandatory,
       status: 'inactive',
-      icon: selectedType === 'Finished Good' ? '▣' : selectedType === 'Masterbatch' ? '●' : '◇',
+      icon: isFgItem ? '▣' : selectedType === 'Masterbatch' || selectedType === 'Colorant' ? '●' : selectedType === 'Spare Part' ? '🔧' : '◇',
       baseUOM,
       approval: 'draft',
       createdOn: 'Today',
-      standardCycleTime: Number(cycleTime) || 0,
-      cycleTime: Number(cycleTime) || 0,
-      partWeightGrams: numPartWeight,
-      cavityCount: numCavities,
-      runnerWeightGrams: numRunnerWeight,
-      shotWeightGrams: calculatedSingleShotWeight,
-      netWeightGrams: numPartWeight,
+      standardCycleTime: isFgItem ? (Number(cycleTime) || 24.5) : 0,
+      cycleTime: isFgItem ? (Number(cycleTime) || 0) : 0,
+      partWeightGrams: isFgItem ? numPartWeight : undefined,
+      cavityCount: isFgItem ? numCavities : undefined,
+      runnerWeightGrams: isFgItem ? numRunnerWeight : undefined,
+      shotWeightGrams: isFgItem ? calculatedSingleShotWeight : undefined,
+      netWeightGrams: isFgItem ? numPartWeight : undefined,
       locationCode: defaultBin,
       desc: description,
       resinType,
+      polymerGrade,
+      color,
       mfi,
       density,
+      masterbatchDosage,
+      carrierResin,
+      heatStability,
+      packagingStandard,
+      boxDimensions,
+      machineCompat: machineFitment,
       regrind: regrindAllowance,
       reorderLevel: reorderLevel.toString(),
       safetyStock: safetyStock.toString(),
@@ -1020,7 +1036,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       isDol,
       isAssembly,
       isDeflash,
-      moldToolId: moldTool || 'MOLD-001',
+      moldToolId: isFgItem ? (moldTool || 'MOLD-001') : undefined,
       documents: documents.length > 0 ? documents : editItem?.documents || [],
     };
     onSaveItem(draftItem);
@@ -1052,6 +1068,8 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       return;
     }
 
+    const isFgItem = selectedType === 'Finished Good' || selectedType === 'Semi-Finished Good';
+
     const finalItem: ItemMaster = {
       code: itemCode.trim().toUpperCase(),
       name: itemName.trim(),
@@ -1064,23 +1082,31 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       lot: lotControlled,
       qc: iqcMandatory,
       status: 'active',
-      icon: selectedType === 'Finished Good' ? '▣' : selectedType === 'Masterbatch' ? '●' : '◇',
+      icon: isFgItem ? '▣' : selectedType === 'Masterbatch' || selectedType === 'Colorant' ? '●' : selectedType === 'Spare Part' ? '🔧' : '◇',
       baseUOM,
       approval: isApprovedDirectly ? 'approved' : 'pending',
       createdOn: editItem?.createdOn || 'Today',
-      standardCycleTime: Number(cycleTime) || (selectedType === 'Finished Good' ? 24.5 : 0),
-      cycleTime: Number(cycleTime) || 0,
-      partWeightGrams: numPartWeight,
-      cavityCount: numCavities,
-      runnerWeightGrams: numRunnerWeight,
-      shotWeightGrams: calculatedSingleShotWeight,
-      netWeightGrams: numPartWeight,
-      cycleTimeUOM: 'sec/pc',
+      standardCycleTime: isFgItem ? (Number(cycleTime) || 24.5) : 0,
+      cycleTime: isFgItem ? (Number(cycleTime) || 0) : 0,
+      partWeightGrams: isFgItem ? numPartWeight : undefined,
+      cavityCount: isFgItem ? numCavities : undefined,
+      runnerWeightGrams: isFgItem ? numRunnerWeight : undefined,
+      shotWeightGrams: isFgItem ? calculatedSingleShotWeight : undefined,
+      netWeightGrams: isFgItem ? numPartWeight : undefined,
+      cycleTimeUOM: isFgItem ? 'sec/pc' : undefined,
       locationCode: defaultBin,
       desc: description,
       resinType,
+      polymerGrade,
+      color,
       mfi,
       density,
+      masterbatchDosage,
+      carrierResin,
+      heatStability,
+      packagingStandard,
+      boxDimensions,
+      machineCompat: machineFitment,
       regrind: regrindAllowance,
       reorderLevel: reorderLevel.toString(),
       safetyStock: safetyStock.toString(),
@@ -1093,7 +1119,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       isDol,
       isAssembly,
       isDeflash,
-      moldToolId: moldTool || 'MOLD-001',
+      moldToolId: isFgItem ? (moldTool || 'MOLD-001') : undefined,
       documents: documents.length > 0 ? documents : editItem?.documents || [],
     };
 
@@ -1665,9 +1691,9 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     </div>
 
                     {/* ========================================================================= */}
-                    {/* FINISHED GOOD / INJECTION MOLDING PROCESS & TOOLING PARAMETERS            */}
+                    {/* DYNAMIC TECHNICAL & PROCESS PARAMETERS CARD (BASED ON SELECTED ITEM TYPE) */}
                     {/* ========================================================================= */}
-                    {selectedType === 'Finished Good' && (
+                    {(selectedType === 'Finished Good' || selectedType === 'Semi-Finished Good') && (
                       <div className="md:col-span-2 p-4 bg-gradient-to-br from-blue-50/70 via-slate-50 to-teal-50/40 rounded-xl border border-blue-200/80 shadow-xs space-y-3 animate-fade-in">
                         <div className="flex items-center justify-between pb-2 border-b border-blue-200/60">
                           <div className="flex items-center gap-2">
@@ -1676,7 +1702,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                             </div>
                             <div>
                               <h3 className="font-bold text-xs text-slate-900">
-                                Finished Good &mdash; Injection Molding Tooling &amp; Process Parameters
+                                {selectedType} &mdash; Injection Molding Tooling &amp; Process Parameters
                               </h3>
                               <p className="text-[11px] text-slate-500">
                                 Core rheology, cycle timing, mold cavity metrics, and automatic shot weight balancing.
@@ -1817,6 +1843,423 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                                 : 0}{' '}
                               pcs / hr
                             </strong>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Dynamic Card for Raw Material / Regrind */}
+                    {(selectedType === 'Raw Material' || selectedType === 'Regrind') && (
+                      <div className="md:col-span-2 p-4 bg-gradient-to-br from-emerald-50/70 via-slate-50 to-teal-50/40 rounded-xl border border-emerald-200/80 shadow-xs space-y-3 animate-fade-in">
+                        <div className="flex items-center justify-between pb-2 border-b border-emerald-200/60">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-md bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
+                              <FlaskConical className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-xs text-slate-900">
+                                {selectedType} &mdash; Polymer Feedstock &amp; Rheology Specifications
+                              </h3>
+                              <p className="text-[11px] text-slate-500">
+                                Base polymer grade, melt flow index (MFI), density gradient, and virgin/regrind blending limits.
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            RESIN FEEDSTOCK GATE
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                          <div>
+                            <label className="block font-semibold text-slate-700 mb-1">Resin Type / Polymer Family *</label>
+                            <MasterDataCombobox
+                              value={resinType}
+                              onChange={(val) => setResinType(val)}
+                              options={resinTypeList}
+                              placeholder="Select Resin..."
+                              entityLabel="Resin Type"
+                              onSaveCustomOption={(newVal) => {
+                                const updated = masterDataGovernanceService.saveResinType(newVal);
+                                setResinTypeList(updated);
+                                showToast(`✓ Resin "${newVal}" registered!`);
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block font-semibold text-slate-700 mb-1">Polymer Grade / Code</label>
+                            <input
+                              type="text"
+                              value={polymerGrade}
+                              onChange={(e) => setPolymerGrade(e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono text-xs bg-white"
+                              placeholder="e.g. Repol H110MA / Sabic 500P"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block font-semibold text-slate-700 mb-1">Melt Flow Index (g/10min)</label>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={mfi}
+                                onChange={(e) => setMfi(e.target.value)}
+                                className="w-full pl-3 pr-14 py-2 rounded-lg border border-slate-300 font-mono text-xs bg-white"
+                                placeholder="e.g. 11.0"
+                              />
+                              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-semibold">g/10min</span>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block font-semibold text-slate-700 mb-1">Density (g/cm³)</label>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={density}
+                                onChange={(e) => setDensity(e.target.value)}
+                                className="w-full pl-3 pr-12 py-2 rounded-lg border border-slate-300 font-mono text-xs bg-white"
+                                placeholder="e.g. 0.905"
+                              />
+                              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-semibold">g/cm³</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-white rounded-xl border border-emerald-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                                Rheology Balance:
+                              </span>
+                              <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                MFI {mfi || '11.0'} &bull; Density {density || '0.905'} g/cm³
+                              </span>
+                              <span className="text-slate-400">&bull;</span>
+                              <span className="text-slate-700 font-semibold text-[11px]">
+                                Regrind Limit: <strong className="font-mono text-emerald-900">{regrindAllowance || '20'}%</strong>
+                              </span>
+                            </div>
+                            <div className="font-mono text-[11px] text-slate-600">
+                              Material Grade: <strong className="text-slate-800">{polymerGrade || 'Virgin Polymer'}</strong> ({resinType || 'Polypropylene'}) &bull; Pre-drying: {moistureSensitive ? 'Mandatory (80°C / 2h)' : 'Standard ambient'}
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right font-mono text-[11px] text-slate-500">
+                            <div>Stocking Base UOM:</div>
+                            <strong className="text-emerald-900 text-xs font-bold">KG (Kilograms)</strong>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Dynamic Card for Masterbatch / Colorant / Additive */}
+                    {(selectedType === 'Masterbatch' || selectedType === 'Colorant' || selectedType === 'Additive') && (
+                      <div className="md:col-span-2 p-4 bg-gradient-to-br from-purple-50/70 via-slate-50 to-pink-50/40 rounded-xl border border-purple-200/80 shadow-xs space-y-3 animate-fade-in">
+                        <div className="flex items-center justify-between pb-2 border-b border-purple-200/60">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-md bg-purple-600 text-white flex items-center justify-center font-bold text-xs">
+                              <Palette className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-xs text-slate-900">
+                                {selectedType} &mdash; Pigment &amp; Dosage Formulation Parameters
+                              </h3>
+                              <p className="text-[11px] text-slate-500">
+                                Color index, carrier polymer compatibility, letdown ratio (LDR %), and heat dispersion stability.
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                            COLOR MASTERBATCH GATE
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                          <div>
+                            <label className="block font-semibold text-slate-700 mb-1">Color / Shade Reference *</label>
+                            <MasterDataCombobox
+                              value={color}
+                              onChange={(val) => setColor(val)}
+                              options={colorList}
+                              placeholder="Select Color / Shade..."
+                              entityLabel="Color"
+                              onSaveCustomOption={(newVal) => {
+                                const updated = masterDataGovernanceService.saveColor(newVal);
+                                setColorList(updated);
+                                showToast(`✓ Color "${newVal}" registered!`);
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block font-semibold text-slate-700 mb-1">Carrier Polymer Resin</label>
+                            <input
+                              type="text"
+                              value={carrierResin}
+                              onChange={(e) => setCarrierResin(e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
+                              placeholder="e.g. Universal PE/PP Carrier"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block font-semibold text-slate-700 mb-1">Masterbatch Dosage % (LDR) *</label>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={masterbatchDosage}
+                                onChange={(e) => setMasterbatchDosage(e.target.value)}
+                                className="w-full pl-3 pr-8 py-2 rounded-lg border border-slate-300 font-mono text-xs bg-white"
+                                placeholder="e.g. 2.5"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 font-semibold">%</span>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block font-semibold text-slate-700 mb-1">Thermal Heat Stability</label>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={heatStability}
+                                onChange={(e) => setHeatStability(e.target.value)}
+                                className="w-full pl-3 pr-8 py-2 rounded-lg border border-slate-300 font-mono text-xs bg-white"
+                                placeholder="e.g. 280°C"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-semibold">°C</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-white rounded-xl border border-purple-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                                Letdown Ratio (LDR) Recipe:
+                              </span>
+                              <span className="font-mono text-xs font-bold text-purple-800 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                                {masterbatchDosage || '2.5'}% Dosage
+                              </span>
+                              <span className="text-slate-400">&bull;</span>
+                              <span className="font-mono text-xs text-slate-700">
+                                = {Number(masterbatchDosage || 2.5) * 10} kg per 1,000 kg Virgin Base Polymer
+                              </span>
+                            </div>
+                            <div className="font-mono text-[11px] text-slate-600">
+                              Shade: <strong className="text-slate-800">{color || 'Natural / Custom'}</strong> &bull; Carrier: <strong className="text-slate-800">{carrierResin}</strong> &bull; Heat Limit: {heatStability}
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right font-mono text-[11px] text-slate-500">
+                            <div>Dosing Method:</div>
+                            <strong className="text-purple-900 text-xs font-bold">Volumetric / Gravimetric Hopper</strong>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Dynamic Card for Packaging Material */}
+                    {selectedType === 'Packaging Material' && (
+                      <div className="md:col-span-2 p-4 bg-gradient-to-br from-amber-50/70 via-slate-50 to-orange-50/40 rounded-xl border border-amber-200/80 shadow-xs space-y-3 animate-fade-in">
+                        <div className="flex items-center justify-between pb-2 border-b border-amber-200/60">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-md bg-amber-600 text-white flex items-center justify-center font-bold text-xs">
+                              <Package className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-xs text-slate-900">
+                                Packaging Material &mdash; Container, Shipper &amp; Unit Box Specs
+                              </h3>
+                              <p className="text-[11px] text-slate-500">
+                                Box outer dimensions, units capacity per shipper, bursting strength, and pallet pack stacking limits.
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                            PACKAGING SPEC GATE
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                          <div>
+                            <label className="block font-semibold text-slate-700 mb-1">Packaging Standard Type *</label>
+                            <MasterDataCombobox
+                              value={packagingStandard}
+                              onChange={(val) => setPackagingStandard(val)}
+                              options={packingStandardList}
+                              placeholder="Select Packing Standard..."
+                              entityLabel="Packaging Standard"
+                              onSaveCustomOption={(newVal) => {
+                                const updated = masterDataGovernanceService.savePackingStandard(newVal);
+                                setPackingStandardList(updated);
+                                showToast(`✓ Packaging Standard "${newVal}" registered!`);
+                              }}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block font-semibold text-slate-700 mb-1">Outer Dimensions (L × W × H mm)</label>
+                            <input
+                              type="text"
+                              value={boxDimensions}
+                              onChange={(e) => setBoxDimensions(e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono text-xs bg-white"
+                              placeholder="e.g. 600 x 400 x 350 mm"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block font-semibold text-slate-700 mb-1">Units per Shipper / Box</label>
+                            <input
+                              type="number"
+                              value={unitsPerPack}
+                              onChange={(e) => setUnitsPerPack(Number(e.target.value) || 0)}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono text-xs bg-white"
+                              placeholder="e.g. 250"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block font-semibold text-slate-700 mb-1">HSN / Tariff Code</label>
+                            <input
+                              type="text"
+                              value={hsnCode}
+                              onChange={(e) => setHsnCode(e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono text-xs bg-white"
+                              placeholder="e.g. 48191010"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-white rounded-xl border border-amber-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                                Container Matrix:
+                              </span>
+                              <span className="font-mono text-xs font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                {boxDimensions || '600 x 400 x 350 mm'}
+                              </span>
+                              <span className="text-slate-400">&bull;</span>
+                              <span className="text-slate-700 font-semibold text-[11px]">
+                                Capacity: <strong className="font-mono text-amber-900">{unitsPerPack} pcs / pack</strong>
+                              </span>
+                            </div>
+                            <div className="font-mono text-[11px] text-slate-600">
+                              Standard: <strong className="text-slate-800">{packagingStandard || 'Corrugated 5-Ply'}</strong> &bull; HSN: {hsnCode || '48191010'}
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right font-mono text-[11px] text-slate-500">
+                            <div>Stacking Pallet Pattern:</div>
+                            <strong className="text-amber-900 text-xs font-bold">4 Layers &bull; 24 Boxes / Pallet</strong>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Dynamic Card for Spare Part / Consumable */}
+                    {(selectedType === 'Spare Part' || selectedType === 'Consumable') && (
+                      <div className="md:col-span-2 p-4 bg-gradient-to-br from-slate-100 via-slate-50 to-indigo-50/40 rounded-xl border border-slate-300/80 shadow-xs space-y-3 animate-fade-in">
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-md bg-slate-800 text-white flex items-center justify-center font-bold text-xs">
+                              <Wrench className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-xs text-slate-900">
+                                {selectedType} &mdash; Plant Maintenance &amp; Tooling Asset Specs
+                              </h3>
+                              <p className="text-[11px] text-slate-500">
+                                Machine compatibility, spare criticality rating, procurement lead time, and min maintenance buffer.
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-200 text-slate-800 border border-slate-300">
+                            PLANT ASSET GATE
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                          <div>
+                            <label className="block font-semibold text-slate-700 mb-1">Equipment / Machine Fitment *</label>
+                            <input
+                              type="text"
+                              value={machineFitment}
+                              onChange={(e) => setMachineFitment(e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white font-mono"
+                              placeholder="e.g. Ferromatik 250T / All Molds"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block font-semibold text-slate-700 mb-1">Spare Classification</label>
+                            <select
+                              value={spareClass}
+                              onChange={(e) => setSpareClass(e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
+                            >
+                              <option value="Critical Tooling Spare">Critical Tooling Spare (Zero Stockout)</option>
+                              <option value="Hydraulic & Pneumatic">Hydraulic &amp; Pneumatic Component</option>
+                              <option value="Heater Band & Thermocouple">Heater Band &amp; Thermocouple</option>
+                              <option value="Mold Core & Ejector Pin">Mold Core &amp; Ejector Pin</option>
+                              <option value="General Plant Consumable">General Plant Consumable</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block font-semibold text-slate-700 mb-1">Procurement Lead Time (Days)</label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                value={leadTimeDays}
+                                onChange={(e) => setLeadTimeDays(parseInt(e.target.value) || 0)}
+                                className="w-full pl-3 pr-10 py-2 rounded-lg border border-slate-300 font-mono text-xs bg-white"
+                                placeholder="e.g. 7"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-semibold">days</span>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block font-semibold text-slate-700 mb-1">Critical Safety Buffer (PCS)</label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                value={safetyStock}
+                                onChange={(e) => setSafetyStock(parseInt(e.target.value) || 0)}
+                                className="w-full pl-3 pr-10 py-2 rounded-lg border border-slate-300 font-mono text-xs bg-white"
+                                placeholder="e.g. 2"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-semibold">pcs</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-white rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-slate-700" />
+                                Maintenance Fitment:
+                              </span>
+                              <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                {machineFitment}
+                              </span>
+                              <span className="text-slate-400">&bull;</span>
+                              <span className="text-slate-700 font-semibold text-[11px]">
+                                Class: <strong className="text-slate-900">{spareClass}</strong>
+                              </span>
+                            </div>
+                            <div className="font-mono text-[11px] text-slate-600">
+                              Lead Time: <strong className="text-slate-800">{leadTimeDays} days</strong> &bull; Min Buffer: <strong className="text-slate-800">{safetyStock} PCS</strong>
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right font-mono text-[11px] text-slate-500">
+                            <div>Asset Criticality:</div>
+                            <strong className="text-rose-700 text-xs font-bold">High Priority Spare</strong>
                           </div>
                         </div>
                       </div>
@@ -3191,21 +3634,36 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     </div>
 
                     <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-1">
-                      <div className="text-[10px] uppercase font-bold text-slate-400">Units &amp; Manufacturing</div>
+                      <div className="text-[10px] uppercase font-bold text-slate-400">Technical &amp; Manufacturing</div>
                       <div className="text-slate-800">Base UOM: <strong>{baseUOM}</strong></div>
-                      {selectedType === 'Finished Good' ? (
+                      {(selectedType === 'Finished Good' || selectedType === 'Semi-Finished Good') ? (
                         <>
                           <div className="text-slate-800 font-mono text-[11px]">
-                            Cycle: <strong>{cycleTime}s</strong> &bull; Cavities: <strong>{cavityCount}</strong>
+                            Cycle: <strong>{cycleTime || 24.5}s</strong> &bull; Cavities: <strong>{cavityCount || 1}</strong>
                           </div>
                           <div className="text-[#0066CC] font-mono text-[11px] font-semibold">
                             Part: {partWeight}g + Runner: {runnerWeight}g = Shot: {calculatedSingleShotWeight}g
                           </div>
                         </>
+                      ) : (selectedType === 'Raw Material' || selectedType === 'Regrind') ? (
+                        <>
+                          <div className="text-slate-800 font-mono text-[11px]">MFI: <strong>{mfi || '11.0'} g/10min</strong> &bull; Dens: <strong>{density || '0.905'}</strong></div>
+                          <div className="text-emerald-700 text-[11px] font-semibold">Resin: {resinType || 'PP'} ({polymerGrade || 'Virgin'}) &bull; Regrind: {regrindAllowance || '20'}%</div>
+                        </>
+                      ) : (selectedType === 'Masterbatch' || selectedType === 'Colorant' || selectedType === 'Additive') ? (
+                        <>
+                          <div className="text-slate-800 font-mono text-[11px]">LDR Dosage: <strong>{masterbatchDosage || '2.5'}%</strong> &bull; Heat: <strong>{heatStability || '280°C'}</strong></div>
+                          <div className="text-purple-700 text-[11px] font-semibold">Color: {color || 'Custom'} &bull; Carrier: {carrierResin || 'Universal'}</div>
+                        </>
+                      ) : selectedType === 'Packaging Material' ? (
+                        <>
+                          <div className="text-slate-800 font-mono text-[11px]">Dim: <strong>{boxDimensions || 'Standard Box'}</strong></div>
+                          <div className="text-amber-800 text-[11px] font-semibold">Pack: {unitsPerPack || 250} pcs/box &bull; {packagingStandard || '5-Ply'}</div>
+                        </>
                       ) : (
                         <>
-                          <div className="text-slate-800">MFI: <strong>{mfi} g/10min</strong> &bull; Density: <strong>{density}</strong></div>
-                          <div className="text-slate-500 text-[11px]">Resin: {resinType} ({polymerGrade})</div>
+                          <div className="text-slate-800 font-mono text-[11px]">Fitment: <strong>{machineFitment || 'All Machines'}</strong></div>
+                          <div className="text-slate-700 text-[11px] font-semibold">Class: {spareClass} &bull; Lead: {leadTimeDays}d</div>
                         </>
                       )}
                     </div>

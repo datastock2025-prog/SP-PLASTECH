@@ -119,10 +119,32 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
   if (!isOpen || !item) return null;
 
   const [form, setForm] = useState<ItemMaster>({ ...item });
-  const [activeTab, setActiveTab] = useState<'Tooling & Specs' | 'Basic & Stock' | 'Documents'>('Tooling & Specs');
+  const isFgItem = form.type === 'Finished Good' || form.type === 'Semi-Finished Good';
+  const firstTabTitle = isFgItem
+    ? 'Tooling & Specs'
+    : form.type === 'Raw Material' || form.type === 'Regrind'
+    ? 'Resin & Rheology'
+    : form.type === 'Masterbatch' || form.type === 'Colorant' || form.type === 'Additive'
+    ? 'Color & Formulation'
+    : form.type === 'Packaging Material'
+    ? 'Packaging Specs'
+    : 'Plant Asset Specs';
+
+  const [activeTab, setActiveTab] = useState<string>('Tooling & Specs');
 
   useEffect(() => {
     setForm({ ...item });
+    const isFg = item.type === 'Finished Good' || item.type === 'Semi-Finished Good';
+    const initTab = isFg
+      ? 'Tooling & Specs'
+      : item.type === 'Raw Material' || item.type === 'Regrind'
+      ? 'Resin & Rheology'
+      : item.type === 'Masterbatch' || item.type === 'Colorant' || item.type === 'Additive'
+      ? 'Color & Formulation'
+      : item.type === 'Packaging Material'
+      ? 'Packaging Specs'
+      : 'Plant Asset Specs';
+    setActiveTab(initTab);
   }, [item]);
 
   const cycle = Number(form.standardCycleTime || form.cycleTime || 24.5);
@@ -189,13 +211,13 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
 
     const updatedItem: ItemMaster = {
       ...form,
-      standardCycleTime: cycle,
-      cycleTime: cycle,
-      partWeightGrams: partWt,
-      cavityCount: cavities,
-      runnerWeightGrams: runnerWt,
-      shotWeightGrams: singleShotWt,
-      netWeightGrams: partWt,
+      standardCycleTime: isFgItem ? cycle : 0,
+      cycleTime: isFgItem ? cycle : 0,
+      partWeightGrams: isFgItem ? partWt : undefined,
+      cavityCount: isFgItem ? cavities : undefined,
+      runnerWeightGrams: isFgItem ? runnerWt : undefined,
+      shotWeightGrams: isFgItem ? singleShotWt : undefined,
+      netWeightGrams: isFgItem ? partWt : undefined,
     };
 
     onSave(updatedItem);
@@ -209,7 +231,7 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-teal-50/50 via-white to-amber-50/30">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#0F8B8D] text-white flex items-center justify-center text-lg font-bold shadow-xs">
-              {form.icon || '▣'}
+              {form.icon || (isFgItem ? '▣' : '◇')}
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -236,7 +258,7 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
 
         {/* Tab Navigation */}
         <div className="px-6 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
-          {(['Tooling & Specs', 'Basic & Stock', 'Documents'] as const).map((t) => (
+          {([firstTabTitle, 'Basic & Stock', 'Documents'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setActiveTab(t)}
@@ -253,9 +275,9 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSave} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto text-xs">
-          {activeTab === 'Tooling & Specs' && (
+          {activeTab === firstTabTitle && isFgItem && (
             <div className="space-y-4">
-              {/* Injection Molding Tooling & Process Parameters Card (Exact Screenshot 1) */}
+              {/* Injection Molding Tooling & Process Parameters Card */}
               <div className="p-4 rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50/40 via-white to-teal-50/30 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -264,7 +286,7 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
                     </div>
                     <div>
                       <h4 className="font-bold text-xs text-[#14213D]">
-                        Finished Good &mdash; Injection Molding Tooling &amp; Process Parameters
+                        {form.type} &mdash; Injection Molding Tooling &amp; Process Parameters
                       </h4>
                       <p className="text-[11px] text-gray-500">
                         Core rheology, cycle timing, mold cavity metrics, and automatic shot weight balancing.
@@ -396,6 +418,298 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
                     <option value="ASSEMBLY">ASSEMBLY (Secondary Assembly Line)</option>
                     <option value="DEFLASH">DEFLASH (Manual Degating / Trimming)</option>
                   </select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === firstTabTitle && (form.type === 'Raw Material' || form.type === 'Regrind') && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50/40 via-white to-teal-50/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
+                      <FlaskConical className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-xs text-[#14213D]">
+                        {form.type} &mdash; Polymer Feedstock &amp; Rheology Parameters
+                      </h4>
+                      <p className="text-[11px] text-gray-500">
+                        Polymer grade, melt flow index (MFI), density, regrind limits, and moisture sensitivity.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    RESIN FEEDSTOCK
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                  <div>
+                    <label className="block font-bold text-[#14213D] mb-1">Resin Type / Polymer</label>
+                    <input
+                      type="text"
+                      disabled={!isAdmin}
+                      value={form.resinType || ''}
+                      onChange={(e) => setForm({ ...form, resinType: e.target.value })}
+                      placeholder="e.g. Polypropylene (PP)"
+                      className="w-full py-1.5 px-2.5 border border-slate-300 rounded-lg text-xs disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-[#14213D] mb-1">Polymer Grade</label>
+                    <input
+                      type="text"
+                      disabled={!isAdmin}
+                      value={form.polymerGrade || ''}
+                      onChange={(e) => setForm({ ...form, polymerGrade: e.target.value })}
+                      placeholder="e.g. Repol H110MA"
+                      className="w-full py-1.5 px-2.5 border border-slate-300 rounded-lg text-xs font-mono disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-[#14213D] mb-1">Melt Flow Index (g/10m)</label>
+                    <input
+                      type="text"
+                      disabled={!isAdmin}
+                      value={form.mfi || ''}
+                      onChange={(e) => setForm({ ...form, mfi: e.target.value })}
+                      placeholder="e.g. 11.0"
+                      className="w-full py-1.5 px-2.5 border border-slate-300 rounded-lg text-xs font-mono disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-[#14213D] mb-1">Density (g/cm³)</label>
+                    <input
+                      type="text"
+                      disabled={!isAdmin}
+                      value={form.density || ''}
+                      onChange={(e) => setForm({ ...form, density: e.target.value })}
+                      placeholder="e.g. 0.905"
+                      className="w-full py-1.5 px-2.5 border border-slate-300 rounded-lg text-xs font-mono disabled:bg-slate-100"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block font-bold text-[#14213D] mb-1">Regrind Allowance %</label>
+                    <input
+                      type="text"
+                      disabled={!isAdmin}
+                      value={form.regrind || ''}
+                      onChange={(e) => setForm({ ...form, regrind: e.target.value })}
+                      placeholder="e.g. 20%"
+                      className="w-full py-1.5 px-2.5 border border-slate-300 rounded-lg text-xs font-mono disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div className="flex items-center pt-5">
+                    <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700">
+                      <input
+                        type="checkbox"
+                        disabled={!isAdmin}
+                        checked={form.moistureSensitive ?? false}
+                        onChange={(e) => setForm({ ...form, moistureSensitive: e.target.checked })}
+                        className="rounded text-emerald-600 w-4 h-4"
+                      />
+                      <span>Moisture Sensitive (Pre-Drying Required)</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === firstTabTitle && (form.type === 'Masterbatch' || form.type === 'Colorant' || form.type === 'Additive') && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl border border-purple-200 bg-gradient-to-r from-purple-50/40 via-white to-pink-50/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-purple-600 text-white flex items-center justify-center font-bold text-xs">
+                      <Palette className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-xs text-[#14213D]">
+                        {form.type} &mdash; Color &amp; Formulation Parameters
+                      </h4>
+                      <p className="text-[11px] text-gray-500">
+                        Pigment shade, carrier resin, letdown ratio (LDR %), and heat dispersion limits.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold text-purple-800 bg-purple-100 border border-purple-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    COLOR MASTERBATCH
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                  <div>
+                    <label className="block font-bold text-[#14213D] mb-1">Color / Shade</label>
+                    <input
+                      type="text"
+                      disabled={!isAdmin}
+                      value={form.color || ''}
+                      onChange={(e) => setForm({ ...form, color: e.target.value })}
+                      placeholder="e.g. Jet Black (RAL 9005)"
+                      className="w-full py-1.5 px-2.5 border border-slate-300 rounded-lg text-xs disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-[#14213D] mb-1">Carrier Resin</label>
+                    <input
+                      type="text"
+                      disabled={!isAdmin}
+                      value={form.carrierResin || ''}
+                      onChange={(e) => setForm({ ...form, carrierResin: e.target.value })}
+                      placeholder="e.g. Universal PE/PP Carrier"
+                      className="w-full py-1.5 px-2.5 border border-slate-300 rounded-lg text-xs disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-[#14213D] mb-1">LDR Dosage %</label>
+                    <input
+                      type="text"
+                      disabled={!isAdmin}
+                      value={form.masterbatchDosage || ''}
+                      onChange={(e) => setForm({ ...form, masterbatchDosage: e.target.value })}
+                      placeholder="e.g. 2.5%"
+                      className="w-full py-1.5 px-2.5 border border-slate-300 rounded-lg text-xs font-mono disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-[#14213D] mb-1">Heat Stability (°C)</label>
+                    <input
+                      type="text"
+                      disabled={!isAdmin}
+                      value={form.heatStability || ''}
+                      onChange={(e) => setForm({ ...form, heatStability: e.target.value })}
+                      placeholder="e.g. 280°C"
+                      className="w-full py-1.5 px-2.5 border border-slate-300 rounded-lg text-xs font-mono disabled:bg-slate-100"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === firstTabTitle && form.type === 'Packaging Material' && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50/40 via-white to-orange-50/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-xs">
+                      <Package className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-xs text-[#14213D]">
+                        Packaging Material &mdash; Box &amp; Container Specs
+                      </h4>
+                      <p className="text-[11px] text-gray-500">
+                        Box dimensions, shipper capacity, standard packaging specs, and pallet stacking.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    PACKAGING SPEC
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+                  <div>
+                    <label className="block font-bold text-[#14213D] mb-1">Packaging Standard</label>
+                    <input
+                      type="text"
+                      disabled={!isAdmin}
+                      value={form.packagingStandard || ''}
+                      onChange={(e) => setForm({ ...form, packagingStandard: e.target.value })}
+                      placeholder="e.g. 5-Ply Corrugated Shipper"
+                      className="w-full py-1.5 px-2.5 border border-slate-300 rounded-lg text-xs disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-[#14213D] mb-1">Dimensions (L×W×H mm)</label>
+                    <input
+                      type="text"
+                      disabled={!isAdmin}
+                      value={form.boxDimensions || ''}
+                      onChange={(e) => setForm({ ...form, boxDimensions: e.target.value })}
+                      placeholder="e.g. 600 x 400 x 350 mm"
+                      className="w-full py-1.5 px-2.5 border border-slate-300 rounded-lg text-xs font-mono disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-[#14213D] mb-1">HSN Code</label>
+                    <input
+                      type="text"
+                      disabled={!isAdmin}
+                      value={form.hsCode || ''}
+                      onChange={(e) => setForm({ ...form, hsCode: e.target.value })}
+                      placeholder="e.g. 48191010"
+                      className="w-full py-1.5 px-2.5 border border-slate-300 rounded-lg text-xs font-mono disabled:bg-slate-100"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === firstTabTitle && (form.type === 'Spare Part' || form.type === 'Consumable') && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl border border-slate-300 bg-gradient-to-r from-slate-100 via-white to-indigo-50/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-slate-800 text-white flex items-center justify-center font-bold text-xs">
+                      <Wrench className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-xs text-[#14213D]">
+                        {form.type} &mdash; Plant Maintenance &amp; Tooling Asset Specs
+                      </h4>
+                      <p className="text-[11px] text-gray-500">
+                        Equipment compatibility, maintenance lead time, and critical spare buffer.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-800 bg-slate-200 border border-slate-300 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    PLANT ASSET
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Machine / Mold Compatibility</label>
+                    <input
+                      type="text"
+                      disabled={!isAdmin}
+                      value={form.machineCompat || ''}
+                      onChange={(e) => setForm({ ...form, machineCompat: e.target.value })}
+                      placeholder="e.g. Ferromatik 250T"
+                      className="w-full py-1.5 px-2.5 border border-slate-300 rounded-lg text-xs disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Lead Time</label>
+                    <input
+                      type="text"
+                      disabled={!isAdmin}
+                      value={form.leadTime || ''}
+                      onChange={(e) => setForm({ ...form, leadTime: e.target.value })}
+                      placeholder="e.g. 7d"
+                      className="w-full py-1.5 px-2.5 border border-slate-300 rounded-lg text-xs font-mono disabled:bg-slate-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Safety Buffer Stock</label>
+                    <input
+                      type="text"
+                      disabled={!isAdmin}
+                      value={form.safetyStock || ''}
+                      onChange={(e) => setForm({ ...form, safetyStock: e.target.value })}
+                      placeholder="e.g. 2"
+                      className="w-full py-1.5 px-2.5 border border-slate-300 rounded-lg text-xs font-mono disabled:bg-slate-100"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1214,10 +1528,10 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                         <ArrowUpDown className="w-3 h-3 text-gray-400" />
                       </div>
                     </th>
-                    <th className="p-3">Mold Tool / Cavities</th>
+                    <th className="p-3">Tooling / Material Spec</th>
                     <th className="p-3 cursor-pointer hover:bg-amber-50/50" onClick={() => handleItemSort('cycleTime')}>
                       <div className="flex items-center gap-1">
-                        Mold Spec &amp; Process
+                        Process &amp; Attributes
                         <ArrowUpDown className="w-3 h-3 text-gray-400" />
                       </div>
                     </th>
@@ -1238,6 +1552,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   {pagedItems.length > 0 ? (
                     pagedItems.map((item) => {
                       const isSelected = selectedItemCodes.includes(item.code);
+                      const isFg = item.type === 'Finished Good' || item.type === 'Semi-Finished Good';
                       const cycle = Number(item.standardCycleTime || item.cycleTime || 24.5);
                       const cavities = Number(item.cavityCount || 1);
                       const partWt = Number(item.partWeightGrams || 25);
@@ -1311,26 +1626,108 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                             </span>
                           </td>
 
-                          {/* Task 1: Mold Tool & Cavities Column */}
+                          {/* Dynamic Col 5: Tooling / Material Spec */}
                           <td className="p-3 font-mono text-[11px]">
-                            <div className="text-[#14213D] font-bold">{item.moldToolId || 'MOLD-001'}</div>
-                            <div className="text-[10px] text-gray-500">{cavities} Cavit{cavities === 1 ? 'y' : 'ies'}</div>
+                            {isFg ? (
+                              <>
+                                <div className="text-[#14213D] font-bold">{item.moldToolId || 'MOLD-001'}</div>
+                                <div className="text-[10px] text-gray-500">{cavities} Cavit{cavities === 1 ? 'y' : 'ies'}</div>
+                              </>
+                            ) : (item.type === 'Raw Material' || item.type === 'Regrind') ? (
+                              <>
+                                <div className="text-emerald-900 font-bold">{item.resinType || 'Polypropylene (PP)'}</div>
+                                <div className="text-[10px] text-slate-500 truncate">{item.polymerGrade || 'Virgin Polymer'}</div>
+                              </>
+                            ) : (item.type === 'Masterbatch' || item.type === 'Colorant' || item.type === 'Additive') ? (
+                              <>
+                                <div className="text-purple-900 font-bold truncate">{item.color || 'Custom Shade'}</div>
+                                <div className="text-[10px] text-slate-500 truncate">{item.carrierResin || item.resinType || 'Universal Carrier'}</div>
+                              </>
+                            ) : item.type === 'Packaging Material' ? (
+                              <>
+                                <div className="text-amber-900 font-bold truncate">{item.packagingStandard || item.cat || 'Standard Box'}</div>
+                                <div className="text-[10px] text-slate-500">{item.boxDimensions || '600x400x350 mm'}</div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="text-slate-900 font-bold truncate">{item.machineCompat || 'All Machines'}</div>
+                                <div className="text-[10px] text-slate-500">{item.moldToolId || 'PLANT-ASSET'}</div>
+                              </>
+                            )}
                           </td>
 
-                          {/* Task 1: Mold Spec & Process Parameters Column */}
+                          {/* Dynamic Col 6: Process & Attributes */}
                           <td className="p-3 font-mono text-[11px]">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-bold text-amber-700">{cycle}s</span>
-                              <span className="text-gray-400">&bull;</span>
-                              <span className="text-gray-700">{shotWt}g Shot</span>
-                              <span className="text-gray-400">&bull;</span>
-                              <span className="text-emerald-700 font-bold">{hourlyOutput} pcs/h</span>
-                            </div>
-                            <div className="mt-0.5">
-                              <span className="inline-flex items-center text-[9px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
-                                MOLD SPEC GATE
-                              </span>
-                            </div>
+                            {isFg ? (
+                              <>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-amber-700">{cycle}s</span>
+                                  <span className="text-gray-400">&bull;</span>
+                                  <span className="text-gray-700">{shotWt}g Shot</span>
+                                  <span className="text-gray-400">&bull;</span>
+                                  <span className="text-emerald-700 font-bold">{hourlyOutput} pcs/h</span>
+                                </div>
+                                <div className="mt-0.5">
+                                  <span className="inline-flex items-center text-[9px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
+                                    MOLD SPEC GATE
+                                  </span>
+                                </div>
+                              </>
+                            ) : (item.type === 'Raw Material' || item.type === 'Regrind') ? (
+                              <>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-emerald-800">MFI: {item.mfi || '12.0'}</span>
+                                  <span className="text-gray-400">&bull;</span>
+                                  <span className="text-slate-600">Dens: {item.density || '0.905'}</span>
+                                  <span className="text-gray-400">&bull;</span>
+                                  <span className="text-emerald-700 font-bold">Regrind: {item.regrind || '20%'}</span>
+                                </div>
+                                <div className="mt-0.5">
+                                  <span className="inline-flex items-center text-[9px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                                    RESIN FEEDSTOCK
+                                  </span>
+                                </div>
+                              </>
+                            ) : (item.type === 'Masterbatch' || item.type === 'Colorant' || item.type === 'Additive') ? (
+                              <>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-purple-800">LDR: {item.masterbatchDosage || '2.5%'}</span>
+                                  <span className="text-gray-400">&bull;</span>
+                                  <span className="text-slate-600">Heat: {item.heatStability || '280°C'}</span>
+                                </div>
+                                <div className="mt-0.5">
+                                  <span className="inline-flex items-center text-[9px] font-bold text-purple-800 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200">
+                                    COLOR MASTERBATCH
+                                  </span>
+                                </div>
+                              </>
+                            ) : item.type === 'Packaging Material' ? (
+                              <>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-amber-800">{item.unitsPerPack || 250} pcs/box</span>
+                                  <span className="text-gray-400">&bull;</span>
+                                  <span className="text-slate-600">HSN: {item.hsCode || '48191010'}</span>
+                                </div>
+                                <div className="mt-0.5">
+                                  <span className="inline-flex items-center text-[9px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                                    PACKAGING SPEC
+                                  </span>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-slate-800">Lead: {item.leadTime || '7d'}</span>
+                                  <span className="text-gray-400">&bull;</span>
+                                  <span className="text-slate-600">Buffer: {item.safetyStock || '2'} {item.baseUOM}</span>
+                                </div>
+                                <div className="mt-0.5">
+                                  <span className="inline-flex items-center text-[9px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
+                                    PLANT ASSET
+                                  </span>
+                                </div>
+                              </>
+                            )}
                           </td>
 
                           <td className="p-3 text-right font-semibold text-[#14213D] font-mono">
@@ -1581,6 +1978,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
         );
       }
 
+      const isFg = item.type === 'Finished Good' || item.type === 'Semi-Finished Good';
       const itemBoms = boms.filter((b) => (b.lines || []).some((l) => l.item === item.code) || b.parent === item.code);
       const cycle = Number(item.standardCycleTime || item.cycleTime || 24.5);
       const cavities = Number(item.cavityCount || 1);
@@ -1595,7 +1993,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
         'Inventory',
         'Purchasing',
         'Quality',
-        'Cycle Time & Mold Spec',
+        isFg ? 'Cycle Time & Mold Spec' : 'Material & Rheology Specs',
         'BOM usage',
         'Documents',
         'Barcode / Label',
@@ -1635,9 +2033,27 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   <div className="m">
                     Warehouse: <b>{item.wh}</b>
                   </div>
-                  <div className="m">
-                    Mold: <b>{item.moldToolId || 'MOLD-001'} ({cavities} Cav)</b>
-                  </div>
+                  {isFg ? (
+                    <div className="m">
+                      Mold: <b>{item.moldToolId || 'MOLD-001'} ({cavities} Cav)</b>
+                    </div>
+                  ) : item.type === 'Raw Material' || item.type === 'Regrind' ? (
+                    <div className="m">
+                      Polymer: <b>{item.resinType || item.polymerGrade || 'PP Copolymer'}</b>
+                    </div>
+                  ) : item.type === 'Masterbatch' || item.type === 'Colorant' || item.type === 'Additive' ? (
+                    <div className="m">
+                      Color: <b>{item.color || 'Standard'} ({item.masterbatchDosage || '2%'} LDR)</b>
+                    </div>
+                  ) : item.type === 'Packaging Material' ? (
+                    <div className="m">
+                      Pack Spec: <b>{item.packagingStandard || 'Corrugated Box'}</b>
+                    </div>
+                  ) : (
+                    <div className="m">
+                      Fitment: <b>{item.moldToolId || 'Universal'}</b>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1670,12 +2086,14 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               >
                 <Printer className="w-3.5 h-3.5" /> Print Label
               </button>
-              <button
-                className="btn btn-sm btn-primary flex items-center gap-1.5 shadow-sm"
-                onClick={() => handleOpenMfgBomWizard(item)}
-              >
-                <Layers className="w-3.5 h-3.5" /> Create Manufacturing BOM
-              </button>
+              {isFg && (
+                <button
+                  className="btn btn-sm btn-primary flex items-center gap-1.5 shadow-sm"
+                  onClick={() => handleOpenMfgBomWizard(item)}
+                >
+                  <Layers className="w-3.5 h-3.5" /> Create Manufacturing BOM
+                </button>
+              )}
               {item.approval !== 'approved' && (
                 <button
                   className="btn btn-sm btn-ghost border-[#E4E0D6] text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
@@ -1697,14 +2115,62 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               <div className="lbl">Available Stock</div>
               <div className="val text-lg">{item.avail}</div>
             </div>
-            <div className="kpi-card">
-              <div className="lbl">Std Cycle Time</div>
-              <div className="val text-lg">{cycle}s</div>
-            </div>
-            <div className="kpi-card">
-              <div className="lbl">Est. Hourly Output</div>
-              <div className="val text-lg text-emerald-700">{hourlyOutput} pcs/h</div>
-            </div>
+            {isFg ? (
+              <>
+                <div className="kpi-card">
+                  <div className="lbl">Std Cycle Time</div>
+                  <div className="val text-lg">{cycle}s</div>
+                </div>
+                <div className="kpi-card">
+                  <div className="lbl">Est. Hourly Output</div>
+                  <div className="val text-lg text-emerald-700">{hourlyOutput} pcs/h</div>
+                </div>
+              </>
+            ) : item.type === 'Raw Material' || item.type === 'Regrind' ? (
+              <>
+                <div className="kpi-card">
+                  <div className="lbl">Melt Flow Index</div>
+                  <div className="val text-lg font-mono">{item.mfi || '12.0 g/10m'}</div>
+                </div>
+                <div className="kpi-card">
+                  <div className="lbl">Density Gradient</div>
+                  <div className="val text-lg font-mono text-emerald-700">{item.density || '0.905 g/cm³'}</div>
+                </div>
+              </>
+            ) : item.type === 'Masterbatch' || item.type === 'Colorant' || item.type === 'Additive' ? (
+              <>
+                <div className="kpi-card">
+                  <div className="lbl">Target Dosage (LDR)</div>
+                  <div className="val text-lg font-mono">{item.masterbatchDosage || '2.0%'}</div>
+                </div>
+                <div className="kpi-card">
+                  <div className="lbl">Heat Stability</div>
+                  <div className="val text-lg font-mono text-emerald-700">{item.heatStability || '280°C'}</div>
+                </div>
+              </>
+            ) : item.type === 'Packaging Material' ? (
+              <>
+                <div className="kpi-card">
+                  <div className="lbl">Box Dimensions</div>
+                  <div className="val text-sm font-mono truncate">{item.boxDimensions || '600x400x300 mm'}</div>
+                </div>
+                <div className="kpi-card">
+                  <div className="lbl">Packaging Standard</div>
+                  <div className="val text-sm font-semibold text-emerald-700 truncate">{item.packagingStandard || 'Corrugated Box'}</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="kpi-card">
+                  <div className="lbl">Lead Time</div>
+                  <div className="val text-lg font-mono">{item.leadTime || '7 days'}</div>
+                </div>
+                <div className="kpi-card">
+                  <div className="lbl">Safety Stock</div>
+                  <div className="val text-lg font-mono text-emerald-700">{item.safetyStock || '10 EA'}</div>
+                </div>
+              </>
+            )}
             <div className="kpi-card">
               <div className="lbl">BOM References</div>
               <div className="val text-lg">{itemBoms.length}</div>
@@ -1727,84 +2193,280 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
           {/* Tab 1: Overview */}
           {activeTab === 'Overview' && (
             <div className="space-y-5">
-              {/* Task 1: Injection Molding Tooling & Process Parameters (Screenshot 1) */}
-              <div className="p-5 bg-white rounded-2xl border border-blue-200 shadow-xs space-y-4">
-                <div className="flex items-center justify-between border-b border-blue-100 pb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center">
-                      <Cpu className="w-5 h-5" />
+              {/* Dynamic Spec Header Card */}
+              {isFg ? (
+                <div className="p-5 bg-white rounded-2xl border border-blue-200 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-blue-100 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center">
+                        <Cpu className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-[#14213D]">
+                          Finished Good &mdash; Injection Molding Tooling &amp; Process Parameters
+                        </h3>
+                        <p className="text-xs text-gray-500">
+                          Core rheology, cycle timing, mold cavity metrics, and automatic shot weight balancing.
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-[#14213D]">
-                        Finished Good &mdash; Injection Molding Tooling &amp; Process Parameters
-                      </h3>
-                      <p className="text-xs text-gray-500">
-                        Core rheology, cycle timing, mold cavity metrics, and automatic shot weight balancing.
-                      </p>
-                    </div>
+                    <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                      MOLD SPEC GATE
+                    </span>
                   </div>
-                  <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                    MOLD SPEC GATE
-                  </span>
-                </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 text-xs">
-                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
-                    <span className="text-[11px] font-bold text-gray-500 block mb-1">Cycle Time (seconds) *</span>
-                    <span className="font-mono text-base font-bold text-[#14213D]">{cycle} sec</span>
-                  </div>
-                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
-                    <span className="text-[11px] font-bold text-gray-500 block mb-1">Part Weight (grams/pc) *</span>
-                    <span className="font-mono text-base font-bold text-[#14213D]">{partWt} g</span>
-                  </div>
-                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
-                    <span className="text-[11px] font-bold text-gray-500 block mb-1">Mold Cavities (count) *</span>
-                    <span className="font-mono text-base font-bold text-[#14213D]">{cavities} cav</span>
-                  </div>
-                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
-                    <span className="text-[11px] font-bold text-gray-500 block mb-1">Runner Weight (grams) *</span>
-                    <span className="font-mono text-base font-bold text-[#14213D]">{runnerWt} g</span>
-                  </div>
-                </div>
-
-                {/* Live Formula Breakdown Card from Screenshot 1 */}
-                <div className="p-4 rounded-xl bg-gradient-to-r from-blue-50/70 via-emerald-50/50 to-teal-50/60 border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2 flex-wrap text-xs">
-                      <Sparkles className="w-4 h-4 text-blue-600" />
-                      <strong className="text-[#14213D]">Calculated Shot Weight:</strong>
-                      <span className="px-2.5 py-0.5 rounded-md bg-white border border-blue-200 font-mono font-bold text-blue-800">
-                        {singleShotWt} g / pc shot
-                      </span>
-                      <span className="text-gray-400">&bull;</span>
-                      <span className="px-2.5 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 font-mono font-bold text-emerald-800">
-                        {totalMoldShotWt} g (Total {cavities}-Cavity Shot)
-                      </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 text-xs">
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <span className="text-[11px] font-bold text-gray-500 block mb-1">Cycle Time (seconds) *</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{cycle} sec</span>
                     </div>
-                    <div className="text-[11px] text-gray-600 font-mono">
-                      Formula: Part Weight ({partWt}g) + Runner Weight ({runnerWt}g) = {singleShotWt}g &bull; ({partWt}g &times; {cavities} Cavities) + {runnerWt}g = {totalMoldShotWt}g Total Mold Shot
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <span className="text-[11px] font-bold text-gray-500 block mb-1">Part Weight (grams/pc) *</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{partWt} g</span>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <span className="text-[11px] font-bold text-gray-500 block mb-1">Mold Cavities (count) *</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{cavities} cav</span>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <span className="text-[11px] font-bold text-gray-500 block mb-1">Runner Weight (grams) *</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{runnerWt} g</span>
                     </div>
                   </div>
 
-                  <div className="text-right flex-shrink-0 pl-4 border-l border-blue-200/80">
-                    <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">Est. Hourly Output</span>
-                    <span className="text-base font-mono font-bold text-emerald-700">{hourlyOutput} pcs / hr</span>
+                  {/* Live Formula Breakdown Card */}
+                  <div className="p-4 rounded-xl bg-gradient-to-r from-blue-50/70 via-emerald-50/50 to-teal-50/60 border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2 flex-wrap text-xs">
+                        <Sparkles className="w-4 h-4 text-blue-600" />
+                        <strong className="text-[#14213D]">Calculated Shot Weight:</strong>
+                        <span className="px-2.5 py-0.5 rounded-md bg-white border border-blue-200 font-mono font-bold text-blue-800">
+                          {singleShotWt} g / pc shot
+                        </span>
+                        <span className="text-gray-400">&bull;</span>
+                        <span className="px-2.5 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 font-mono font-bold text-emerald-800">
+                          {totalMoldShotWt} g (Total {cavities}-Cavity Shot)
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-gray-600 font-mono">
+                        Formula: Part Weight ({partWt}g) + Runner Weight ({runnerWt}g) = {singleShotWt}g &bull; ({partWt}g &times; {cavities} Cavities) + {runnerWt}g = {totalMoldShotWt}g Total Mold Shot
+                      </div>
+                    </div>
+
+                    <div className="text-right flex-shrink-0 pl-4 border-l border-blue-200/80">
+                      <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">Est. Hourly Output</span>
+                      <span className="text-base font-mono font-bold text-emerald-700">{hourlyOutput} pcs / hr</span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : item.type === 'Raw Material' || item.type === 'Regrind' ? (
+                <div className="p-5 bg-white rounded-2xl border border-emerald-200 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center">
+                        <Layers className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-[#14213D]">
+                          Raw Polymer Feedstock &mdash; Rheology &amp; Technical Parameters
+                        </h3>
+                        <p className="text-xs text-gray-500">
+                          Resin grade, melt flow rate, density index, and moisture pre-drying limits.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      RESIN FEEDSTOCK
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 text-xs">
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <span className="text-[11px] font-bold text-gray-500 block mb-1">Polymer Grade *</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{item.polymerGrade || item.resinType || 'PP Copolymer'}</span>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <span className="text-[11px] font-bold text-gray-500 block mb-1">Melt Flow Index (MFI) *</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{item.mfi || '12.0 g/10min'}</span>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <span className="text-[11px] font-bold text-gray-500 block mb-1">Specific Density *</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{item.density || '0.905 g/cm³'}</span>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <span className="text-[11px] font-bold text-gray-500 block mb-1">Moisture Limit</span>
+                      <span className="font-mono text-base font-bold text-emerald-700">{item.moistureLimit || '< 0.05%'}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : item.type === 'Masterbatch' || item.type === 'Colorant' || item.type === 'Additive' ? (
+                <div className="p-5 bg-white rounded-2xl border border-purple-200 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-purple-100 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center">
+                        <Sparkles className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-[#14213D]">
+                          Colorant &amp; Additive Masterbatch Formulation
+                        </h3>
+                        <p className="text-xs text-gray-500">
+                          Target let-down ratio (LDR), carrier resin compatibility, and heat stability thresholds.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                      COLOR MASTERBATCH
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 text-xs">
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <span className="text-[11px] font-bold text-gray-500 block mb-1">Carrier Resin *</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{item.carrierResin || 'PP Homopolymer'}</span>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <span className="text-[11px] font-bold text-gray-500 block mb-1">Shade / Color Name *</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{item.color || 'Standard Shade'}</span>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <span className="text-[11px] font-bold text-gray-500 block mb-1">Target Dosage (LDR %) *</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{item.masterbatchDosage || '2.0%'}</span>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <span className="text-[11px] font-bold text-gray-500 block mb-1">Heat Stability</span>
+                      <span className="font-mono text-base font-bold text-purple-700">{item.heatStability || '280°C'}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : item.type === 'Packaging Material' ? (
+                <div className="p-5 bg-white rounded-2xl border border-amber-200 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-amber-100 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-amber-600 text-white flex items-center justify-center">
+                        <Package className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-[#14213D]">
+                          Packaging Engineering &amp; Logistics Specifications
+                        </h3>
+                        <p className="text-xs text-gray-500">
+                          Box standards, dimensional tolerances, palletizing schemes, and burst test ratings.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                      PACKAGING SPEC
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 text-xs">
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <span className="text-[11px] font-bold text-gray-500 block mb-1">Packaging Standard *</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{item.packagingStandard || 'Corrugated Box (5-Ply)'}</span>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <span className="text-[11px] font-bold text-gray-500 block mb-1">Box Dimensions (LxWxH) *</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{item.boxDimensions || '600 x 400 x 300 mm'}</span>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <span className="text-[11px] font-bold text-gray-500 block mb-1">Pallet Pattern</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">4 Boxes/Layer &bull; 5 Tiers</span>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <span className="text-[11px] font-bold text-gray-500 block mb-1">ECT / Bursting Strength</span>
+                      <span className="font-mono text-base font-bold text-amber-700">32 ECT / 200#</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-slate-700 text-white flex items-center justify-center">
+                        <Sliders className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-[#14213D]">
+                          Plant Asset Maintenance &amp; Equipment Fitment
+                        </h3>
+                        <p className="text-xs text-gray-500">
+                          Machine fitment, manufacturer part numbers, PM intervals, and criticality flags.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                      PLANT ASSET
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 text-xs">
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <span className="text-[11px] font-bold text-gray-500 block mb-1">Machine Fitment *</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{item.moldToolId || 'Toshiba / Haitian 250T'}</span>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <span className="text-[11px] font-bold text-gray-500 block mb-1">OEM Part Number *</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{item.code}</span>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <span className="text-[11px] font-bold text-gray-500 block mb-1">PM Cycle</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">500,000 Cycles</span>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <span className="text-[11px] font-bold text-gray-500 block mb-1">Criticality Flag</span>
+                      <span className="font-mono text-base font-bold text-slate-700">Class-A Critical</span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Classification & Properties */}
               <div className="detail-grid">
                 <div className="panel p-5 space-y-4">
-                  <div className="section-title">Classification &amp; Polymer Properties</div>
+                  <div className="section-title">
+                    {isFg ? 'Classification & Polymer Properties' : 'Item Classification & Technical Properties'}
+                  </div>
                   <div className="kv-grid">
                     <div className="kv"><label>Item Type</label><div className="v">{item.type}</div></div>
                     <div className="kv"><label>Material Family</label><div className="v">{item.cat}</div></div>
                     <div className="kv"><label>Base UOM</label><div className="v mono">{item.baseUOM}</div></div>
-                    <div className="kv"><label>Resin Grade</label><div className="v">{item.resinType || 'PP Copolymer'}</div></div>
-                    <div className="kv"><label>Melt Flow Index</label><div className="v mono">{item.mfi || '12.0 g/10min'}</div></div>
-                    <div className="kv"><label>Density</label><div className="v mono">{item.density || '0.905 g/cm³'}</div></div>
-                    <div className="kv"><label>Mold Tool ID</label><div className="v mono font-bold text-[#0F8B8D]">{item.moldToolId || 'MOLD-001'}</div></div>
+                    {isFg ? (
+                      <>
+                        <div className="kv"><label>Resin Grade</label><div className="v">{item.resinType || 'PP Copolymer'}</div></div>
+                        <div className="kv"><label>Melt Flow Index</label><div className="v mono">{item.mfi || '12.0 g/10min'}</div></div>
+                        <div className="kv"><label>Density</label><div className="v mono">{item.density || '0.905 g/cm³'}</div></div>
+                        <div className="kv"><label>Mold Tool ID</label><div className="v mono font-bold text-[#0F8B8D]">{item.moldToolId || 'MOLD-001'}</div></div>
+                      </>
+                    ) : item.type === 'Raw Material' || item.type === 'Regrind' ? (
+                      <>
+                        <div className="kv"><label>Resin / Grade</label><div className="v">{item.polymerGrade || item.resinType || 'PP Copolymer'}</div></div>
+                        <div className="kv"><label>Melt Flow Index</label><div className="v mono">{item.mfi || '12.0 g/10min'}</div></div>
+                        <div className="kv"><label>Density</label><div className="v mono">{item.density || '0.905 g/cm³'}</div></div>
+                        <div className="kv"><label>Moisture Limit</label><div className="v mono text-emerald-700">{item.moistureLimit || '< 0.05%'}</div></div>
+                      </>
+                    ) : item.type === 'Masterbatch' || item.type === 'Colorant' || item.type === 'Additive' ? (
+                      <>
+                        <div className="kv"><label>Carrier Resin</label><div className="v">{item.carrierResin || 'PP Homopolymer'}</div></div>
+                        <div className="kv"><label>Color / Shade</label><div className="v">{item.color || 'Standard Shade'}</div></div>
+                        <div className="kv"><label>Target LDR Dosage</label><div className="v mono">{item.masterbatchDosage || '2.0%'}</div></div>
+                        <div className="kv"><label>Heat Stability</label><div className="v mono text-purple-700">{item.heatStability || '280°C'}</div></div>
+                      </>
+                    ) : item.type === 'Packaging Material' ? (
+                      <>
+                        <div className="kv"><label>Packaging Spec</label><div className="v">{item.packagingStandard || 'Corrugated Box'}</div></div>
+                        <div className="kv"><label>Box Dimensions</label><div className="v mono">{item.boxDimensions || '600x400x300 mm'}</div></div>
+                        <div className="kv"><label>HSN / SAC Code</label><div className="v mono">{item.hsnCode || '4819.10.00'}</div></div>
+                        <div className="kv"><label>Storage Form</label><div className="v">Flat Packed on Pallet</div></div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="kv"><label>Machine Fitment</label><div className="v mono">{item.moldToolId || 'Toshiba / Haitian 250T'}</div></div>
+                        <div className="kv"><label>OEM Part Number</label><div className="v mono">{item.code}</div></div>
+                        <div className="kv"><label>Maintenance Interval</label><div className="v">500,000 Cycles</div></div>
+                        <div className="kv"><label>Critical Spare</label><div className="v font-bold text-amber-700">Yes (PM Essential)</div></div>
+                      </>
+                    )}
                     <div className="kv"><label>Country of Origin</label><div className="v">{item.countryOrigin || 'India'}</div></div>
                   </div>
                 </div>
@@ -1816,7 +2478,10 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                     <div className="side-row"><span>Safety Stock</span><span className="mono">{item.safetyStock || '2,000 KG'}</span></div>
                     <div className="side-row"><span>Lead Time</span><span>{item.leadTime || '7 days'}</span></div>
                     <div className="side-row"><span>Preferred Supplier</span><span>{item.supplier || 'Reliance Polymers'}</span></div>
-                    <div className="side-row"><span>Post-Molding Destination</span><span className="font-bold text-[#0F8B8D]">{item.routingDestination || 'DOL'}</span></div>
+                    <div className="side-row">
+                      <span>{isFg ? 'Post-Molding Destination' : 'Receiving Inspection Gate'}</span>
+                      <span className="font-bold text-[#0F8B8D]">{isFg ? (item.routingDestination || 'DOL') : 'IQC Pass Gate'}</span>
+                    </div>
                   </div>
 
                   <div className="side-block">
@@ -1836,17 +2501,19 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               <div className="p-4 rounded-xl border bg-emerald-50/80 border-emerald-200 text-emerald-900 flex items-center justify-between flex-wrap gap-3">
                 <div>
                   <div className="text-xs font-bold flex items-center gap-2">
-                    <span>Default Post-Molding Store Routing:</span>
+                    <span>{isFg ? 'Default Post-Molding Store Routing:' : 'Default Inbound Receiving Location:'}</span>
                     <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-white border shadow-2xs">
-                      {item.routingDestination || 'DOL'} &rarr; {item.wh || 'FG-WH-01'}
+                      {isFg ? `${item.routingDestination || 'DOL'} → ${item.wh || 'FG-WH-01'}` : `${item.wh || 'RM-WH-01'} (IQC Accepted)`}
                     </span>
                   </div>
                   <div className="text-[11px] text-slate-600 mt-1">
-                    Output from injection molding machine auto-backflushes into {item.wh || 'FG-WH-01'}.
+                    {isFg
+                      ? `Output from injection molding machine auto-backflushes into ${item.wh || 'FG-WH-01'}.`
+                      : `Inbound materials are received, batch-tested, and routed to ${item.wh || 'RM-WH-01'}.`}
                   </div>
                 </div>
                 <div className="text-xs font-mono font-bold px-3 py-1.5 rounded-lg bg-white border">
-                  Target Store: {item.wh || 'FG-WH-01'}
+                  Target Store: {item.wh || (isFg ? 'FG-WH-01' : 'RM-WH-01')}
                 </div>
               </div>
 
@@ -1884,47 +2551,90 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
             </div>
           )}
 
-          {/* Tab 5: Cycle Time & Mold Spec */}
-          {activeTab === 'Cycle Time & Mold Spec' && (
+          {/* Tab 5: Dynamic Technical Specs (Cycle Time & Mold Spec for FG vs Material & Rheology for non-FG) */}
+          {(activeTab === 'Cycle Time & Mold Spec' || activeTab === 'Material & Rheology Specs') && (
             <div className="space-y-5">
-              <div className="p-5 bg-white rounded-2xl border border-[#E4E0D6] shadow-xs space-y-4">
-                <div className="flex items-center justify-between border-b border-[#E4E0D6] pb-3">
-                  <div>
-                    <h3 className="text-sm font-bold text-[#14213D]">Standard Cycle Time Study &amp; Rheology Balance</h3>
-                    <p className="text-xs text-gray-500">Injection molding cavity timing, cooling metrics &amp; shot breakdown.</p>
+              {isFg ? (
+                <div className="p-5 bg-white rounded-2xl border border-[#E4E0D6] shadow-xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#E4E0D6] pb-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-[#14213D]">Standard Cycle Time Study &amp; Rheology Balance</h3>
+                      <p className="text-xs text-gray-500">Injection molding cavity timing, cooling metrics &amp; shot breakdown.</p>
+                    </div>
+                    <button
+                      className="btn btn-sm btn-primary"
+                      onClick={() => setQuickModifyItem(item)}
+                    >
+                      Edit Tooling Specs
+                    </button>
                   </div>
-                  <button
-                    className="btn btn-sm btn-primary"
-                    onClick={() => setQuickModifyItem(item)}
-                  >
-                    Edit Tooling Specs
-                  </button>
-                </div>
 
-                <div className="flex items-baseline gap-3 pt-2">
-                  <span className="font-mono text-4xl font-bold text-[#14213D]">{cycle}</span>
-                  <span className="text-sm font-semibold text-gray-500">sec / cycle</span>
-                </div>
+                  <div className="flex items-baseline gap-3 pt-2">
+                    <span className="font-mono text-4xl font-bold text-[#14213D]">{cycle}</span>
+                    <span className="text-sm font-semibold text-gray-500">sec / cycle</span>
+                  </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-2">
-                  <div className="p-3 bg-gray-50 rounded-lg border">
-                    <span className="text-gray-500 block">Mold Tool Cavities</span>
-                    <strong className="text-sm text-[#14213D]">{cavities} Cavities</strong>
-                  </div>
-                  <div className="p-3 bg-gray-50 rounded-lg border">
-                    <span className="text-gray-500 block">Single Part Weight</span>
-                    <strong className="text-sm text-[#14213D]">{partWt} grams</strong>
-                  </div>
-                  <div className="p-3 bg-gray-50 rounded-lg border">
-                    <span className="text-gray-500 block">Runner &amp; Sprue Weight</span>
-                    <strong className="text-sm text-[#14213D]">{runnerWt} grams</strong>
-                  </div>
-                  <div className="p-3 bg-gray-50 rounded-lg border">
-                    <span className="text-gray-500 block">Total Shot Weight</span>
-                    <strong className="text-sm text-emerald-700">{totalMoldShotWt} grams</strong>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-2">
+                    <div className="p-3 bg-gray-50 rounded-lg border">
+                      <span className="text-gray-500 block">Mold Tool Cavities</span>
+                      <strong className="text-sm text-[#14213D]">{cavities} Cavities</strong>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-lg border">
+                      <span className="text-gray-500 block">Single Part Weight</span>
+                      <strong className="text-sm text-[#14213D]">{partWt} grams</strong>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-lg border">
+                      <span className="text-gray-500 block">Runner &amp; Sprue Weight</span>
+                      <strong className="text-sm text-[#14213D]">{runnerWt} grams</strong>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-lg border">
+                      <span className="text-gray-500 block">Total Shot Weight</span>
+                      <strong className="text-sm text-emerald-700">{totalMoldShotWt} grams</strong>
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="p-5 bg-white rounded-2xl border border-[#E4E0D6] shadow-xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#E4E0D6] pb-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-[#14213D]">Material Rheology &amp; Technical Data Sheet</h3>
+                      <p className="text-xs text-gray-500">Melt flow behavior, density, drying requirements, and processing conditions.</p>
+                    </div>
+                    <button
+                      className="btn btn-sm btn-primary"
+                      onClick={() => setQuickModifyItem(item)}
+                    >
+                      Edit Material Specs
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-2">
+                    <div className="p-3 bg-gray-50 rounded-lg border">
+                      <span className="text-gray-500 block">Melt Flow Index (MFI)</span>
+                      <strong className="text-sm text-[#14213D]">{item.mfi || '12.0 g/10min'}</strong>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-lg border">
+                      <span className="text-gray-500 block">Specific Gravity / Density</span>
+                      <strong className="text-sm text-[#14213D]">{item.density || '0.905 g/cm³'}</strong>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-lg border">
+                      <span className="text-gray-500 block">Moisture Limit</span>
+                      <strong className="text-sm text-[#14213D]">{item.moistureLimit || '< 0.05%'}</strong>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded-lg border">
+                      <span className="text-gray-500 block">Recommended Melt Temp</span>
+                      <strong className="text-sm text-emerald-700">210°C &ndash; 240°C</strong>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-emerald-50/60 rounded-xl border border-emerald-200 text-xs space-y-1">
+                    <strong className="text-emerald-900 block font-bold">Resin Handling &amp; Drying Requirement:</strong>
+                    <p className="text-emerald-800">
+                      Pre-dry for hygroscopic polymers (e.g., PA6, PET, ABS, PC) at 80°C for 3-4 hours prior to injection hopper loading. For non-hygroscopic polyolefins (PP/HDPE), hopper loading with dehumidified air is recommended.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
