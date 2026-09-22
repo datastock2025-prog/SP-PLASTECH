@@ -119,6 +119,8 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
   if (!isOpen || !item) return null;
 
   const [form, setForm] = useState<ItemMaster>({ ...item });
+  const [activeTab, setActiveTab] = useState<'specs' | 'basic' | 'docs'>('specs');
+
   const isFgItem = form.type === 'Finished Good' || form.type === 'Semi-Finished Good';
   const firstTabTitle = isFgItem
     ? 'Tooling & Specs'
@@ -130,21 +132,9 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
     ? 'Packaging Specs'
     : 'Plant Asset Specs';
 
-  const [activeTab, setActiveTab] = useState<string>('Tooling & Specs');
-
   useEffect(() => {
     setForm({ ...item });
-    const isFg = item.type === 'Finished Good' || item.type === 'Semi-Finished Good';
-    const initTab = isFg
-      ? 'Tooling & Specs'
-      : item.type === 'Raw Material' || item.type === 'Regrind'
-      ? 'Resin & Rheology'
-      : item.type === 'Masterbatch' || item.type === 'Colorant' || item.type === 'Additive'
-      ? 'Color & Formulation'
-      : item.type === 'Packaging Material'
-      ? 'Packaging Specs'
-      : 'Plant Asset Specs';
-    setActiveTab(initTab);
+    setActiveTab('specs');
   }, [item]);
 
   const cycle = Number(form.standardCycleTime || form.cycleTime || 24.5);
@@ -224,6 +214,12 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
     onClose();
   };
 
+  const tabsList = [
+    { id: 'specs' as const, label: firstTabTitle },
+    { id: 'basic' as const, label: 'Basic & Stock' },
+    { id: 'docs' as const, label: `Documents${form.documents && form.documents.length > 0 ? ` (${form.documents.length})` : ''}` },
+  ];
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150 overflow-y-auto">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-3xl w-full my-auto overflow-hidden animate-in zoom-in-95 duration-150">
@@ -258,24 +254,25 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
 
         {/* Tab Navigation */}
         <div className="px-6 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
-          {([firstTabTitle, 'Basic & Stock', 'Documents'] as const).map((t) => (
+          {tabsList.map((t) => (
             <button
-              key={t}
-              onClick={() => setActiveTab(t)}
-              className={`py-2.5 px-3 text-xs font-bold border-b-2 transition-all ${
-                activeTab === t
-                  ? 'border-[#0F8B8D] text-[#0F8B8D] bg-white'
+              key={t.id}
+              type="button"
+              onClick={() => setActiveTab(t.id)}
+              className={`py-2.5 px-3 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                activeTab === t.id
+                  ? 'border-[#0F8B8D] text-[#0F8B8D] bg-white shadow-2xs'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              {t} {t === 'Documents' && form.documents && form.documents.length > 0 && `(${form.documents.length})`}
+              {t.label}
             </button>
           ))}
         </div>
 
         {/* Form Body */}
         <form onSubmit={handleSave} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto text-xs">
-          {activeTab === firstTabTitle && isFgItem && (
+          {activeTab === 'specs' && isFgItem && (
             <div className="space-y-4">
               {/* Injection Molding Tooling & Process Parameters Card */}
               <div className="p-4 rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50/40 via-white to-teal-50/30 space-y-3">
@@ -423,7 +420,7 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
             </div>
           )}
 
-          {activeTab === firstTabTitle && (form.type === 'Raw Material' || form.type === 'Regrind') && (
+          {activeTab === 'specs' && (form.type === 'Raw Material' || form.type === 'Regrind') && (
             <div className="space-y-4">
               <div className="p-4 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50/40 via-white to-teal-50/30 space-y-3">
                 <div className="flex items-center justify-between">
@@ -521,7 +518,7 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
             </div>
           )}
 
-          {activeTab === firstTabTitle && (form.type === 'Masterbatch' || form.type === 'Colorant' || form.type === 'Additive') && (
+          {activeTab === 'specs' && (form.type === 'Masterbatch' || form.type === 'Colorant' || form.type === 'Additive') && (
             <div className="space-y-4">
               <div className="p-4 rounded-xl border border-purple-200 bg-gradient-to-r from-purple-50/40 via-white to-pink-50/30 space-y-3">
                 <div className="flex items-center justify-between">
@@ -593,7 +590,7 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
             </div>
           )}
 
-          {activeTab === firstTabTitle && form.type === 'Packaging Material' && (
+          {activeTab === 'specs' && form.type === 'Packaging Material' && (
             <div className="space-y-4">
               <div className="p-4 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50/40 via-white to-orange-50/30 space-y-3">
                 <div className="flex items-center justify-between">
@@ -654,7 +651,7 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
             </div>
           )}
 
-          {activeTab === firstTabTitle && (form.type === 'Spare Part' || form.type === 'Consumable') && (
+          {activeTab === 'specs' && (form.type === 'Spare Part' || form.type === 'Consumable') && (
             <div className="space-y-4">
               <div className="p-4 rounded-xl border border-slate-300 bg-gradient-to-r from-slate-100 via-white to-indigo-50/30 space-y-3">
                 <div className="flex items-center justify-between">
@@ -715,7 +712,7 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
             </div>
           )}
 
-          {activeTab === 'Basic & Stock' && (
+          {activeTab === 'basic' && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -821,7 +818,7 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
             </div>
           )}
 
-          {activeTab === 'Documents' && (
+          {activeTab === 'docs' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
