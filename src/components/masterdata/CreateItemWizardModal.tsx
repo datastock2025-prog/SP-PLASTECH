@@ -552,6 +552,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   const [runnerWeight, setRunnerWeight] = useState<number | string>(
     editItem?.runnerWeightGrams ?? 0
   );
+  const [moldTool, setMoldTool] = useState<string>(editItem?.moldToolId || 'MOLD-001');
 
   // Computed Shot Weight Formula: Part Weight + Runner Weight = Single Shot Weight
   const numPartWeight = Number(partWeight) || 0;
@@ -730,6 +731,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
         setHsnCode(editItem.hsCode || '');
         setLeadTimeDays(editItem.leadTime ? parseInt(editItem.leadTime) : 0);
         setDocuments((editItem.documents as any) || []);
+        setMoldTool(editItem.moldToolId || 'MOLD-001');
       } else {
         // Clean blank slate for new live item entry
         setCurrentStep(1);
@@ -772,6 +774,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
         setStandardPurchasePrice(0);
         setDocuments([]);
         setIsDocDragging(false);
+        setMoldTool('MOLD-001');
         setHsnCode('');
         setLeadTimeDays(0);
         setPurchaseMoq(0);
