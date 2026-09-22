@@ -3177,7 +3177,12 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
 
         {/* Component Lines Table with Unique Formula Code and Core Material Summation */}
         {(() => {
-          const recipeCode = bom.recipeCode || bom.formulaCode || `RCP-${bom.id}-${bom.version || 'v1.0'}`;
+          const recipeCode = bom.recipeCode || bom.formulaCode || masterDataGovernanceService.generateFormulaRecipeId(
+            bom.parent || bom.id,
+            bom.parentName,
+            bom.version
+          );
+          const cleanVersion = (bom.version || '1.0').trim().replace(/^[vV]+/, '');
           
           const isAuxiliaryLine = (line: BomLine) => {
             const code = (line.item || '').toUpperCase();
@@ -3241,7 +3246,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                       <span>RECIPE / FORMULA ID: {recipeCode}</span>
                     </div>
                     <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100/70 text-blue-800 border border-blue-200">
-                      Linked to BOM {bom.id} (v{bom.version})
+                      Linked to BOM {bom.id} (v{cleanVersion})
                     </span>
                   </div>
                   <div className="text-xs text-gray-600 font-medium">

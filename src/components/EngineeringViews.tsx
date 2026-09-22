@@ -1756,7 +1756,12 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
 
               {/* Recipe Components Quick Overview Table with Unique Formula Code and Core Material Summation */}
               {(() => {
-                const recipeCode = quickModifyBom.recipeCode || quickModifyBom.formulaCode || `RCP-${quickModifyBom.id}-${quickModifyBom.version || 'v1.0'}`;
+                const recipeCode = quickModifyBom.recipeCode || quickModifyBom.formulaCode || masterDataGovernanceService.generateFormulaRecipeId(
+                  quickModifyBom.parent || quickModifyBom.id,
+                  quickModifyBom.parentName,
+                  quickModifyBom.version
+                );
+                const cleanVersion = (quickModifyBom.version || '1.0').trim().replace(/^[vV]+/, '');
                 
                 const isAuxiliaryLine = (line: BomLine) => {
                   const code = (line.item || '').toUpperCase();
@@ -1820,7 +1825,7 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
                             <span>RECIPE / FORMULA ID: {recipeCode}</span>
                           </div>
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100/70 text-blue-800 border border-blue-200">
-                            Linked to BOM {quickModifyBom.id} (v{quickModifyBom.version})
+                            Linked to BOM {quickModifyBom.id} (v{cleanVersion})
                           </span>
                         </div>
                         <div className="text-xs text-gray-500 font-medium">

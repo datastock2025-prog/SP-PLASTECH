@@ -1189,7 +1189,37 @@ class MasterDataGovernanceService {
 
   // ==========================================
   // Task 3: BOM Recipe Unique Identification Number Linked with Version Code
+  // Algorithm: Last 4 digits from item code + Description first letter & middle word first letter + version
   // ==========================================
+  public generateFormulaRecipeId(
+    itemCode: string = '',
+    itemName: string = '',
+    version: string = '1.0'
+  ): string {
+    // 1. Last 4 digits from item code
+    const digitsOnly = (itemCode || '').replace(/\D/g, '');
+    let last4Digits = digitsOnly.length >= 4 ? digitsOnly.slice(-4) : '';
+    if (!last4Digits) {
+      const alphanumeric = (itemCode || '').replace(/[^A-Za-z0-9]/g, '');
+      last4Digits = alphanumeric.slice(-4).padStart(4, '0').toUpperCase();
+    } else if (last4Digits.length < 4) {
+      last4Digits = last4Digits.padStart(4, '0');
+    }
+
+    // 2. First letter + Middle word first letter from description/name
+    const cleanName = (itemName || itemCode || 'Product').trim();
+    const words = cleanName.split(/[\s\-_/]+/).filter(Boolean);
+    const firstLetter = words[0]?.[0]?.toUpperCase() || 'F';
+    const midWordIndex = Math.floor(words.length / 2);
+    const midLetter = (words.length > 1 ? words[midWordIndex]?.[0] : (words[0]?.[1] || 'R')).toUpperCase();
+    const descAbbr = `${firstLetter}${midLetter}`;
+
+    // 3. Clean version string (e.g. 1.0 or 2.1)
+    const cleanVersion = (version || '1.0').trim().replace(/^[vV]+/, '');
+
+    return `FRM-${descAbbr}${last4Digits}-v${cleanVersion}`;
+  }
+
   public generateLinkedRecipeCode(
     version: string,
     components: Array<{ item?: string; name?: string; percentage?: number; dosageRate?: string; qty?: number }> = []
