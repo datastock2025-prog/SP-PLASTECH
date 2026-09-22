@@ -302,13 +302,6 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
                   <div className="text-xs text-gray-500">{parentItem.desc || parentItem.cat}</div>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsCreateItemModalOpen(true)}
-                className="text-xs text-[#0066CC] hover:underline font-semibold flex items-center gap-1 self-start sm:self-auto"
-              >
-                <Plus className="w-3.5 h-3.5" /> + Create Another Item
-              </button>
             </div>
 
             {/* Quick parameter readout pills */}

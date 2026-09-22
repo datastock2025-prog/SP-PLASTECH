@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { ManufacturingBomWizardState } from './types';
 import { BomDocument } from '../../../types';
 import {
@@ -14,6 +14,7 @@ import {
   AlertCircle,
   Tag,
   Paperclip,
+  ExternalLink,
 } from 'lucide-react';
 
 interface Step8Props {
@@ -26,6 +27,10 @@ export const Step8QualityDocs: React.FC<Step8Props> = ({ state, onChange, showTo
   const { qualityConfig, documents } = state;
 
   const [dragOver, setDragOver] = useState<boolean>(false);
+  const mainFileInputRef = useRef<HTMLInputElement>(null);
+  const partDrawingInputRef = useRef<HTMLInputElement>(null);
+  const moldSetupInputRef = useRef<HTMLInputElement>(null);
+  const packSpecInputRef = useRef<HTMLInputElement>(null);
 
   // Quick toggle critical quality params
   const ALL_PARAMS = [
@@ -49,21 +54,44 @@ export const Step8QualityDocs: React.FC<Step8Props> = ({ state, onChange, showTo
     });
   };
 
-  // Mock file upload
-  const handleSimulateUpload = (type: BomDocument['type'], name: string) => {
-    const newDoc: BomDocument = {
-      id: `DOC-${Date.now()}`,
-      name,
-      type,
-      version: 'v1.0',
-      effectiveDate: new Date().toISOString().split('T')[0],
-      uploadedBy: 'Priya Rao',
-      status: 'Active',
-      fileSize: '2.4 MB',
-      requiredForRelease: true,
-    };
-    onChange({ documents: [...documents, newDoc] });
-    showToast(`Attached ${name}`);
+  // Real live file upload handling from PC
+  const handleFileUpload = (files: FileList | File[] | null, defaultType?: BomDocument['type']) => {
+    if (!files || files.length === 0) return;
+
+    const newDocs: BomDocument[] = Array.from(files).map((file, idx) => {
+      const sizeStr =
+        file.size > 1024 * 1024
+          ? `${(file.size / (1024 * 1024)).toFixed(2)} MB`
+          : `${Math.round(file.size / 1024)} KB`;
+
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      let type: BomDocument['type'] = defaultType || 'Product Drawing';
+      if (!defaultType) {
+        if (ext === 'step' || ext === 'stp' || ext === 'dwg' || ext === 'dxf') {
+          type = 'Product Drawing';
+        } else if (file.name.toLowerCase().includes('mold') || file.name.toLowerCase().includes('setup')) {
+          type = 'Mold Setup Sheet';
+        } else if (file.name.toLowerCase().includes('pack')) {
+          type = 'Packaging Spec';
+        }
+      }
+
+      return {
+        id: `DOC-${Date.now()}-${idx}`,
+        name: file.name,
+        type,
+        version: state.bomVersion || 'v1.0',
+        effectiveDate: new Date().toISOString().split('T')[0],
+        uploadedBy: 'Current Engineer',
+        status: 'Active',
+        fileSize: sizeStr,
+        requiredForRelease: true,
+        link: URL.createObjectURL(file),
+      };
+    });
+
+    onChange({ documents: [...documents, ...newDocs] });
+    showToast(`✓ Attached ${newDocs.length} live file(s) from PC!`);
   };
 
   const handleRemoveDoc = (id: string) => {
@@ -74,10 +102,55 @@ export const Step8QualityDocs: React.FC<Step8Props> = ({ state, onChange, showTo
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto py-2">
+      {/* Hidden native file pickers for real PC upload */}
+      <input
+        type="file"
+        ref={mainFileInputRef}
+        onChange={(e) => {
+          handleFileUpload(e.target.files);
+          e.target.value = '';
+        }}
+        multiple
+        className="hidden"
+      />
+      <input
+        type="file"
+        ref={partDrawingInputRef}
+        onChange={(e) => {
+          handleFileUpload(e.target.files, 'Product Drawing');
+          e.target.value = '';
+        }}
+        multiple
+        accept=".pdf,.dwg,.dxf,.step,.stp,.png,.jpg,.jpeg"
+        className="hidden"
+      />
+      <input
+        type="file"
+        ref={moldSetupInputRef}
+        onChange={(e) => {
+          handleFileUpload(e.target.files, 'Mold Setup Sheet');
+          e.target.value = '';
+        }}
+        multiple
+        accept=".pdf,.xlsx,.xls,.docx,.doc,.png,.jpg"
+        className="hidden"
+      />
+      <input
+        type="file"
+        ref={packSpecInputRef}
+        onChange={(e) => {
+          handleFileUpload(e.target.files, 'Packaging Spec');
+          e.target.value = '';
+        }}
+        multiple
+        accept=".pdf,.docx,.doc,.xlsx,.xls,.png"
+        className="hidden"
+      />
+
       <div className="border-b border-[#E4E0D6] pb-2">
         <h3 className="text-sm font-bold text-[#14213D]">Quality Specifications &amp; Engineering Documents</h3>
         <p className="text-xs text-gray-500">
-          Set up inspection plan gates, critical plastic polymer tolerances, and attach technical drawings.
+          Set up inspection plan gates, critical plastic polymer tolerances, and attach technical drawings from PC.
         </p>
       </div>
 
@@ -270,7 +343,7 @@ export const Step8QualityDocs: React.FC<Step8Props> = ({ state, onChange, showTo
           </span>
         </div>
 
-        {/* Drag and Drop Simulator Area */}
+        {/* Drag and Drop Real PC File Area */}
         <div
           onDragOver={(e) => {
             e.preventDefault();
@@ -280,39 +353,42 @@ export const Step8QualityDocs: React.FC<Step8Props> = ({ state, onChange, showTo
           onDrop={(e) => {
             e.preventDefault();
             setDragOver(false);
-            handleSimulateUpload('Product Drawing', '2D_Part_Drawing_RevB.pdf');
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+              handleFileUpload(e.dataTransfer.files);
+            }
           }}
-          className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
-            dragOver ? 'border-[#E8622C] bg-orange-50/50' : 'border-[#E4E0D6] bg-[#F9F8F5]'
+          onClick={() => mainFileInputRef.current?.click()}
+          className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors cursor-pointer ${
+            dragOver ? 'border-[#E8622C] bg-orange-50/50' : 'border-[#E4E0D6] bg-[#F9F8F5] hover:border-[#E8622C]/70'
           }`}
         >
           <div className="w-10 h-10 rounded-full bg-white border border-[#E4E0D6] text-gray-600 flex items-center justify-center mx-auto mb-2 shadow-xs">
             <Upload className="w-4 h-4 text-[#E8622C]" />
           </div>
           <p className="text-xs font-bold text-[#14213D]">
-            Drag &amp; drop 2D/3D part drawings, mold setup sheets, or packaging specs here
+            Drag &amp; drop 2D/3D part drawings, mold setup sheets, or packaging specs here, or click to browse
           </p>
-          <p className="text-[11px] text-gray-400 mt-0.5">Supports PDF, DXF, STEP, PNG, DOCX up to 50MB</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">Supports PDF, DXF, STEP, PNG, DOCX, XLSX from your computer</p>
 
-          <div className="flex items-center justify-center gap-2 mt-3">
+          <div className="flex items-center justify-center gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
-              onClick={() => handleSimulateUpload('Product Drawing', '2D_Part_Drawing_RevB.pdf')}
-              className="btn btn-xs btn-ghost border-[#E4E0D6] text-[11px]"
+              onClick={() => partDrawingInputRef.current?.click()}
+              className="btn btn-xs bg-white hover:bg-orange-50 border border-[#E4E0D6] text-[#14213D] text-[11px] font-medium shadow-xs"
             >
               + Attach Part Drawing
             </button>
             <button
               type="button"
-              onClick={() => handleSimulateUpload('Mold Setup Sheet', 'Mold_Setup_Sheet_4Cav.pdf')}
-              className="btn btn-xs btn-ghost border-[#E4E0D6] text-[11px]"
+              onClick={() => moldSetupInputRef.current?.click()}
+              className="btn btn-xs bg-white hover:bg-orange-50 border border-[#E4E0D6] text-[#14213D] text-[11px] font-medium shadow-xs"
             >
               + Mold Setup Sheet
             </button>
             <button
               type="button"
-              onClick={() => handleSimulateUpload('Packaging Spec', 'Master_Carton_Pack_Spec.pdf')}
-              className="btn btn-xs btn-ghost border-[#E4E0D6] text-[11px]"
+              onClick={() => packSpecInputRef.current?.click()}
+              className="btn btn-xs bg-white hover:bg-orange-50 border border-[#E4E0D6] text-[#14213D] text-[11px] font-medium shadow-xs"
             >
               + Packaging Spec
             </button>
@@ -321,35 +397,34 @@ export const Step8QualityDocs: React.FC<Step8Props> = ({ state, onChange, showTo
 
         {/* Documents Table */}
         {documents.length === 0 ? (
-          /* Empty State with exact requested copy */
           <div className="text-center py-6 px-4 bg-[#F9F8F5] rounded-xl border border-[#E4E0D6] text-xs text-gray-500">
-            No documents attached. Attach drawings, setup sheets, packaging specs, or approval files.
+            No documents attached. Attach drawings, setup sheets, packaging specs, or approval files from your PC.
           </div>
         ) : (
           <div className="overflow-x-auto border border-[#E4E0D6] rounded-xl">
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="bg-[#F6F4EF] text-[#14213D] border-b border-[#E4E0D6] font-semibold text-[11px]">
-                  <th className="py-2 px-3">Document Name</th>
-                  <th className="py-2 px-3">Type</th>
-                  <th className="py-2 px-3">Version</th>
-                  <th className="py-2 px-3">Effective Date</th>
-                  <th className="py-2 px-3 text-center">Required for Release</th>
-                  <th className="py-2 px-3 text-center w-16">Action</th>
+                  <th className="py-2.5 px-3">Document Name</th>
+                  <th className="py-2.5 px-3">Type</th>
+                  <th className="py-2.5 px-3">Version</th>
+                  <th className="py-2.5 px-3">Effective Date</th>
+                  <th className="py-2.5 px-3 text-center">Required for Release</th>
+                  <th className="py-2.5 px-3 text-center w-24">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {documents.map((doc) => (
-                  <tr key={doc.id} className="hover:bg-gray-50">
-                    <td className="py-2 px-3 font-semibold text-[#14213D] flex items-center gap-2">
-                      <Paperclip className="w-3.5 h-3.5 text-gray-400" />
-                      {doc.name}
-                      <span className="text-[10px] text-gray-400 font-mono">({doc.fileSize})</span>
+                  <tr key={doc.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="py-2.5 px-3 font-semibold text-[#14213D] flex items-center gap-2">
+                      <Paperclip className="w-3.5 h-3.5 text-orange-600 flex-shrink-0" />
+                      <span className="truncate max-w-[240px]">{doc.name}</span>
+                      <span className="text-[10px] text-gray-400 font-mono flex-shrink-0">({doc.fileSize})</span>
                     </td>
-                    <td className="py-2 px-3 text-gray-600">{doc.type}</td>
-                    <td className="py-2 px-3 font-mono">{doc.version}</td>
-                    <td className="py-2 px-3 font-mono text-gray-600">{doc.effectiveDate}</td>
-                    <td className="py-2 px-3 text-center">
+                    <td className="py-2.5 px-3 text-gray-600 font-medium">{doc.type}</td>
+                    <td className="py-2.5 px-3 font-mono text-gray-700">{doc.version}</td>
+                    <td className="py-2.5 px-3 font-mono text-gray-600">{doc.effectiveDate}</td>
+                    <td className="py-2.5 px-3 text-center">
                       {doc.requiredForRelease ? (
                         <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                           Mandatory Gate
@@ -358,15 +433,29 @@ export const Step8QualityDocs: React.FC<Step8Props> = ({ state, onChange, showTo
                         <span className="text-[10px] text-gray-400">Optional</span>
                       )}
                     </td>
-                    <td className="py-2 px-3 text-center">
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveDoc(doc.id)}
-                        className="p-1 text-gray-400 hover:text-rose-600"
-                        title="Delete Document"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                    <td className="py-2.5 px-3 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        {doc.link && (
+                          <a
+                            href={doc.link}
+                            download={doc.name}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
+                            title="Download/Preview Document"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveDoc(doc.id)}
+                          className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded"
+                          title="Delete Document"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -378,3 +467,4 @@ export const Step8QualityDocs: React.FC<Step8Props> = ({ state, onChange, showTo
     </div>
   );
 };
+

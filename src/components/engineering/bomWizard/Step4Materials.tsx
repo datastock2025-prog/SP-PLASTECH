@@ -531,7 +531,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-[#E4E0D6] shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-[#F6F4EF] text-[#14213D] border-b border-[#E4E0D6] font-semibold text-[11px] uppercase tracking-wider">
