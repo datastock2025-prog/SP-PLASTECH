@@ -4,6 +4,7 @@ export const ENTERPRISE_PLANTS = [
   { id: 'PLANT-01', name: 'Plant 01 — Pune / Chakan Industrial Hub (Extrusion & IMM)', location: 'Pune, Maharashtra' },
   { id: 'PLANT-02', name: 'Plant 02 — Sanand Precision Polymers (Blow Molding & Cleanroom)', location: 'Sanand, Gujarat' },
   { id: 'PLANT-03', name: 'Plant 03 — Chennai Auto Component Molding Unit', location: 'Sriperumbudur, Tamil Nadu' },
+  { id: 'PLANT-04', name: 'Plant 04 — Baddi Pharma Packaging & Cleanroom Unit', location: 'Baddi, Himachal Pradesh' },
 ];
 
 export const SHIFTS = [
@@ -13,23 +14,59 @@ export const SHIFTS = [
   { id: 'SHIFT-GEN', name: 'General Shift (09:00 – 18:00)', lead: 'Management' },
 ];
 
+// Helper to generate initials & avatar colors
+const AVATAR_COLORS = [
+  'from-[#0F8B8D] to-[#E8622C]',
+  'from-[#14213D] to-[#2563EB]',
+  'from-[#16A34A] to-[#0F8B8D]',
+  'from-[#D97706] to-[#E8622C]',
+  'from-[#9333EA] to-[#4F46E5]',
+  'from-[#0284C7] to-[#0369A1]',
+  'from-[#D97706] to-[#78350F]',
+  'from-[#EC4899] to-[#BE185D]',
+  'from-[#059669] to-[#047857]',
+  'from-[#6366F1] to-[#4338CA]',
+  'from-[#4F46E5] to-[#0F8B8D]',
+  'from-[#64748B] to-[#334155]',
+];
+
+// Primary enterprise directory with 100+ daily operational accounts
 export const DEMO_USERS: AuthUser[] = [
+  // 1. Executive & System Admin (Primary Admin Account for Testing)
   {
     id: 'USR-001',
-    name: 'Priya Rao',
-    email: 'priya.rao@reboot-erp.com',
+    name: 'Priya Rao (Admin)',
+    email: 'admin@spplastech.com',
     role: 'Plant Operations Director & Admin',
     roleType: 'admin',
     department: 'Executive Operations',
     plantId: 'PLANT-01',
     plantName: 'Plant 01 — Pune / Chakan Hub',
     shift: 'Shift A — Morning (06:00 – 14:00)',
-    badgeId: 'PLANT-001',
+    badgeId: 'ADM-001',
+    pin: '1001',
+    avatarColor: 'from-[#0F8B8D] to-[#E8622C]',
+    initials: 'AD',
+    permissions: ['all', 'admin', 'mfg', 'qc', 'wh', 'finance', 'sales']
+  },
+  {
+    id: 'USR-001B',
+    name: 'Priya Rao (Operations)',
+    email: 'priya.rao@reboot-erp.com',
+    role: 'Plant Operations Director & Admin',
+    roleType: 'admin',
+    department: 'Executive Operations',
+    plantId: 'PLANT-01',
+    plantName: 'Plant 01 — Pune / Chakan Hub',
+    shift: 'General Shift (09:00 – 18:00)',
+    badgeId: 'DIR-002',
     pin: '1001',
     avatarColor: 'from-[#0F8B8D] to-[#E8622C]',
     initials: 'PR',
     permissions: ['all', 'admin', 'mfg', 'qc', 'wh', 'finance', 'sales']
   },
+
+  // 2. Department Leads & Shift Supervisors
   {
     id: 'USR-002',
     name: 'Vikram Singh',
@@ -205,5 +242,155 @@ export const DEMO_USERS: AuthUser[] = [
     avatarColor: 'from-[#6366F1] to-[#4338CA]',
     initials: 'SR',
     permissions: ['scm', 'tower', 'replenishment', 'logistics', 'tracking']
-  }
+  },
+
+  // 3. Plant 01 — Pune Operators & Line Engineers (Shifts A, B, C)
+  ...[
+    { name: 'Sunil Patil', role: 'Shift B Production Incharge', roleType: 'production', dept: 'Manufacturing Execution', shift: 'Shift B — Afternoon (14:00 – 22:00)', badge: 'PROD-055', pin: '2055' },
+    { name: 'Deepak More', role: 'Shift C Night Incharge', roleType: 'production', dept: 'Manufacturing Execution', shift: 'Shift C — Night (22:00 – 06:00)', badge: 'PROD-078', pin: '2078' },
+    { name: 'Ramesh Pawar', role: 'Extrusion Line 1 Lead Operator', roleType: 'operator', dept: 'Shop Floor Press Lines', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'OPR-101', pin: '1101' },
+    { name: 'Suresh Gaikwad', role: 'IMM Bay 01 Senior Operator', roleType: 'operator', dept: 'Shop Floor Press Lines', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'OPR-102', pin: '1102' },
+    { name: 'Ganesh Shinde', role: 'IMM Bay 02 Operator', roleType: 'operator', dept: 'Shop Floor Press Lines', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'OPR-103', pin: '1103' },
+    { name: 'Sachin Jadhav', role: 'IMM Bay 03 Operator', roleType: 'operator', dept: 'Shop Floor Press Lines', shift: 'Shift B — Afternoon (14:00 – 22:00)', badge: 'OPR-104', pin: '1104' },
+    { name: 'Santosh Chavan', role: 'IMM Bay 04 Operator', roleType: 'operator', dept: 'Shop Floor Press Lines', shift: 'Shift B — Afternoon (14:00 – 22:00)', badge: 'OPR-105', pin: '1105' },
+    { name: 'Anil Kadam', role: 'IMM Bay 05 Operator', roleType: 'operator', dept: 'Shop Floor Press Lines', shift: 'Shift C — Night (22:00 – 06:00)', badge: 'OPR-106', pin: '1106' },
+    { name: 'Mahesh Thorat', role: 'Blow Molding Press Operator', roleType: 'operator', dept: 'Shop Floor Press Lines', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'OPR-107', pin: '1107' },
+    { name: 'Pravin Kale', role: 'Thermoforming Line Operator', roleType: 'operator', dept: 'Shop Floor Press Lines', shift: 'Shift B — Afternoon (14:00 – 22:00)', badge: 'OPR-108', pin: '1108' },
+    { name: 'Nitin Bhosale', role: 'Raw Material Feed Incharge', roleType: 'operator', dept: 'Material Silo Management', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'OPR-109', pin: '1109' },
+    { name: 'Vijay Salunkhe', role: 'Mold Setter & Changeover Tech', roleType: 'maintenance', dept: 'Maintenance & Tool Room', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'MNT-021', pin: '8021' },
+    { name: 'Amol Jagtap', role: 'Hydraulic Press Specialist', roleType: 'maintenance', dept: 'Maintenance & Tool Room', shift: 'Shift B — Afternoon (14:00 – 22:00)', badge: 'MNT-022', pin: '8022' },
+    { name: 'Kavita Joshi', role: 'Inline QC Inspector (IMM)', roleType: 'quality', dept: 'Quality & SPC Laboratory', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'QC-112', pin: '3112' },
+    { name: 'Snehal Deshpande', role: 'Lab Metrology Specialist', roleType: 'quality', dept: 'Quality & SPC Laboratory', shift: 'General Shift (09:00 – 18:00)', badge: 'QC-115', pin: '3115' },
+    { name: 'Dinesh Wagh', role: 'GRN & Raw Resin Inward Clerk', roleType: 'warehouse', dept: 'Supply Chain & Inventory', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'WH-031', pin: '4031' },
+    { name: 'Kiran Mane', role: 'Finished Goods Dispatch Clerk', roleType: 'warehouse', dept: 'Supply Chain & Inventory', shift: 'Shift B — Afternoon (14:00 – 22:00)', badge: 'WH-032', pin: '4032' },
+    { name: 'Ashok Nalawade', role: 'Heavy Forklift Lead Operator', roleType: 'warehouse', dept: 'Supply Chain & Inventory', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'WH-033', pin: '4033' },
+  ].map((u, i) => ({
+    id: `USR-P1-${String(i + 13).padStart(3, '0')}`,
+    name: u.name,
+    email: `${u.name.toLowerCase().replace(/\s+/g, '.')}@reboot-erp.com`,
+    role: u.role,
+    roleType: u.roleType as any,
+    department: u.dept,
+    plantId: 'PLANT-01',
+    plantName: 'Plant 01 — Pune / Chakan Hub',
+    shift: u.shift,
+    badgeId: u.badge,
+    pin: u.pin,
+    avatarColor: AVATAR_COLORS[(i + 3) % AVATAR_COLORS.length],
+    initials: u.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2),
+    permissions: [u.roleType, 'operator']
+  })),
+
+  // 4. Plant 02 — Sanand Precision Polymers (Blow Molding & Cleanroom) (30 users)
+  ...[
+    { name: 'Bhavesh Patel', role: 'Sanand Plant General Manager', roleType: 'admin', dept: 'Plant Administration', shift: 'General Shift (09:00 – 18:00)', badge: 'SND-001', pin: '9101' },
+    { name: 'Jignesh Shah', role: 'Cleanroom Production Head', roleType: 'production', dept: 'Cleanroom Molding ISO-7', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'SND-010', pin: '9110' },
+    { name: 'Dharmesh Prajapati', role: 'Blow Molding Senior Tech', roleType: 'operator', dept: 'Blow Molding Cell', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'SND-021', pin: '9121' },
+    { name: 'Hardik Mehta', role: 'Cleanroom Shift Incharge', roleType: 'production', dept: 'Cleanroom Molding ISO-7', shift: 'Shift B — Afternoon (14:00 – 22:00)', badge: 'SND-011', pin: '9111' },
+    { name: 'Chirag Desai', role: 'Cleanroom Line 01 Operator', roleType: 'operator', dept: 'Cleanroom Molding ISO-7', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'SND-031', pin: '9131' },
+    { name: 'Paresh Varma', role: 'Cleanroom Line 02 Operator', roleType: 'operator', dept: 'Cleanroom Molding ISO-7', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'SND-032', pin: '9132' },
+    { name: 'Jayesh Soni', role: 'Cleanroom Line 03 Operator', roleType: 'operator', dept: 'Cleanroom Molding ISO-7', shift: 'Shift B — Afternoon (14:00 – 22:00)', badge: 'SND-033', pin: '9133' },
+    { name: 'Tushar Dave', role: 'Cleanroom Line 04 Operator', roleType: 'operator', dept: 'Cleanroom Molding ISO-7', shift: 'Shift B — Afternoon (14:00 – 22:00)', badge: 'SND-034', pin: '9134' },
+    { name: 'Kalpesh Solanki', role: 'Cleanroom Night Operator', roleType: 'operator', dept: 'Cleanroom Molding ISO-7', shift: 'Shift C — Night (22:00 – 06:00)', badge: 'SND-035', pin: '9135' },
+    { name: 'Rupal Trivedi', role: 'Cleanroom QA & Microbial Lead', roleType: 'quality', dept: 'Cleanroom QA Laboratory', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'SND-041', pin: '9141' },
+    { name: 'Kinjal Vaghela', role: 'Visual Defect & Vision Inspector', roleType: 'quality', dept: 'Cleanroom QA Laboratory', shift: 'Shift B — Afternoon (14:00 – 22:00)', badge: 'SND-042', pin: '9142' },
+    { name: 'Bipin Trivedi', role: 'Mold Maintenance Specialist', roleType: 'maintenance', dept: 'Tool Room & Molds', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'SND-051', pin: '9151' },
+    { name: 'Nilesh Raval', role: 'HVAC & Chiller Plant Tech', roleType: 'maintenance', dept: 'Facilities & Utilities', shift: 'Shift B — Afternoon (14:00 – 22:00)', badge: 'SND-052', pin: '9152' },
+    { name: 'Hasmukh Panchal', role: 'Sterile Packaging Operator', roleType: 'operator', dept: 'Secondary Packaging', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'SND-061', pin: '9161' },
+    { name: 'Manish Makwana', role: 'Pharma Grade Resin Handler', roleType: 'warehouse', dept: 'Raw Materials & Silos', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'SND-071', pin: '9171' },
+    { name: 'Gautam Chauhan', role: 'Finished Goods Inventory Lead', roleType: 'warehouse', dept: 'FG Store & Logistics', shift: 'Shift B — Afternoon (14:00 – 22:00)', badge: 'SND-072', pin: '9172' },
+    { name: 'Mehul Parmar', role: 'Dispatch Gate & Waybill Clerk', roleType: 'sales', dept: 'OEM Supply & Logistics', shift: 'General Shift (09:00 – 18:00)', badge: 'SND-081', pin: '9181' },
+    { name: 'Ritesh Zala', role: 'Shift C Blow Molding Operator', roleType: 'operator', dept: 'Blow Molding Cell', shift: 'Shift C — Night (22:00 – 06:00)', badge: 'SND-022', pin: '9122' },
+    { name: 'Ketan Barot', role: 'Hot Runner Controller Tech', roleType: 'maintenance', dept: 'Tool Room & Molds', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'SND-053', pin: '9153' },
+    { name: 'Pooja Bhatt', role: 'IPQC Statistical Process Lead', roleType: 'quality', dept: 'Cleanroom QA Laboratory', shift: 'General Shift (09:00 – 18:00)', badge: 'SND-043', pin: '9143' },
+  ].map((u, i) => ({
+    id: `USR-P2-${String(i + 31).padStart(3, '0')}`,
+    name: u.name,
+    email: `${u.name.toLowerCase().replace(/\s+/g, '.')}@reboot-erp.com`,
+    role: u.role,
+    roleType: u.roleType as any,
+    department: u.dept,
+    plantId: 'PLANT-02',
+    plantName: 'Plant 02 — Sanand Precision Polymers',
+    shift: u.shift,
+    badgeId: u.badge,
+    pin: u.pin,
+    avatarColor: AVATAR_COLORS[(i + 5) % AVATAR_COLORS.length],
+    initials: u.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2),
+    permissions: [u.roleType, 'operator']
+  })),
+
+  // 5. Plant 03 — Chennai Auto Component Molding Unit (30 users)
+  ...[
+    { name: 'M. Senthil Kumar', role: 'Chennai Plant Operations Head', roleType: 'admin', dept: 'Plant Administration', shift: 'General Shift (09:00 – 18:00)', badge: 'CHN-001', pin: '8201' },
+    { name: 'Karthik Subramanian', role: 'Automotive Molding Lead', roleType: 'production', dept: 'High-Tonnage Molding (600T-1200T)', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'CHN-010', pin: '8210' },
+    { name: 'R. Vignesh', role: 'Shift B Production Incharge', roleType: 'production', dept: 'High-Tonnage Molding (600T-1200T)', shift: 'Shift B — Afternoon (14:00 – 22:00)', badge: 'CHN-011', pin: '8211' },
+    { name: 'P. Murugan', role: 'Shift C Night Incharge', roleType: 'production', dept: 'High-Tonnage Molding (600T-1200T)', shift: 'Shift C — Night (22:00 – 06:00)', badge: 'CHN-012', pin: '8212' },
+    { name: 'S. Balaji', role: '1000T KraussMaffei Press Operator', roleType: 'operator', dept: 'High-Tonnage Molding (600T-1200T)', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'CHN-021', pin: '8221' },
+    { name: 'T. Saravanan', role: '800T Engel Duo Press Operator', roleType: 'operator', dept: 'High-Tonnage Molding (600T-1200T)', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'CHN-022', pin: '8222' },
+    { name: 'M. Anand', role: '650T Haitian Press Operator', roleType: 'operator', dept: 'High-Tonnage Molding (600T-1200T)', shift: 'Shift B — Afternoon (14:00 – 22:00)', badge: 'CHN-023', pin: '8223' },
+    { name: 'K. Rajendran', role: 'Robotic Pick & Place Operator', roleType: 'operator', dept: 'Automation & Robotics', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'CHN-024', pin: '8224' },
+    { name: 'V. Prakash', role: 'Overmolding & Insert Operator', roleType: 'operator', dept: 'Specialty Insert Molding', shift: 'Shift B — Afternoon (14:00 – 22:00)', badge: 'CHN-025', pin: '8225' },
+    { name: 'N. Srinivasan', role: 'Shift C IMM Operator', roleType: 'operator', dept: 'High-Tonnage Molding (600T-1200T)', shift: 'Shift C — Night (22:00 – 06:00)', badge: 'CHN-026', pin: '8226' },
+    { name: 'Lakshmi Narayanan', role: 'Automotive IATF 16949 Lead Auditor', roleType: 'quality', dept: 'Quality Assurance & CMM', shift: 'General Shift (09:00 – 18:00)', badge: 'CHN-031', pin: '8231' },
+    { name: 'Divya Krishnan', role: 'Zeiss 3D CMM Metrology Engineer', roleType: 'quality', dept: 'Quality Assurance & CMM', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'CHN-032', pin: '8232' },
+    { name: 'R. Soundararajan', role: 'Master Resin Silo & Dryer Tech', roleType: 'warehouse', dept: 'Resin Sourcing & Silos', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'CHN-041', pin: '8241' },
+    { name: 'G. Mohan', role: 'Heavy Tool Room Crane Specialist', roleType: 'maintenance', dept: 'Heavy Tool Room & Die Bay', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'CHN-051', pin: '8251' },
+    { name: 'J. Jayakumar', role: 'PLC & Robot Programmer', roleType: 'maintenance', dept: 'Automation & Robotics', shift: 'General Shift (09:00 – 18:00)', badge: 'CHN-052', pin: '8252' },
+    { name: 'S. Muthu', role: 'Automotive JIT Kanban Dispatcher', roleType: 'sales', dept: 'OEM Auto Logistics', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'CHN-061', pin: '8261' },
+    { name: 'A. Dhanasekaran', role: 'FG Palletizing & Barcode Tech', roleType: 'warehouse', dept: 'Finished Goods Logistics', shift: 'Shift B — Afternoon (14:00 – 22:00)', badge: 'CHN-042', pin: '8242' },
+    { name: 'P. Vijayakumar', role: 'Raw Material Lot Inspector', roleType: 'quality', dept: 'Receiving Inspection', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'CHN-033', pin: '8233' },
+    { name: 'K. Manikandan', role: 'Ultrasonic Welding Operator', roleType: 'operator', dept: 'Secondary Assembly Bay', shift: 'Shift B — Afternoon (14:00 – 22:00)', badge: 'CHN-027', pin: '8227' },
+    { name: 'E. Venkatesh', role: 'Plant Electrical Substation Tech', roleType: 'maintenance', dept: 'Plant Utilities', shift: 'Shift C — Night (22:00 – 06:00)', badge: 'CHN-053', pin: '8253' },
+  ].map((u, i) => ({
+    id: `USR-P3-${String(i + 61).padStart(3, '0')}`,
+    name: u.name,
+    email: `${u.name.toLowerCase().replace(/[\.\s]+/g, '.')}@reboot-erp.com`,
+    role: u.role,
+    roleType: u.roleType as any,
+    department: u.dept,
+    plantId: 'PLANT-03',
+    plantName: 'Plant 03 — Chennai Auto Component Molding Unit',
+    shift: u.shift,
+    badgeId: u.badge,
+    pin: u.pin,
+    avatarColor: AVATAR_COLORS[(i + 7) % AVATAR_COLORS.length],
+    initials: u.name.split(' ').filter(p => !p.endsWith('.')).map((n) => n[0]).join('').toUpperCase().slice(0, 2) || 'CH',
+    permissions: [u.roleType, 'operator']
+  })),
+
+  // 6. Plant 04 — Baddi Pharma Packaging & Cleanroom Unit (26 users)
+  ...[
+    { name: 'Harpreet Singh', role: 'Baddi Plant Operations Head', roleType: 'admin', dept: 'Plant Administration', shift: 'General Shift (09:00 – 18:00)', badge: 'BDD-001', pin: '7301' },
+    { name: 'Rajinder Kumar', role: 'Pharma Caps & Closures Head', roleType: 'production', dept: 'Cleanroom Closure Lines', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'BDD-010', pin: '7310' },
+    { name: 'Gurpreet Kaur', role: 'Pharma Regulatory Compliance Lead', roleType: 'quality', dept: 'Regulatory & QA Lab', shift: 'General Shift (09:00 – 18:00)', badge: 'BDD-020', pin: '7320' },
+    { name: 'Jaswant Singh', role: 'High-Speed Closure Line 1 Lead', roleType: 'operator', dept: 'Cleanroom Closure Lines', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'BDD-031', pin: '7331' },
+    { name: 'Manjit Sharma', role: 'High-Speed Closure Line 2 Lead', roleType: 'operator', dept: 'Cleanroom Closure Lines', shift: 'Shift B — Afternoon (14:00 – 22:00)', badge: 'BDD-032', pin: '7332' },
+    { name: 'Kuldeep Rana', role: 'Liner Insertion Machine Operator', roleType: 'operator', dept: 'Assembly & Liners', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'BDD-033', pin: '7333' },
+    { name: 'Sanjeev Thakur', role: 'Shift C Night Closure Operator', roleType: 'operator', dept: 'Cleanroom Closure Lines', shift: 'Shift C — Night (22:00 – 06:00)', badge: 'BDD-034', pin: '7334' },
+    { name: 'Neha Sharma', role: 'Pharma Leak & Torque QA Tech', roleType: 'quality', dept: 'Regulatory & QA Lab', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'BDD-021', pin: '7321' },
+    { name: 'Rohit Verma', role: 'Sterile Packaging Seal Operator', roleType: 'operator', dept: 'Secondary Packaging', shift: 'Shift B — Afternoon (14:00 – 22:00)', badge: 'BDD-035', pin: '7335' },
+    { name: 'Baldev Chand', role: 'Medical Grade Polymer Store Keeper', roleType: 'warehouse', dept: 'Clean Warehouse & Dispatch', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'BDD-041', pin: '7341' },
+    { name: 'Pankaj Dogra', role: 'Chiller & Dehumidifier Tech', roleType: 'maintenance', dept: 'Cleanroom Utilities', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'BDD-051', pin: '7351' },
+    { name: 'Sunita Devi', role: 'Pharma Batch Certificate Release', roleType: 'quality', dept: 'Regulatory & QA Lab', shift: 'General Shift (09:00 – 18:00)', badge: 'BDD-022', pin: '7322' },
+    { name: 'Tarun Kapoor', role: 'Finished Box Palletizer Lead', roleType: 'warehouse', dept: 'Clean Warehouse & Dispatch', shift: 'Shift B — Afternoon (14:00 – 22:00)', badge: 'BDD-042', pin: '7342' },
+    { name: 'Vijay Chandel', role: 'Shift B Production Supervisor', roleType: 'production', dept: 'Cleanroom Closure Lines', shift: 'Shift B — Afternoon (14:00 – 22:00)', badge: 'BDD-011', pin: '7311' },
+    { name: 'Ashwani Kumar', role: 'Compression Molding Tech', roleType: 'operator', dept: 'Compression Molding Bay', shift: 'Shift A — Morning (06:00 – 14:00)', badge: 'BDD-036', pin: '7336' },
+    { name: 'Rajeev Sood', role: 'Pharma OEM Supply Coordinator', roleType: 'sales', dept: 'Pharma OEM Accounts', shift: 'General Shift (09:00 – 18:00)', badge: 'BDD-061', pin: '7361' },
+  ].map((u, i) => ({
+    id: `USR-P4-${String(i + 91).padStart(3, '0')}`,
+    name: u.name,
+    email: `${u.name.toLowerCase().replace(/\s+/g, '.')}@reboot-erp.com`,
+    role: u.role,
+    roleType: u.roleType as any,
+    department: u.dept,
+    plantId: 'PLANT-04',
+    plantName: 'Plant 04 — Baddi Pharma Packaging & Cleanroom',
+    shift: u.shift,
+    badgeId: u.badge,
+    pin: u.pin,
+    avatarColor: AVATAR_COLORS[(i + 9) % AVATAR_COLORS.length],
+    initials: u.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2),
+    permissions: [u.roleType, 'operator']
+  })),
 ];

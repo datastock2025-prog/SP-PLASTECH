@@ -86,8 +86,8 @@ import {
 } from './types';
 
 export const App: React.FC = () => {
-  // Authentication & Session State (Security Directive: in-memory state; no tokens in localStorage)
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => DEMO_USERS[0]);
+  // Authentication & Session State (Security Directive: in-memory state; mandatory login gate entry point)
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => null);
   const [lastLoggedOutUser, setLastLoggedOutUser] = useState<AuthUser | null>(null);
 
   // Current active navigation view
