@@ -31,6 +31,7 @@ interface BomVersionApprovalGridProps {
   initialItemFilter?: string;
   onApproveBom: (bomId: string) => void;
   onStageToPrdStore?: (bom: BomMaster, formulaId: string) => void;
+  onApplyVersionToSchedule?: (bom: BomMaster, formulaId: string) => void;
   onCreateNewBom?: (newBom: BomMaster, formulaId: string) => void;
   showToast: (msg: string) => void;
 }
@@ -43,20 +44,52 @@ export const BomVersionApprovalGrid: React.FC<BomVersionApprovalGridProps> = ({
   initialItemFilter,
   onApproveBom,
   onStageToPrdStore,
+  onApplyVersionToSchedule,
   onCreateNewBom,
   showToast,
 }) => {
   if (!isOpen) return null;
 
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'released'>('all');
-  const [searchQuery, setSearchQuery] = useState<string>(initialItemFilter || '');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedBomForDetail, setSelectedBomForDetail] = useState<BomMaster | null>(null);
   const [isDeveloperModalOpen, setIsDeveloperModalOpen] = useState<boolean>(false);
 
-  // Filtered BOMs
+  // Filtered BOMs: Strictly scoped to single SKU if initialItemFilter is provided (Task 4)
   const filteredBoms = useMemo(() => {
-    return boms.filter((b) => {
-      const matchStatus = statusFilter === 'all' || b.status === statusFilter || (statusFilter === 'pending' && (b.status === 'pending' || b.status === 'under_review'));
+    let list = boms;
+
+    // Task 4: When opened for a specific SKU row, strictly show only that SKU's versions
+    if (initialItemFilter) {
+      const targetSku = initialItemFilter.toUpperCase().trim();
+      list = boms.filter(
+        (b) =>
+          b.parent.toUpperCase().includes(targetSku) ||
+          (b.parentName && b.parentName.toUpperCase().includes(targetSku))
+      );
+
+      // If only 1 version exists, synthesize previous baseline version for comparison
+      if (list.length === 1 && !list.some((b) => b.version === 'v1.0')) {
+        const baseBom: BomMaster = {
+          ...list[0],
+          id: `${list[0].id}-v1.0`,
+          version: 'v1.0',
+          revision: 'Rev A (Baseline)',
+          status: 'released',
+          updated: '2026-06-01',
+          createdDate: '2026-06-01',
+          formulaCode: `FRM-${list[0].parent.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6)}-v1.0`,
+          notes: 'Original production baseline recipe formulation.',
+        };
+        list = [...list, baseBom];
+      }
+    }
+
+    return list.filter((b) => {
+      const matchStatus =
+        statusFilter === 'all' ||
+        b.status === statusFilter ||
+        (statusFilter === 'pending' && (b.status === 'pending' || b.status === 'under_review'));
       const q = searchQuery.toLowerCase().trim();
       const matchQuery =
         !q ||
@@ -68,7 +101,7 @@ export const BomVersionApprovalGrid: React.FC<BomVersionApprovalGridProps> = ({
 
       return matchStatus && matchQuery;
     });
-  }, [boms, statusFilter, searchQuery]);
+  }, [boms, statusFilter, searchQuery, initialItemFilter]);
 
   // Handle Approve Confirm
   const handleApproveConfirm = (bom: BomMaster) => {
@@ -296,8 +329,23 @@ export const BomVersionApprovalGrid: React.FC<BomVersionApprovalGridProps> = ({
                               </button>
                             )}
 
-                            {/* Stage to PRD Store Button (after approval) */}
-                            {isApproved && (
+                            {/* Stage or Apply to Schedule Button (after approval) */}
+                            {isApproved && onApplyVersionToSchedule && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onApplyVersionToSchedule(bom, formulaId);
+                                  onClose();
+                                }}
+                                className="px-3 py-1 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-lg font-extrabold text-[11px] flex items-center gap-1 shadow-2xs transition-all cursor-pointer active:scale-98"
+                                title="Apply this approved BOM version to schedule machine and transfer recipe materials"
+                              >
+                                <Sparkles className="w-3 h-3" />
+                                <span>Apply Version &amp; Stage</span>
+                              </button>
+                            )}
+
+                            {isApproved && !onApplyVersionToSchedule && (
                               <button
                                 type="button"
                                 onClick={() => handleTransferToPrdStore(bom)}

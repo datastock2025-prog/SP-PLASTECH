@@ -35,6 +35,7 @@ interface BomVersionRecipeDeveloperModalProps {
   onClose: () => void;
   items: ItemMaster[];
   initialItemCode?: string;
+  initialItemName?: string;
   initialBom?: BomMaster | null;
   onSubmitForApproval: (newBom: BomMaster, formulaId: string) => void;
   showToast: (msg: string) => void;
@@ -45,42 +46,42 @@ export const BomVersionRecipeDeveloperModal: React.FC<BomVersionRecipeDeveloperM
   onClose,
   items,
   initialItemCode,
+  initialItemName,
   initialBom,
   onSubmitForApproval,
   showToast,
 }) => {
   if (!isOpen) return null;
 
-  // Selected Parent Finished Good / Molded Part
-  const [selectedParentCode, setSelectedParentCode] = useState<string>(
-    initialItemCode || initialBom?.parent || items.find((i) => i.type === 'Finished Good' || i.type === 'Semi-Finished Good')?.code || 'FG-CTN-500'
-  );
+  // Selected Parent Finished Good / Molded Part (Strictly bound to row item)
+  const selectedParentCode = initialItemCode || initialBom?.parent || 'FG-CTN-500';
 
   const parentItem = useMemo(() => {
-    return items.find((i) => i.code === selectedParentCode) || ({
+    const found = items.find((i) => i.code === selectedParentCode);
+    return {
       code: selectedParentCode,
-      name: 'Standard Molded Product',
-      type: 'Finished Good',
-      baseUOM: 'PCS',
-    } as ItemMaster);
-  }, [items, selectedParentCode]);
+      name: initialItemName || found?.name || (selectedParentCode === 'FG-CTN-500' ? 'Plastic Container 500ml (PP Food Grade)' : selectedParentCode === 'FG-BKT-010' ? 'Household Bucket 10L (Virgin Grade Red)' : selectedParentCode === 'FG-PAL-010' ? 'Plastic Pallet Heavy Duty (Reinforced HDPE)' : 'Molded Plastic Component'),
+      type: found?.type || 'Finished Good',
+      baseUOM: found?.baseUOM || 'PCS',
+    } as ItemMaster;
+  }, [items, selectedParentCode, initialItemName]);
 
-  // Version Name Input
+  // Version Name Input - Auto increment from current version
   const [versionTag, setVersionTag] = useState<string>(() => {
     if (initialBom?.version) {
       const vNum = parseFloat(initialBom.version.replace(/[^0-9.]/g, '')) || 1.0;
       return `v${(vNum + 0.1).toFixed(1)} (Custom Blend)`;
     }
-    return 'v2.0 (High-Performance Regrind Blend)';
+    return 'v1.1 (Optimized Recipe Blend)';
   });
 
   const [revisionNotes, setRevisionNotes] = useState<string>(
-    'Optimized polymer blend with 15% regrind ratio & UV stabilizer for improved tensile strength.'
+    'Optimized polymer blend with 12.8% regrind ratio & UV stabilizer for improved tensile strength and cost efficiency.'
   );
 
   const [batchBaseQty, setBatchBaseQty] = useState<number>(1000); // Base calculation reference batch
 
-  // Initial Recipe Draft Lines
+  // Initial Recipe Draft Lines (Pre-populated from BOM or item profile)
   const [recipeLines, setRecipeLines] = useState<BomRecipeLineDraft[]>(() => {
     if (initialBom?.lines && initialBom.lines.length > 0) {
       return initialBom.lines.map((l, idx) => {
@@ -114,14 +115,52 @@ export const BomVersionRecipeDeveloperModal: React.FC<BomVersionRecipeDeveloperM
       });
     }
 
-    // Default template recipe lines
+    // Default template recipe lines based on SKU
+    if (selectedParentCode.includes('BKT')) {
+      return [
+        {
+          id: 'line-1',
+          itemCode: 'RAW-HD-INJ-002',
+          itemName: 'High-Density Polyethylene (HDPE) Injection Grade',
+          materialType: 'Raw Polymer',
+          qtyPerUnit: 0.28,
+          uom: 'KG',
+          scrapPct: 1.5,
+          unitCostInr: 108.0,
+          lotNumber: 'LOT-HDPE-2026-002',
+        },
+        {
+          id: 'line-2',
+          itemCode: 'MB-RED-001',
+          itemName: 'Signal Red Masterbatch 2.5%',
+          materialType: 'Masterbatch',
+          qtyPerUnit: 0.007,
+          uom: 'KG',
+          scrapPct: 0.5,
+          unitCostInr: 240.0,
+          lotNumber: 'LOT-MB-RED-01',
+        },
+        {
+          id: 'line-3',
+          itemCode: 'RG-HD-001',
+          itemName: 'Clean In-House HDPE Regrind',
+          materialType: 'Regrind',
+          qtyPerUnit: 0.02,
+          uom: 'KG',
+          scrapPct: 1.0,
+          unitCostInr: 42.0,
+          lotNumber: 'LOT-RG-HD-01',
+        },
+      ];
+    }
+
     return [
       {
         id: 'line-1',
         itemCode: 'RAW-PP-INJ-001',
         itemName: 'Polypropylene Copolymer (PPCP) Repol H030SG',
         materialType: 'Raw Polymer',
-        qtyPerUnit: 0.038, // 38g
+        qtyPerUnit: 0.0425, // 42.5g
         uom: 'KG',
         scrapPct: 1.5,
         unitCostInr: 112.5,
@@ -129,36 +168,36 @@ export const BomVersionRecipeDeveloperModal: React.FC<BomVersionRecipeDeveloperM
       },
       {
         id: 'line-2',
-        itemCode: 'RG-PP-011',
-        itemName: 'Clean In-House PP Regrind Flakes (4mm)',
-        materialType: 'Regrind',
-        qtyPerUnit: 0.006, // 6g (15% Regrind Blend)
-        uom: 'KG',
-        scrapPct: 1.0,
-        unitCostInr: 45.0,
-        lotNumber: 'LOT-RG-2026-09',
-      },
-      {
-        id: 'line-3',
         itemCode: 'MB-BLU-001',
-        itemName: 'Cyan Blue Masterbatch 2%',
+        itemName: 'Cyan Blue Masterbatch (TiO2 60%)',
         materialType: 'Masterbatch',
-        qtyPerUnit: 0.0008, // 0.8g (2% MB)
+        qtyPerUnit: 0.0012, // 1.2g
         uom: 'KG',
         scrapPct: 0.5,
         unitCostInr: 220.0,
         lotNumber: 'LOT-MB-CYAN-09',
       },
       {
-        id: 'line-4',
-        itemCode: 'PK-CTN-021',
-        itemName: 'Heavy Duty 5-Ply Corrugated Master Carton (200 pcs/box)',
-        materialType: 'Packaging',
-        qtyPerUnit: 0.005,
-        uom: 'NOS',
+        id: 'line-3',
+        itemCode: 'AD-UV-STAB-003',
+        itemName: 'UV Stabilizer & Clarifier Additive',
+        materialType: 'Additive',
+        qtyPerUnit: 0.0004, // 0.4g
+        uom: 'KG',
         scrapPct: 0.2,
-        unitCostInr: 24.0,
-        lotNumber: 'LOT-CTN-2026-88',
+        unitCostInr: 340.0,
+        lotNumber: 'LOT-AD-UV-01',
+      },
+      {
+        id: 'line-4',
+        itemCode: 'RG-PP-CLN-010',
+        itemName: 'Clean PP Regrind (Internal Sprues / Runners)',
+        materialType: 'Regrind',
+        qtyPerUnit: 0.0065, // 6.5g
+        uom: 'KG',
+        scrapPct: 2.0,
+        unitCostInr: 45.0,
+        lotNumber: 'LOT-RG-PP-01',
       },
     ];
   });
@@ -338,25 +377,27 @@ export const BomVersionRecipeDeveloperModal: React.FC<BomVersionRecipeDeveloperM
 
         {/* Configuration Cockpit */}
         <div className="p-4 bg-slate-50 border-b border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-          {/* Target Part */}
-          <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs space-y-1.5">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-              Target Molded Part / SKU
-            </label>
-            <select
-              value={selectedParentCode}
-              onChange={(e) => setSelectedParentCode(e.target.value)}
-              className="w-full px-2 py-1.5 rounded-xl border border-slate-300 bg-white font-bold text-slate-900 text-xs focus:ring-1 focus:ring-cyan-500"
-            >
-              {items
-                .filter((i) => i.type === 'Finished Good' || i.type === 'Semi-Finished Good')
-                .map((item) => (
-                  <option key={item.code} value={item.code}>
-                    {item.code} &mdash; {item.name}
-                  </option>
-                ))}
-            </select>
-            <div className="text-[10px] text-slate-500 truncate">{parentItem.name}</div>
+          {/* Target Part (Locked to Machine Row SKU) */}
+          <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Target Molded Part / SKU
+              </label>
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                Row Bound
+              </span>
+            </div>
+            <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+              <div className="w-7 h-7 rounded-lg bg-cyan-100 text-cyan-800 flex items-center justify-center font-bold text-xs shrink-0">
+                <Package className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="font-mono font-black text-slate-900 text-xs truncate">{selectedParentCode}</div>
+                <div className="text-[10px] text-slate-500 font-medium truncate" title={parentItem.name}>
+                  {parentItem.name}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* New BOM Version Tag */}

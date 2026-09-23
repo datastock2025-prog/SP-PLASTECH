@@ -127,6 +127,9 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
   } | null>(null);
   const [bomApprovalFilterItem, setBomApprovalFilterItem] = useState<string | undefined>(undefined);
 
+  // Dynamic schedule CMR state for recipe version overrides (Task 4)
+  const [productionCmrs, setProductionCmrs] = useState<ProductionScheduleCMR[]>(INITIAL_PRODUCTION_CMRS);
+
   // Task 3: Date Range Filter (FROM Date to TO Date) default to last 1 day schedule
   const [dateRangeFrom, setDateRangeFrom] = useState<string>('2026-09-17');
   const [dateRangeTo, setDateRangeTo] = useState<string>('2026-09-17');
@@ -137,6 +140,9 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
 
   // Task 4: Checkbox selection for single / multiple / select all machine schedules
   const [selectedCmrIds, setSelectedCmrIds] = useState<Set<string>>(new Set());
+
+  // Task 3 (Line Grid): Checkbox selection for Transfer Line Items
+  const [selectedTransferLineIds, setSelectedTransferLineIds] = useState<Set<string>>(new Set());
 
   // Task 1: 3-dot dropdown menu active row
   const [activeRowMenuId, setActiveRowMenuId] = useState<string | null>(null);
@@ -165,7 +171,7 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
     }> = [];
 
     // 1. CMR mixing materials
-    INITIAL_PRODUCTION_CMRS.forEach((cmr) => {
+    productionCmrs.forEach((cmr) => {
       cmr.mixingMaterials.forEach((mat) => {
         list.push({
           key: `cmr-${cmr.id}-${mat.materialSku}`,
@@ -365,7 +371,7 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
       }
     > = {};
 
-    INITIAL_PRODUCTION_CMRS.forEach((cmr) => {
+    productionCmrs.forEach((cmr) => {
       const key = `${cmr.scheduleDate}_${cmr.scheduleNumber}`;
       if (!groups[key]) {
         groups[key] = {
@@ -386,7 +392,7 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
         machinesCount: Array.from(new Set(g.cmrs.map((c) => c.machineId))).length,
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
-  }, []);
+  }, [productionCmrs]);
 
   // 1-Click Release Formula Recipe to Shop Floor PRD Store (STR-PMP-PRD1) (Task 6)
   const handleReleaseRecipeToPrdStore = (cmr: ProductionScheduleCMR) => {
@@ -1339,7 +1345,7 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                   });
 
                   // Task 3: Pending Transfers KPI Calculation
-                  const allPendingCmrList = INITIAL_PRODUCTION_CMRS.filter(
+                  const allPendingCmrList = productionCmrs.filter(
                     (c) => !selectedItems.some((i) => i.scheduleNumber === c.scheduleNumber && i.formulaId === c.formulaId)
                   );
                   const pendingSchedulesCount = dayWiseProductionSchedules.filter((grp) =>
@@ -1395,7 +1401,7 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                   const handleStageSelectedCmrs = () => {
                     if (selectedCmrIds.size === 0) return;
                     let stagedCount = 0;
-                    INITIAL_PRODUCTION_CMRS.filter((c) => selectedCmrIds.has(c.id)).forEach((cmr) => {
+                    productionCmrs.filter((c) => selectedCmrIds.has(c.id)).forEach((cmr) => {
                       handleReleaseRecipeToPrdStore(cmr);
                       stagedCount++;
                     });
@@ -1409,7 +1415,7 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
 
                   return (
                     <div className="space-y-4 bg-slate-50/70 p-4 rounded-2xl border border-slate-200" onClick={() => setActiveRowMenuId(null)}>
-                      {/* Top Header with Task 3 Pending KPI and Task 4 Bulk Actions */}
+                      {/* Top Header with Task 5 Pending KPI Button and Task 4 Bulk Actions */}
                       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 pb-1">
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
@@ -1426,15 +1432,50 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                           </p>
                         </div>
 
-                        {/* Task 3 KPI Badge & Task 4 Bulk Action */}
+                        {/* Task 5 Interactive KPI Filter Button & Task 4 Bulk Action */}
                         <div className="flex items-center gap-2 flex-wrap">
-                          {/* Task 3: Prominent Pending Transfers KPI Badge */}
-                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 text-xs font-bold shadow-2xs">
-                            <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0 animate-pulse" />
+                          {/* Task 5: Interactive Pending Transfers Toggle Button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (scheduleStatusFilter === 'WAITING') {
+                                setScheduleStatusFilter('ALL');
+                                showToast('Showing all production schedules.');
+                              } else {
+                                setScheduleStatusFilter('WAITING');
+                                setSchedulePage(1);
+                                showToast(`Filtering to ${pendingSchedulesCount} pending RM transfer schedules.`);
+                              }
+                            }}
+                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-2xs cursor-pointer transition-all active:scale-95 border ${
+                              scheduleStatusFilter === 'WAITING'
+                                ? 'bg-amber-500 text-white border-amber-600 ring-2 ring-amber-300'
+                                : 'bg-amber-50 hover:bg-amber-100/80 text-amber-900 border-amber-300'
+                            }`}
+                            title="Click to filter pending recipe transfers"
+                          >
+                            <Clock
+                              className={`w-3.5 h-3.5 ${
+                                scheduleStatusFilter === 'WAITING' ? 'text-white' : 'text-amber-600'
+                              } shrink-0 animate-pulse`}
+                            />
                             <span>
-                              Pending RM Recipe Transfers: <strong className="font-mono text-amber-900 underline">{pendingSchedulesCount} Schedules</strong> ({pendingMachinesCount} IMMs)
+                              Pending RM Recipe Transfers:{' '}
+                              <strong
+                                className={`font-mono underline ${
+                                  scheduleStatusFilter === 'WAITING' ? 'text-white' : 'text-amber-950'
+                                }`}
+                              >
+                                {pendingSchedulesCount} Schedules
+                              </strong>{' '}
+                              ({pendingMachinesCount} IMMs)
                             </span>
-                          </div>
+                            {scheduleStatusFilter === 'WAITING' && (
+                              <span className="text-[10px] bg-white/20 px-1.5 py-0.2 rounded-full font-black ml-1">
+                                Filtering Active ✕
+                              </span>
+                            )}
+                          </button>
 
                           {/* Task 4: Bulk Stage Checked CMRs */}
                           {selectedCmrIds.size > 0 && (
@@ -2139,16 +2180,42 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                   </div>
                 )}
 
-                {/* Selected Transfer Lines Table */}
+                {/* Task 3: Selected Transfer Lines Table with Multiple Selection Checkboxes */}
                 <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs bg-white">
-                  <div className="bg-slate-100 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                  <div className="bg-slate-100 px-4 py-2.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-bold text-slate-800">
                         Transfer Line Items ({selectedItems.length})
                       </span>
                       <span className="text-[11px] text-slate-500">
                         (Ready for dispatch to requested store)
                       </span>
+                      {selectedTransferLineIds.size > 0 && (
+                        <div className="flex items-center gap-1.5 ml-2">
+                          <span className="px-2 py-0.5 rounded-lg bg-blue-100 text-blue-800 font-bold text-[11px] border border-blue-200">
+                            {selectedTransferLineIds.size} Selected
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedItems((prev) => prev.filter((i) => !selectedTransferLineIds.has(i.id)));
+                              setSelectedTransferLineIds(new Set());
+                              showToast(`🗑️ Removed ${selectedTransferLineIds.size} selected transfer lines.`);
+                            }}
+                            className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Remove Selected ({selectedTransferLineIds.size})</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedTransferLineIds(new Set())}
+                            className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      )}
                     </div>
                     <span className="text-xs text-slate-500">
                       Total Weight:{' '}
@@ -2161,6 +2228,29 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                   <table className="w-full text-left text-xs">
                     <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
                       <tr>
+                        {/* Task 3: Select All Checkbox Header */}
+                        <th className="py-2.5 px-3 w-10 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedItems.length > 0 && selectedItems.every((i) => selectedTransferLineIds.has(i.id))}
+                            ref={(el) => {
+                              if (el) {
+                                const all = selectedItems.length > 0 && selectedItems.every((i) => selectedTransferLineIds.has(i.id));
+                                const some = selectedItems.some((i) => selectedTransferLineIds.has(i.id));
+                                el.indeterminate = some && !all;
+                              }
+                            }}
+                            onChange={() => {
+                              if (selectedItems.every((i) => selectedTransferLineIds.has(i.id))) {
+                                setSelectedTransferLineIds(new Set());
+                              } else {
+                                setSelectedTransferLineIds(new Set(selectedItems.map((i) => i.id)));
+                              }
+                            }}
+                            className="w-3.5 h-3.5 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                            title="Select all transfer lines"
+                          />
+                        </th>
                         <th className="py-2.5 px-3 font-bold">Item Code &amp; Description</th>
                         <th className="py-2.5 px-3 font-bold">Requisition &bull; Mix Ref</th>
                         <th className="py-2.5 px-3 font-bold">Type</th>
@@ -2177,22 +2267,41 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                     <tbody className="divide-y divide-slate-100">
                       {selectedItems.length === 0 ? (
                         <tr>
-                          <td colSpan={11} className="py-8 text-center text-slate-400">
+                          <td colSpan={12} className="py-8 text-center text-slate-400">
                             No items added yet. Select pending requisitions above or click catalog items.
                           </td>
                         </tr>
                       ) : (
-                        selectedItems.map((item) => (
-                          <tr key={item.id} className="hover:bg-slate-50">
-                            <td className="py-2.5 px-3">
-                              <div className="font-mono font-bold text-blue-700">{item.itemCode}</div>
-                              <div className="text-[11px] text-slate-600">{item.itemName}</div>
-                              {item.formulaId && (
-                                <span className="font-mono text-[9px] font-black text-cyan-800 bg-cyan-100 px-1.5 py-0.2 rounded border border-cyan-300 inline-block mt-0.5">
-                                  FRM: {item.formulaId}
-                                </span>
-                              )}
-                            </td>
+                        selectedItems.map((item) => {
+                          const isChecked = selectedTransferLineIds.has(item.id);
+                          return (
+                            <tr key={item.id} className={`transition-colors ${isChecked ? 'bg-blue-50/50' : 'hover:bg-slate-50'}`}>
+                              {/* Task 3: Row Checkbox */}
+                              <td className="py-2.5 px-3 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    setSelectedTransferLineIds((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(item.id)) next.delete(item.id);
+                                      else next.add(item.id);
+                                      return next;
+                                    });
+                                  }}
+                                  className="w-3.5 h-3.5 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                                />
+                              </td>
+
+                              <td className="py-2.5 px-3">
+                                <div className="font-mono font-bold text-blue-700">{item.itemCode}</div>
+                                <div className="text-[11px] text-slate-600">{item.itemName}</div>
+                                {item.formulaId && (
+                                  <span className="font-mono text-[9px] font-black text-cyan-800 bg-cyan-100 px-1.5 py-0.2 rounded border border-cyan-300 inline-block mt-0.5">
+                                    FRM: {item.formulaId}
+                                  </span>
+                                )}
+                              </td>
                             <td className="py-2.5 px-3">
                               {item.requisitionRefNumber ? (
                                 <div>
@@ -2252,9 +2361,10 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                               </button>
                             </td>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
+                        );
+                      })
+                    )}
+                  </tbody>
                   </table>
                 </div>
               </div>
@@ -2982,29 +3092,16 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                   Close
                 </button>
 
-                <div className="flex items-center gap-2">
-                  {/* Option A: Stage Pure RM Formula Only */}
-                  <button
-                    type="button"
-                    onClick={() => handleReleaseRecipeToPrdStore(inspectedScheduleRecipe)}
-                    className="px-4 py-2 bg-gradient-to-r from-cyan-700 to-teal-700 hover:from-cyan-600 hover:to-teal-600 text-white rounded-xl text-xs font-bold shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-98"
-                    title="Transfer strictly pure polymer RM mass under Formula ID to PRD store"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Stage Pure RM Formula (Formula ID)</span>
-                  </button>
-
-                  {/* Option B: Stage Complete BOM Kit */}
-                  <button
-                    type="button"
-                    onClick={() => handleReleaseCompleteKitToPrdStore(inspectedScheduleRecipe)}
-                    className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-700 hover:from-emerald-500 hover:to-green-600 text-white rounded-xl text-xs font-extrabold shadow-sm flex items-center gap-1.5 cursor-pointer transition-all active:scale-98"
-                    title="Stage all RM + Packaging (PCK) + Hardware (BOP) + Consumables (CON) to Shopfloor PRD Store"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>Stage Complete BOM Kit (RM + PCK + BOP)</span>
-                  </button>
-                </div>
+                {/* Task 2: Single Unified Staging Button for both Pure RM (Formula ID) and Secondary BOM (PCK/BOP/CON) */}
+                <button
+                  type="button"
+                  onClick={() => handleReleaseCompleteKitToPrdStore(inspectedScheduleRecipe)}
+                  className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 hover:from-emerald-500 hover:to-cyan-600 text-white rounded-xl text-xs font-black shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-98"
+                  title="Stage Pure RM (Formula ID) and Secondary Items (PCK/BOP/CON) to Shopfloor PRD Store"
+                >
+                  <Send className="w-4 h-4 text-emerald-200" />
+                  <span>Stage Recipe &amp; BOM Materials to PRD Store</span>
+                </button>
               </div>
             </div>
           </div>
@@ -3021,6 +3118,7 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
           }}
           items={MASTER_ITEMS_CATALOG as any}
           initialItemCode={selectedRowForBom?.itemCode}
+          initialItemName={selectedRowForBom?.itemName}
           initialBom={bomsList.find((b) => b.parent === selectedRowForBom?.itemCode) || null}
           onSubmitForApproval={(newBom, formulaId) => {
             setBomsList((prev) => [newBom, ...prev]);
@@ -3030,7 +3128,7 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
         />
       )}
 
-      {/* Task 1: BOM Version Approval Grid Modal (Pre-filtered for specific item from machine row) */}
+      {/* Task 4: BOM Version Approval Grid Modal (Pre-filtered for specific item from machine row with schedule override) */}
       {isBomApprovalGridOpen && (
         <BomVersionApprovalGrid
           isOpen={isBomApprovalGridOpen}
@@ -3046,6 +3144,30 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
               prev.map((b) => (b.id === bomId ? { ...b, status: 'approved' } : b))
             );
             showToast(`✅ BOM ${bomId} approved! New BOM version is now ready for production schedules.`);
+          }}
+          onApplyVersionToSchedule={(bom, formulaId) => {
+            if (selectedRowForBom?.cmr) {
+              const targetCmrId = selectedRowForBom.cmr.id;
+              setProductionCmrs((prev) =>
+                prev.map((c) =>
+                  c.id === targetCmrId
+                    ? {
+                        ...c,
+                        bomVersion: bom.version,
+                        formulaId: formulaId,
+                      }
+                    : c
+                )
+              );
+
+              const updatedCmr = {
+                ...selectedRowForBom.cmr,
+                bomVersion: bom.version,
+                formulaId: formulaId,
+              };
+              handleReleaseRecipeToPrdStore(updatedCmr);
+              showToast(`🚀 Overrode machine ${selectedRowForBom.cmr.machineId} with BOM Version "${bom.version}" (${formulaId}) & staged materials!`);
+            }
           }}
           onStageToPrdStore={(bom, formula) => {
             // Stage approved recipe to PRD Store (STR-PMP-PRD1)
