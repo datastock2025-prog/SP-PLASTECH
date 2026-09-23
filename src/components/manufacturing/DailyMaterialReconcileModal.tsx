@@ -23,8 +23,11 @@ import {
   Moon,
   Flame,
   Clock,
+  Plus,
 } from 'lucide-react';
 import { categorizeBomLine, getSyntheticRecipeForPart, getFormulaRecipeId } from './jit/jitCalculations';
+import { BomVersionRecipeDeveloperModal } from './bom/BomVersionRecipeDeveloperModal';
+import { BomVersionApprovalGrid } from './bom/BomVersionApprovalGrid';
 
 interface DailyMaterialReconcileModalProps {
   workOrder: WorkOrder;
@@ -58,9 +61,14 @@ export const DailyMaterialReconcileModal: React.FC<DailyMaterialReconcileModalPr
     workOrder.shift?.includes('Shift B') || workOrder.shift?.includes('Shift C') ? 'shift2' : 'shift1'
   );
 
+  // Local BOM versions list
+  const [localBoms, setLocalBoms] = useState<BomMaster[]>(boms);
+  const [isBomDevModalOpen, setIsBomDevModalOpen] = useState<boolean>(false);
+  const [isBomApprovalGridOpen, setIsBomApprovalGridOpen] = useState<boolean>(false);
+
   // Find all available BOMs / versions for this parent product
   const productBoms = useMemo(() => {
-    const matched = boms.filter(
+    const matched = localBoms.filter(
       (b) => b.parent === workOrder.item || b.parentName === workOrder.item || (b.id && b.id === workOrder.bomId)
     );
     if (matched.length > 0) return matched;
@@ -109,7 +117,7 @@ export const DailyMaterialReconcileModal: React.FC<DailyMaterialReconcileModalPr
         ],
       } as BomMaster,
     ];
-  }, [boms, workOrder.item, workOrder.bomId, items]);
+  }, [localBoms, workOrder.item, workOrder.bomId, items]);
 
   // Active Selected BOM Version for this specific daily production log (Task 4)
   const [selectedBomId, setSelectedBomId] = useState<string>(
@@ -303,8 +311,9 @@ export const DailyMaterialReconcileModal: React.FC<DailyMaterialReconcileModalPr
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-5xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <>
+      <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-5xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
         {/* 1. Senior Executive Header */}
         <div className="p-5 bg-gradient-to-r from-[#14213D] via-[#1E293B] to-[#0F8B8D] text-white flex items-center justify-between shadow-sm">
@@ -480,6 +489,29 @@ export const DailyMaterialReconcileModal: React.FC<DailyMaterialReconcileModalPr
                   <span className="text-emerald-700 font-bold">✅ PRD Store Ready</span>
                 )}
               </span>
+            </div>
+
+            {/* Task 3: Develop New BOM Version & Approvals triggers */}
+            <div className="pt-1.5 border-t border-indigo-50 flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setIsBomDevModalOpen(true)}
+                className="px-2 py-1 rounded-lg bg-cyan-100 hover:bg-cyan-200 text-cyan-950 font-extrabold text-[10px] flex items-center gap-1 transition-colors cursor-pointer"
+                title="Create or adjust recipe ratios to develop a new BOM version"
+              >
+                <Plus className="w-3 h-3 text-cyan-700" />
+                <span>+ Develop Recipe</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsBomApprovalGridOpen(true)}
+                className="px-2 py-1 rounded-lg bg-indigo-100 hover:bg-indigo-200 text-indigo-950 font-extrabold text-[10px] flex items-center gap-1 transition-colors cursor-pointer"
+                title="Open BOM Version Approval Grid"
+              >
+                <ShieldCheck className="w-3 h-3 text-indigo-700" />
+                <span>Approval Grid</span>
+              </button>
             </div>
           </div>
         </div>
@@ -666,5 +698,46 @@ export const DailyMaterialReconcileModal: React.FC<DailyMaterialReconcileModalPr
 
       </div>
     </div>
-  );
+
+    {/* Task 3: BOM Version Recipe Developer Modal */}
+    {isBomDevModalOpen && (
+      <BomVersionRecipeDeveloperModal
+        isOpen={isBomDevModalOpen}
+        onClose={() => setIsBomDevModalOpen(false)}
+        items={items}
+        initialItemCode={workOrder.item}
+        initialBom={activeBom}
+        onSubmitForApproval={(newBom) => {
+          setLocalBoms((prev) => [newBom, ...prev]);
+          setSelectedBomId(newBom.id);
+          showToast(`🚀 New BOM recipe version "${newBom.version}" submitted to approval grid!`);
+        }}
+        showToast={showToast}
+      />
+    )}
+
+    {/* Task 3: BOM Version Approval Grid Modal */}
+    {isBomApprovalGridOpen && (
+      <BomVersionApprovalGrid
+        isOpen={isBomApprovalGridOpen}
+        onClose={() => setIsBomApprovalGridOpen(false)}
+        boms={localBoms}
+        items={items}
+        onApproveBom={(bomId) => {
+          setLocalBoms((prev) =>
+            prev.map((b) => (b.id === bomId ? { ...b, status: 'approved' } : b))
+          );
+        }}
+        onStageToPrdStore={(bom, formula) => {
+          showToast(`📦 Recipe staged to PRD Store under Formula ID ${formula}!`);
+        }}
+        onCreateNewBom={(newBom) => {
+          setLocalBoms((prev) => [newBom, ...prev]);
+        }}
+        showToast={showToast}
+      />
+    )}
+  </>
+);
 };
+

@@ -52,6 +52,11 @@ import {
   INITIAL_ASSEMBLY_REQUISITIONS,
   INITIAL_DEFLASH_REQUISITIONS,
 } from '../../data/stockTransferData';
+import { calculatePureRmMassKg } from '../manufacturing/jit/jitCalculations';
+import { BomVersionRecipeDeveloperModal } from '../manufacturing/bom/BomVersionRecipeDeveloperModal';
+import { BomVersionApprovalGrid } from '../manufacturing/bom/BomVersionApprovalGrid';
+import { INITIAL_BOMS } from '../../data/engineeringData';
+import { BomMaster, ItemMaster } from '../../types';
 
 interface CreateTransferWizardProps {
   initialType?: TransferType;
@@ -105,6 +110,16 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
   const [reqFilterCategory, setReqFilterCategory] = useState<'ALL' | 'CMR' | 'ASSEMBLY' | 'DEFLASH'>('ALL');
   const [selectedReqKeys, setSelectedReqKeys] = useState<Set<string>>(new Set());
   const [inlineReqQuantities, setInlineReqQuantities] = useState<{ [key: string]: number }>({});
+
+  // Task 2 & Task 3: BOM Management & Heavy-Volume Daily Schedule Filters
+  const [bomsList, setBomsList] = useState<BomMaster[]>(INITIAL_BOMS);
+  const [isBomDevModalOpen, setIsBomDevModalOpen] = useState<boolean>(false);
+  const [isBomApprovalGridOpen, setIsBomApprovalGridOpen] = useState<boolean>(false);
+  const [scheduleDateFilter, setScheduleDateFilter] = useState<string>('ALL');
+  const [scheduleShiftFilter, setScheduleShiftFilter] = useState<string>('ALL');
+  const [scheduleStatusFilter, setScheduleStatusFilter] = useState<string>('ALL');
+  const [schedulePage, setSchedulePage] = useState<number>(1);
+  const [schedulePageSize, setSchedulePageSize] = useState<number>(10);
 
   // Flattened Available Requisitions & CMR Items (Task 2)
   const availableRequisitionItems = useMemo(() => {
@@ -1266,206 +1281,389 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                 </div>
 
                 {/* ================= SUB-VIEW 0: DAY-WISE PRODUCTION SCHEDULE & FORMULA TRANSFERS (Task 5 & Task 6) ================= */}
-                {itemSourceTab === 'SCHEDULE' && (
-                  <div className="space-y-4 bg-slate-50/70 p-4 rounded-2xl border border-slate-200">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-1">
-                      <div>
-                        <h4 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-cyan-600" />
-                          <span>Day-wise Master Production Schedules</span>
-                        </h4>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          Each machine run and item BOM recipe is governed by a unified Formula ID. Click any Formula ID to inspect consolidated raw materials and release batches directly to Shopfloor PRD Store (<span className="font-mono text-cyan-700 font-bold">STR-PMP-PRD1</span>).
-                        </p>
-                      </div>
+                {itemSourceTab === 'SCHEDULE' && (() => {
+                  // Unique list of schedule dates
+                  const uniqueDates = Array.from(new Set(dayWiseProductionSchedules.map((g) => g.date))).sort();
 
-                      {/* Search */}
-                      <div className="relative w-full sm:w-64">
-                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-                        <input
-                          type="text"
-                          placeholder="Search schedule #, formula, SKU..."
-                          value={itemSearchQuery}
-                          onChange={(e) => setItemSearchQuery(e.target.value)}
-                          className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:ring-1 focus:ring-cyan-500"
-                        />
-                      </div>
-                    </div>
+                  // Filtered Groups
+                  const filteredScheduleGroups = dayWiseProductionSchedules.filter((grp) => {
+                    const matchDate = scheduleDateFilter === 'ALL' || grp.date === scheduleDateFilter;
+                    const matchShift = scheduleShiftFilter === 'ALL' || grp.cmrs.some((c) => c.shift === scheduleShiftFilter);
+                    const q = itemSearchQuery.toLowerCase().trim();
+                    const matchQuery =
+                      !q ||
+                      grp.date.toLowerCase().includes(q) ||
+                      grp.scheduleNumber.toLowerCase().includes(q) ||
+                      grp.cmrs.some(
+                        (c) =>
+                          c.finishedGoodSku.toLowerCase().includes(q) ||
+                          c.finishedGoodName.toLowerCase().includes(q) ||
+                          (c.formulaId && c.formulaId.toLowerCase().includes(q)) ||
+                          c.machineId.toLowerCase().includes(q)
+                      );
 
-                    {/* Day-Wise Grouped Schedule Accordions / Cards */}
-                    <div className="space-y-3.5">
-                      {dayWiseProductionSchedules
-                        .filter((grp) => {
-                          if (!itemSearchQuery.trim()) return true;
-                          const q = itemSearchQuery.toLowerCase();
-                          return (
-                            grp.date.toLowerCase().includes(q) ||
-                            grp.scheduleNumber.toLowerCase().includes(q) ||
-                            grp.cmrs.some(
-                              (c) =>
-                                c.finishedGoodSku.toLowerCase().includes(q) ||
-                                c.finishedGoodName.toLowerCase().includes(q) ||
-                                (c.formulaId && c.formulaId.toLowerCase().includes(q)) ||
-                                c.machineId.toLowerCase().includes(q)
-                            )
-                          );
-                        })
-                        .map((grp) => (
-                          <div
-                            key={`${grp.date}_${grp.scheduleNumber}`}
-                            className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs"
+                    const matchStatus =
+                      scheduleStatusFilter === 'ALL' ||
+                      (scheduleStatusFilter === 'STAGED' &&
+                        grp.cmrs.every((c) =>
+                          selectedItems.some((i) => i.scheduleNumber === c.scheduleNumber && i.formulaId === c.formulaId)
+                        )) ||
+                      (scheduleStatusFilter === 'WAITING' &&
+                        grp.cmrs.some(
+                          (c) =>
+                            !selectedItems.some((i) => i.scheduleNumber === c.scheduleNumber && i.formulaId === c.formulaId)
+                        ));
+
+                    return matchDate && matchShift && matchQuery && matchStatus;
+                  });
+
+                  // Paginated slice
+                  const totalCount = filteredScheduleGroups.length;
+                  const totalPages = Math.max(1, Math.ceil(totalCount / schedulePageSize));
+                  const validPage = Math.min(schedulePage, totalPages);
+                  const startIndex = (validPage - 1) * schedulePageSize;
+                  const paginatedGroups = filteredScheduleGroups.slice(startIndex, startIndex + schedulePageSize);
+
+                  // Bulk stage all in current filter
+                  const handleBulkStageAll = () => {
+                    let totalStaged = 0;
+                    filteredScheduleGroups.forEach((grp) => {
+                      grp.cmrs.forEach((cmr) => {
+                        handleReleaseRecipeToPrdStore(cmr);
+                        totalStaged++;
+                      });
+                    });
+                    showToast(`🚀 Successfully bulk-staged ${totalStaged} Formula recipes across ${filteredScheduleGroups.length} schedules to PRD Store!`);
+                  };
+
+                  return (
+                    <div className="space-y-4 bg-slate-50/70 p-4 rounded-2xl border border-slate-200">
+                      {/* Top Header & Fast Action Bar */}
+                      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 pb-1">
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                              <Calendar className="w-4 h-4 text-cyan-600" />
+                              <span>Day-wise Master Production Schedules</span>
+                            </h4>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-cyan-100 text-cyan-900 border border-cyan-300">
+                              High-Volume 100+ Presses Engine
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Each machine run and item BOM recipe is governed by a unified Formula ID. Formula ID represents <strong className="text-slate-800">pure RM mass (RM + RG + MB)</strong> only.
+                          </p>
+                        </div>
+
+                        {/* Quick BOM Lab & Approval Actions */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => setIsBomDevModalOpen(true)}
+                            className="px-3 py-1.5 rounded-xl bg-cyan-700 hover:bg-cyan-800 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs cursor-pointer transition-colors"
+                            title="Develop or adjust new recipe ratios for an item"
                           >
-                            {/* Schedule Group Header Banner */}
-                            <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-400/30 flex items-center justify-center text-cyan-300 font-mono text-xs font-black">
-                                  <Layers className="w-4 h-4" />
-                                </div>
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-mono text-sm font-black text-cyan-300 tracking-tight">
-                                      {grp.scheduleNumber}
-                                    </span>
-                                    <span className="text-slate-400 text-xs">&bull;</span>
-                                    <span className="text-xs font-bold text-slate-200">
-                                      Date: {grp.date}
-                                    </span>
-                                    <span className="px-2 py-0.2 rounded-full text-[10px] font-extrabold bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                                      Waiting for Production Recipe Transfer
-                                    </span>
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>+ Develop BOM Version</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setIsBomApprovalGridOpen(true)}
+                            className="px-3 py-1.5 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs cursor-pointer transition-colors"
+                            title="Review and approve developed BOM versions"
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            <span>BOM Version Approvals</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleBulkStageAll}
+                            disabled={filteredScheduleGroups.length === 0}
+                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs cursor-pointer transition-colors"
+                            title="Stage all filtered schedule recipes to PRD store in 1 click"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            <span>Bulk Stage ({filteredScheduleGroups.length})</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Scalable Multi-Filter Bar */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs text-xs">
+                        {/* Search */}
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                          <input
+                            type="text"
+                            placeholder="Search schedule #, formula, SKU..."
+                            value={itemSearchQuery}
+                            onChange={(e) => {
+                              setItemSearchQuery(e.target.value);
+                              setSchedulePage(1);
+                            }}
+                            className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:ring-1 focus:ring-cyan-500"
+                          />
+                        </div>
+
+                        {/* Date Filter */}
+                        <div>
+                          <select
+                            value={scheduleDateFilter}
+                            onChange={(e) => {
+                              setScheduleDateFilter(e.target.value);
+                              setSchedulePage(1);
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 text-xs focus:ring-1 focus:ring-cyan-500"
+                          >
+                            <option value="ALL">All Schedule Dates ({dayWiseProductionSchedules.length})</option>
+                            {uniqueDates.map((d) => (
+                              <option key={d} value={d}>
+                                Date: {d}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Shift Filter */}
+                        <div>
+                          <select
+                            value={scheduleShiftFilter}
+                            onChange={(e) => {
+                              setScheduleShiftFilter(e.target.value);
+                              setSchedulePage(1);
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 text-xs focus:ring-1 focus:ring-cyan-500"
+                          >
+                            <option value="ALL">All Shifts (Shift A, B, C)</option>
+                            <option value="Shift A">Shift A (Day)</option>
+                            <option value="Shift B">Shift B (Night)</option>
+                            <option value="Shift C">Shift C (Graveyard)</option>
+                          </select>
+                        </div>
+
+                        {/* Status Filter */}
+                        <div>
+                          <select
+                            value={scheduleStatusFilter}
+                            onChange={(e) => {
+                              setScheduleStatusFilter(e.target.value);
+                              setSchedulePage(1);
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 text-xs focus:ring-1 focus:ring-cyan-500"
+                          >
+                            <option value="ALL">All Statuses</option>
+                            <option value="WAITING">Waiting Recipe Transfer</option>
+                            <option value="STAGED">Staged in Lines</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Day-Wise Grouped Schedule Accordions / Cards */}
+                      <div className="space-y-3.5">
+                        {paginatedGroups.length === 0 ? (
+                          <div className="text-center py-10 bg-white rounded-2xl border border-slate-200 text-slate-400">
+                            No production schedules found matching the filter criteria.
+                          </div>
+                        ) : (
+                          paginatedGroups.map((grp) => (
+                            <div
+                              key={`${grp.date}_${grp.scheduleNumber}`}
+                              className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs"
+                            >
+                              {/* Schedule Group Header Banner */}
+                              <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-400/30 flex items-center justify-center text-cyan-300 font-mono text-xs font-black">
+                                    <Layers className="w-4 h-4" />
                                   </div>
-                                  <div className="text-[11px] text-slate-400 mt-0.5">
-                                    Target Plant: <strong className="text-slate-200">PLANT-01 (Injection Molding)</strong> &bull; Staging Destination:{' '}
-                                    <strong className="text-cyan-300">STR-PMP-PRD1</strong>
+                                  <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-mono text-sm font-black text-cyan-300 tracking-tight">
+                                        {grp.scheduleNumber}
+                                      </span>
+                                      <span className="text-slate-400 text-xs">&bull;</span>
+                                      <span className="text-xs font-bold text-slate-200">
+                                        Date: {grp.date}
+                                      </span>
+                                      <span className="px-2 py-0.2 rounded-full text-[10px] font-extrabold bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                                        Waiting for Production Recipe Transfer
+                                      </span>
+                                    </div>
+                                    <div className="text-[11px] text-slate-400 mt-0.5">
+                                      Target Plant: <strong className="text-slate-200">PLANT-01 (Injection Molding)</strong> &bull; Staging Destination:{' '}
+                                      <strong className="text-cyan-300">STR-PMP-PRD1</strong>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-4 text-xs font-mono">
+                                  <div className="text-right">
+                                    <div className="text-[10px] text-slate-400 uppercase font-semibold">Planned Output</div>
+                                    <div className="text-emerald-400 font-bold">{grp.totalPlannedPcs.toLocaleString()} PCS</div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-[10px] text-slate-400 uppercase font-semibold">Allocated Presses</div>
+                                    <div className="text-indigo-300 font-bold">{grp.machinesCount} IMMs</div>
                                   </div>
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-4 text-xs font-mono">
-                                <div className="text-right">
-                                  <div className="text-[10px] text-slate-400 uppercase font-semibold">Planned Output</div>
-                                  <div className="text-emerald-400 font-bold">{grp.totalPlannedPcs.toLocaleString()} PCS</div>
-                                </div>
-                                <div className="text-right">
-                                  <div className="text-[10px] text-slate-400 uppercase font-semibold">Allocated Presses</div>
-                                  <div className="text-indigo-300 font-bold">{grp.machinesCount} IMMs</div>
-                                </div>
-                              </div>
-                            </div>
+                              {/* Scheduled Jobs & Formula IDs Table */}
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs">
+                                  <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-600 font-bold border-b border-slate-200">
+                                    <tr>
+                                      <th className="py-2.5 px-3.5">Machine &amp; Bay</th>
+                                      <th className="py-2.5 px-3.5">Scheduled Item &bull; SKU</th>
+                                      <th className="py-2.5 px-3.5 text-right">Target Output</th>
+                                      <th className="py-2.5 px-3.5">Linked Approved BOM</th>
+                                      <th className="py-2.5 px-3.5">Recipe / Formula ID</th>
+                                      <th className="py-2.5 px-3.5 text-right">Pure RM Mass</th>
+                                      <th className="py-2.5 px-3.5 text-right">Actions</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                    {grp.cmrs.map((cmr) => {
+                                      // Task 1: Strict Pure RM Mass (RM + RG + MB + Additives only in KG)
+                                      const pureRmMass = calculatePureRmMassKg(cmr.mixingMaterials);
+                                      const isStaged = selectedItems.some(
+                                        (i) => i.scheduleNumber === cmr.scheduleNumber && i.formulaId === cmr.formulaId
+                                      );
 
-                            {/* Scheduled Jobs & Formula IDs Table */}
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-left text-xs">
-                                <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-600 font-bold border-b border-slate-200">
-                                  <tr>
-                                    <th className="py-2.5 px-3.5">Machine &amp; Bay</th>
-                                    <th className="py-2.5 px-3.5">Scheduled Item &bull; SKU</th>
-                                    <th className="py-2.5 px-3.5 text-right">Target Output</th>
-                                    <th className="py-2.5 px-3.5">Linked Approved BOM</th>
-                                    <th className="py-2.5 px-3.5">Recipe / Formula ID</th>
-                                    <th className="py-2.5 px-3.5 text-right">Total RM Mass</th>
-                                    <th className="py-2.5 px-3.5 text-right">Actions</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                  {grp.cmrs.map((cmr) => {
-                                    const totalMass = cmr.mixingMaterials.reduce((acc, m) => acc + (m.requiredQtyKg || 0), 0);
-                                    const isStaged = selectedItems.some((i) => i.scheduleNumber === cmr.scheduleNumber && i.formulaId === cmr.formulaId);
+                                      return (
+                                        <tr key={cmr.id} className="hover:bg-cyan-50/30 transition-colors">
+                                          <td className="py-3 px-3.5">
+                                            <div className="font-mono font-bold text-slate-900">{cmr.machineId}</div>
+                                            <div className="text-[10px] text-slate-500">{cmr.machineBay}</div>
+                                            <div className="text-[10px] text-indigo-700 font-semibold">{cmr.shift}</div>
+                                          </td>
 
-                                    return (
-                                      <tr key={cmr.id} className="hover:bg-cyan-50/30 transition-colors">
-                                        <td className="py-3 px-3.5">
-                                          <div className="font-mono font-bold text-slate-900">{cmr.machineId}</div>
-                                          <div className="text-[10px] text-slate-500">{cmr.machineBay}</div>
-                                          <div className="text-[10px] text-indigo-700 font-semibold">{cmr.shift}</div>
-                                        </td>
+                                          <td className="py-3 px-3.5">
+                                            <div className="font-bold text-slate-900 text-xs">{cmr.finishedGoodName}</div>
+                                            <div className="font-mono text-[11px] text-slate-500">{cmr.finishedGoodSku}</div>
+                                            {cmr.mixingReferenceNumber && (
+                                              <div className="font-mono text-[9px] text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200 inline-block mt-0.5">
+                                                {cmr.mixingReferenceNumber}
+                                              </div>
+                                            )}
+                                          </td>
 
-                                        <td className="py-3 px-3.5">
-                                          <div className="font-bold text-slate-900 text-xs">{cmr.finishedGoodName}</div>
-                                          <div className="font-mono text-[11px] text-slate-500">{cmr.finishedGoodSku}</div>
-                                          {cmr.mixingReferenceNumber && (
-                                            <div className="font-mono text-[9px] text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200 inline-block mt-0.5">
-                                              {cmr.mixingReferenceNumber}
+                                          <td className="py-3 px-3.5 text-right">
+                                            <div className="font-mono font-black text-emerald-700 text-sm">
+                                              {cmr.plannedQty.toLocaleString()}{' '}
+                                              <span className="text-[10px] font-normal text-slate-500">{cmr.uom}</span>
                                             </div>
-                                          )}
-                                        </td>
+                                          </td>
 
-                                        <td className="py-3 px-3.5 text-right">
-                                          <div className="font-mono font-black text-emerald-700 text-sm">
-                                            {cmr.plannedQty.toLocaleString()}{' '}
-                                            <span className="text-[10px] font-normal text-slate-500">{cmr.uom}</span>
-                                          </div>
-                                        </td>
+                                          <td className="py-3 px-3.5">
+                                            <span className="px-2 py-0.5 rounded-md font-mono text-[11px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200 inline-flex items-center gap-1">
+                                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                              <span>{cmr.bomVersion}</span>
+                                            </span>
+                                          </td>
 
-                                        <td className="py-3 px-3.5">
-                                          <span className="px-2 py-0.5 rounded-md font-mono text-[11px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200 inline-flex items-center gap-1">
-                                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                            <span>{cmr.bomVersion}</span>
-                                          </span>
-                                        </td>
-
-                                        <td className="py-3 px-3.5">
-                                          <button
-                                            type="button"
-                                            onClick={() => setInspectedScheduleRecipe(cmr)}
-                                            className="px-2.5 py-1 rounded-lg font-mono text-xs font-black bg-cyan-100 hover:bg-cyan-200 text-cyan-950 border border-cyan-300 transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-2xs group"
-                                            title="Click to view consolidated RM recipe and release to PRD store"
-                                          >
-                                            <Sparkles className="w-3 h-3 text-cyan-700 group-hover:scale-110 transition-transform" />
-                                            <span>{cmr.formulaId || `FRM-${cmr.finishedGoodSku.slice(3, 8)}-v1.0`}</span>
-                                          </button>
-                                        </td>
-
-                                        <td className="py-3 px-3.5 text-right font-mono font-bold text-slate-800">
-                                          {totalMass.toFixed(1)} <span className="text-[10px] font-normal text-slate-500">KG</span>
-                                        </td>
-
-                                        <td className="py-3 px-3.5 text-right">
-                                          <div className="flex items-center justify-end gap-1.5">
+                                          <td className="py-3 px-3.5">
                                             <button
                                               type="button"
                                               onClick={() => setInspectedScheduleRecipe(cmr)}
-                                              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md font-bold text-[11px] transition-colors cursor-pointer"
-                                              title="Inspect recipe breakdown"
+                                              className="px-2.5 py-1 rounded-lg font-mono text-xs font-black bg-cyan-100 hover:bg-cyan-200 text-cyan-950 border border-cyan-300 transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-2xs group"
+                                              title="Click to view consolidated RM recipe and release to PRD store"
                                             >
-                                              Recipe
+                                              <Sparkles className="w-3 h-3 text-cyan-700 group-hover:scale-110 transition-transform" />
+                                              <span>{cmr.formulaId || `FRM-${cmr.finishedGoodSku.slice(3, 8)}-v1.0`}</span>
                                             </button>
+                                          </td>
 
-                                            <button
-                                              type="button"
-                                              onClick={() => handleReleaseRecipeToPrdStore(cmr)}
-                                              className={`px-3 py-1 rounded-md font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1 shadow-2xs ${
-                                                isStaged
-                                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                                  : 'bg-cyan-600 hover:bg-cyan-500 text-white'
-                                              }`}
-                                              title="Stage consolidated RM materials to Shopfloor PRD Store"
-                                            >
-                                              {isStaged ? (
-                                                <>
-                                                  <Check className="w-3 h-3 text-emerald-700" />
-                                                  <span>Staged in Lines</span>
-                                                </>
-                                              ) : (
-                                                <>
-                                                  <Send className="w-3 h-3" />
-                                                  <span>Stage to PRD Store</span>
-                                                </>
-                                              )}
-                                            </button>
-                                          </div>
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
+                                          <td className="py-3 px-3.5 text-right font-mono font-bold text-slate-800">
+                                            {pureRmMass.toFixed(1)} <span className="text-[10px] font-normal text-slate-500">KG</span>
+                                          </td>
+
+                                          <td className="py-3 px-3.5 text-right">
+                                            <div className="flex items-center justify-end gap-1.5">
+                                              <button
+                                                type="button"
+                                                onClick={() => setInspectedScheduleRecipe(cmr)}
+                                                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md font-bold text-[11px] transition-colors cursor-pointer"
+                                                title="Inspect recipe breakdown"
+                                              >
+                                                Recipe
+                                              </button>
+
+                                              <button
+                                                type="button"
+                                                onClick={() => handleReleaseRecipeToPrdStore(cmr)}
+                                                className={`px-3 py-1 rounded-md font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1 shadow-2xs ${
+                                                  isStaged
+                                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                                    : 'bg-cyan-600 hover:bg-cyan-500 text-white'
+                                                }`}
+                                                title="Stage consolidated RM materials to Shopfloor PRD Store"
+                                              >
+                                                {isStaged ? (
+                                                  <>
+                                                    <Check className="w-3 h-3 text-emerald-700" />
+                                                    <span>Staged in Lines</span>
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <Send className="w-3 h-3" />
+                                                    <span>Stage to PRD Store</span>
+                                                  </>
+                                                )}
+                                              </button>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
                             </div>
+                          ))
+                        )}
+                      </div>
+
+                      {/* Pagination Bar for Heavy Volume 100+ Machine Schedules */}
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 text-xs">
+                          <div className="text-slate-500">
+                            Showing <strong className="text-slate-800">{startIndex + 1}</strong> &ndash;{' '}
+                            <strong className="text-slate-800">
+                              {Math.min(startIndex + schedulePageSize, totalCount)}
+                            </strong>{' '}
+                            of <strong className="text-slate-800">{totalCount}</strong> day-wise schedule groups
                           </div>
-                        ))}
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setSchedulePage((p) => Math.max(1, p - 1))}
+                              disabled={validPage <= 1}
+                              className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-700 font-bold transition-colors cursor-pointer"
+                            >
+                              Previous
+                            </button>
+                            <span className="font-bold text-slate-800">
+                              Page {validPage} of {totalPages}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setSchedulePage((p) => Math.min(totalPages, p + 1))}
+                              disabled={validPage >= totalPages}
+                              className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-700 font-bold transition-colors cursor-pointer"
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
+
 
                 {/* ================= SUB-VIEW A: REQUISITIONS & CMRs ================= */}
                 {itemSourceTab === 'REQUISITIONS' && (
@@ -2404,20 +2602,17 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                 </table>
               </div>
 
-              {/* Total Batch Mass Summary Banner */}
+              {/* Total Batch Pure RM Mass Summary Banner */}
               <div className="bg-cyan-50/70 border border-cyan-200 rounded-xl p-3 flex items-center justify-between text-xs text-cyan-950">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-cyan-600 shrink-0" />
                   <span>
-                    Formula verified with <strong className="font-bold">{inspectedScheduleRecipe.bomVersion}</strong>. Ready to transfer to Shopfloor PRD Store (<span className="font-mono font-bold">STR-PMP-PRD1</span>) to fulfill Work Orders.
+                    Formula verified with <strong className="font-bold">{inspectedScheduleRecipe.bomVersion}</strong>. Ready to transfer pure polymer raw materials to Shopfloor PRD Store (<span className="font-mono font-bold">STR-PMP-PRD1</span>) to fulfill Work Orders.
                   </span>
                 </div>
                 <div className="font-mono font-extrabold text-sm text-cyan-900 shrink-0">
-                  Total:{' '}
-                  {inspectedScheduleRecipe.mixingMaterials
-                    .reduce((acc, m) => acc + (m.requiredQtyKg || 0), 0)
-                    .toFixed(1)}{' '}
-                  KG
+                  Pure RM Total:{' '}
+                  {calculatePureRmMassKg(inspectedScheduleRecipe.mixingMaterials).toFixed(1)} KG
                 </div>
               </div>
             </div>
@@ -2443,6 +2638,66 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Task 3: BOM Version Recipe Developer Modal */}
+      {isBomDevModalOpen && (
+        <BomVersionRecipeDeveloperModal
+          isOpen={isBomDevModalOpen}
+          onClose={() => setIsBomDevModalOpen(false)}
+          items={MASTER_ITEMS_CATALOG as any}
+          onSubmitForApproval={(newBom) => {
+            setBomsList((prev) => [newBom, ...prev]);
+            showToast(`🚀 BOM Recipe Version "${newBom.version}" submitted to Approval Grid!`);
+          }}
+          showToast={showToast}
+        />
+      )}
+
+      {/* Task 3: BOM Version Approval Grid Modal */}
+      {isBomApprovalGridOpen && (
+        <BomVersionApprovalGrid
+          isOpen={isBomApprovalGridOpen}
+          onClose={() => setIsBomApprovalGridOpen(false)}
+          boms={bomsList}
+          items={MASTER_ITEMS_CATALOG as any}
+          onApproveBom={(bomId) => {
+            setBomsList((prev) =>
+              prev.map((b) => (b.id === bomId ? { ...b, status: 'approved' } : b))
+            );
+          }}
+          onStageToPrdStore={(bom, formula) => {
+            // Stage approved recipe to PRD Store (STR-PMP-PRD1)
+            const itemsToAdd: StockTransferItem[] = (bom.lines || []).map((l, idx) => ({
+              id: `bom-rec-${bom.id}-${l.item}-${idx}`,
+              itemCode: l.item,
+              itemName: `${l.name || l.item} (Recipe for ${bom.parent})`,
+              materialType: 'RM',
+              batchLotNumber: `LOT-${l.item.slice(0, 6)}-2026`,
+              pickLocation: 'WH-RM-SILO-01',
+              availableStock: 5000,
+              requiredQty: (Number(l.qty) || 0.05) * 1000,
+              transferQty: (Number(l.qty) || 0.05) * 1000,
+              uom: l.uom || 'KG',
+              standardCost: l.cost || 95.0,
+              hsnCode: '39021000',
+              gstRatePct: 18,
+              formulaId: formula,
+              bomVersion: bom.version,
+              targetStoreCode: 'PRD-UNIT-1',
+              netWeightKg: (Number(l.qty) || 0.05) * 1000,
+            }));
+
+            setToStoreId('STR-PMP-PRD1');
+            setSelectedItems((prev) => [...prev, ...itemsToAdd]);
+            showToast(`🎉 Staged ${itemsToAdd.length} recipe items for Formula ${formula} into PRD Store!`);
+          }}
+          onCreateNewBom={(newBom) => {
+            setBomsList((prev) => [newBom, ...prev]);
+          }}
+          showToast={showToast}
+        />
+      )}
     </div>
   );
 };
+

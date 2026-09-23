@@ -986,3 +986,64 @@ export function getFormulaRecipeId(
   return `FRM-${descAbbr}${last4Digits}-v${cleanVersion}`;
 }
 
+/**
+ * Strict Pure RM Mass Calculator
+ * Sums only Raw Polymer (RM), Regrind (RG), Masterbatch (MB), and Polymer Additives / Substitutes in KG.
+ * Excludes Packaging (PCK/carton/box), Bought-out parts (BOP/inserts), and Consumables (CON).
+ */
+export function calculatePureRmMassKg(
+  materials: Array<{
+    materialType?: string;
+    uom?: string;
+    requiredQtyKg?: number;
+    qty?: number;
+    item?: string;
+    itemCode?: string;
+    materialSku?: string;
+    name?: string;
+    materialName?: string;
+  }> = []
+): number {
+  if (!materials || materials.length === 0) return 0;
+
+  return materials
+    .filter((m) => {
+      const type = (m.materialType || '').toLowerCase();
+      const code = (m.item || m.itemCode || m.materialSku || '').toUpperCase();
+      const name = (m.name || m.materialName || '').toUpperCase();
+      const uom = (m.uom || 'KG').toUpperCase();
+
+      const isKgUom = uom === 'KG' || uom === 'KGS';
+      const isPck =
+        type.includes('pck') ||
+        type.includes('pack') ||
+        code.startsWith('PK-') ||
+        name.includes('CARTON') ||
+        name.includes('BOX') ||
+        name.includes('STRETCH');
+      const isBop =
+        type.includes('bop') ||
+        type.includes('bought') ||
+        code.startsWith('SP-') ||
+        code.startsWith('BOP-') ||
+        code.startsWith('INS-') ||
+        name.includes('INSERT');
+      const isCon = type.includes('con') || code.startsWith('CON-') || name.includes('PURGE') || name.includes('LABEL');
+
+      if (isPck || isBop || isCon) return false;
+
+      const isRmType =
+        type.includes('polymer') ||
+        type.includes('raw') ||
+        type.includes('regrind') ||
+        type.includes('masterbatch') ||
+        type.includes('additive') ||
+        type === 'rm' ||
+        type === 'rg' ||
+        type === 'mb';
+
+      return isKgUom && (isRmType || (!type && !isPck && !isBop && !isCon));
+    })
+    .reduce((sum, m) => sum + (Number(m.requiredQtyKg ?? m.qty) || 0), 0);
+}
+

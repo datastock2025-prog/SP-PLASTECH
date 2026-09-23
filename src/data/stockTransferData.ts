@@ -986,15 +986,6 @@ export const INITIAL_PRODUCTION_CMRS: ProductionScheduleCMR[] = [
         uom: 'KG',
         unitCostInr: 220.0,
       },
-      {
-        materialSku: 'PK-CTN-021',
-        materialName: 'Heavy Duty 5-Ply Corrugated Master Carton',
-        materialType: 'Additive',
-        requiredQtyKg: 364.8,
-        lotNumber: 'LOT-CTN-2026-88',
-        uom: 'NOS',
-        unitCostInr: 24.0,
-      },
     ],
   },
   {
