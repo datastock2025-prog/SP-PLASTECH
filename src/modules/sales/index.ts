@@ -30,3 +30,6 @@ export type {
   Quotation,
   ReturnMerchandise,
 } from '../../types';
+
+export * from '../../services/nic';
+

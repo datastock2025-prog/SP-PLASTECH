@@ -17,7 +17,8 @@ import {
   Calendar,
   XCircle,
 } from 'lucide-react';
-import { EWayBillRecord } from '../../types/salesOrderDeliveryTypes';
+import { NicEwbDiagnosticRunnerModal } from './NicEwbDiagnosticRunnerModal';
+import { nicEwbService } from '../../services/nic/nicEwbService';
 
 interface EWayBillManagementProps {
   eWayBills?: EWayBillRecord[];
@@ -35,6 +36,7 @@ export const EWayBillManagement: React.FC<EWayBillManagementProps> = ({
   const [selectedEwbForExtension, setSelectedEwbForExtension] = useState<EWayBillRecord | null>(null);
   const [extensionReason, setExtensionReason] = useState('Transshipment delay due to truck mechanical breakdown');
   const [newVehicleNumber, setNewVehicleNumber] = useState('');
+  const [isDiagnosticModalOpen, setIsDiagnosticModalOpen] = useState(false);
 
   const safeEwbs = eWayBills || [];
 
@@ -98,16 +100,31 @@ export const EWayBillManagement: React.FC<EWayBillManagementProps> = ({
             <h1 className="text-xl font-bold text-gray-900 font-['Space_Grotesk']">
               GST E-Way Bill Transit Management Portal
             </h1>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200">
+              NIC v1.03 Engine
+            </span>
           </div>
           <p className="text-xs text-gray-500 mt-0.5">
             National E-Way Bill portal synchronization (Rule 138), Part A/B management, and countdown trackers.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Diagnostic 12-Point Test Suite Action Button */}
           <button
+            type="button"
+            onClick={() => setIsDiagnosticModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-slate-900 to-indigo-900 hover:from-slate-800 hover:to-indigo-800 text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer transition-all active:scale-98"
+            title="Launch NIC 12-Point Test Suite (TEST-001 to TEST-012) & Sandbox Key Config"
+          >
+            <CheckCircle className="w-3.5 h-3.5 text-cyan-300" />
+            <span>NIC 12-Test Diagnostics</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => showToast('NIC E-Way Bill status refreshed from GST Server.')}
-            className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-semibold"
+            className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-semibold cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5 text-gray-500" /> Sync Portal
           </button>
@@ -323,6 +340,15 @@ export const EWayBillManagement: React.FC<EWayBillManagementProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* NIC 12-Point Test Suite & Sandbox Diagnostics Modal */}
+      {isDiagnosticModalOpen && (
+        <NicEwbDiagnosticRunnerModal
+          isOpen={isDiagnosticModalOpen}
+          onClose={() => setIsDiagnosticModalOpen(false)}
+          showToast={showToast}
+        />
       )}
     </div>
   );
