@@ -30,6 +30,8 @@ import {
   Scale,
   Hash,
   RefreshCw,
+  Activity,
+  Server,
 } from 'lucide-react';
 import {
   PlasticSalesOrder,
@@ -41,6 +43,9 @@ import {
   FgBatchStock,
 } from '../../types/salesOrderDeliveryTypes';
 import { INITIAL_FG_BATCHES } from '../../data/salesOrderDeliveryData';
+import { nicEwbService } from '../../services/nic/nicEwbService';
+import { NicEwbGenerationPayload } from '../../types/nicEwbTypes';
+import { NicEwbDiagnosticRunnerModal } from './NicEwbDiagnosticRunnerModal';
 
 // Standard Finished Goods Master Catalog for adding ad-hoc or catalog items
 export interface CatalogItem {
@@ -255,6 +260,8 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
   // All-in-One 1-Click Execution Progress / Success Modal
   const [isGeneratingAllInOne, setIsGeneratingAllInOne] = useState(false);
   const [generationPhase, setGenerationPhase] = useState<number>(0);
+  const [nicLiveError, setNicLiveError] = useState<string | null>(null);
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const [generatedResult, setGeneratedResult] = useState<{
     delivery: DeliveryNoteChallan;
     eInvoice: EInvoiceRecord;
@@ -424,7 +431,7 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
   }, [catalogSearch]);
 
   // THE MASTER FUNCTION: "ONE FINAL CLICK" ALL-IN-ONE DISPATCH GENERATION
-  const executeAllInOneDispatch = (mode: 'all-in-one' | 'standard' | 'note-only') => {
+  const executeAllInOneDispatch = async (mode: 'all-in-one' | 'standard' | 'note-only') => {
     if (items.length === 0 || calculatedTaxable <= 0) {
       showToast('Cannot dispatch: At least 1 item with quantity > 0 is required.');
       return;
@@ -442,12 +449,15 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
 
     setIsGeneratingAllInOne(true);
     setGenerationPhase(1);
+    setNicLiveError(null);
 
     const deliveryId = `DN-${Math.floor(4000 + Math.random() * 999)}`;
     const invoiceNumber = `INV-2026-09-${Math.floor(100 + Math.random() * 899)}`;
     const irnHash = `a${Math.random().toString(16).substring(2, 10)}${Math.random().toString(16).substring(2, 10)}${Math.random().toString(16).substring(2, 10)}${Math.random().toString(16).substring(2, 10)}${Math.random().toString(16).substring(2, 10)}${Math.random().toString(16).substring(2, 10)}${Math.random().toString(16).substring(2, 10)}${Math.random().toString(16).substring(2, 10)}`.substring(0, 64);
     const ackNumber = `1120260900${Math.floor(10000 + Math.random() * 90000)}`;
-    const ewbNumber = `2410${Math.floor(10000000 + Math.random() * 90000000)}`;
+    let ewbNumber = `2410${Math.floor(10000000 + Math.random() * 90000000)}`;
+    let ewbValidUntil = '2026-09-18 23:59:59';
+    let ewbDate = '2026-09-15 12:16:00';
     const gatePassNumber = `GP-2026-${Math.floor(1000 + Math.random() * 9000)}`;
     const sealNumber = `SEAL-2026-${Math.floor(1000 + Math.random() * 9000)}`;
 
@@ -472,6 +482,93 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
       lineTotal: it.dispatchQty * it.unitPrice,
       pickStatus: 'Picked',
     }));
+
+    // Phase 1: 3-Ply Outward Delivery Note
+    await new Promise((r) => setTimeout(r, 350));
+    setGenerationPhase(2);
+
+    // Phase 2: NIC E-Invoice (IRN)
+    await new Promise((r) => setTimeout(r, 350));
+    setGenerationPhase(3);
+
+    // Phase 3: Live NIC E-Way Bill Generation
+    if (includeEwb) {
+      const nicPayload: NicEwbGenerationPayload = {
+        supplyType: 'O',
+        subSupplyType: '1',
+        docType: challanType === 'Job Work Challan' ? 'CHL' : 'INV',
+        docNo: invoiceNumber,
+        docDate: new Date().toLocaleDateString('en-GB'),
+        fromGstin: '27AABCP1122D1Z4',
+        fromTrdName: 'PLASTECH INDUSTRIES PVT LTD',
+        fromAddr1: 'Plot 45, Sector 10, MIDC Bhosari Industrial Area',
+        fromPlace: 'Pune',
+        fromPincode: 411018,
+        actFromStateCode: 27,
+        fromStateCode: 27,
+        toGstin: activeSo?.customerGstin || '27AAACT2727Q1ZW',
+        toTrdName: activeSo?.customer || 'Tata Motors Passenger Vehicles Ltd',
+        toAddr1: activeSo?.shippingAddress?.line1 || 'Plot 42, Sector 10, MIDC',
+        toPlace: activeSo?.shippingAddress?.city || 'Pune',
+        toPincode: 411035,
+        actToStateCode: 27,
+        toStateCode: 27,
+        totalValue: calculatedTaxable,
+        cgstValue: calculatedCgst,
+        sgstValue: calculatedSgst,
+        igstValue: calculatedIgst,
+        cessValue: 0,
+        totInvValue: calculatedTotal,
+        transporterId: transporterGstin || '27AAACV1234F1Z1',
+        transporterName: transporterName || 'VRL Logistics Ltd',
+        transDocNo: lrNumber || `LR-${Math.floor(100000 + Math.random() * 900000)}`,
+        transDocDate: new Date().toLocaleDateString('en-GB'),
+        transMode: '1',
+        distance: approxDistanceKm || 140,
+        vehicleNo: vehicleNumber || 'MH-14-GH-8821',
+        vehicleType: 'R',
+        itemList: items.map((it, idx) => ({
+          itemNo: idx + 1,
+          productName: it.itemName,
+          productDesc: it.itemCode,
+          hsnCode: it.hsn || '39269099',
+          quantity: it.dispatchQty,
+          qtyUnit: it.uom === 'Pcs' ? 'NOS' : it.uom === 'Kg' ? 'KGS' : 'BOX',
+          cgstRate: it.taxRatePct / 2,
+          sgstRate: it.taxRatePct / 2,
+          igstRate: 0,
+          cessRate: 0,
+          taxableAmount: it.dispatchQty * it.unitPrice,
+        })),
+      };
+
+      try {
+        const nicRes = await nicEwbService.generateEwb(nicPayload);
+        if (nicRes.status === '1' && nicRes.data?.ewayBillNo) {
+          ewbNumber = nicRes.data.ewayBillNo;
+          if (nicRes.data.validUpto) {
+            ewbValidUntil = nicRes.data.validUpto;
+          }
+          if (nicRes.data.ewayBillDate) {
+            ewbDate = nicRes.data.ewayBillDate;
+          }
+        } else if (nicRes.status === '0') {
+          const errDetail = `NIC Statutory Verification [${nicRes.errorCodes || 'EWB-ERR'}]: ${nicRes.errorDesc || 'Validation Error'}`;
+          setNicLiveError(errDetail);
+          showToast(errDetail);
+          if (nicEwbService.getEnvironment() !== 'MOCK') {
+            setIsGeneratingAllInOne(false);
+            return;
+          }
+        }
+      } catch (err: any) {
+        console.error('NIC EWB Call Error:', err);
+      }
+    }
+
+    // Phase 4: Security Gate Pass & Final Dossier Assembly
+    setGenerationPhase(4);
+    await new Promise((r) => setTimeout(r, 350));
 
     const newDelivery: DeliveryNoteChallan = {
       id: deliveryId,
@@ -508,8 +605,8 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
       ackDate: includeEInv ? '2026-09-15 12:15:00' : undefined,
       eWayBillStatus: includeEwb ? 'Generated' : 'Pending',
       ewbNumber: includeEwb ? ewbNumber : undefined,
-      ewbDate: includeEwb ? '2026-09-15 12:16:00' : undefined,
-      ewbValidUntil: includeEwb ? '2026-09-18 23:59:59' : undefined,
+      ewbDate: includeEwb ? ewbDate : undefined,
+      ewbValidUntil: includeEwb ? ewbValidUntil : undefined,
       ewbPartA: includeEwb,
       ewbPartB: includeEwb,
       invoiceNumber,
@@ -586,7 +683,7 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
       customerGstin: activeSo?.customerGstin || '27AAACT2727Q1ZW',
       supplierGstin: '27AABCP1122D1Z4',
       dispatchDate: '2026-09-15',
-      validUntil: '2026-09-18 23:59:59',
+      validUntil: ewbValidUntil,
       hoursRemaining: 72,
       transporterName,
       transporterId: transporterGstin,
@@ -645,26 +742,14 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
       remarks: 'All 4 statutory records synchronized in single transaction.',
     };
 
-    // Sequential simulation animation
-    setTimeout(() => {
-      setGenerationPhase(2);
-      setTimeout(() => {
-        setGenerationPhase(3);
-        setTimeout(() => {
-          setGenerationPhase(4);
-          setTimeout(() => {
-            setIsGeneratingAllInOne(false);
-            setGeneratedResult({
-              delivery: newDelivery,
-              eInvoice: newEInvoice,
-              eWayBill: newEWayBill,
-              gatePass: newGatePass,
-            });
-            showToast('All 4 statutory documents generated synchronously!');
-          }, 450);
-        }, 400);
-      }, 400);
-    }, 450);
+    setIsGeneratingAllInOne(false);
+    setGeneratedResult({
+      delivery: newDelivery,
+      eInvoice: newEInvoice,
+      eWayBill: newEWayBill,
+      gatePass: newGatePass,
+    });
+    showToast(`All 4 statutory documents generated synchronously! EWB: ${ewbNumber}`);
   };
 
   const handleCommitSavedResult = () => {
@@ -716,7 +801,16 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
         </div>
 
         {/* Hero Quick Action: 1-Click All-in-One Generator Button */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => setIsDiagnosticsOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 border border-teal-200 bg-teal-50/70 hover:bg-teal-100 text-teal-800 rounded-xl text-xs font-semibold transition-all shadow-2xs"
+            title="Configure NIC Live / Sandbox credentials & run 12-test diagnostic suite"
+          >
+            <Server className="w-3.5 h-3.5 text-teal-700" />
+            <span>NIC: <span className="font-mono font-bold uppercase">{nicEwbService.getEnvironment()}</span></span>
+          </button>
+
           <button
             onClick={() => executeAllInOneDispatch('all-in-one')}
             className="flex items-center gap-2 px-5 py-2.5 bg-[#0F8B8D] hover:bg-[#0c7274] text-white rounded-xl text-xs font-bold shadow-md shadow-teal-700/15 hover:shadow-lg transition-all transform active:scale-95"
@@ -1957,6 +2051,13 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
           </div>
         </div>
       )}
+
+      {/* NIC Diagnostic Runner Modal */}
+      <NicEwbDiagnosticRunnerModal
+        isOpen={isDiagnosticsOpen}
+        onClose={() => setIsDiagnosticsOpen(false)}
+        showToast={showToast}
+      />
     </div>
   );
 };
