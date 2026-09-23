@@ -2062,7 +2062,8 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
 
                     {/* Requisitions Grid with Inline Editable Transfer Quantities */}
                     <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
-                      <table className="w-full text-left text-xs">
+                      <div className="overflow-x-auto w-full">
+                        <table className="w-full text-left text-xs min-w-[850px]">
                         <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200 text-[11px]">
                           <tr>
                             <th className="py-2.5 px-3 text-center w-10">
@@ -2191,6 +2192,7 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                         </tbody>
                       </table>
                     </div>
+                  </div>
 
                     {/* Bulk Transfer Action Bar */}
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-1">
@@ -2349,161 +2351,177 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                     </span>
                   </div>
 
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
-                      <tr>
-                        {/* Task 3: Select All Checkbox Header */}
-                        <th className="py-2.5 px-3 w-10 text-center">
-                          <input
-                            type="checkbox"
-                            checked={selectedItems.length > 0 && selectedItems.every((i) => selectedTransferLineIds.has(i.id))}
-                            ref={(el) => {
-                              if (el) {
-                                const all = selectedItems.length > 0 && selectedItems.every((i) => selectedTransferLineIds.has(i.id));
-                                const some = selectedItems.some((i) => selectedTransferLineIds.has(i.id));
-                                el.indeterminate = some && !all;
-                              }
-                            }}
-                            onChange={() => {
-                              if (selectedItems.every((i) => selectedTransferLineIds.has(i.id))) {
-                                setSelectedTransferLineIds(new Set());
-                              } else {
-                                setSelectedTransferLineIds(new Set(selectedItems.map((i) => i.id)));
-                              }
-                            }}
-                            className="w-3.5 h-3.5 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
-                            title="Select all transfer lines"
-                          />
-                        </th>
-                        <th className="py-2.5 px-3 font-bold">Item Code &amp; Description</th>
-                        <th className="py-2.5 px-3 font-bold">Requisition &bull; Mix Ref</th>
-                        <th className="py-2.5 px-3 font-bold">Type</th>
-                        <th className="py-2.5 px-3 font-bold">Batch / Lot #</th>
-                        <th className="py-2.5 px-3 font-bold">Pick Bin</th>
-                        <th className="py-2.5 px-3 font-bold text-right">Avail. Qty</th>
-                        <th className="py-2.5 px-3 font-bold text-right w-28">Transfer Qty</th>
-                        <th className="py-2.5 px-3 font-bold">UOM</th>
-                        <th className="py-2.5 px-3 font-bold text-right">Standard Cost</th>
-                        <th className="py-2.5 px-3 font-bold text-right">Total (₹)</th>
-                        <th className="py-2.5 px-3 text-center">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {selectedItems.length === 0 ? (
+                  {/* Table with responsive horizontal scroll and proper column fitting */}
+                  <div className="overflow-x-auto w-full">
+                    <table className="w-full text-left text-xs min-w-[960px]">
+                      <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
                         <tr>
-                          <td colSpan={12} className="py-8 text-center text-slate-400">
-                            No items added yet. Select pending requisitions above or click catalog items.
-                          </td>
-                        </tr>
-                      ) : (
-                        selectedItems.map((item) => {
-                          const isChecked = selectedTransferLineIds.has(item.id);
-                          return (
-                            <tr key={item.id} className={`transition-colors ${isChecked ? 'bg-blue-50/50' : 'hover:bg-slate-50'}`}>
-                              {/* Task 3: Row Checkbox */}
-                              <td className="py-2.5 px-3 text-center">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => {
-                                    setSelectedTransferLineIds((prev) => {
-                                      const next = new Set(prev);
-                                      if (next.has(item.id)) next.delete(item.id);
-                                      else next.add(item.id);
-                                      return next;
-                                    });
-                                  }}
-                                  className="w-3.5 h-3.5 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
-                                />
-                              </td>
-
-                              <td className="py-2.5 px-3">
-                                <div className="font-mono font-bold text-blue-700">{item.itemCode}</div>
-                                <div className="text-[11px] text-slate-600">{item.itemName}</div>
-                                {item.formulaId && (
-                                  <span className="font-mono text-[9px] font-black text-cyan-800 bg-cyan-100 px-1.5 py-0.2 rounded border border-cyan-300 inline-block mt-0.5">
-                                    FRM: {item.formulaId}
-                                  </span>
-                                )}
-                              </td>
-                            <td className="py-2.5 px-3">
-                              {item.requisitionRefNumber ? (
-                                <div>
-                                  <div className="font-mono font-bold text-blue-700 text-[11px]">
-                                    {item.requisitionRefNumber}
-                                  </div>
-                                  {item.mixingRefNumber && (
-                                    <div className="font-mono text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 inline-block">
-                                      {item.mixingRefNumber}
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-slate-400 text-[11px] italic">Ad-hoc Issue</span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3">
-                              <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[10px]">
-                                {item.materialType}
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3">
-                              {isAdminLotAccess ? (
-                                <input
-                                  type="text"
-                                  value={item.batchLotNumber || ''}
-                                  onChange={(e) => handleUpdateItemBatchLot(item.id, e.target.value)}
-                                  className="w-36 px-2 py-1 bg-white border border-teal-300 rounded font-mono text-[11px] font-bold text-teal-900 focus:ring-1 focus:ring-teal-500 shadow-2xs"
-                                  placeholder="LOT #"
-                                  title="Admin authorized: Edit Batch/LOT number"
-                                />
-                              ) : (
-                                <div className="flex items-center gap-1 font-mono text-[11px] text-teal-700">
-                                  <Lock className="w-3 h-3 text-slate-400" />
-                                  <span>{item.batchLotNumber}</span>
-                                </div>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3 text-[11px] text-slate-600 font-mono">
-                              {item.pickLocation}
-                            </td>
-                            <td className="py-2.5 px-3 text-right font-medium text-slate-600">
-                              {item.availableStock.toLocaleString()}
-                            </td>
-                            <td className="py-2.5 px-3 text-right">
-                              <input
-                                type="number"
-                                min={1}
-                                max={item.availableStock}
-                                value={item.transferQty}
-                                onChange={(e) =>
-                                  handleUpdateItemQty(item.id, parseFloat(e.target.value) || 0)
+                          {/* Task 3: Select All Checkbox Header */}
+                          <th className="py-2.5 px-2 w-9 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedItems.length > 0 && selectedItems.every((i) => selectedTransferLineIds.has(i.id))}
+                              ref={(el) => {
+                                if (el) {
+                                  const all = selectedItems.length > 0 && selectedItems.every((i) => selectedTransferLineIds.has(i.id));
+                                  const some = selectedItems.some((i) => selectedTransferLineIds.has(i.id));
+                                  el.indeterminate = some && !all;
                                 }
-                                className="w-24 text-right bg-white border border-slate-300 rounded px-2 py-1 text-xs font-bold text-slate-900 focus:ring-1 focus:ring-blue-500"
-                              />
-                            </td>
-                            <td className="py-2.5 px-3 font-semibold text-slate-700">{item.uom}</td>
-                            <td className="py-2.5 px-3 text-right font-mono text-slate-600">
-                              ₹{item.standardCost.toFixed(2)}
-                            </td>
-                            <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
-                              ₹{(item.transferQty * item.standardCost).toLocaleString('en-IN')}
-                            </td>
-                            <td className="py-2.5 px-3 text-center">
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveItem(item.id)}
-                                className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              }}
+                              onChange={() => {
+                                if (selectedItems.every((i) => selectedTransferLineIds.has(i.id))) {
+                                  setSelectedTransferLineIds(new Set());
+                                } else {
+                                  setSelectedTransferLineIds(new Set(selectedItems.map((i) => i.id)));
+                                }
+                              }}
+                              className="w-3.5 h-3.5 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                              title="Select all transfer lines"
+                            />
+                          </th>
+                          <th className="py-2.5 px-2.5 font-bold min-w-[170px]">Item Code &amp; Description</th>
+                          <th className="py-2.5 px-2 font-bold min-w-[130px]">Requisition &bull; Mix Ref</th>
+                          <th className="py-2.5 px-2 font-bold text-center w-12">Type</th>
+                          <th className="py-2.5 px-2 font-bold min-w-[145px]">Batch / Lot #</th>
+                          <th className="py-2.5 px-2 font-bold min-w-[100px]">Pick Bin</th>
+                          <th className="py-2.5 px-2 font-bold text-right min-w-[75px]">Avail. Qty</th>
+                          <th className="py-2.5 px-2 font-bold text-right min-w-[90px]">Transfer Qty</th>
+                          <th className="py-2.5 px-2 font-bold w-12">UOM</th>
+                          <th className="py-2.5 px-2 font-bold text-right min-w-[85px]">Standard Cost</th>
+                          <th className="py-2.5 px-2.5 font-bold text-right min-w-[90px]">Total (₹)</th>
+                          <th className="py-2.5 px-2 font-bold text-center w-14 sticky right-0 bg-slate-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] md:shadow-none md:static">
+                            Action
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        {selectedItems.length === 0 ? (
+                          <tr>
+                            <td colSpan={12} className="py-8 text-center text-slate-400">
+                              No items added yet. Select pending requisitions above or click catalog items.
                             </td>
                           </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                  </table>
+                        ) : (
+                          selectedItems.map((item) => {
+                            const isChecked = selectedTransferLineIds.has(item.id);
+                            return (
+                              <tr key={item.id} className={`transition-colors ${isChecked ? 'bg-blue-50/50' : 'hover:bg-slate-50/70'}`}>
+                                {/* Task 3: Row Checkbox */}
+                                <td className="py-2 px-2 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => {
+                                      setSelectedTransferLineIds((prev) => {
+                                        const next = new Set(prev);
+                                        if (next.has(item.id)) next.delete(item.id);
+                                        else next.add(item.id);
+                                        return next;
+                                      });
+                                    }}
+                                    className="w-3.5 h-3.5 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer"
+                                  />
+                                </td>
+
+                                <td className="py-2 px-2.5">
+                                  <div className="font-mono font-bold text-blue-700">{item.itemCode}</div>
+                                  <div className="text-[11px] text-slate-600 truncate max-w-[200px]" title={item.itemName}>{item.itemName}</div>
+                                  {item.formulaId && (
+                                    <span className="font-mono text-[9px] font-black text-cyan-800 bg-cyan-100 px-1.5 py-0.2 rounded border border-cyan-300 inline-block mt-0.5">
+                                      FRM: {item.formulaId}
+                                    </span>
+                                  )}
+                                </td>
+
+                                <td className="py-2 px-2">
+                                  {item.requisitionRefNumber ? (
+                                    <div>
+                                      <div className="font-mono font-bold text-blue-700 text-[11px]">
+                                        {item.requisitionRefNumber}
+                                      </div>
+                                      {item.mixingRefNumber && (
+                                        <div className="font-mono text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 inline-block">
+                                          {item.mixingRefNumber}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-slate-400 text-[11px] italic">Ad-hoc Issue</span>
+                                  )}
+                                </td>
+
+                                <td className="py-2 px-2 text-center">
+                                  <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[10px]">
+                                    {item.materialType}
+                                  </span>
+                                </td>
+
+                                <td className="py-2 px-2">
+                                  {isAdminLotAccess ? (
+                                    <input
+                                      type="text"
+                                      value={item.batchLotNumber || ''}
+                                      onChange={(e) => handleUpdateItemBatchLot(item.id, e.target.value)}
+                                      className="w-32 px-2 py-1 bg-white border border-teal-300 rounded font-mono text-[11px] font-bold text-teal-900 focus:ring-1 focus:ring-teal-500 shadow-2xs"
+                                      placeholder="LOT #"
+                                      title="Admin authorized: Edit Batch/LOT number"
+                                    />
+                                  ) : (
+                                    <div className="flex items-center gap-1 font-mono text-[11px] text-teal-700">
+                                      <Lock className="w-3 h-3 text-slate-400" />
+                                      <span>{item.batchLotNumber}</span>
+                                    </div>
+                                  )}
+                                </td>
+
+                                <td className="py-2 px-2 text-[11px] text-slate-600 font-mono">
+                                  {item.pickLocation}
+                                </td>
+
+                                <td className="py-2 px-2 text-right font-medium text-slate-600">
+                                  {item.availableStock.toLocaleString()}
+                                </td>
+
+                                <td className="py-2 px-2 text-right">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={item.availableStock}
+                                    value={item.transferQty}
+                                    onChange={(e) =>
+                                      handleUpdateItemQty(item.id, parseFloat(e.target.value) || 0)
+                                    }
+                                    className="w-20 text-right bg-white border border-slate-300 rounded px-1.5 py-1 text-xs font-bold text-slate-900 focus:ring-1 focus:ring-blue-500"
+                                  />
+                                </td>
+
+                                <td className="py-2 px-2 font-semibold text-slate-700">{item.uom}</td>
+
+                                <td className="py-2 px-2 text-right font-mono text-slate-600">
+                                  ₹{item.standardCost.toFixed(2)}
+                                </td>
+
+                                <td className="py-2 px-2.5 text-right font-mono font-bold text-slate-900">
+                                  ₹{(item.transferQty * item.standardCost).toLocaleString('en-IN')}
+                                </td>
+
+                                <td className="py-2 px-2 text-center sticky right-0 bg-white/95 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] md:shadow-none md:static">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveItem(item.id)}
+                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                    title="Remove transfer line item"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             )}
