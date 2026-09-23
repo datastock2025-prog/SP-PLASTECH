@@ -1067,11 +1067,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, lastLoggedOut
                   }}
                   className={`py-2 px-1.5 sm:px-3 rounded-xl font-bold transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer ${
                     authMode === 'credentials'
-                      ? 'bg-gradient-to-r from-indigo-600/90 via-blue-600/90 to-indigo-600/90 text-white shadow-[0_0_20px_rgba(99,102,241,0.4)] border border-indigo-400/40 backdrop-blur-md scale-[1.02]'
+                      ? 'bg-gradient-to-r from-emerald-600/90 via-teal-600/90 to-cyan-600/90 text-white shadow-[0_0_20px_rgba(16,185,129,0.35)] border border-emerald-400/40 backdrop-blur-md scale-[1.02]'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04] border border-transparent'
                   }`}
                 >
-                  <KeyRound className={`w-3.5 h-3.5 ${authMode === 'credentials' ? 'text-indigo-200' : 'text-slate-400'}`} />
+                  <KeyRound className={`w-3.5 h-3.5 ${authMode === 'credentials' ? 'text-emerald-200' : 'text-slate-400'}`} />
                   <span className="truncate">Password / SSO</span>
                 </button>
               </div>
@@ -1183,7 +1183,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, lastLoggedOut
                               setPersonaAuthError(null);
                             }}
                             placeholder="Enter secure password or 4-digit PIN..."
-                            className="w-full bg-slate-950/80 border border-slate-700/80 focus:border-[#E8622C] focus:ring-2 focus:ring-[#E8622C]/20 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none transition-all shadow-inner disabled:opacity-50"
+                            className="w-full bg-slate-950/80 border border-slate-750 focus:border-[#E8622C] focus:ring-2 focus:ring-[#E8622C]/20 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none transition-all shadow-inner disabled:opacity-50"
                           />
                           <button
                             type="button"
@@ -1483,7 +1483,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, lastLoggedOut
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="admin@spplastech.com"
-                        className="w-full bg-slate-950/80 border border-slate-750 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none transition-all disabled:opacity-50 shadow-inner"
+                        className="w-full bg-slate-950/80 border border-slate-750 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/20 rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none transition-all disabled:opacity-50 shadow-inner"
                       />
                     </div>
                   </div>
@@ -1504,7 +1504,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, lastLoggedOut
                         onChange={(e) => setPassword(e.target.value)}
                         onKeyUp={(e) => setCapsLockActive(e.getModifierState('CapsLock'))}
                         placeholder="Enter password..."
-                        className="w-full bg-slate-950/80 border border-slate-750 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none transition-all disabled:opacity-50 shadow-inner"
+                        className="w-full bg-slate-950/80 border border-slate-750 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/20 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none transition-all disabled:opacity-50 shadow-inner"
                       />
                       <button
                         type="button"
@@ -1531,7 +1531,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, lastLoggedOut
                         type="checkbox"
                         checked={rememberTerminal}
                         onChange={(e) => setRememberTerminal(e.target.checked)}
-                        className="w-4 h-4 rounded border-slate-750 bg-slate-950 text-indigo-600 focus:ring-0 cursor-pointer accent-indigo-500"
+                        className="w-4 h-4 rounded border-slate-750 bg-slate-950 text-teal-600 focus:ring-0 cursor-pointer accent-teal-500"
                       />
                       <span className="text-slate-300 hover:text-white transition-colors">Remember this workstation</span>
                     </label>
@@ -1540,13 +1540,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, lastLoggedOut
                     </span>
                   </div>
 
-                  {/* Submit Action Button with Glowing Translucent Indigo/Violet Gradient */}
+                  {/* Submit Action Button with Glowing Cyber Teal/Emerald Gradient */}
                   <button
                     type="submit"
                     disabled={isLoading || lockoutRemaining > 0}
-                    className="relative group overflow-hidden w-full py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-500 hover:via-indigo-500 hover:to-violet-500 active:scale-[0.985] text-white text-xs sm:text-sm font-bold transition-all duration-200 shadow-[0_0_25px_rgba(79,70,229,0.35)] hover:shadow-[0_0_35px_rgba(99,102,241,0.6)] border-t border-white/25 border-b border-indigo-900/60 border-x border-indigo-500/30 flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    className="relative group overflow-hidden w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#0F8B8D] via-teal-500 to-emerald-500 hover:from-teal-600 hover:via-teal-400 hover:to-emerald-400 active:scale-[0.985] text-white text-xs sm:text-sm font-bold transition-all duration-200 shadow-[0_0_25px_rgba(15,139,141,0.4)] hover:shadow-[0_0_35px_rgba(20,184,166,0.65)] border-t border-white/30 border-b border-teal-900/60 border-x border-teal-500/40 flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   >
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out" />
                     {isLoading ? (
                       <span className="flex items-center gap-2">
                         <Activity className="w-4 h-4 animate-spin" />
@@ -1554,9 +1554,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, lastLoggedOut
                       </span>
                     ) : (
                       <>
-                        <ShieldCheck className="w-4 h-4 text-indigo-200" />
+                        <ShieldCheck className="w-4 h-4 text-teal-100" />
                         <span>Sign In to Plant Command Console</span>
-                        <ArrowRight className="w-4 h-4 text-indigo-200 group-hover:translate-x-1.5 transition-transform duration-200" />
+                        <ArrowRight className="w-4 h-4 text-teal-100 group-hover:translate-x-1.5 transition-transform duration-200" />
                       </>
                     )}
                   </button>
