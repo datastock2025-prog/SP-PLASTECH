@@ -394,10 +394,67 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [productionCmrs]);
 
-  // 1-Click Release Formula Recipe to Shop Floor PRD Store (STR-PMP-PRD1) (Task 6)
-  const handleReleaseRecipeToPrdStore = (cmr: ProductionScheduleCMR) => {
+  // Admin Batch/LOT override permission state (Task 3)
+  const [isAdminLotAccess, setIsAdminLotAccess] = useState<boolean>(true);
+
+  // Helper to generate secondary BOM items (+PCK, +BOP, +CON) based on scheduled item
+  const getSecondaryBomItemsForSchedule = (cmr: ProductionScheduleCMR) => {
+    const plannedPcs = cmr.plannedQty;
+    const sku = cmr.finishedGoodSku;
+
+    return [
+      {
+        code: sku.includes('CTN') ? 'PK-CTN-021' : sku.includes('BKT') ? 'PK-CTN-045' : 'PK-PAL-WRAP-01',
+        name: sku.includes('CTN') ? 'Master 5-Ply Corrugated Carton Box (50 Pcs/Box)' : sku.includes('BKT') ? 'Heavy Duty Outer Carton (20 Pcs)' : 'Heavy Duty Stretch Wrap Film (23 Micron)',
+        type: 'Packaging (PCK)',
+        badgeClass: 'bg-amber-100 text-amber-900 border-amber-300',
+        pickLocation: 'WH-PCK-01 (Aisle 3)',
+        requiredQty: sku.includes('PAL') ? Math.ceil(plannedPcs / 100) : Math.ceil(plannedPcs / (sku.includes('CTN') ? 50 : 20)),
+        uom: sku.includes('PAL') ? 'ROLL' : 'BOX',
+        unitCost: sku.includes('PAL') ? 350.0 : 45.0,
+        lotNumber: 'LOT-PCK-2026-08',
+      },
+      {
+        code: 'PK-LINER-HD-01',
+        name: 'Food Grade LDPE Anti-Dust Liner Bag',
+        type: 'Packaging (PCK)',
+        badgeClass: 'bg-amber-100 text-amber-900 border-amber-300',
+        pickLocation: 'WH-PCK-02 (Aisle 1)',
+        requiredQty: Math.ceil(plannedPcs / (sku.includes('CTN') ? 50 : 20)),
+        uom: 'NOS',
+        unitCost: 3.5,
+        lotNumber: 'LOT-LNR-2026-14',
+      },
+      {
+        code: sku.includes('BKT') ? 'SP-INS-001' : sku.includes('PAL') ? 'BOP-BRASS-M4-01' : 'BOP-RUB-GASKET-01',
+        name: sku.includes('BKT') ? 'Galvanized Steel Bucket Handle with Red Ergonomic Grip' : sku.includes('PAL') ? 'M8 High-Tensile Fastener Kit' : 'Silicone Sealing Ring (Food Contact Grade)',
+        type: 'Bought-Out (BOP)',
+        badgeClass: 'bg-purple-100 text-purple-900 border-purple-300',
+        pickLocation: 'WH-BOP-STORE (Shelf B2)',
+        requiredQty: sku.includes('PAL') ? plannedPcs * 4 : plannedPcs,
+        uom: 'NOS',
+        unitCost: sku.includes('BKT') ? 12.0 : sku.includes('PAL') ? 8.5 : 2.2,
+        lotNumber: 'LOT-BOP-2026-99',
+      },
+      {
+        code: 'CON-LBL-01',
+        name: 'Thermal Barcode & QR Batch Traceability Labels',
+        type: 'Consumables (CON)',
+        badgeClass: 'bg-slate-100 text-slate-800 border-slate-300',
+        pickLocation: 'WH-CON-STORE (Shelf A1)',
+        requiredQty: plannedPcs,
+        uom: 'NOS',
+        unitCost: 0.45,
+        lotNumber: 'LOT-LBL-2026-01',
+      },
+    ];
+  };
+
+  // 1-Click Release Complete BOM Kit (Pure RM under Formula ID + PCK + BOP + CON) to Shop Floor PRD Store (STR-PMP-PRD1) (Task 1)
+  const handleReleaseCompleteKitToPrdStore = (cmr: ProductionScheduleCMR) => {
     const itemsToAdd: StockTransferItem[] = [];
 
+    // 1. Add Pure RM Mixing Lines governed by Formula ID
     cmr.mixingMaterials.forEach((mat) => {
       const cleanItemKey = `frm-rec-${cmr.id}-${mat.materialSku}`;
       const isAlreadyAdded = selectedItems.some(
@@ -424,22 +481,61 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
           requisitionRefNumber: cmr.id,
           scheduleNumber: cmr.scheduleNumber,
           mixingRefNumber: cmr.mixingReferenceNumber,
-          targetStoreCode: cmr.targetProductionStore || 'PRD-UNIT-1',
+          targetStoreCode: 'STR-PMP-PRD1',
           netWeightKg: mat.requiredQtyKg,
         });
       }
     });
 
+    // 2. Add Secondary BOM Items (+PCK, +BOP, +CON) linked to item code
+    const secondaryItems = getSecondaryBomItemsForSchedule(cmr);
+    secondaryItems.forEach((sec) => {
+      const cleanSecKey = `bom-sec-${cmr.id}-${sec.code}`;
+      const isAlreadyAdded = selectedItems.some(
+        (i) => i.id === cleanSecKey || (i.itemCode === sec.code && i.scheduleNumber === cmr.scheduleNumber)
+      );
+
+      if (!isAlreadyAdded) {
+        itemsToAdd.push({
+          id: cleanSecKey,
+          itemCode: sec.code,
+          itemName: `${sec.name} (for ${cmr.finishedGoodSku})`,
+          materialType: (sec.type.includes('PCK') ? 'PCK' : sec.type.includes('BOP') ? 'BOP' : 'CON') as MaterialType,
+          batchLotNumber: sec.lotNumber,
+          pickLocation: sec.pickLocation,
+          availableStock: 5000,
+          requiredQty: sec.requiredQty,
+          transferQty: sec.requiredQty,
+          uom: sec.uom,
+          standardCost: sec.unitCost,
+          hsnCode: sec.type.includes('PCK') ? '48191000' : '84099900',
+          gstRatePct: 18,
+          formulaId: cmr.formulaId,
+          bomVersion: cmr.bomVersion,
+          targetStoreCode: 'STR-PMP-PRD1',
+          scheduleNumber: cmr.scheduleNumber,
+          lineItemStatus: 'PENDING',
+        });
+      }
+    });
+
     if (itemsToAdd.length === 0) {
-      showToast(`Recipe components for Formula ${cmr.formulaId || cmr.finishedGoodSku} are already staged.`);
+      showToast(`Recipe & Secondary BOM kit for ${cmr.finishedGoodSku} is already staged.`);
     } else {
       setToStoreId('STR-PMP-PRD1');
       setSelectedItems((prev) => [...prev, ...itemsToAdd]);
       showToast(
-        `🎉 Staged ${itemsToAdd.length} RM Recipe line items for Formula ${cmr.formulaId || cmr.finishedGoodSku} to Shopfloor PRD Store (STR-PMP-PRD1).`
+        `🎉 Staged Complete BOM Kit (${itemsToAdd.length} items: Pure RM + PCK + BOP + CON) for ${cmr.finishedGoodSku} under Formula ${cmr.formulaId || cmr.finishedGoodSku} to PRD Store!`
       );
     }
     setInspectedScheduleRecipe(null);
+  };
+
+  // Update Batch/LOT number on transfer item (Admin only) (Task 3)
+  const handleUpdateItemBatchLot = (itemId: string, newBatchLot: string) => {
+    setSelectedItems((prev) =>
+      prev.map((i) => (i.id === itemId ? { ...i, batchLotNumber: newBatchLot } : i))
+    );
   };
 
   // Step 4: Logistics & Indian Tax Compliance
@@ -1402,11 +1498,11 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                     if (selectedCmrIds.size === 0) return;
                     let stagedCount = 0;
                     productionCmrs.filter((c) => selectedCmrIds.has(c.id)).forEach((cmr) => {
-                      handleReleaseRecipeToPrdStore(cmr);
+                      handleReleaseCompleteKitToPrdStore(cmr);
                       stagedCount++;
                     });
                     setSelectedCmrIds(new Set());
-                    showToast(`🚀 Successfully staged ${stagedCount} selected machine recipes to Shopfloor PRD Store (STR-PMP-PRD1)!`);
+                    showToast(`🚀 Successfully staged ${stagedCount} selected machine recipes (Pure RM + PCK + BOP + CON) to Shopfloor PRD Store (STR-PMP-PRD1)!`);
                   };
 
                   const allVisibleCmrs = paginatedGroups.flatMap((g) => g.cmrs);
@@ -1784,13 +1880,13 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
 
                                                 <button
                                                   type="button"
-                                                  onClick={() => handleReleaseRecipeToPrdStore(cmr)}
+                                                  onClick={() => handleReleaseCompleteKitToPrdStore(cmr)}
                                                   className={`px-3 py-1 rounded-md font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1 shadow-2xs ${
                                                     isStaged
                                                       ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                                                       : 'bg-cyan-600 hover:bg-cyan-500 text-white'
                                                   }`}
-                                                  title="Stage consolidated RM materials to Shopfloor PRD Store"
+                                                  title="Stage complete recipe kit (Pure RM + PCK + BOP + CON) to Shopfloor PRD Store"
                                                 >
                                                   {isStaged ? (
                                                     <>
@@ -2180,7 +2276,7 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                   </div>
                 )}
 
-                {/* Task 3: Selected Transfer Lines Table with Multiple Selection Checkboxes */}
+                {/* Task 3: Selected Transfer Lines Table with Multiple Selection Checkboxes & Admin LOT Override */}
                 <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs bg-white">
                   <div className="bg-slate-100 px-4 py-2.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -2190,6 +2286,34 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                       <span className="text-[11px] text-slate-500">
                         (Ready for dispatch to requested store)
                       </span>
+                      
+                      {/* Task 3: Admin Batch/LOT Access Indicator & Toggle */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAdminLotAccess(!isAdminLotAccess);
+                          showToast(isAdminLotAccess ? '🔒 Batch/LOT override locked to Read-Only mode.' : '🔓 Admin Batch/LOT override access granted! LOT numbers can now be modified.');
+                        }}
+                        className={`px-2 py-0.5 rounded-lg text-[10px] font-black border transition-all cursor-pointer flex items-center gap-1 shadow-2xs ${
+                          isAdminLotAccess
+                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200'
+                            : 'bg-slate-200 text-slate-700 border-slate-300 hover:bg-slate-300'
+                        }`}
+                        title="Click to toggle Admin Batch/LOT number editing permissions"
+                      >
+                        {isAdminLotAccess ? (
+                          <>
+                            <ShieldCheck className="w-3 h-3 text-emerald-700" />
+                            <span>Admin LOT Edit: Active</span>
+                          </>
+                        ) : (
+                          <>
+                            <Lock className="w-3 h-3 text-slate-500" />
+                            <span>LOT Locked (Admin Only)</span>
+                          </>
+                        )}
+                      </button>
+
                       {selectedTransferLineIds.size > 0 && (
                         <div className="flex items-center gap-1.5 ml-2">
                           <span className="px-2 py-0.5 rounded-lg bg-blue-100 text-blue-800 font-bold text-[11px] border border-blue-200">
@@ -2323,8 +2447,22 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                                 {item.materialType}
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 font-mono text-[11px] text-teal-700">
-                              {item.batchLotNumber}
+                            <td className="py-2.5 px-3">
+                              {isAdminLotAccess ? (
+                                <input
+                                  type="text"
+                                  value={item.batchLotNumber || ''}
+                                  onChange={(e) => handleUpdateItemBatchLot(item.id, e.target.value)}
+                                  className="w-36 px-2 py-1 bg-white border border-teal-300 rounded font-mono text-[11px] font-bold text-teal-900 focus:ring-1 focus:ring-teal-500 shadow-2xs"
+                                  placeholder="LOT #"
+                                  title="Admin authorized: Edit Batch/LOT number"
+                                />
+                              ) : (
+                                <div className="flex items-center gap-1 font-mono text-[11px] text-teal-700">
+                                  <Lock className="w-3 h-3 text-slate-400" />
+                                  <span>{item.batchLotNumber}</span>
+                                </div>
+                              )}
                             </td>
                             <td className="py-2.5 px-3 text-[11px] text-slate-600 font-mono">
                               {item.pickLocation}
@@ -2822,92 +2960,7 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
         const sku = inspectedScheduleRecipe.finishedGoodSku;
 
         // Task 2: Secondary Packaging (PCK), Bought-Out Parts (BOP) & Consumables (CON) based on BOM
-        const secondaryBomItems = [
-          {
-            code: sku.includes('CTN') ? 'PK-CTN-021' : sku.includes('BKT') ? 'PK-CTN-045' : 'PK-PAL-WRAP-01',
-            name: sku.includes('CTN') ? 'Master 5-Ply Corrugated Carton Box (50 Pcs/Box)' : sku.includes('BKT') ? 'Heavy Duty Outer Carton (20 Pcs)' : 'Heavy Duty Stretch Wrap Film (23 Micron)',
-            type: 'Packaging (PCK)',
-            badgeClass: 'bg-amber-100 text-amber-900 border-amber-300',
-            pickLocation: 'WH-PCK-01 (Aisle 3)',
-            requiredQty: sku.includes('PAL') ? Math.ceil(plannedPcs / 100) : Math.ceil(plannedPcs / (sku.includes('CTN') ? 50 : 20)),
-            uom: sku.includes('PAL') ? 'ROLL' : 'BOX',
-            unitCost: sku.includes('PAL') ? 350.0 : 45.0,
-            lotNumber: 'LOT-PCK-2026-08',
-          },
-          {
-            code: 'PK-LINER-HD-01',
-            name: 'Food Grade LDPE Anti-Dust Liner Bag',
-            type: 'Packaging (PCK)',
-            badgeClass: 'bg-amber-100 text-amber-900 border-amber-300',
-            pickLocation: 'WH-PCK-02 (Aisle 1)',
-            requiredQty: Math.ceil(plannedPcs / (sku.includes('CTN') ? 50 : 20)),
-            uom: 'NOS',
-            unitCost: 3.5,
-            lotNumber: 'LOT-LNR-2026-14',
-          },
-          {
-            code: sku.includes('BKT') ? 'SP-INS-001' : sku.includes('PAL') ? 'BOP-BRASS-M4-01' : 'BOP-RUB-GASKET-01',
-            name: sku.includes('BKT') ? 'Galvanized Steel Bucket Handle with Red Ergonomic Grip' : sku.includes('PAL') ? 'M8 High-Tensile Fastener Kit' : 'Silicone Sealing Ring (Food Contact Grade)',
-            type: 'Bought-Out (BOP)',
-            badgeClass: 'bg-purple-100 text-purple-900 border-purple-300',
-            pickLocation: 'WH-BOP-STORE (Shelf B2)',
-            requiredQty: sku.includes('PAL') ? plannedPcs * 4 : plannedPcs,
-            uom: 'NOS',
-            unitCost: sku.includes('BKT') ? 12.0 : sku.includes('PAL') ? 8.5 : 2.2,
-            lotNumber: 'LOT-BOP-2026-99',
-          },
-          {
-            code: 'CON-LBL-01',
-            name: 'Thermal Barcode & QR Batch Traceability Labels',
-            type: 'Consumables (CON)',
-            badgeClass: 'bg-slate-100 text-slate-800 border-slate-300',
-            pickLocation: 'WH-CON-STORE (Shelf A1)',
-            requiredQty: plannedPcs,
-            uom: 'NOS',
-            unitCost: 0.45,
-            lotNumber: 'LOT-LBL-2026-01',
-          },
-        ];
-
-        // Handler to stage Complete BOM Kit (RM + PCK + BOP + CON)
-        const handleReleaseCompleteKitToPrdStore = (cmr: ProductionScheduleCMR) => {
-          handleReleaseRecipeToPrdStore(cmr);
-
-          secondaryBomItems.forEach((sec, idx) => {
-            const cleanSecKey = `bom-sec-${cmr.id}-${sec.code}`;
-            setSelectedItems((prev) => {
-              if (prev.some((p) => p.id === cleanSecKey || (p.itemCode === sec.code && p.scheduleNumber === cmr.scheduleNumber))) {
-                return prev;
-              }
-              return [
-                ...prev,
-                {
-                  id: cleanSecKey,
-                  itemCode: sec.code,
-                  itemName: `${sec.name} (for ${cmr.finishedGoodSku})`,
-                  materialType: (sec.type.includes('PCK') ? 'PCK' : sec.type.includes('BOP') ? 'BOP' : 'CON') as MaterialType,
-                  batchLotNumber: sec.lotNumber,
-                  pickLocation: sec.pickLocation,
-                  availableStock: 5000,
-                  requiredQty: sec.requiredQty,
-                  transferQty: sec.requiredQty,
-                  uom: sec.uom,
-                  standardCost: sec.unitCost,
-                  hsnCode: sec.type.includes('PCK') ? '48191000' : '84099900',
-                  gstRatePct: 18,
-                  formulaId: cmr.formulaId,
-                  bomVersion: cmr.bomVersion,
-                  targetStoreCode: 'STR-PMP-PRD1',
-                  scheduleNumber: cmr.scheduleNumber,
-                  lineItemStatus: 'PENDING',
-                },
-              ];
-            });
-          });
-
-          setInspectedScheduleRecipe(null);
-          showToast(`🚀 Staged Complete BOM Kit (Pure RM + PCK + BOP + CON) for ${cmr.finishedGoodSku} to Shopfloor PRD Store!`);
-        };
+        const secondaryBomItems = getSecondaryBomItemsForSchedule(inspectedScheduleRecipe);
 
         return (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200">
@@ -3165,7 +3218,7 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
                 bomVersion: bom.version,
                 formulaId: formulaId,
               };
-              handleReleaseRecipeToPrdStore(updatedCmr);
+              handleReleaseCompleteKitToPrdStore(updatedCmr);
               showToast(`🚀 Overrode machine ${selectedRowForBom.cmr.machineId} with BOM Version "${bom.version}" (${formulaId}) & staged materials!`);
             }
           }}

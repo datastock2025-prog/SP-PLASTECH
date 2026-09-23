@@ -36,6 +36,16 @@ interface BomVersionApprovalGridProps {
   showToast: (msg: string) => void;
 }
 
+// Task 2: Helper to ensure unique, non-duplicating Formula ID per version of each SKU
+export const getUniqueFormulaIdForBom = (bom: BomMaster): string => {
+  const cleanSku = (bom.parent || 'SKU').replace(/[^a-zA-Z0-9]/g, '').slice(0, 6);
+  const cleanVer = (bom.version || 'v1.0').replace(/[^a-zA-Z0-9.]/g, '');
+  if (bom.formulaCode && (bom.formulaCode.endsWith(cleanVer) || bom.formulaCode.includes(cleanVer))) {
+    return bom.formulaCode;
+  }
+  return `FRM-${cleanSku}-${cleanVer}`;
+};
+
 export const BomVersionApprovalGrid: React.FC<BomVersionApprovalGridProps> = ({
   isOpen,
   onClose,
@@ -68,8 +78,9 @@ export const BomVersionApprovalGrid: React.FC<BomVersionApprovalGridProps> = ({
           (b.parentName && b.parentName.toUpperCase().includes(targetSku))
       );
 
-      // If only 1 version exists, synthesize previous baseline version for comparison
+      // If only 1 version exists, synthesize previous baseline version for comparison (Task 2 & 4)
       if (list.length === 1 && !list.some((b) => b.version === 'v1.0')) {
+        const cleanSku = list[0].parent.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6);
         const baseBom: BomMaster = {
           ...list[0],
           id: `${list[0].id}-v1.0`,
@@ -78,7 +89,7 @@ export const BomVersionApprovalGrid: React.FC<BomVersionApprovalGridProps> = ({
           status: 'released',
           updated: '2026-06-01',
           createdDate: '2026-06-01',
-          formulaCode: `FRM-${list[0].parent.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6)}-v1.0`,
+          formulaCode: `FRM-${cleanSku}-v1.0`,
           notes: 'Original production baseline recipe formulation.',
         };
         list = [...list, baseBom];
@@ -91,13 +102,14 @@ export const BomVersionApprovalGrid: React.FC<BomVersionApprovalGridProps> = ({
         b.status === statusFilter ||
         (statusFilter === 'pending' && (b.status === 'pending' || b.status === 'under_review'));
       const q = searchQuery.toLowerCase().trim();
+      const uniqueFid = getUniqueFormulaIdForBom(b).toLowerCase();
       const matchQuery =
         !q ||
         b.id.toLowerCase().includes(q) ||
         b.parent.toLowerCase().includes(q) ||
-        b.parentName.toLowerCase().includes(q) ||
+        (b.parentName && b.parentName.toLowerCase().includes(q)) ||
         (b.version && b.version.toLowerCase().includes(q)) ||
-        (b.formulaCode && b.formulaCode.toLowerCase().includes(q));
+        uniqueFid.includes(q);
 
       return matchStatus && matchQuery;
     });
@@ -112,9 +124,9 @@ export const BomVersionApprovalGrid: React.FC<BomVersionApprovalGridProps> = ({
     }
   };
 
-  // Handle PRD Store Transfer Release
+  // Handle PRD Store Transfer Release (Task 2: unique formula ID)
   const handleTransferToPrdStore = (bom: BomMaster) => {
-    const formula = bom.formulaCode || `FRM-${bom.parent.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6)}-v1.0`;
+    const formula = getUniqueFormulaIdForBom(bom);
     if (onStageToPrdStore) {
       onStageToPrdStore(bom, formula);
     }
@@ -237,7 +249,7 @@ export const BomVersionApprovalGrid: React.FC<BomVersionApprovalGridProps> = ({
                   </tr>
                 ) : (
                   filteredBoms.map((bom) => {
-                    const formulaId = bom.formulaCode || `FRM-${bom.parent.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6)}-v1.0`;
+                    const formulaId = getUniqueFormulaIdForBom(bom);
                     
                     // Pure RM mass calculation
                     const pureRmGrams = bom.lines
