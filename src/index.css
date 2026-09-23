@@ -92,6 +92,61 @@ button {
   transform: scaleX(1);
 }
 
+/* Weightless Motion Keyframes */
+@keyframes weightless-float-slow {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(0.4deg);
+  }
+}
+
+@keyframes weightless-float-fast {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes weightless-glow {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes weightless-shimmer {
+  0% {
+    transform: translateX(-150%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+.animate-weightless-slow {
+  animation: weightless-float-slow 8s ease-in-out infinite;
+}
+
+.animate-weightless-fast {
+  animation: weightless-float-fast 4.5s ease-in-out infinite;
+}
+
+.animate-weightless-glow {
+  animation: weightless-glow 6s ease-in-out infinite;
+}
+
+.animate-weightless-shimmer {
+  animation: weightless-shimmer 3s ease-in-out infinite;
+}
+
 /* Buttons */
 .btn {
   display: inline-flex;
