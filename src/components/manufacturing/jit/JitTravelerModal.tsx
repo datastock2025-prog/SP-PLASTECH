@@ -22,7 +22,9 @@ import {
   parseStockNumber,
   getSyntheticRecipeForPart,
   DEFAULT_CONNECTED_STORES,
+  getFormulaRecipeId,
 } from './jitCalculations';
+import { Fingerprint } from 'lucide-react';
 
 interface Props {
   job: PlannedMachineJob;
@@ -51,6 +53,14 @@ export const JitTravelerModal: React.FC<Props> = ({
   const mold = molds.find((m) => m.id === job.moldId);
   const bom = job.bomId ? boms.find((b) => b.id === job.bomId) : boms.find((b) => b.parent === job.itemCode);
   const lines = (bom && bom.lines && bom.lines.length > 0) ? bom.lines : (item ? getSyntheticRecipeForPart(item) : []);
+
+  // Task 3: Formula ID for Traveler
+  const formulaId = job.formulaId || getFormulaRecipeId(
+    job.itemCode,
+    item?.name || job.itemName,
+    bom?.version || '2.1',
+    bom?.formulaCode || bom?.recipeCode
+  );
 
   const woNumber = job.workOrderId || `WO-JIT-${job.planDate.replace(/-/g, '').slice(2)}-${job.machineId}`;
 
@@ -108,6 +118,10 @@ export const JitTravelerModal: React.FC<Props> = ({
             <div className="text-right">
               <div className="font-mono font-black text-base text-indigo-900">{woNumber}</div>
               <div className="text-[11px] text-slate-500">Schedule: {scheduleNumber}</div>
+              <div className="inline-flex items-center gap-1 font-mono font-bold text-[10.5px] bg-cyan-50 text-cyan-800 border border-cyan-300 px-2 py-0.5 rounded mt-1">
+                <Fingerprint className="w-3 h-3 text-cyan-600" />
+                {formulaId}
+              </div>
             </div>
           </div>
 
@@ -165,11 +179,16 @@ export const JitTravelerModal: React.FC<Props> = ({
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
                 <Boxes className="w-3.5 h-3.5 text-indigo-600" />
-                Raw Materials & Recipe Components
+                Raw Materials &amp; Recipe Components
               </h4>
-              <span className="text-[11px] font-mono text-slate-500">
-                Linked BOM: <strong>{bom ? `${bom.id} (${bom.version || 'v2.1'})` : 'Standard Recipe'}</strong>
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-mono text-slate-500">
+                  Linked BOM: <strong>{bom ? `${bom.id} (${bom.version || 'v2.1'})` : 'Standard Recipe'}</strong>
+                </span>
+                <span className="text-[10px] font-mono font-bold bg-cyan-50 text-cyan-800 border border-cyan-300 px-1.5 py-0.5 rounded">
+                  Formula: {formulaId}
+                </span>
+              </div>
             </div>
 
             <table className="w-full text-left text-xs border border-slate-300 print:border-black">

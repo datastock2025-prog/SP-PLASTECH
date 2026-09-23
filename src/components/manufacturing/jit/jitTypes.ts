@@ -12,6 +12,7 @@ export interface PlannedMachineJob {
   moldId: string;
   moldName: string;
   bomId?: string;
+  formulaId?: string;
   cavities: number;
   cycleTimeSec: number;
   isCustomCavity?: boolean;

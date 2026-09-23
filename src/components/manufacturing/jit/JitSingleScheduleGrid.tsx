@@ -76,6 +76,7 @@ interface Props {
   onReleaseSingleJob: (job: PlannedMachineJob, onlyWo?: boolean) => void;
   onReleaseSchedule: (date: string, scheduleNumber: string, onlyWo?: boolean) => void;
   onViewRecipe: (job: PlannedMachineJob) => void;
+  onNavigateToStockTransfer?: (scheduleNumber: string, date: string) => void;
   onExportExcel: (date: string, scheduleNumber: string) => void;
   onExportCsv: (date: string, scheduleNumber: string) => void;
 }
@@ -96,6 +97,7 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
   onReleaseSingleJob,
   onReleaseSchedule,
   onViewRecipe,
+  onNavigateToStockTransfer,
   onExportExcel,
   onExportCsv,
 }) => {
@@ -734,6 +736,7 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
           onReleaseSingleJob={onReleaseSingleJob}
           onReleaseSchedule={onReleaseSchedule}
           onViewRecipe={onViewRecipe}
+          onNavigateToStockTransfer={onNavigateToStockTransfer}
           onExportExcel={onExportExcel}
           onExportCsv={onExportCsv}
         />

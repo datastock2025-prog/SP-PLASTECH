@@ -19,6 +19,7 @@ import {
   User,
   Building2,
   CalendarCheck,
+  Fingerprint,
 } from 'lucide-react';
 import { MachineMaster, ItemMaster, BomMaster } from '../../../types';
 import { MoldMaster } from '../../../data/manufacturingData';
@@ -32,6 +33,7 @@ import {
   calculateExpectedFinish,
   exportSingleJobToExcel,
   exportSingleJobToCsv,
+  getFormulaRecipeId,
 } from './jitCalculations';
 
 interface Props {
@@ -67,8 +69,16 @@ export const JitMachineRow: React.FC<Props> = ({
 
   const selectedMachine = machines.find((m) => m.id === job.machineId);
   const selectedItem = items.find((i) => i.code === job.itemCode);
-  const matchingBoms = boms.filter((b) => b.parent === job.itemCode);
-  const bom = matchingBoms.find((b) => b.id === job.bomId) || matchingBoms[0] || boms.find((b) => b.parent === job.itemCode);
+  const matchingBoms = boms.filter((b) => b.parent === job.itemCode && (b.status === 'approved' || b.status === 'released'));
+  const fallbackApprovedBom = boms.find((b) => b.parent === job.itemCode && (b.status === 'approved' || b.status === 'released'));
+  const bom = matchingBoms.find((b) => b.id === job.bomId) || matchingBoms[0] || fallbackApprovedBom;
+
+  const rowFormulaId = job.formulaId || getFormulaRecipeId(
+    job.itemCode,
+    selectedItem?.name || job.itemName,
+    bom?.version || '2.1',
+    bom?.formulaCode || bom?.recipeCode
+  );
 
   // Compatible molds for the selected item or all molds
   const availableMolds = molds.filter((m) =>
@@ -86,9 +96,17 @@ export const JitMachineRow: React.FC<Props> = ({
   };
 
   const handleBomChange = (newBomId: string) => {
+    const selectedBomObj = boms.find((b) => b.id === newBomId);
+    const newFormula = getFormulaRecipeId(
+      job.itemCode,
+      selectedItem?.name || job.itemName,
+      selectedBomObj?.version || '2.1',
+      selectedBomObj?.formulaCode || selectedBomObj?.recipeCode
+    );
     onChange({
       ...job,
       bomId: newBomId,
+      formulaId: newFormula,
     });
   };
 
@@ -451,6 +469,17 @@ export const JitMachineRow: React.FC<Props> = ({
                     </>
                   )}
                 </select>
+              </div>
+
+              {/* Linked Formula ID */}
+              <div className="flex items-center justify-between text-slate-600 pt-1 border-t border-slate-200">
+                <span className="font-medium flex items-center gap-1 text-[10.5px]">
+                  <Fingerprint className="w-3 h-3 text-cyan-600" />
+                  <span>Formula ID:</span>
+                </span>
+                <span className="px-1.5 py-0.5 rounded font-mono font-bold text-[10.5px] bg-cyan-50 text-cyan-800 border border-cyan-200 shadow-2xs">
+                  {rowFormulaId}
+                </span>
               </div>
             </div>
           )}

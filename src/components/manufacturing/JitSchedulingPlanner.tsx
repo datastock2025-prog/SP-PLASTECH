@@ -44,6 +44,7 @@ import {
   exportSingleJobToCsv,
   generateUniqueWorkOrderId,
   generateUniqueScheduleNumber,
+  getFormulaRecipeId,
 } from './jit/jitCalculations';
 import { JitCommonComposer } from './jit/JitCommonComposer';
 import { JitSingleScheduleGrid } from './jit/JitSingleScheduleGrid';
@@ -313,10 +314,15 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
     const targetPlantName = job.plantName || 'Plant 01: Injection Molding Unit';
     const schId = job.scheduleNumber || `SCH-${targetDate.replace(/-/g, '')}-01`;
 
+    const matchingBom = boms.find((b) => b.parent === job.itemCode);
+    const calculatedFormulaId =
+      job.formulaId || getFormulaRecipeId(job.itemCode, job.itemName, matchingBom?.version);
+
     const newWO: WorkOrder = {
       id: woId,
       item: job.itemCode,
-      bomId: boms.find((b) => b.parent === job.itemCode)?.id || 'BOM-1001',
+      bomId: matchingBom?.id || 'BOM-1001',
+      formulaId: calculatedFormulaId,
       machine: job.machineId,
       day: targetDate,
       planDate: targetDate,
@@ -384,10 +390,15 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
         const targetPlant = job.plant || plannerPlant || 'PLANT-01';
         const targetPlantName = job.plantName || 'Plant 01: Injection Molding Unit';
 
+        const matchingBom = boms.find((b) => b.parent === job.itemCode);
+        const calculatedFormulaId =
+          job.formulaId || getFormulaRecipeId(job.itemCode, job.itemName, matchingBom?.version);
+
         const newWO: WorkOrder = {
           id: woId,
           item: job.itemCode,
-          bomId: boms.find((b) => b.parent === job.itemCode)?.id || 'BOM-1001',
+          bomId: matchingBom?.id || 'BOM-1001',
+          formulaId: calculatedFormulaId,
           machine: job.machineId,
           day: targetDate,
           planDate: targetDate,
@@ -495,10 +506,15 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
         const targetPlant = job.plant || plannerPlant || 'PLANT-01';
         const targetPlantName = job.plantName || 'Plant 01: Injection Molding Unit';
 
+        const matchingBom = boms.find((b) => b.parent === job.itemCode);
+        const calculatedFormulaId =
+          job.formulaId || getFormulaRecipeId(job.itemCode, job.itemName, matchingBom?.version);
+
         const newWO: WorkOrder = {
           id: woId,
           item: job.itemCode,
-          bomId: boms.find((b) => b.parent === job.itemCode)?.id || 'BOM-1042',
+          bomId: matchingBom?.id || 'BOM-1042',
+          formulaId: calculatedFormulaId,
           machine: job.machineId,
           day: planDate,
           planDate: planDate,
@@ -892,6 +908,14 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
               onReleaseSingleJob={handleReleaseSingleJob}
               onReleaseSchedule={handleReleaseDateJobs}
               onViewRecipe={(j) => setInspectedJob(j)}
+              onNavigateToStockTransfer={(scheduleNumber, date) =>
+                onNavigate('stockTransfers', {
+                  initialTab: 'wizard',
+                  sourceTab: 'SCHEDULE',
+                  scheduleNumber,
+                  date,
+                })
+              }
               onExportExcel={handleExportDateExcel}
               onExportCsv={handleExportDateCsv}
             />

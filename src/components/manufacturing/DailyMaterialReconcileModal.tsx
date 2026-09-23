@@ -24,7 +24,7 @@ import {
   Flame,
   Clock,
 } from 'lucide-react';
-import { categorizeBomLine, getSyntheticRecipeForPart } from './jit/jitCalculations';
+import { categorizeBomLine, getSyntheticRecipeForPart, getFormulaRecipeId } from './jit/jitCalculations';
 
 interface DailyMaterialReconcileModalProps {
   workOrder: WorkOrder;
@@ -119,6 +119,18 @@ export const DailyMaterialReconcileModal: React.FC<DailyMaterialReconcileModalPr
   const activeBom = useMemo(() => {
     return productBoms.find((b) => b.id === selectedBomId) || productBoms[0];
   }, [productBoms, selectedBomId]);
+
+  // Unified Formula ID linked to this active BOM version (Task 7b)
+  const activeFormulaId = useMemo(() => {
+    return (
+      workOrder.formulaId ||
+      getFormulaRecipeId(
+        workOrder.item,
+        items.find((i) => i.code === workOrder.item)?.name,
+        activeBom?.version
+      )
+    );
+  }, [workOrder.formulaId, workOrder.item, items, activeBom?.version]);
 
   // Status of store deduction in this session
   const [isDeducted, setIsDeducted] = useState<boolean>(false);
@@ -232,19 +244,20 @@ export const DailyMaterialReconcileModal: React.FC<DailyMaterialReconcileModalPr
     const updatedWO: WorkOrder = {
       ...workOrder,
       bomId: activeBom.id,
+      formulaId: activeFormulaId,
       history: [
         ...(workOrder.history || []),
         {
-          event: `Daily Production BOM version switched to ${activeBom.version} (${activeBom.id}) for shift execution`,
+          event: `Daily Production BOM version switched to ${activeBom.version} (${activeBom.id}) and Formula ${activeFormulaId} for shift execution`,
           time: new Date().toLocaleTimeString(),
         },
       ],
     };
     onUpdateWO(updatedWO);
-    showToast(`✅ Updated BOM version to "${activeBom.version}" for Work Order ${workOrder.id}.`);
+    showToast(`✅ Updated BOM version to "${activeBom.version}" (Formula: ${activeFormulaId}) for Work Order ${workOrder.id}.`);
   };
 
-  // Handle Minus / Deduct from Production Store (Task 1 & Task 2)
+  // Handle Minus / Deduct from Production Store (Task 1 & Task 2 & Task 7)
   const handleDeductFromStore = () => {
     if (isDeducted) {
       showToast('⚠️ Store stock for this shift has already been deducted.');
@@ -274,10 +287,11 @@ export const DailyMaterialReconcileModal: React.FC<DailyMaterialReconcileModalPr
     const updatedWO: WorkOrder = {
       ...workOrder,
       bomId: activeBom.id,
+      formulaId: activeFormulaId,
       history: [
         ...(workOrder.history || []),
         {
-          event: `Production Store Deduction (${targetStore}, ${activeShiftTab === 'shift1' ? 'Shift A' : 'Shift B'}): Minused ${summaryStr} based on ${shiftTotalProduced} PCS produced (${currentShiftGood} Good + ${currentShiftScrap} Scrap) + ${currentShiftRunner}kg runner + ${currentShiftLumps}kg lumps.`,
+          event: `Production Store Deduction (${targetStore}, ${activeShiftTab === 'shift1' ? 'Shift A' : 'Shift B'} under Formula ${activeFormulaId}): Minused ${summaryStr} based on ${shiftTotalProduced} PCS produced (${currentShiftGood} Good + ${currentShiftScrap} Scrap) + ${currentShiftRunner}kg runner + ${currentShiftLumps}kg lumps.`,
           time: new Date().toLocaleTimeString(),
         },
       ],
@@ -451,6 +465,21 @@ export const DailyMaterialReconcileModal: React.FC<DailyMaterialReconcileModalPr
             </div>
             <div className="text-[10px] text-indigo-700 truncate">
               {activeBom.version} ({recipeLines.length} material lines)
+            </div>
+            <div className="pt-1.5 border-t border-indigo-100 flex items-center justify-between gap-1 text-[10px]">
+              <div className="flex items-center gap-1">
+                <span className="font-semibold text-slate-500">Formula:</span>
+                <span className="font-mono font-extrabold text-cyan-800 bg-cyan-100 px-1.5 py-0.2 rounded border border-cyan-300">
+                  {activeFormulaId}
+                </span>
+              </div>
+              <span className="font-mono font-bold text-slate-600">
+                {hasShortage ? (
+                  <span className="text-rose-600 font-bold">⚠️ Store Deficit</span>
+                ) : (
+                  <span className="text-emerald-700 font-bold">✅ PRD Store Ready</span>
+                )}
+              </span>
             </div>
           </div>
         </div>

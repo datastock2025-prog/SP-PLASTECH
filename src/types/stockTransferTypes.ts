@@ -27,6 +27,7 @@ export interface ProductionScheduleCMR {
   plannedQty: number;              // e.g. 1250
   uom: string;                     // "PCS"
   bomVersion: string;              // "BOM-v2.1"
+  formulaId?: string;              // e.g. "FRM-AH0001-v2.1"
   targetProductionStore: string;   // "PRD-UNIT-1"
   mixingReferenceNumber?: string;  // e.g. "MIX-AUTO-HOUSING-20260919-01"
   transferStatus: 'PENDING_TRANSFER' | 'TRANSFERRED' | 'RETURNED' | 'PARTIALLY_RETURNED';
@@ -170,6 +171,8 @@ export interface StockTransferItem {
   availableStock: number;
   transferQty: number;
   requiredQty?: number;
+  formulaId?: string;
+  bomVersion?: string;
   requisitionRefNumber?: string;
   scheduleNumber?: string;
   mixingRefNumber?: string;

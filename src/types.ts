@@ -560,6 +560,7 @@ export interface WorkOrder {
   id: string;
   item: string;
   bomId: string | null;
+  formulaId?: string;
   machine: string | null;
   day: string | null;
   qty: number;

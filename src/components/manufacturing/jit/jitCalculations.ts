@@ -947,3 +947,42 @@ export function isScheduleNumberUnique(
     return existing === target && j.planDate !== target;
   });
 }
+
+/**
+ * Generates unique, deterministic Formula ID linked with BOM Version and Part Code
+ * Format: FRM-{ItemPrefix}{Digits}-v{Version} e.g. FRM-SC0030-v1.0 or FRM-RC1001-v2.1
+ */
+export function getFormulaRecipeId(
+  itemCode: string = '',
+  itemName: string = '',
+  version: string = '1.0',
+  existingFormulaCode?: string
+): string {
+  if (existingFormulaCode && existingFormulaCode.trim()) {
+    return existingFormulaCode.trim();
+  }
+
+  // 1. Digits from item code
+  const digitsOnly = (itemCode || '').replace(/\D/g, '');
+  let last4Digits = digitsOnly.length >= 4 ? digitsOnly.slice(-4) : '';
+  if (!last4Digits) {
+    const alphanumeric = (itemCode || '').replace(/[^A-Za-z0-9]/g, '');
+    last4Digits = alphanumeric.slice(-4).padStart(4, '0').toUpperCase();
+  } else if (last4Digits.length < 4) {
+    last4Digits = last4Digits.padStart(4, '0');
+  }
+
+  // 2. Initials from description/name
+  const cleanName = (itemName || itemCode || 'Product').trim();
+  const words = cleanName.split(/[\s\-_/]+/).filter(Boolean);
+  const firstLetter = words[0]?.[0]?.toUpperCase() || 'F';
+  const midWordIndex = Math.floor(words.length / 2);
+  const midLetter = (words.length > 1 ? words[midWordIndex]?.[0] : (words[0]?.[1] || 'R')).toUpperCase();
+  const descAbbr = `${firstLetter}${midLetter}`;
+
+  // 3. Clean version string
+  const cleanVersion = (version || '1.0').trim().replace(/^[vV]+/, '');
+
+  return `FRM-${descAbbr}${last4Digits}-v${cleanVersion}`;
+}
+

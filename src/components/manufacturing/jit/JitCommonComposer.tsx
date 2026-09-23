@@ -11,6 +11,7 @@ import {
   Layers as LayersIcon,
   Building2,
   CalendarCheck,
+  Fingerprint,
 } from 'lucide-react';
 import { MachineMaster, ItemMaster, BomMaster } from '../../../types';
 import { MoldMaster } from '../../../data/manufacturingData';
@@ -23,6 +24,7 @@ import {
   categorizeBomLine,
   parseStockNumber,
   calculateExpectedFinish,
+  getFormulaRecipeId,
 } from './jitCalculations';
 
 export interface PlantConfigOption {
@@ -103,9 +105,22 @@ export const JitCommonComposer: React.FC<Props> = ({
   const selectedMachine = machines.find((m) => m.id === selectedMachineId);
   const selectedItem = items.find((i) => i.code === selectedItemCode) || items[0];
   
-  // Compatible BOMs for this part
-  const matchingBoms = boms.filter((b) => b.parent === selectedItemCode);
-  const bom = matchingBoms.find((b) => b.id === selectedBomId) || matchingBoms[0] || boms.find((b) => b.parent === selectedItemCode);
+  // Task 1: Compatible Approved/Released BOMs only for this part
+  const matchingBoms = boms.filter(
+    (b) => b.parent === selectedItemCode && (b.status === 'approved' || b.status === 'released')
+  );
+  const fallbackApprovedBom = boms.find(
+    (b) => b.parent === selectedItemCode && (b.status === 'approved' || b.status === 'released')
+  );
+  const bom = matchingBoms.find((b) => b.id === selectedBomId) || matchingBoms[0] || fallbackApprovedBom;
+
+  // Task 2: Linked Formula ID
+  const activeFormulaId = getFormulaRecipeId(
+    selectedItemCode,
+    selectedItem?.name,
+    bom?.version || '2.1',
+    bom?.formulaCode || bom?.recipeCode
+  );
 
   // Compatible molds
   const compatibleMolds = molds.filter((m) =>
@@ -212,6 +227,7 @@ export const JitCommonComposer: React.FC<Props> = ({
     moldId: selectedMoldId,
     moldName: molds.find((m) => m.id === selectedMoldId)?.name || 'Injection Mold',
     bomId: bom?.id || selectedBomId || 'BOM-1001',
+    formulaId: activeFormulaId,
     cavities,
     cycleTimeSec,
     isCustomCavity,
@@ -423,6 +439,21 @@ export const JitCommonComposer: React.FC<Props> = ({
                   </>
                 )}
               </select>
+            </div>
+
+            {/* Task 2: Linked Formula ID */}
+            <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+              <span className="text-slate-500 font-medium flex items-center gap-1">
+                <Fingerprint className="w-3.5 h-3.5 text-cyan-600" />
+                <span>Formula ID:</span>
+              </span>
+              <span
+                className="px-2 py-0.5 rounded font-mono font-black text-[11px] bg-cyan-50 text-cyan-800 border border-cyan-300 shadow-2xs flex items-center gap-1"
+                title="Unique Recipe Formula Identification Number linked to active BOM Version"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
+                {activeFormulaId}
+              </span>
             </div>
 
             <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">

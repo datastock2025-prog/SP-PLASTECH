@@ -25,8 +25,9 @@ import {
   Plus,
   Trash2,
   Lock,
+  Fingerprint,
 } from 'lucide-react';
-import { isWorkOrderInputStarted } from './jit/jitCalculations';
+import { isWorkOrderInputStarted, getFormulaRecipeId } from './jit/jitCalculations';
 
 interface TravelerProps {
   workOrder: WorkOrder;
@@ -59,8 +60,16 @@ export const WorkOrderDetailTraveler: React.FC<TravelerProps> = ({
 
   const itemName = (code: string) => items.find((i) => i.code === code)?.name || code;
   const itemObj = items.find((i) => i.code === wo.item);
-  const bom = boms.find((b) => b.parent === wo.item && b.status === 'released') || boms[0];
+  const bom = boms.find((b) => b.parent === wo.item && (b.status === 'approved' || b.status === 'released')) || boms.find((b) => b.id === wo.bomId) || boms[0];
   const assignedMold = molds.find((m) => m.id === wo.mold);
+
+  // Task 3: Formula ID for Production Traveler
+  const travelerFormulaId = wo.formulaId || getFormulaRecipeId(
+    wo.item,
+    itemObj?.name || wo.item,
+    bom?.version || '1.0',
+    bom?.formulaCode || bom?.recipeCode
+  );
 
   const progressPct = Math.min(100, Math.round((wo.completed / wo.qty) * 100));
 
@@ -156,6 +165,14 @@ export const WorkOrderDetailTraveler: React.FC<TravelerProps> = ({
                   ⚡ {wo.jitScheduleId}
                 </span>
               )}
+              {/* Task 3: Formula ID Badge */}
+              <span
+                className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-cyan-50 text-cyan-800 border border-cyan-300 flex items-center gap-1 shadow-2xs"
+                title="Recipe Formula ID Linked to Traveler"
+              >
+                <Fingerprint className="w-3.5 h-3.5 text-cyan-600" />
+                {travelerFormulaId}
+              </span>
               {isWorkOrderInputStarted(wo) && (
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1 shadow-2xs">
                   <Lock className="w-3 h-3 text-amber-700" />
@@ -291,7 +308,13 @@ export const WorkOrderDetailTraveler: React.FC<TravelerProps> = ({
             </div>
 
             <div className="pt-3 border-t border-[#E4E0D6] space-y-2">
-              <h4 className="font-bold text-xs text-[#14213D]">Recipe BOM Reference</h4>
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-xs text-[#14213D]">Recipe BOM &amp; Formula Reference</h4>
+                <span className="px-2 py-0.5 rounded font-mono font-bold text-[10.5px] bg-cyan-50 text-cyan-800 border border-cyan-300 flex items-center gap-1">
+                  <Fingerprint className="w-3 h-3 text-cyan-600" />
+                  Formula: {travelerFormulaId}
+                </span>
+              </div>
               <div className="p-3 rounded-xl border border-[#E4E0D6] bg-slate-50/50 flex items-center justify-between text-xs">
                 <div>
                   <span className="font-mono font-bold text-[#0F8B8D]">{bom?.id || 'BOM-1042'}</span> &mdash;{' '}

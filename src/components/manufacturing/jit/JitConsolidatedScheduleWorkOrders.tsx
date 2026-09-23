@@ -27,6 +27,7 @@ import {
   Sparkles,
   ArrowUpDown,
   RefreshCw,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { MachineMaster, ItemMaster, BomMaster, WorkOrder } from '../../../types';
 import { MoldMaster } from '../../../data/manufacturingData';
@@ -51,6 +52,7 @@ interface Props {
   onReleaseSingleJob: (job: PlannedMachineJob, onlyWo?: boolean) => void;
   onReleaseSchedule: (date: string, scheduleNumber: string, onlyWo?: boolean) => void;
   onViewRecipe: (job: PlannedMachineJob) => void;
+  onNavigateToStockTransfer?: (scheduleNumber: string, date: string) => void;
   onExportExcel?: (date: string, scheduleNumber: string) => void;
   onExportCsv?: (date: string, scheduleNumber: string) => void;
 }
@@ -88,6 +90,7 @@ export const JitConsolidatedScheduleWorkOrders: React.FC<Props> = ({
   onReleaseSingleJob,
   onReleaseSchedule,
   onViewRecipe,
+  onNavigateToStockTransfer,
   onExportExcel,
   onExportCsv,
 }) => {
@@ -475,6 +478,18 @@ export const JitConsolidatedScheduleWorkOrders: React.FC<Props> = ({
                 <Send className="w-3.5 h-3.5" />
                 <span>{currentSchedule.isAllReleased ? 'Released to Floor' : isOnlyWoChecked ? 'Release to WO Only' : 'Release All WOs'}</span>
               </button>
+
+              {onNavigateToStockTransfer && (
+                <button
+                  type="button"
+                  onClick={() => onNavigateToStockTransfer(currentSchedule.scheduleNumber, currentSchedule.planDate)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-xs"
+                  title="Stage and issue Raw Material recipe transfer to Shopfloor PRD Store (STR-PMP-PRD1)"
+                >
+                  <ArrowLeftRight className="w-3.5 h-3.5" />
+                  <span>Recipe Transfer &rarr;</span>
+                </button>
+              )}
             </div>
           </div>
 
