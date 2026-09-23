@@ -28,6 +28,7 @@ interface BomVersionApprovalGridProps {
   onClose: () => void;
   boms: BomMaster[];
   items: ItemMaster[];
+  initialItemFilter?: string;
   onApproveBom: (bomId: string) => void;
   onStageToPrdStore?: (bom: BomMaster, formulaId: string) => void;
   onCreateNewBom?: (newBom: BomMaster, formulaId: string) => void;
@@ -39,6 +40,7 @@ export const BomVersionApprovalGrid: React.FC<BomVersionApprovalGridProps> = ({
   onClose,
   boms,
   items,
+  initialItemFilter,
   onApproveBom,
   onStageToPrdStore,
   onCreateNewBom,
@@ -47,7 +49,7 @@ export const BomVersionApprovalGrid: React.FC<BomVersionApprovalGridProps> = ({
   if (!isOpen) return null;
 
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'released'>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>(initialItemFilter || '');
   const [selectedBomForDetail, setSelectedBomForDetail] = useState<BomMaster | null>(null);
   const [isDeveloperModalOpen, setIsDeveloperModalOpen] = useState<boolean>(false);
 
