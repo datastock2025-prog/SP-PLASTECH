@@ -40,7 +40,7 @@ export class AuthService {
        FROM auth_users u
        JOIN auth_roles r ON u.role_id = r.id
        JOIN tenant_profiles t ON u.tenant_id = t.id
-       WHERE u.email = $1 AND u.is_active = true`,
+       WHERE (LOWER(u.email) = LOWER($1) OR LOWER(u.username) = LOWER($1)) AND u.is_active = true`,
       [email]
     );
 

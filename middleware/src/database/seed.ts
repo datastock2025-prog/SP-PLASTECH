@@ -41,16 +41,17 @@ export class DatabaseSeedService implements OnModuleInit {
         ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
       `);
 
-      // 3. Users
-      const defaultPasswordHash = await bcrypt.hash('SpPlastech2026!#', 10);
+      // 3. Primary System Master Admin & Production Users
+      const adminPasswordHash = await bcrypt.hash('SpPlastech#Admin2026', 10);
       await this.db.query(`
         INSERT INTO auth_users (id, tenant_id, role_id, email, username, password_hash, full_name, phone, designation, department, plant_ids, status, is_active)
         VALUES 
-          ('USR-001', 'PLANT-01', 'ROLE-SUPER-ADMIN', 'priya.rao@spplastech.com', 'priya.rao', '${defaultPasswordHash}', 'Priya Rao', '+91 98230 11223', 'VP Operations', 'Executive Operations', '["PLANT-01","PLANT-02","PLANT-03"]'::jsonb, 'ACTIVE', true),
-          ('USR-002', 'PLANT-01', 'ROLE-PLANT-MANAGER', 'vikram.patel@spplastech.com', 'vikram.patel', '${defaultPasswordHash}', 'Vikram Patel', '+91 98230 22334', 'Plant Manager', 'Manufacturing Execution', '["PLANT-01"]'::jsonb, 'ACTIVE', true),
-          ('USR-003', 'PLANT-01', 'ROLE-QA-LEAD', 'ananya.deshmukh@spplastech.com', 'ananya.deshmukh', '${defaultPasswordHash}', 'Ananya Deshmukh', '+91 98230 33445', 'QA Lead', 'Quality Assurance', '["PLANT-01"]'::jsonb, 'ACTIVE', true),
-          ('USR-004', 'PLANT-01', 'ROLE-FINANCE-CONTROLLER', 'rajesh.sharma@spplastech.com', 'rajesh.sharma', '${defaultPasswordHash}', 'Rajesh Sharma', '+91 98230 44556', 'Financial Controller', 'Finance & Accounting', '["PLANT-01","PLANT-02"]'::jsonb, 'ACTIVE', true)
-        ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
+          ('USR-ADMIN-01', 'PLANT-01', 'ROLE-SUPER-ADMIN', 'admin@spplastech.com', 'admin', '${adminPasswordHash}', 'SP-PLASTECH Master Admin', '+91 98000 00001', 'Enterprise System Administrator', 'System Administration', '["PLANT-01","PLANT-02","PLANT-03","CORP-HQ"]'::jsonb, 'ACTIVE', true)
+        ON CONFLICT (id) DO UPDATE SET 
+          password_hash = EXCLUDED.password_hash,
+          email = EXCLUDED.email,
+          username = EXCLUDED.username,
+          full_name = EXCLUDED.full_name;
       `);
 
       // 4. Items (Resins, Masterbatches, Finished Polymer Goods)
