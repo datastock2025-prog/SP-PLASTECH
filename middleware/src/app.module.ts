@@ -14,6 +14,7 @@ import { MfgQualityModule } from './modules/mfg-quality/mfg-quality.module';
 import { FinanceModule } from './modules/finance/finance.module';
 import { HealthModule } from './modules/health/health.module';
 import { HomeToolsModule } from './modules/home-tools/home-tools.module';
+import { FrontOfficeModule } from './modules/front-office/front-office.module';
 import { CsrfDoubleSubmitMiddleware } from './common/middleware/csrf.middleware';
 
 @Module({
@@ -33,6 +34,7 @@ import { CsrfDoubleSubmitMiddleware } from './common/middleware/csrf.middleware'
     FinanceModule,
     HealthModule,
     HomeToolsModule,
+    FrontOfficeModule,
   ],
 })
 export class AppModule implements NestModule {
