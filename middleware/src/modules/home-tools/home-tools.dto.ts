@@ -13,7 +13,7 @@ export const CreateDashboardWidgetDtoSchema = z.object({
     'CUSTOM',
   ]),
   title: z.string().min(1, 'Title is required'),
-  config: z.record(z.any()).default({}),
+  config: z.record(z.string(), z.any()).default({}),
   position: z.number().int().default(1),
   isVisible: z.boolean().default(true),
   refreshInterval: z.number().int().default(300),
@@ -34,7 +34,7 @@ export const CreateTaskDtoSchema = z.object({
   dueDate: z.string().optional(),
   relatedEntityType: z.string().optional(),
   relatedEntityId: z.string().optional(),
-  metadata: z.record(z.any()).optional().default({}),
+  metadata: z.record(z.string(), z.any()).optional().default({}),
 });
 export type CreateTaskDto = z.infer<typeof CreateTaskDtoSchema>;
 
@@ -50,7 +50,7 @@ export const SubmitApprovalRequestDtoSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT', 'CRITICAL']).default('MEDIUM'),
-  metadata: z.record(z.any()).optional().default({}),
+  metadata: z.record(z.string(), z.any()).optional().default({}),
   stages: z.array(
     z.object({
       stageNumber: z.number().int(),
@@ -77,7 +77,7 @@ export const CreateNotificationDtoSchema = z.object({
   type: z.enum(['SYSTEM_ALERT', 'PRODUCTION_HALT', 'QUALITY_ISSUE', 'INVENTORY_LOW', 'MAINTENANCE_DUE', 'APPROVAL_REQUEST', 'TASK_ASSIGNED', 'MRP_SHORTAGE', 'CUSTOM']).default('SYSTEM_ALERT'),
   severity: z.enum(['INFO', 'WARNING', 'ERROR', 'CRITICAL']).default('INFO'),
   actionUrl: z.string().optional(),
-  metadata: z.record(z.any()).optional().default({}),
+  metadata: z.record(z.string(), z.any()).optional().default({}),
   expiresAt: z.string().optional(),
 });
 export type CreateNotificationDto = z.infer<typeof CreateNotificationDtoSchema>;
@@ -86,9 +86,9 @@ export type CreateNotificationDto = z.infer<typeof CreateNotificationDtoSchema>;
 export const CreateSavedViewDtoSchema = z.object({
   name: z.string().min(1, 'View name is required'),
   module: z.string().min(1, 'Module is required'),
-  filters: z.record(z.any()).default({}),
+  filters: z.record(z.string(), z.any()).default({}),
   columns: z.array(z.string()).optional().default([]),
-  sortOrder: z.record(z.any()).optional().default({}),
+  sortOrder: z.record(z.string(), z.any()).optional().default({}),
   isPublic: z.boolean().default(false),
   isDefault: z.boolean().default(false),
 });
@@ -103,6 +103,6 @@ export const LogRecentRecordDtoSchema = z.object({
   entityId: z.string().min(1),
   recordName: z.string().min(1),
   recordUrl: z.string().min(1),
-  metadata: z.record(z.any()).optional().default({}),
+  metadata: z.record(z.string(), z.any()).optional().default({}),
 });
 export type LogRecentRecordDto = z.infer<typeof LogRecentRecordDtoSchema>;

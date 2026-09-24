@@ -8,7 +8,7 @@ export const JournalLineItemSchema = z.object({
   costCenter: z.string().optional().default('PLANT-01-MOLDING'),
   narration: z.string().optional().default(''),
 });
-export type JournalLineItem = z.infer<typeof JournalLineItemSchema>;
+export type JournalLineItem = z.input<typeof JournalLineItemSchema>;
 
 export const PostJournalEntryDtoSchema = z.object({
   tenantId: z.string().default('TENANT-ALPHA-IND'),
@@ -20,7 +20,7 @@ export const PostJournalEntryDtoSchema = z.object({
   lines: z.array(JournalLineItemSchema).min(2, 'At least 2 balanced journal lines required'),
   postedByUserId: z.string().min(1, 'User ID required'),
 });
-export type PostJournalEntryDto = z.infer<typeof PostJournalEntryDtoSchema>;
+export type PostJournalEntryDto = z.input<typeof PostJournalEntryDtoSchema>;
 
 export const CreateVendorInvoiceDtoSchema = z.object({
   tenantId: z.string().default('TENANT-ALPHA-IND'),

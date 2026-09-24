@@ -6,7 +6,7 @@ export const SubmitWorkflowInstanceDtoSchema = z.object({
   domain: z.enum(['Procurement', 'Finance', 'Engineering', 'Quality', 'Manufacturing']),
   documentType: z.string().min(1, 'Document type is required'),
   totalAmount: z.number().optional().default(0),
-  payloadSnapshot: z.record(z.any()).default({}),
+  payloadSnapshot: z.record(z.string(), z.any()).default({}),
   initiatorUserId: z.string().min(1, 'Initiator ID is required'),
 });
 export type SubmitWorkflowInstanceDto = z.infer<typeof SubmitWorkflowInstanceDtoSchema>;
@@ -48,6 +48,6 @@ export const WorkflowSimulationDtoSchema = z.object({
   amount: z.number().default(0),
   category: z.string().optional().default(''),
   initiatorRole: z.string().default('SCM Buyer'),
-  payload: z.record(z.any()).default({}),
+  payload: z.record(z.string(), z.any()).default({}),
 });
 export type WorkflowSimulationDto = z.infer<typeof WorkflowSimulationDtoSchema>;
