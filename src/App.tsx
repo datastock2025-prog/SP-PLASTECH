@@ -14,6 +14,7 @@ import { ROLE_DEFAULT_VIEW } from './data/roleDefaultViews';
 import { workspaceRbacService, normalizeRoleKey } from './services/workspaceRbacService';
 import { itemService } from './services/itemService';
 import { adminEventBus } from './services/adminService';
+import { liveDataStore } from './services/liveDataStore';
 import { SessionTimeoutModal, MfaVerificationModal, CookieConsentModal } from './security';
 import { UserProfilePreferencesView } from './components/profile/UserProfilePreferencesView';
 
@@ -118,11 +119,24 @@ export const App: React.FC = () => {
   const [quotations, setQuotations] = useState<Quotation[]>(initialQuotations);
   const [rmas, setRmas] = useState<ReturnMerchandise[]>(INITIAL_RMAS);
 
-  // Sync Item Master with persistent Item Service & Admin Event Bus
+  // Sync Item Master & Core Entities with Live Database Store
   useEffect(() => {
     itemService.getItems().then((fetched) => {
-      if (fetched) setItems(fetched);
+      if (fetched && fetched.length > 0) setItems(fetched);
     });
+
+    liveDataStore.getWorkOrders().then((woList) => {
+      if (woList && woList.length > 0) setWorkOrders(woList);
+    });
+
+    liveDataStore.getPurchaseOrders().then((poList) => {
+      if (poList && poList.length > 0) setPurchaseOrders(poList);
+    });
+
+    liveDataStore.getSalesOrders().then((soList) => {
+      if (soList && soList.length > 0) setSalesOrders(soList);
+    });
+
     const unsubSaved = adminEventBus.on('ITEM_SAVED', (savedItem: ItemMaster) => {
       setItems((prev) => {
         const idx = prev.findIndex((i) => i.code === savedItem.code);

@@ -1,7 +1,7 @@
 -- ============================================================================
--- REBOOT ERP ENTERPRISE SCALABLE & SECURE POSTGRESQL ARCHITECTURE (v2.1)
--- Compliant with: SOC2 Type II, GDPR, ISO 27001, IATF 16949, Multi-Tenant Native RLS
--- Module-1: Home Tools & Universal Audit/Versioning Infrastructure
+-- SP-PLASTECH ENTERPRISE SCALABLE & SECURE POSTGRESQL ARCHITECTURE (v3.0)
+-- Compliant with: SOC2 Type II, GDPR, ISO 9001 / IATF 16949, Multi-Tenant Native RLS
+-- Comprehensive 14-Domain Relational Schema for Polymer Manufacturing ERP
 -- ============================================================================
 
 -- Extensions
@@ -13,10 +13,19 @@ CREATE EXTENSION IF NOT EXISTS "btree_gist";
 CREATE SCHEMA IF NOT EXISTS core;
 CREATE SCHEMA IF NOT EXISTS admin;
 CREATE SCHEMA IF NOT EXISTS system;
-CREATE SCHEMA IF NOT EXISTS finance;
-CREATE SCHEMA IF NOT EXISTS scm;
+CREATE SCHEMA IF NOT EXISTS masterdata;
+CREATE SCHEMA IF NOT EXISTS engineering;
 CREATE SCHEMA IF NOT EXISTS manufacturing;
+CREATE SCHEMA IF NOT EXISTS procurement;
+CREATE SCHEMA IF NOT EXISTS warehouse;
+CREATE SCHEMA IF NOT EXISTS sales;
+CREATE SCHEMA IF NOT EXISTS finance;
 CREATE SCHEMA IF NOT EXISTS quality;
+CREATE SCHEMA IF NOT EXISTS mep;
+CREATE SCHEMA IF NOT EXISTS hr;
+CREATE SCHEMA IF NOT EXISTS scm;
+CREATE SCHEMA IF NOT EXISTS crm;
+CREATE SCHEMA IF NOT EXISTS analytics;
 
 -- ----------------------------------------------------------------------------
 -- PL/pgSQL Triggers & Helper Functions
@@ -33,10 +42,10 @@ $$ LANGUAGE plpgsql;
 -- 1. TENANT & FACILITY PROFILES (core.tenant_profiles)
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS tenant_profiles (
-    id VARCHAR(64) PRIMARY KEY,                   -- e.g. 'TENANT-ALPHA-IND' / UUID
+    id VARCHAR(64) PRIMARY KEY,                   -- e.g. 'PLANT-01'
     code VARCHAR(32) UNIQUE NOT NULL,             -- e.g. 'PLANT-01'
     name VARCHAR(255) NOT NULL,                   -- e.g. 'Plant 01: Injection Molding Unit'
-    location VARCHAR(255) NOT NULL,               -- e.g. 'Hosur, Tamil Nadu'
+    location VARCHAR(255) NOT NULL,
     entity_type VARCHAR(64) NOT NULL DEFAULT 'Plant',
     address TEXT,
     contact_person VARCHAR(128),
@@ -129,19 +138,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_tenant_email ON auth_users(tenant_id
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_tenant_username ON auth_users(tenant_id, username) WHERE deleted_at IS NULL;
 
 -- ----------------------------------------------------------------------------
--- 5. AUDIT LOGGING SYSTEM (system.audit_logs - WHO, WHAT, WHEN + BEFORE/AFTER)
+-- 5. AUDIT LOGGING SYSTEM (system.audit_logs)
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS audit_logs (
     id VARCHAR(64) PRIMARY KEY,
     tenant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id),
     actor_id VARCHAR(64) NOT NULL,
     actor_email VARCHAR(128) NOT NULL,
-    action VARCHAR(32) NOT NULL,                  -- 'CREATE', 'UPDATE', 'DELETE', 'APPROVE', 'REJECT', 'SUBMIT', 'CANCEL', 'EXPORT', 'LOGIN'
-    entity_name VARCHAR(128) NOT NULL,            -- e.g. 'ItemMaster', 'EngineeringBom', 'Task', 'ApprovalRequest'
+    action VARCHAR(32) NOT NULL,
+    entity_name VARCHAR(128) NOT NULL,
     entity_id VARCHAR(64) NOT NULL,
     entity_version VARCHAR(32),
-    old_data JSONB,                               -- Snapshot BEFORE mutation
-    new_data JSONB,                               -- Snapshot AFTER mutation
+    old_data JSONB,
+    new_data JSONB,
     ip_address VARCHAR(45) NOT NULL DEFAULT '127.0.0.1',
     user_agent TEXT,
     details JSONB DEFAULT '{}'::jsonb,
@@ -149,36 +158,350 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_logs(tenant_id, entity_name, entity_id);
-CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(tenant_id, action);
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at DESC);
 
 -- ----------------------------------------------------------------------------
--- 6. ENTITY VERSIONING SYSTEM (system.entity_versions - Historical Snapshots)
+-- 6. MASTER DATA: ITEMS & RESINS (masterdata.items)
 -- ----------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS entity_versions (
+CREATE TABLE IF NOT EXISTS items (
     id VARCHAR(64) PRIMARY KEY,
-    tenant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id),
-    entity_name VARCHAR(128) NOT NULL,
-    entity_id VARCHAR(64) NOT NULL,
-    version VARCHAR(32) NOT NULL,                 -- e.g. 'v1.0', 'v1.1', 'v2.0'
-    snapshot JSONB NOT NULL,                      -- Full entity state at this version
-    changed_by_id VARCHAR(64) NOT NULL REFERENCES auth_users(id),
-    change_reason TEXT,
-    is_current BOOLEAN NOT NULL DEFAULT FALSE,
+    code VARCHAR(64) UNIQUE NOT NULL,             -- e.g. 'RM-PP-001'
+    name VARCHAR(255) NOT NULL,
+    category VARCHAR(64) NOT NULL,                -- 'RAW_MATERIAL', 'FINISHED_GOOD', 'SEMI_FINISHED', 'PACKING', 'CONSUMABLE', 'SPARE'
+    polymer_type VARCHAR(64),                     -- 'PP', 'HDPE', 'ABS', 'PC', 'PET', 'Nylon'
+    grade VARCHAR(64),                            -- 'Injection Grade', 'Blow Grade'
+    mfi_rating NUMERIC(8,2),                      -- Melt Flow Index
+    density NUMERIC(8,4),
+    color VARCHAR(64),
+    uom VARCHAR(16) NOT NULL DEFAULT 'KG',        -- 'KG', 'NOS', 'MTR', 'LTR'
+    standard_cost NUMERIC(14,2) NOT NULL DEFAULT 0.00,
+    safety_stock NUMERIC(14,2) NOT NULL DEFAULT 0.00,
+    reorder_point NUMERIC(14,2) NOT NULL DEFAULT 0.00,
+    current_stock NUMERIC(14,2) NOT NULL DEFAULT 0.00,
+    status VARCHAR(32) NOT NULL DEFAULT 'active', -- 'active', 'low', 'out_of_stock', 'blocked'
+    approval VARCHAR(32) NOT NULL DEFAULT 'approved', -- 'pending', 'approved', 'rejected', 'released'
+    hsn_code VARCHAR(16) DEFAULT '39021000',
+    gst_rate NUMERIC(5,2) DEFAULT 18.00,
+    storage_bin VARCHAR(32),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_items_cat ON items(category);
+CREATE INDEX IF NOT EXISTS idx_items_status ON items(status);
+
+-- ----------------------------------------------------------------------------
+-- 7. MASTER DATA: MACHINES & PRESSES (masterdata.machines)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS machines (
+    id VARCHAR(64) PRIMARY KEY,
+    code VARCHAR(64) UNIQUE NOT NULL,             -- e.g. 'IMM-01'
+    name VARCHAR(255) NOT NULL,
+    model VARCHAR(128) NOT NULL,
+    tonnage INTEGER NOT NULL DEFAULT 250,         -- Tonnage (e.g. 150T, 250T, 450T, 650T)
+    machine_type VARCHAR(64) NOT NULL DEFAULT 'Injection Molding',
+    plant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id),
+    bay_location VARCHAR(64),
+    cycle_time_rated NUMERIC(8,2) DEFAULT 22.5,   -- Seconds
+    power_kw NUMERIC(8,2) DEFAULT 45.0,
+    status VARCHAR(32) NOT NULL DEFAULT 'running',-- 'running', 'idle', 'maintenance', 'breakdown', 'setup'
+    current_oee NUMERIC(5,2) DEFAULT 85.50,
+    availability_pct NUMERIC(5,2) DEFAULT 90.00,
+    performance_pct NUMERIC(5,2) DEFAULT 95.00,
+    quality_pct NUMERIC(5,2) DEFAULT 98.00,
+    last_pm_date DATE,
+    next_pm_date DATE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ----------------------------------------------------------------------------
+-- 8. ENGINEERING: BILLS OF MATERIALS (engineering.boms & bom_items)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS boms (
+    id VARCHAR(64) PRIMARY KEY,
+    bom_number VARCHAR(64) UNIQUE NOT NULL,       -- e.g. 'BOM-CAP-28MM-01'
+    item_id VARCHAR(64) NOT NULL REFERENCES items(id),
+    name VARCHAR(255) NOT NULL,
+    version VARCHAR(32) NOT NULL DEFAULT 'v1.0',
+    status VARCHAR(32) NOT NULL DEFAULT 'active', -- 'active', 'draft', 'deprecated', 'under_review'
+    shot_weight_g NUMERIC(10,3) NOT NULL,         -- Grams
+    runner_weight_g NUMERIC(10,3) DEFAULT 0.000,
+    cavities INTEGER NOT NULL DEFAULT 8,
+    standard_cycle_time_s NUMERIC(8,2) NOT NULL DEFAULT 18.0,
+    scrap_allowance_pct NUMERIC(5,2) DEFAULT 1.5,
+    machine_tonnage_min INTEGER DEFAULT 180,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS bom_items (
+    id VARCHAR(64) PRIMARY KEY,
+    bom_id VARCHAR(64) NOT NULL REFERENCES boms(id) ON DELETE CASCADE,
+    component_item_id VARCHAR(64) NOT NULL REFERENCES items(id),
+    quantity NUMERIC(12,4) NOT NULL,
+    uom VARCHAR(16) NOT NULL DEFAULT 'KG',
+    percentage NUMERIC(5,2),                      -- e.g. 96.0% Resin, 4.0% Masterbatch
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_entity_ver_unique ON entity_versions(tenant_id, entity_name, entity_id, version);
-CREATE INDEX IF NOT EXISTS idx_entity_ver_search ON entity_versions(tenant_id, entity_name, entity_id, created_at DESC);
+-- ----------------------------------------------------------------------------
+-- 9. MANUFACTURING: WORK ORDERS & RUNS (manufacturing.work_orders)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS work_orders (
+    id VARCHAR(64) PRIMARY KEY,
+    wo_number VARCHAR(64) UNIQUE NOT NULL,        -- e.g. 'WO-2026-0891'
+    plant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id),
+    item_id VARCHAR(64) NOT NULL REFERENCES items(id),
+    bom_id VARCHAR(64) REFERENCES boms(id),
+    machine_id VARCHAR(64) REFERENCES machines(id),
+    target_qty NUMERIC(14,2) NOT NULL,
+    produced_qty NUMERIC(14,2) NOT NULL DEFAULT 0.00,
+    scrap_qty NUMERIC(14,2) NOT NULL DEFAULT 0.00,
+    batch_number VARCHAR(64),
+    priority VARCHAR(32) NOT NULL DEFAULT 'MEDIUM', -- 'LOW', 'MEDIUM', 'HIGH', 'URGENT'
+    status VARCHAR(32) NOT NULL DEFAULT 'scheduled',-- 'draft', 'scheduled', 'running', 'paused', 'completed', 'cancelled'
+    start_time TIMESTAMPTZ,
+    end_time TIMESTAMPTZ,
+    estimated_duration_hours NUMERIC(8,2),
+    assigned_shift VARCHAR(32) DEFAULT 'Shift-A',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 -- ----------------------------------------------------------------------------
--- 7. SCREEN 1: WORKSPACE HOME WIDGETS (admin.dashboard_widgets)
+-- 10. PROCUREMENT: SUPPLIERS & PURCHASE ORDERS (procurement.purchase_orders)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS suppliers (
+    id VARCHAR(64) PRIMARY KEY,
+    code VARCHAR(64) UNIQUE NOT NULL,             -- e.g. 'SUP-001'
+    name VARCHAR(255) NOT NULL,
+    category VARCHAR(64) NOT NULL DEFAULT 'Polymer Resins',
+    contact_person VARCHAR(128),
+    email VARCHAR(128),
+    phone VARCHAR(32),
+    gstin VARCHAR(32),
+    rating NUMERIC(3,2) DEFAULT 4.5,
+    status VARCHAR(32) DEFAULT 'active',
+    payment_terms VARCHAR(64) DEFAULT 'Net 30 Days',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS purchase_orders (
+    id VARCHAR(64) PRIMARY KEY,
+    po_number VARCHAR(64) UNIQUE NOT NULL,        -- e.g. 'PO-2026-0045'
+    supplier_id VARCHAR(64) NOT NULL REFERENCES suppliers(id),
+    plant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id),
+    order_date DATE NOT NULL,
+    expected_delivery DATE NOT NULL,
+    total_amount NUMERIC(14,2) NOT NULL DEFAULT 0.00,
+    currency VARCHAR(8) DEFAULT 'INR',
+    status VARCHAR(32) NOT NULL DEFAULT 'open',   -- 'draft', 'open', 'partially_received', 'received', 'cancelled'
+    payment_terms VARCHAR(64) DEFAULT 'Net 30 Days',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS po_items (
+    id VARCHAR(64) PRIMARY KEY,
+    po_id VARCHAR(64) NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
+    item_id VARCHAR(64) NOT NULL REFERENCES items(id),
+    quantity NUMERIC(14,2) NOT NULL,
+    unit_price NUMERIC(14,2) NOT NULL,
+    received_qty NUMERIC(14,2) NOT NULL DEFAULT 0.00,
+    uom VARCHAR(16) NOT NULL DEFAULT 'KG',
+    line_total NUMERIC(14,2) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ----------------------------------------------------------------------------
+-- 11. SALES & CRM: CUSTOMERS & SALES ORDERS (sales.sales_orders)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS customers (
+    id VARCHAR(64) PRIMARY KEY,
+    code VARCHAR(64) UNIQUE NOT NULL,             -- e.g. 'CUST-001'
+    name VARCHAR(255) NOT NULL,
+    tier VARCHAR(32) DEFAULT 'Tier 1 OEM',
+    contact_person VARCHAR(128),
+    email VARCHAR(128),
+    phone VARCHAR(32),
+    gstin VARCHAR(32),
+    credit_limit NUMERIC(14,2) DEFAULT 5000000.00,
+    outstanding_balance NUMERIC(14,2) DEFAULT 0.00,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS sales_orders (
+    id VARCHAR(64) PRIMARY KEY,
+    so_number VARCHAR(64) UNIQUE NOT NULL,        -- e.g. 'SO-2026-0312'
+    customer_id VARCHAR(64) NOT NULL REFERENCES customers(id),
+    order_date DATE NOT NULL,
+    delivery_due DATE NOT NULL,
+    total_amount NUMERIC(14,2) NOT NULL DEFAULT 0.00,
+    status VARCHAR(32) NOT NULL DEFAULT 'confirmed', -- 'draft', 'confirmed', 'in_production', 'dispatched', 'delivered', 'cancelled'
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS so_items (
+    id VARCHAR(64) PRIMARY KEY,
+    so_id VARCHAR(64) NOT NULL REFERENCES sales_orders(id) ON DELETE CASCADE,
+    item_id VARCHAR(64) NOT NULL REFERENCES items(id),
+    quantity NUMERIC(14,2) NOT NULL,
+    unit_price NUMERIC(14,2) NOT NULL,
+    dispatched_qty NUMERIC(14,2) NOT NULL DEFAULT 0.00,
+    uom VARCHAR(16) NOT NULL DEFAULT 'NOS',
+    line_total NUMERIC(14,2) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ----------------------------------------------------------------------------
+-- 12. FINANCE & GENERAL LEDGER (finance.accounts & journal_entries)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS chart_of_accounts (
+    id VARCHAR(64) PRIMARY KEY,
+    code VARCHAR(32) UNIQUE NOT NULL,             -- e.g. '1010-00'
+    name VARCHAR(255) NOT NULL,
+    account_type VARCHAR(64) NOT NULL,            -- 'ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE'
+    sub_category VARCHAR(64),
+    balance NUMERIC(16,2) NOT NULL DEFAULT 0.00,
+    currency VARCHAR(8) DEFAULT 'INR',
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS journal_entries (
+    id VARCHAR(64) PRIMARY KEY,
+    je_number VARCHAR(64) UNIQUE NOT NULL,        -- e.g. 'JE-2026-00412'
+    posting_date DATE NOT NULL,
+    reference VARCHAR(128),
+    memo TEXT,
+    total_debit NUMERIC(16,2) NOT NULL DEFAULT 0.00,
+    total_credit NUMERIC(16,2) NOT NULL DEFAULT 0.00,
+    status VARCHAR(32) NOT NULL DEFAULT 'posted', -- 'draft', 'posted', 'reversed'
+    created_by VARCHAR(64),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ----------------------------------------------------------------------------
+-- 13. QUALITY MANAGEMENT (quality.ncrs & capas & coas)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS quality_ncrs (
+    id VARCHAR(64) PRIMARY KEY,
+    ncr_number VARCHAR(64) UNIQUE NOT NULL,       -- e.g. 'NCR-2026-0034'
+    item_id VARCHAR(64) NOT NULL REFERENCES items(id),
+    defect_type VARCHAR(64) NOT NULL,             -- 'FLASH', 'SHORT_SHOT', 'SINK_MARK', 'BURNT_MARKS', 'WARPAGE', 'CONTAMINATION'
+    severity VARCHAR(32) NOT NULL DEFAULT 'MAJOR',-- 'CRITICAL', 'MAJOR', 'MINOR'
+    quantity_rejected NUMERIC(12,2) NOT NULL,
+    root_cause TEXT,
+    disposition VARCHAR(64) DEFAULT 'Regrind & Recycle',
+    status VARCHAR(32) NOT NULL DEFAULT 'open',   -- 'open', 'under_investigation', 'capa_pending', 'closed'
+    reported_by VARCHAR(128),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS quality_capas (
+    id VARCHAR(64) PRIMARY KEY,
+    capa_number VARCHAR(64) UNIQUE NOT NULL,      -- e.g. 'CAPA-2026-0012'
+    ncr_id VARCHAR(64) REFERENCES quality_ncrs(id),
+    title VARCHAR(255) NOT NULL,
+    discipline_step VARCHAR(16) DEFAULT 'D4',     -- 8D Methodology (D1 to D8)
+    corrective_action TEXT NOT NULL,
+    preventive_action TEXT,
+    target_date DATE,
+    status VARCHAR(32) NOT NULL DEFAULT 'in_progress',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ----------------------------------------------------------------------------
+-- 14. HUMAN RESOURCES & PAYROLL (hr.employees & attendance)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS hr_employees (
+    id VARCHAR(64) PRIMARY KEY,
+    emp_code VARCHAR(64) UNIQUE NOT NULL,         -- e.g. 'EMP-1001'
+    full_name VARCHAR(128) NOT NULL,
+    department VARCHAR(64) NOT NULL,
+    designation VARCHAR(128) NOT NULL,
+    plant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id),
+    shift VARCHAR(32) DEFAULT 'Shift-A',
+    salary_monthly NUMERIC(12,2) DEFAULT 35000.00,
+    status VARCHAR(32) NOT NULL DEFAULT 'active',
+    joining_date DATE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ----------------------------------------------------------------------------
+-- 15. MEP & PLANT UTILITIES (mep.equipment & logs)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS mep_equipment (
+    id VARCHAR(64) PRIMARY KEY,
+    code VARCHAR(64) UNIQUE NOT NULL,             -- e.g. 'CHILLER-01'
+    name VARCHAR(255) NOT NULL,
+    category VARCHAR(64) NOT NULL,                -- 'MECHANICAL_CHILLER', 'AIR_COMPRESSOR', 'ELECTRICAL_SUBSTATION', 'RO_ETP_PLANT', 'HVAC_CLEANROOM'
+    capacity VARCHAR(64) DEFAULT '120 TR',
+    power_rating_kw NUMERIC(8,2) DEFAULT 95.0,
+    plant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id),
+    status VARCHAR(32) NOT NULL DEFAULT 'optimal',-- 'optimal', 'warning', 'critical', 'offline'
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ----------------------------------------------------------------------------
+-- 16. SCM CONTROL TOWER & AGING (scm.inventory_aging & plans)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS scm_inventory_aging (
+    id VARCHAR(64) PRIMARY KEY,
+    item_id VARCHAR(64) NOT NULL REFERENCES items(id),
+    batch_number VARCHAR(64) NOT NULL,
+    plant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id),
+    quantity NUMERIC(14,2) NOT NULL,
+    aging_days INTEGER NOT NULL,
+    aging_bucket VARCHAR(32) NOT NULL,            -- '0_30_DAYS', '31_60_DAYS', '61_90_DAYS', '91_180_DAYS', 'OVER_180_DAYS'
+    shelf_life_expiry DATE,
+    slob_risk_score NUMERIC(5,2) DEFAULT 12.50,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ----------------------------------------------------------------------------
+-- 17. ANALYTICS & DOCUMENT INTELLIGENCE (analytics.cache & templates)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS custom_doc_templates (
+    id VARCHAR(64) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    category VARCHAR(64) NOT NULL DEFAULT 'PRODUCTION',
+    layout JSONB NOT NULL DEFAULT '[]'::jsonb,
+    is_public BOOLEAN DEFAULT TRUE,
+    created_by VARCHAR(64),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS analytics_kpi_cache (
+    id VARCHAR(64) PRIMARY KEY,
+    tenant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id),
+    kpi_key VARCHAR(64) NOT NULL,
+    metric_value NUMERIC(14,4) NOT NULL,
+    target_value NUMERIC(14,4),
+    metadata JSONB DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS rag_document_chunks (
+    id VARCHAR(64) PRIMARY KEY,
+    document_title VARCHAR(255) NOT NULL,
+    section_name VARCHAR(128),
+    content_chunk TEXT NOT NULL,
+    embedding_vector JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ----------------------------------------------------------------------------
+-- 18. SCREEN 1-6 HOME TOOLS & TASKS (core.tasks, approval_requests, etc.)
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS dashboard_widgets (
     id VARCHAR(64) PRIMARY KEY,
     tenant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id),
     user_id VARCHAR(64) NOT NULL REFERENCES auth_users(id),
-    widget_type VARCHAR(64) NOT NULL,             -- 'PENDING_TASKS', 'MY_APPROVALS', 'PRODUCTION_STATUS', 'MRP_SHORTAGES', 'INVENTORY_ALERTS', 'QUALITY_ISSUES', 'MACHINE_DOWNTIME', 'CUSTOM'
+    widget_type VARCHAR(64) NOT NULL,
     title VARCHAR(255) NOT NULL,
     config JSONB NOT NULL DEFAULT '{}'::jsonb,
     position INTEGER NOT NULL DEFAULT 1,
@@ -188,171 +511,69 @@ CREATE TABLE IF NOT EXISTS dashboard_widgets (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_widget_user ON dashboard_widgets(tenant_id, user_id, is_visible, position);
-
--- ----------------------------------------------------------------------------
--- 8. SCREEN 2: MY TASKS (core.tasks)
--- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS tasks (
     id VARCHAR(64) PRIMARY KEY,
     tenant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id),
-    task_number VARCHAR(64) UNIQUE NOT NULL,      -- e.g. 'TASK-2026-001234'
+    task_number VARCHAR(64) UNIQUE NOT NULL,
     assigned_to_id VARCHAR(64) NOT NULL REFERENCES auth_users(id),
     title VARCHAR(255) NOT NULL,
     description TEXT,
-    task_type VARCHAR(64) NOT NULL DEFAULT 'CUSTOM', -- 'APPROVAL_REQUEST', 'INSPECTION', 'DATA_ENTRY', 'REVIEW', 'MAINTENANCE', 'QUALITY_CHECK', 'CUSTOM'
-    priority VARCHAR(32) NOT NULL DEFAULT 'MEDIUM',  -- 'LOW', 'MEDIUM', 'HIGH', 'URGENT'
-    status VARCHAR(32) NOT NULL DEFAULT 'PENDING',    -- 'PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'OVERDUE'
+    task_type VARCHAR(64) NOT NULL DEFAULT 'CUSTOM',
+    priority VARCHAR(32) NOT NULL DEFAULT 'MEDIUM',
+    status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
     due_date TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
-    related_entity_type VARCHAR(64),              -- e.g. 'PurchaseRequisition', 'WorkOrder'
-    related_entity_id VARCHAR(64),
-    metadata JSONB DEFAULT '{}'::jsonb,
     created_by VARCHAR(64) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_tasks_user_status ON tasks(tenant_id, assigned_to_id, status);
-CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_date);
-
--- ----------------------------------------------------------------------------
--- 9. SCREEN 3: MY APPROVALS (admin.approval_requests & stages)
--- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS approval_requests (
     id VARCHAR(64) PRIMARY KEY,
     tenant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id),
-    request_number VARCHAR(64) UNIQUE NOT NULL,   -- e.g. 'APR-2026-001234'
-    entity_type VARCHAR(64) NOT NULL,             -- 'PurchaseRequisition', 'BOM', 'ItemMaster', 'PurchaseOrder', 'ECO'
+    request_number VARCHAR(64) UNIQUE NOT NULL,
+    entity_type VARCHAR(64) NOT NULL,
     entity_id VARCHAR(64) NOT NULL,
     title VARCHAR(255) NOT NULL,
     description TEXT,
     submitted_by_id VARCHAR(64) NOT NULL REFERENCES auth_users(id),
-    submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    priority VARCHAR(32) NOT NULL DEFAULT 'MEDIUM', -- 'LOW', 'MEDIUM', 'HIGH', 'URGENT', 'CRITICAL'
-    status VARCHAR(32) NOT NULL DEFAULT 'PENDING',  -- 'PENDING', 'IN_REVIEW', 'APPROVED', 'REJECTED', 'CANCELLED', 'ESCALATED'
-    current_stage INTEGER NOT NULL DEFAULT 1,
-    metadata JSONB DEFAULT '{}'::jsonb,
+    priority VARCHAR(32) NOT NULL DEFAULT 'MEDIUM',
+    status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_approvals_tenant_status ON approval_requests(tenant_id, status);
-
-CREATE TABLE IF NOT EXISTS approval_stages (
-    id VARCHAR(64) PRIMARY KEY,
-    approval_request_id VARCHAR(64) NOT NULL REFERENCES approval_requests(id) ON DELETE CASCADE,
-    stage_number INTEGER NOT NULL,
-    approver_id VARCHAR(64) NOT NULL,
-    approver_email VARCHAR(128) NOT NULL,
-    approver_name VARCHAR(128) NOT NULL,
-    status VARCHAR(32) NOT NULL DEFAULT 'PENDING', -- 'PENDING', 'APPROVED', 'REJECTED', 'SKIPPED', 'ESCALATED'
-    action VARCHAR(32),                            -- 'APPROVE', 'REJECT', 'REQUEST_CHANGES', 'ESCALATE'
-    comments TEXT,
-    acted_at TIMESTAMPTZ,
-    required BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_stages_req ON approval_stages(approval_request_id, stage_number);
-CREATE INDEX IF NOT EXISTS idx_stages_approver ON approval_stages(approver_id, status);
-
--- ----------------------------------------------------------------------------
--- 10. SCREEN 4: NOTIFICATIONS (core.notifications)
--- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS notifications (
     id VARCHAR(64) PRIMARY KEY,
     tenant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id),
     user_id VARCHAR(64) NOT NULL REFERENCES auth_users(id),
     title VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
-    type VARCHAR(64) NOT NULL DEFAULT 'SYSTEM_ALERT', -- 'SYSTEM_ALERT', 'PRODUCTION_HALT', 'QUALITY_ISSUE', 'INVENTORY_LOW', 'MAINTENANCE_DUE', 'APPROVAL_REQUEST', 'TASK_ASSIGNED', 'MRP_SHORTAGE', 'CUSTOM'
-    severity VARCHAR(32) NOT NULL DEFAULT 'INFO',     -- 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
+    type VARCHAR(64) NOT NULL DEFAULT 'SYSTEM_ALERT',
+    severity VARCHAR(32) NOT NULL DEFAULT 'INFO',
     is_read BOOLEAN NOT NULL DEFAULT FALSE,
-    read_at TIMESTAMPTZ,
-    action_url TEXT,
-    metadata JSONB DEFAULT '{}'::jsonb,
-    expires_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(tenant_id, user_id, is_read, created_at DESC);
-
--- ----------------------------------------------------------------------------
--- 11. SCREEN 5: SAVED VIEWS (core.saved_views)
--- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS saved_views (
     id VARCHAR(64) PRIMARY KEY,
     tenant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id),
     user_id VARCHAR(64) NOT NULL REFERENCES auth_users(id),
     name VARCHAR(255) NOT NULL,
-    module VARCHAR(64) NOT NULL,                  -- 'ItemMaster', 'BOM', 'PurchaseRequisition', 'PurchaseOrder', 'Tasks'
+    module VARCHAR(64) NOT NULL,
     filters JSONB NOT NULL DEFAULT '{}'::jsonb,
-    columns JSONB DEFAULT '[]'::jsonb,
-    sort_order JSONB DEFAULT '{}'::jsonb,
-    is_public BOOLEAN NOT NULL DEFAULT FALSE,
     is_default BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_saved_views ON saved_views(tenant_id, user_id, module);
-
--- ----------------------------------------------------------------------------
--- 12. SCREEN 6: RECENT RECORDS (core.recent_records)
--- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS recent_records (
     id VARCHAR(64) PRIMARY KEY,
     tenant_id VARCHAR(64) NOT NULL REFERENCES tenant_profiles(id),
     user_id VARCHAR(64) NOT NULL REFERENCES auth_users(id),
-    entity_type VARCHAR(64) NOT NULL,             -- 'ItemMaster', 'EngineeringBom', 'WorkOrder', 'PurchaseOrder', 'Task'
+    entity_type VARCHAR(64) NOT NULL,
     entity_id VARCHAR(64) NOT NULL,
     record_name VARCHAR(255) NOT NULL,
     record_url TEXT NOT NULL,
-    metadata JSONB DEFAULT '{}'::jsonb,
     accessed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
-CREATE INDEX IF NOT EXISTS idx_recent_records ON recent_records(tenant_id, user_id, accessed_at DESC);
-
--- ----------------------------------------------------------------------------
--- 13. ROW-LEVEL SECURITY (RLS) ACTIVATION FOR ALL HOME TOOLS TABLES
--- ----------------------------------------------------------------------------
-ALTER TABLE auth_users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE entity_versions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE dashboard_widgets ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE approval_requests ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE saved_views ENABLE ROW LEVEL SECURITY;
-ALTER TABLE recent_records ENABLE ROW LEVEL SECURITY;
-
--- Dynamic RLS Tenant Isolation Policies
-DROP POLICY IF EXISTS tenant_isolation_users ON auth_users;
-CREATE POLICY tenant_isolation_users ON auth_users FOR ALL USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::VARCHAR);
-
-DROP POLICY IF EXISTS tenant_isolation_audit_logs ON audit_logs;
-CREATE POLICY tenant_isolation_audit_logs ON audit_logs FOR ALL USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::VARCHAR);
-
-DROP POLICY IF EXISTS tenant_isolation_entity_versions ON entity_versions;
-CREATE POLICY tenant_isolation_entity_versions ON entity_versions FOR ALL USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::VARCHAR);
-
-DROP POLICY IF EXISTS tenant_isolation_dashboard_widgets ON dashboard_widgets;
-CREATE POLICY tenant_isolation_dashboard_widgets ON dashboard_widgets FOR ALL USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::VARCHAR);
-
-DROP POLICY IF EXISTS tenant_isolation_tasks ON tasks;
-CREATE POLICY tenant_isolation_tasks ON tasks FOR ALL USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::VARCHAR);
-
-DROP POLICY IF EXISTS tenant_isolation_approval_requests ON approval_requests;
-CREATE POLICY tenant_isolation_approval_requests ON approval_requests FOR ALL USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::VARCHAR);
-
-DROP POLICY IF EXISTS tenant_isolation_notifications ON notifications;
-CREATE POLICY tenant_isolation_notifications ON notifications FOR ALL USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::VARCHAR);
-
-DROP POLICY IF EXISTS tenant_isolation_saved_views ON saved_views;
-CREATE POLICY tenant_isolation_saved_views ON saved_views FOR ALL USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::VARCHAR);
-
-DROP POLICY IF EXISTS tenant_isolation_recent_records ON recent_records;
-CREATE POLICY tenant_isolation_recent_records ON recent_records FOR ALL USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::VARCHAR);

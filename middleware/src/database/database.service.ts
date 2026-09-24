@@ -171,7 +171,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   }
 
   private initInMemoryEngine() {
-    // Pre-initialize table structures
+    // Pre-initialize table structures for all ERP domains
     const tables = [
       'tenant_profiles',
       'auth_roles',
@@ -188,6 +188,33 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       'admin_break_glass_vault',
       'admin_system_parameters',
       'admin_numbering_sequences',
+      'items',
+      'machines',
+      'boms',
+      'bom_items',
+      'work_orders',
+      'suppliers',
+      'purchase_orders',
+      'po_items',
+      'customers',
+      'sales_orders',
+      'so_items',
+      'chart_of_accounts',
+      'journal_entries',
+      'quality_ncrs',
+      'quality_capas',
+      'hr_employees',
+      'mep_equipment',
+      'scm_inventory_aging',
+      'custom_doc_templates',
+      'analytics_kpi_cache',
+      'rag_document_chunks',
+      'dashboard_widgets',
+      'tasks',
+      'approval_requests',
+      'notifications',
+      'saved_views',
+      'recent_records',
     ];
     tables.forEach((t) => {
       if (!this.inMemoryStore.has(t)) {

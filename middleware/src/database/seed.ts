@@ -14,331 +14,188 @@ export class DatabaseSeedService implements OnModuleInit {
 
   public async seedDatabase() {
     try {
-      // 1. Seed Enterprise Multi-Plant Facilities
+      this.logger.log('Starting comprehensive SP-PLASTECH ERP database seeding (Pre-Production Dataset)...');
+
+      // 1. Facilities
       await this.db.query(`
         INSERT INTO tenant_profiles (id, code, name, location, entity_type, address, contact_person, contact_email, contact_phone, gstin, capacity_rating, is_default)
         VALUES 
-          ('PLANT-01', 'PLANT-01', 'Plant 01: Injection Molding Unit', 'Pune / Chakan Industrial Corridor, Maharashtra', 'Plant', 'Plot B-12, Chakan Industrial Area, Phase II, Pune 410501', 'Priya Rao', 'priya.rao@reboot-erp.com', '+91 98230 11223', '27AAACR1234F1Z5', '24 IMM Bays (120T - 1300T)', true),
-          ('PLANT-02', 'PLANT-02', 'Plant 02: Extrusion & Pipe Unit', 'Sanand Precision Park, Gujarat', 'Plant', 'Plot 44, GIDC Sanand II, Ahmedabad 382110', 'Vikram Patel', 'vikram.patel@reboot-erp.com', '+91 98230 22334', '24AAACR1234F1Z8', '16 High-Precision IMMs', false),
-          ('PLANT-03', 'PLANT-03', 'Plant 03: Blow Molding & Cleanroom', 'Chennai Molding Unit, Tamil Nadu', 'Plant', 'SIPCOT Industrial Park, Sriperumbudur 602105', 'Karthik Subramanian', 'karthik.s@reboot-erp.com', '+91 98230 33445', '33AAACR1234F1Z1', '12 Blow & Stretch Bays', false),
-          ('PLANT-04', 'PLANT-04', 'Plant 04: Compounding & Masterbatch', 'Vapi Chemical Zone, Gujarat', 'Plant', 'Phase IV GIDC, Vapi 396195', 'Deepak Mehta', 'deepak.m@reboot-erp.com', '+91 98230 44556', '24AAACR1234F1Z9', '8 Twin-Screw Extruders', false),
-          ('WH-01', 'WH-01', 'WH 01: Raw Material Silo & Resin Warehouse', 'Hosur Logistics Hub, Tamil Nadu', 'Warehouse', 'Sipcot Phase 1, Hosur 635126', 'Manoj Kumar', 'manoj.k@reboot-erp.com', '+91 98230 55667', '33AAACR1234F1Z2', '10 Silos / 15,000 MT', false),
-          ('WH-02', 'WH-02', 'WH 02: Finished Goods Central Distribution', 'Manesar Distribution Center, Haryana', 'Warehouse', 'Sector 8, IMT Manesar 122051', 'Ramesh Yadav', 'ramesh.y@reboot-erp.com', '+91 98230 66778', '06AAACR1234F1Z3', '50,000 Sq Ft Racked Bay', false),
-          ('CORP-HQ', 'CORP-HQ', 'Corporate Headquarters & Shared Services', 'Bengaluru Tech Park, Karnataka', 'Corporate office', 'Level 8, UB City Tower, Bengaluru 560001', 'Dr. Evelyn Reed', 'security.admin@rebooterp.com', '+91 98230 00001', '29AAACR1234F1Z4', 'Enterprise Tier', false)
-        ON CONFLICT (id) DO UPDATE SET
-          name = EXCLUDED.name,
-          location = EXCLUDED.location;
+          ('PLANT-01', 'PLANT-01', 'Plant 01: Injection Molding Unit', 'Pune / Chakan Industrial Corridor, Maharashtra', 'Plant', 'Plot B-12, Chakan Industrial Area, Phase II, Pune 410501', 'Priya Rao', 'priya.rao@spplastech.com', '+91 98230 11223', '27AAACR1234F1Z5', '24 IMM Bays (120T - 1300T)', true),
+          ('PLANT-02', 'PLANT-02', 'Plant 02: Extrusion & Pipe Unit', 'Sanand Precision Park, Gujarat', 'Plant', 'Plot 44, GIDC Sanand II, Ahmedabad 382110', 'Vikram Patel', 'vikram.patel@spplastech.com', '+91 98230 22334', '24AAACR1234F1Z8', '16 High-Precision IMMs', false),
+          ('PLANT-03', 'PLANT-03', 'Plant 03: Blow Molding & Cleanroom', 'Chennai Molding Unit, Tamil Nadu', 'Plant', 'SIPCOT Industrial Park, Sriperumbudur 602105', 'Karthik Subramanian', 'karthik.s@spplastech.com', '+91 98230 33445', '33AAACR1234F1Z1', '12 Blow & Stretch Bays', false)
+        ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, location = EXCLUDED.location;
       `);
 
-      // 2. Seed Enterprise Roles
+      // 2. Roles
       await this.db.query(`
         INSERT INTO auth_roles (id, name, description, scope, department, is_system_role)
         VALUES 
           ('ROLE-SUPER-ADMIN', 'Super Administrator', 'Full System Master Configuration & RBAC', 'Enterprise-wide', 'Executive Leadership', true),
           ('ROLE-PLANT-MANAGER', 'Plant Operations Director', 'OEE, Production Schedules & Floor Overrides', 'Plant Scoped', 'Manufacturing Execution', true),
           ('ROLE-PROD-PLANNER', 'Production Planner', 'MRP Runs, JIT Scheduling & Job Cards', 'Plant Scoped', 'Manufacturing Execution', false),
-          ('ROLE-OPERATOR', 'Machine Operator', 'Shop Floor Press Execution & Downtime Logging', 'Press Scoped', 'Shop Floor Operations', false),
           ('ROLE-QA-LEAD', 'Quality Assurance Lead', 'CMM Scans, Lab Inspections & NCR Dispositions', 'Plant Scoped', 'Quality Assurance', false),
           ('ROLE-MAINTENANCE-LEAD', 'Maintenance Engineer', 'Mold PM, Machine Breakdown & Tooling Spares', 'Plant Scoped', 'Maintenance & Facilities', false),
           ('ROLE-FINANCE-CONTROLLER', 'Financial Controller', 'Cost Rollup, AR/AP, Invoices & GST Returns', 'Enterprise-wide', 'Finance & Accounting', false),
           ('ROLE-HR-MANAGER', 'Industrial HR Manager', 'Shift Rotations, Overtime & Biometric Attendance', 'Plant Scoped', 'Human Resources', false),
-          ('ROLE-PROCUREMENT-OFFICER', 'Procurement Officer', 'Polymer Resins, Additives & RFQ Comparisons', 'Enterprise-wide', 'Supply Chain Management', false),
-          ('ROLE-WAREHOUSE-LEAD', 'Warehouse Staff', 'Inward GRN, Silo Bins & Material Transfers', 'Plant Scoped', 'Warehouse & Inventory', false)
-        ON CONFLICT (id) DO UPDATE SET
-          name = EXCLUDED.name,
-          description = EXCLUDED.description;
+          ('ROLE-SCM-DIRECTOR', 'SCM Director', 'Supply Chain Control Tower, S&OP & Inventory', 'Enterprise-wide', 'Supply Chain Management', false)
+        ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
       `);
 
-      // 3. Seed Permissions Mapping
-      const allPermissions = [
-        'users.view', 'users.create', 'users.edit', 'users.delete', 'users.impersonate',
-        'roles.manage', 'tenant.config', 'audit.view', 'audit.export',
-        'finance.view', 'finance.create', 'finance.edit', 'finance.delete', 'finance.approve', 'finance.export',
-        'payroll.view', 'payroll.process', 'sales.view', 'sales.create', 'sales.edit', 'sales.delete', 'sales.approve', 'sales.export',
-        'procurement.view', 'procurement.create', 'procurement.edit', 'procurement.delete', 'procurement.approve',
-        'mfg.view', 'mfg.plan', 'mfg.schedule', 'mfg.execute', 'mfg.abort',
-        'quality.view', 'quality.inspect', 'quality.release', 'quality.reject', 'quality.ncr',
-        'warehouse.view', 'warehouse.transfer', 'warehouse.dispatch', 'warehouse.receive', 'warehouse.reconcile', 'warehouse.audit',
-        'reports.view', 'reports.export', 'reports.sensitive', 'compliance.manage'
-      ];
+      // 3. Users
+      const defaultPasswordHash = await bcrypt.hash('SpPlastech2026!#', 10);
+      await this.db.query(`
+        INSERT INTO auth_users (id, tenant_id, role_id, email, username, password_hash, full_name, phone, designation, department, plant_ids, status, is_active)
+        VALUES 
+          ('USR-001', 'PLANT-01', 'ROLE-SUPER-ADMIN', 'priya.rao@spplastech.com', 'priya.rao', '${defaultPasswordHash}', 'Priya Rao', '+91 98230 11223', 'VP Operations', 'Executive Operations', '["PLANT-01","PLANT-02","PLANT-03"]'::jsonb, 'ACTIVE', true),
+          ('USR-002', 'PLANT-01', 'ROLE-PLANT-MANAGER', 'vikram.patel@spplastech.com', 'vikram.patel', '${defaultPasswordHash}', 'Vikram Patel', '+91 98230 22334', 'Plant Manager', 'Manufacturing Execution', '["PLANT-01"]'::jsonb, 'ACTIVE', true),
+          ('USR-003', 'PLANT-01', 'ROLE-QA-LEAD', 'ananya.deshmukh@spplastech.com', 'ananya.deshmukh', '${defaultPasswordHash}', 'Ananya Deshmukh', '+91 98230 33445', 'QA Lead', 'Quality Assurance', '["PLANT-01"]'::jsonb, 'ACTIVE', true),
+          ('USR-004', 'PLANT-01', 'ROLE-FINANCE-CONTROLLER', 'rajesh.sharma@spplastech.com', 'rajesh.sharma', '${defaultPasswordHash}', 'Rajesh Sharma', '+91 98230 44556', 'Financial Controller', 'Finance & Accounting', '["PLANT-01","PLANT-02"]'::jsonb, 'ACTIVE', true)
+        ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
+      `);
 
-      for (const perm of allPermissions) {
-        await this.db.query(
-          `INSERT INTO auth_role_permissions (role_id, permission_key) VALUES ('ROLE-SUPER-ADMIN', $1) ON CONFLICT DO NOTHING;`,
-          [perm]
-        );
-      }
+      // 4. Items (Resins, Masterbatches, Finished Polymer Goods)
+      await this.db.query(`
+        INSERT INTO items (id, code, name, category, polymer_type, grade, mfi_rating, density, color, uom, standard_cost, safety_stock, reorder_point, current_stock, status, approval)
+        VALUES 
+          ('ITEM-RM-01', 'RM-PP-CP-01', 'PP Copolymer High Impact Grade MI 12', 'RAW_MATERIAL', 'PP', 'Injection Grade', 12.00, 0.9050, 'Natural', 'KG', 118.50, 5000.00, 10000.00, 24500.00, 'active', 'approved'),
+          ('ITEM-RM-02', 'RM-HDPE-BL-01', 'HDPE Blow Molding High Density 0.954', 'RAW_MATERIAL', 'HDPE', 'Blow Grade', 0.35, 0.9540, 'Natural', 'KG', 124.00, 4000.00, 8000.00, 18200.00, 'active', 'approved'),
+          ('ITEM-RM-03', 'RM-ABS-IN-01', 'ABS Lustran High Heat Automobile Grade', 'RAW_MATERIAL', 'ABS', 'Injection Grade', 22.00, 1.0500, 'Natural White', 'KG', 195.00, 2500.00, 5000.00, 6800.00, 'active', 'approved'),
+          ('ITEM-MB-01', 'MB-WHITE-TITAN-01', 'White Masterbatch (TiO2 70% Loading)', 'RAW_MATERIAL', 'PP', 'Additive', NULL, 1.8500, 'Opaque White', 'KG', 260.00, 800.00, 1500.00, 3200.00, 'active', 'approved'),
+          ('ITEM-MB-02', 'MB-BLUE-ROYAL-01', 'Royal Blue Masterbatch (Food Contact Safe)', 'RAW_MATERIAL', 'PP', 'Additive', NULL, 1.2500, 'Royal Blue', 'KG', 340.00, 400.00, 800.00, 1450.00, 'active', 'approved'),
+          ('ITEM-FG-01', 'FG-CAP-28MM-W', '28mm PCO 1881 Beverage Cap (White)', 'FINISHED_GOOD', 'PP', 'Closure', NULL, 0.9100, 'White', 'NOS', 0.85, 100000.00, 250000.00, 640000.00, 'active', 'approved'),
+          ('ITEM-FG-02', 'FG-BOTTLE-500ML-HDPE', '500ml HDPE Agro Chemical Bottle', 'FINISHED_GOOD', 'HDPE', 'Container', NULL, 0.9550, 'Natural', 'NOS', 6.20, 25000.00, 50000.00, 88500.00, 'active', 'approved'),
+          ('ITEM-FG-03', 'FG-AUTO-BEZEL-ABS', 'Instrument Cluster Housing Bezel', 'FINISHED_GOOD', 'ABS', 'Automotive', NULL, 1.0500, 'Gloss Black', 'NOS', 48.50, 2000.00, 5000.00, 7800.00, 'active', 'approved')
+        ON CONFLICT (id) DO UPDATE SET current_stock = EXCLUDED.current_stock, standard_cost = EXCLUDED.standard_cost;
+      `);
 
-      // 4. Seed Comprehensive Admin User Directory
-      const defaultPasswordHash = await bcrypt.hash('Reboot2026!#', 10);
-      const defaultPinHash = await bcrypt.hash('1234', 10);
+      // 5. Machines
+      await this.db.query(`
+        INSERT INTO machines (id, code, name, model, tonnage, machine_type, plant_id, bay_location, cycle_time_rated, power_kw, status, current_oee, availability_pct, performance_pct, quality_pct)
+        VALUES 
+          ('MCH-01', 'IMM-150-01', 'Engel Victory 150T Tie-bar-less', 'Victory 150/80', 150, 'Injection Molding', 'PLANT-01', 'Bay A-1', 14.50, 37.0, 'running', 88.40, 92.50, 96.80, 98.70),
+          ('MCH-02', 'IMM-250-01', 'Toshiba IS-250 High Precision', 'IS-250GT', 250, 'Injection Molding', 'PLANT-01', 'Bay A-2', 18.20, 55.0, 'running', 85.20, 89.00, 96.20, 99.40),
+          ('MCH-03', 'IMM-450-01', 'Haitian Mars II 450T Energy-Saver', 'MA4500II', 450, 'Injection Molding', 'PLANT-01', 'Bay B-1', 28.00, 75.0, 'running', 82.10, 87.50, 94.80, 99.00),
+          ('MCH-04', 'BLOW-01', 'Bekum Blow Molding Machine 5L', 'EBM-5000', 30, 'Blow Molding', 'PLANT-03', 'Bay C-1', 22.00, 45.0, 'running', 86.70, 91.00, 95.50, 99.80)
+        ON CONFLICT (id) DO UPDATE SET current_oee = EXCLUDED.current_oee, status = EXCLUDED.status;
+      `);
 
-      const users = [
-        {
-          id: 'USR-001',
-          username: 'priya.rao',
-          email: 'priya.rao@reboot-erp.com',
-          fullName: 'Priya Rao',
-          phone: '+91 98230 11223',
-          designation: 'VP of Manufacturing & Plant Operations',
-          department: 'Executive Operations',
-          roleId: 'ROLE-SUPER-ADMIN',
-          tenantId: 'PLANT-01',
-          plantIds: ['PLANT-01', 'PLANT-02', 'PLANT-03'],
-          badgeId: 'EMP-ADM-01',
-          assignedShift: 'General Shift (09:00 – 18:00)',
-          avatarColor: 'from-[#0F8B8D] to-[#E8622C]',
-          initials: 'PR',
-          status: 'Active',
-          mfaEnabled: true,
-        },
-        {
-          id: 'USR-002',
-          username: 'vikram.patel',
-          email: 'vikram.patel@reboot-erp.com',
-          fullName: 'Vikram Patel',
-          phone: '+91 98230 22334',
-          designation: 'Plant Operations Director',
-          department: 'Manufacturing Execution',
-          roleId: 'ROLE-PLANT-MANAGER',
-          tenantId: 'PLANT-01',
-          plantIds: ['PLANT-01'],
-          badgeId: 'EMP-PLANT-01',
-          assignedShift: 'Shift A — Morning (06:00 – 14:00)',
-          avatarColor: 'from-[#0F8B8D] to-[#2B2D42]',
-          initials: 'VP',
-          status: 'Active',
-          mfaEnabled: true,
-        },
-        {
-          id: 'USR-003',
-          username: 'ananya.deshmukh',
-          email: 'ananya.deshmukh@reboot-erp.com',
-          fullName: 'Ananya Deshmukh',
-          phone: '+91 98230 33445',
-          designation: 'Head of Quality Assurance & IATF Lead',
-          department: 'Quality Assurance',
-          roleId: 'ROLE-QA-LEAD',
-          tenantId: 'PLANT-01',
-          plantIds: ['PLANT-01', 'PLANT-02'],
-          badgeId: 'EMP-QC-01',
-          assignedShift: 'General Shift (09:00 – 18:00)',
-          avatarColor: 'from-[#2A9D8F] to-[#264653]',
-          initials: 'AD',
-          status: 'Active',
-          mfaEnabled: true,
-        },
-        {
-          id: 'USR-004',
-          username: 'rajesh.kumar',
-          email: 'rajesh.kumar@reboot-erp.com',
-          fullName: 'Rajesh Kumar',
-          phone: '+91 98230 44556',
-          designation: 'Senior Press Operator (Bays 1-6)',
-          department: 'Shop Floor Operations',
-          roleId: 'ROLE-OPERATOR',
-          tenantId: 'PLANT-01',
-          plantIds: ['PLANT-01'],
-          badgeId: 'EMP-OP-04',
-          assignedShift: 'Shift A — Morning (06:00 – 14:00)',
-          avatarColor: 'from-[#E8622C] to-[#F4A261]',
-          initials: 'RK',
-          status: 'Active',
-          mfaEnabled: false,
-        },
-        {
-          id: 'USR-005',
-          username: 'suresh.menon',
-          email: 'suresh.menon@reboot-erp.com',
-          fullName: 'Suresh Menon',
-          phone: '+91 98230 55667',
-          designation: 'Lead Production Planner & S&OP Master',
-          department: 'Manufacturing Execution',
-          roleId: 'ROLE-PROD-PLANNER',
-          tenantId: 'PLANT-01',
-          plantIds: ['PLANT-01', 'PLANT-02'],
-          badgeId: 'EMP-PLAN-01',
-          assignedShift: 'General Shift (09:00 – 18:00)',
-          avatarColor: 'from-[#457B9D] to-[#1D3557]',
-          initials: 'SM',
-          status: 'Active',
-          mfaEnabled: true,
-        },
-        {
-          id: 'USR-006',
-          username: 'neha.sharma',
-          email: 'neha.sharma@reboot-erp.com',
-          fullName: 'Neha Sharma',
-          phone: '+91 98230 66778',
-          designation: 'Financial Controller & Cost Accountant',
-          department: 'Finance & Accounting',
-          roleId: 'ROLE-FINANCE-CONTROLLER',
-          tenantId: 'CORP-HQ',
-          plantIds: ['PLANT-01', 'PLANT-02', 'PLANT-03', 'CORP-HQ'],
-          badgeId: 'EMP-FIN-01',
-          assignedShift: 'General Shift (09:00 – 18:00)',
-          avatarColor: 'from-[#6A4C93] to-[#1982C4]',
-          initials: 'NS',
-          status: 'Active',
-          mfaEnabled: true,
-        },
-        {
-          id: 'USR-007',
-          username: 'arun.kulkarni',
-          email: 'arun.kulkarni@reboot-erp.com',
-          fullName: 'Arun Kulkarni',
-          phone: '+91 98230 77889',
-          designation: 'Chief Tooling & Maintenance Engineer',
-          department: 'Maintenance & Facilities',
-          roleId: 'ROLE-MAINTENANCE-LEAD',
-          tenantId: 'PLANT-01',
-          plantIds: ['PLANT-01'],
-          badgeId: 'EMP-MNT-01',
-          assignedShift: 'General Shift (09:00 – 18:00)',
-          avatarColor: 'from-[#E76F51] to-[#264653]',
-          initials: 'AK',
-          status: 'Active',
-          mfaEnabled: false,
-        },
-      ];
+      // 6. Bills of Materials (BOMs)
+      await this.db.query(`
+        INSERT INTO boms (id, bom_number, item_id, name, version, status, shot_weight_g, runner_weight_g, cavities, standard_cycle_time_s, scrap_allowance_pct)
+        VALUES 
+          ('BOM-01', 'BOM-CAP-28MM-01', 'ITEM-FG-01', '28mm Beverage Cap Multi-Cavity Recipe', 'v2.1', 'active', 2.850, 0.450, 16, 12.50, 1.20),
+          ('BOM-02', 'BOM-BOTTLE-500ML-01', 'ITEM-FG-02', '500ml HDPE Agro Bottle Extrusion Blow', 'v1.0', 'active', 32.000, 4.200, 2, 22.00, 2.50),
+          ('BOM-03', 'BOM-AUTO-BEZEL-01', 'ITEM-FG-03', 'Auto Cluster Housing ABS Precision', 'v3.0', 'active', 185.000, 12.000, 1, 38.00, 0.80)
+        ON CONFLICT (id) DO UPDATE SET standard_cycle_time_s = EXCLUDED.standard_cycle_time_s;
+      `);
 
-      for (const u of users) {
-        await this.db.query(
-          `INSERT INTO auth_users (id, username, email, full_name, phone, designation, department, role_id, tenant_id, plant_ids, assigned_shift, badge_id, avatar_color, initials, password_hash, pin_hash, status, mfa_enabled)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-           ON CONFLICT (id) DO UPDATE SET
-             full_name = EXCLUDED.full_name,
-             role_id = EXCLUDED.role_id,
-             department = EXCLUDED.department,
-             plant_ids = EXCLUDED.plant_ids;`,
-          [
-            u.id,
-            u.username,
-            u.email,
-            u.fullName,
-            u.phone,
-            u.designation,
-            u.department,
-            u.roleId,
-            u.tenantId,
-            JSON.stringify(u.plantIds),
-            u.assignedShift,
-            u.badgeId,
-            u.avatarColor,
-            u.initials,
-            defaultPasswordHash,
-            defaultPinHash,
-            u.status,
-            u.mfaEnabled,
-          ]
-        );
-      }
+      // 7. Work Orders
+      await this.db.query(`
+        INSERT INTO work_orders (id, wo_number, plant_id, item_id, bom_id, machine_id, target_qty, produced_qty, scrap_qty, batch_number, priority, status, start_time)
+        VALUES 
+          ('WO-001', 'WO-2026-1041', 'PLANT-01', 'ITEM-FG-01', 'BOM-01', 'MCH-01', 50000.00, 38400.00, 240.00, 'BATCH-2026-CAP-08', 'HIGH', 'running', NOW() - INTERVAL '4 hours'),
+          ('WO-002', 'WO-2026-1042', 'PLANT-01', 'ITEM-FG-03', 'BOM-03', 'MCH-02', 3000.00, 1250.00, 18.00, 'BATCH-2026-AUTO-02', 'URGENT', 'running', NOW() - INTERVAL '2 hours'),
+          ('WO-003', 'WO-2026-1043', 'PLANT-03', 'ITEM-FG-02', 'BOM-02', 'MCH-04', 15000.00, 0.00, 0.00, 'BATCH-2026-BTL-01', 'MEDIUM', 'scheduled', NOW() + INTERVAL '1 day')
+        ON CONFLICT (id) DO UPDATE SET produced_qty = EXCLUDED.produced_qty, status = EXCLUDED.status;
+      `);
 
-      // 5. Seed Document Numbering Sequences
-      const numberingSequences = [
-        { id: 'SEQ-WO-01', tenantId: 'PLANT-01', module: 'Manufacturing', documentType: 'Work Order', prefix: 'WO-', includeYear: true, yearFormat: 'YYYY', paddingLength: 4, currentNumber: 416, samplePreview: 'WO-2026-0416' },
-        { id: 'SEQ-PO-01', tenantId: 'PLANT-01', module: 'Procurement', documentType: 'Purchase Order', prefix: 'PO-', includeYear: true, yearFormat: 'YYYY', paddingLength: 4, currentNumber: 90, samplePreview: 'PO-2026-0090' },
-        { id: 'SEQ-SO-01', tenantId: 'PLANT-01', module: 'Sales', documentType: 'Sales Order', prefix: 'SO-', includeYear: true, yearFormat: 'YYYY', paddingLength: 4, currentNumber: 115, samplePreview: 'SO-2026-0115' },
-        { id: 'SEQ-GRN-01', tenantId: 'PLANT-01', module: 'Procurement', documentType: 'Goods Receipt Note (GRN)', prefix: 'GRN-', includeYear: true, yearFormat: 'YYYY', paddingLength: 4, currentNumber: 204, samplePreview: 'GRN-2026-0204' },
-        { id: 'SEQ-NCR-01', tenantId: 'PLANT-01', module: 'Quality', documentType: 'Non-Conformance Report (NCR)', prefix: 'NCR-', includeYear: true, yearFormat: 'YYYY', paddingLength: 4, currentNumber: 42, samplePreview: 'NCR-2026-0042' },
-        { id: 'SEQ-CAPA-01', tenantId: 'PLANT-01', module: 'Quality', documentType: '8D CAPA Action', prefix: 'CAPA-', includeYear: true, yearFormat: 'YYYY', paddingLength: 4, currentNumber: 19, samplePreview: 'CAPA-2026-0019' },
-        { id: 'SEQ-JE-01', tenantId: 'PLANT-01', module: 'Finance', documentType: 'Journal Entry Voucher', prefix: 'JE-', includeYear: true, yearFormat: 'YYYY', paddingLength: 4, currentNumber: 93, samplePreview: 'JE-2026-0093' },
-        { id: 'SEQ-INV-01', tenantId: 'PLANT-01', module: 'Finance', documentType: 'Customer Tax Invoice', prefix: 'INV-', includeYear: true, yearFormat: 'YYYY', paddingLength: 5, currentNumber: 1042, samplePreview: 'INV-2026-01042' },
-        { id: 'SEQ-DC-01', tenantId: 'PLANT-01', module: 'Sales', documentType: 'Delivery Challan (Dispatch)', prefix: 'DC-', includeYear: true, yearFormat: 'YYYY', paddingLength: 4, currentNumber: 312, samplePreview: 'DC-2026-0312' },
-        { id: 'SEQ-ST-01', tenantId: 'PLANT-01', module: 'Warehouse', documentType: 'Stock Transfer Shipment', prefix: 'ST-', includeYear: true, yearFormat: 'YYYY', paddingLength: 4, currentNumber: 88, samplePreview: 'ST-2026-0088' },
-        { id: 'SEQ-BOM-01', tenantId: 'PLANT-01', module: 'Engineering', documentType: 'BOM Master Formula', prefix: 'BOM-', includeYear: false, paddingLength: 4, currentNumber: 108, samplePreview: 'BOM-0108' },
-        { id: 'SEQ-ECO-01', tenantId: 'PLANT-01', module: 'Engineering', documentType: 'Engineering Change Order', prefix: 'ECO-', includeYear: true, yearFormat: 'YYYY', paddingLength: 3, currentNumber: 24, samplePreview: 'ECO-2026-024' },
-      ];
+      // 8. Suppliers & Purchase Orders
+      await this.db.query(`
+        INSERT INTO suppliers (id, code, name, category, contact_person, email, phone, gstin, rating, status)
+        VALUES 
+          ('SUP-01', 'SUP-IOCL-01', 'Indian Oil Corporation Ltd (IOCL Petrochemicals)', 'Polymer Resins', 'Anil Verma', 'anil.v@iocl.co.in', '+91 98110 55443', '27AAACI1234F1Z1', 4.85, 'active'),
+          ('SUP-02', 'SUP-RELIANCE-01', 'Reliance Industries Ltd - Repol Division', 'Polymer Resins', 'Sanjay Shah', 'sanjay.shah@ril.com', '+91 98220 66554', '24AAACR5678F1Z2', 4.90, 'active'),
+          ('SUP-03', 'SUP-CLARIANT-01', 'Avient / Clariant Color & Additives', 'Masterbatch & Additives', 'Sunita Rao', 'sunita.r@avient.com', '+91 98330 77665', '27AAACC9876F1Z3', 4.75, 'active')
+        ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
+      `);
 
-      for (const s of numberingSequences) {
-        await this.db.query(
-          `INSERT INTO admin_numbering_sequences (id, tenant_id, module, document_type, prefix, include_year, year_format, padding_length, current_number, sample_preview)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-           ON CONFLICT (id) DO UPDATE SET
-             current_number = EXCLUDED.current_number,
-             sample_preview = EXCLUDED.sample_preview;`,
-          [s.id, s.tenantId, s.module, s.documentType, s.prefix, s.includeYear, s.yearFormat || 'YYYY', s.paddingLength, s.currentNumber, s.samplePreview]
-        );
-      }
+      await this.db.query(`
+        INSERT INTO purchase_orders (id, po_number, supplier_id, plant_id, order_date, expected_delivery, total_amount, status)
+        VALUES 
+          ('PO-001', 'PO-2026-0811', 'SUP-01', 'PLANT-01', CURRENT_DATE - 5, CURRENT_DATE + 2, 1185000.00, 'open'),
+          ('PO-002', 'PO-2026-0812', 'SUP-03', 'PLANT-01', CURRENT_DATE - 3, CURRENT_DATE + 4, 390000.00, 'open')
+        ON CONFLICT (id) DO UPDATE SET total_amount = EXCLUDED.total_amount;
+      `);
 
-      // 6. Seed Approval Workflows
-      const workflows = [
-        {
-          id: 'WF-PO-01',
-          tenantId: 'PLANT-01',
-          name: 'Purchase Order Multi-Tier Signoff',
-          module: 'Procurement',
-          documentType: 'Purchase Order',
-          description: 'Tier 1: Plant Lead up to ₹50,000; Tier 2: Finance Controller up to ₹5,00,000; Tier 3: Director above ₹5,00,000',
-          minAmount: 0,
-          maxAmount: 10000000,
-          tiers: [
-            { tierNumber: 1, name: 'Plant Operations Lead', roleId: 'ROLE-PLANT-MANAGER', thresholdAmount: 50000, isMandatory: true },
-            { tierNumber: 2, name: 'Finance Controller', roleId: 'ROLE-FINANCE-CONTROLLER', thresholdAmount: 500000, isMandatory: true },
-            { tierNumber: 3, name: 'Executive Director', roleId: 'ROLE-SUPER-ADMIN', thresholdAmount: 10000000, isMandatory: true },
-          ],
-        },
-        {
-          id: 'WF-ECO-01',
-          tenantId: 'PLANT-01',
-          name: 'Engineering Change Order (ECO) Review',
-          module: 'Engineering',
-          documentType: 'ECO Order',
-          description: 'Mandatory dual signoff by Quality Assurance Lead and Tooling Maintenance Lead.',
-          minAmount: 0,
-          tiers: [
-            { tierNumber: 1, name: 'QA & Compliance Lead', roleId: 'ROLE-QA-LEAD', thresholdAmount: 0, isMandatory: true },
-            { tierNumber: 2, name: 'Tooling Lead Engineer', roleId: 'ROLE-MAINTENANCE-LEAD', thresholdAmount: 0, isMandatory: true },
-          ],
-        },
-        {
-          id: 'WF-JE-01',
-          tenantId: 'PLANT-01',
-          name: 'Manual Journal Entry Posting',
-          module: 'Finance',
-          documentType: 'Journal Entry',
-          description: 'Segregation of duties: Creator cannot self-approve entries above ₹1,00,000.',
-          minAmount: 100000,
-          tiers: [
-            { tierNumber: 1, name: 'Financial Controller Signoff', roleId: 'ROLE-FINANCE-CONTROLLER', thresholdAmount: 100000, isMandatory: true },
-          ],
-        },
-      ];
+      // 9. Customers & Sales Orders
+      await this.db.query(`
+        INSERT INTO customers (id, code, name, tier, contact_person, email, phone, credit_limit, outstanding_balance)
+        VALUES 
+          ('CUST-01', 'CUST-TATA-MOTORS', 'Tata Motors Passenger Vehicles Ltd', 'Tier 1 OEM', 'Harish Nair', 'harish.n@tatamotors.com', '+91 98440 88776', 15000000.00, 2450000.00),
+          ('CUST-02', 'CUST-PARLE-AGRO', 'Parle Agro Industries Pvt Ltd', 'Tier 1 FMCG', 'Meera Joshi', 'meera.j@parleagro.com', '+91 98550 99887', 20000000.00, 4800000.00),
+          ('CUST-03', 'CUST-SYNGENTA', 'Syngenta India Agro-Chemicals', 'Tier 1 Chemical', 'Alok Pandey', 'alok.p@syngenta.com', '+91 98660 11229', 10000000.00, 1150000.00)
+        ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
+      `);
 
-      for (const w of workflows) {
-        await this.db.query(
-          `INSERT INTO admin_approval_workflows (id, tenant_id, name, module, document_type, description, min_amount, max_amount, tiers)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-           ON CONFLICT (id) DO UPDATE SET
-             name = EXCLUDED.name,
-             tiers = EXCLUDED.tiers;`,
-          [w.id, w.tenantId, w.name, w.module, w.documentType, w.description, w.minAmount, w.maxAmount || null, JSON.stringify(w.tiers)]
-        );
-      }
+      await this.db.query(`
+        INSERT INTO sales_orders (id, so_number, customer_id, order_date, delivery_due, total_amount, status)
+        VALUES 
+          ('SO-001', 'SO-2026-1501', 'CUST-02', CURRENT_DATE - 4, CURRENT_DATE + 6, 850000.00, 'in_production'),
+          ('SO-002', 'SO-2026-1502', 'CUST-01', CURRENT_DATE - 2, CURRENT_DATE + 10, 1455000.00, 'confirmed')
+        ON CONFLICT (id) DO UPDATE SET total_amount = EXCLUDED.total_amount;
+      `);
 
-      // 7. Seed Global System Parameters
-      const systemParameters = [
-        { id: 'PARAM-SEC-01', tenantId: 'PLANT-01', paramGroup: 'Security', paramKey: 'SESSION_INACTIVITY_TIMEOUT_MINUTES', paramName: 'Inactivity Idle Timeout', paramValue: '15', defaultValue: '15', valueType: 'NUMBER', description: 'Minutes of client inactivity before warning prompt triggers.' },
-        { id: 'PARAM-SEC-02', tenantId: 'PLANT-01', paramGroup: 'Security', paramKey: 'MFA_ENFORCEMENT_POLICY', paramName: 'Enterprise MFA Policy', paramValue: 'REQUIRED_FOR_ADMINS', defaultValue: 'OPTIONAL', valueType: 'STRING', description: 'Enforcement level for TOTP two-factor authentication.' },
-        { id: 'PARAM-SEC-03', tenantId: 'PLANT-01', paramGroup: 'Security', paramKey: 'MAX_FAILED_LOGIN_ATTEMPTS', paramName: 'Max Failed Login Lockout', paramValue: '5', defaultValue: '5', valueType: 'NUMBER', description: 'Failed password/PIN attempts before temporary terminal lock.' },
-        { id: 'PARAM-MFG-01', tenantId: 'PLANT-01', paramGroup: 'Scheduling', paramKey: 'DEFAULT_SHIFT_DURATION_HOURS', paramName: 'Standard Shift Length', paramValue: '8', defaultValue: '8', valueType: 'NUMBER', description: 'Hours per operational production shift.' },
-        { id: 'PARAM-QC-01', tenantId: 'PLANT-01', paramGroup: 'Quality', paramKey: 'AQL_DEFAULT_CRITICAL_DEFECT_LIMIT', paramName: 'AQL Critical Defect Threshold (%)', paramValue: '0.00', defaultValue: '0.00', valueType: 'NUMBER', description: 'Zero-tolerance acceptance quality limit for safety-critical parts.' },
-        { id: 'PARAM-FIN-01', tenantId: 'PLANT-01', paramGroup: 'Finance', paramKey: 'AUTO_POSTING_TOLERANCE_INR', paramName: 'Invoice 3-Way Match Tolerance (₹)', paramValue: '500', defaultValue: '500', valueType: 'NUMBER', description: 'Maximum allowed line discrepancy for automated invoice clearance.' },
-      ];
+      // 10. General Ledger Accounts
+      await this.db.query(`
+        INSERT INTO chart_of_accounts (id, code, name, account_type, sub_category, balance)
+        VALUES 
+          ('ACC-101', '1010-00', 'HDFC Corporate Current Account (INR)', 'ASSET', 'Cash & Bank', 14250000.00),
+          ('ACC-102', '1200-00', 'Raw Material Resin Inventory (PP/HDPE/ABS)', 'ASSET', 'Current Assets', 8450000.00),
+          ('ACC-103', '1250-00', 'Finished Molded Goods Inventory', 'ASSET', 'Current Assets', 4650000.00),
+          ('ACC-201', '2010-00', 'Accounts Payable (Trade Vendors)', 'LIABILITY', 'Current Liabilities', 6200000.00),
+          ('ACC-401', '4010-00', 'Molded Polymer Components Sales Revenue', 'REVENUE', 'Operating Revenue', 42800000.00)
+        ON CONFLICT (id) DO UPDATE SET balance = EXCLUDED.balance;
+      `);
 
-      for (const p of systemParameters) {
-        await this.db.query(
-          `INSERT INTO admin_system_parameters (id, tenant_id, param_group, param_key, param_name, param_value, default_value, value_type, description, is_system)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)
-           ON CONFLICT (id) DO UPDATE SET
-             param_value = EXCLUDED.param_value;`,
-          [p.id, p.tenantId, p.paramGroup, p.paramKey, p.paramName, p.paramValue, p.defaultValue, p.valueType, p.description]
-        );
-      }
+      // 11. Quality NCRs & CAPAs
+      await this.db.query(`
+        INSERT INTO quality_ncrs (id, ncr_number, item_id, defect_type, severity, quantity_rejected, root_cause, status, reported_by)
+        VALUES 
+          ('NCR-001', 'NCR-2026-0042', 'ITEM-FG-01', 'FLASH', 'MAJOR', 450.00, 'Mold clamping force dropped below 140T during peak cycle', 'capa_pending', 'Ananya Deshmukh'),
+          ('NCR-002', 'NCR-2026-0043', 'ITEM-FG-03', 'SINK_MARK', 'CRITICAL', 35.00, 'Barrel temperature zone 3 fluctuation on IMM-250', 'under_investigation', 'Vikram Patel')
+        ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status;
+      `);
 
-      this.logger.log('Database seeded with full enterprise admin mock data (Users, Roles, Plants, Numbering, Workflows, Parameters).');
+      // 12. MEP Utilities
+      await this.db.query(`
+        INSERT INTO mep_equipment (id, code, name, category, capacity, power_rating_kw, plant_id, status)
+        VALUES 
+          ('MEP-01', 'CHILLER-01', 'Carrier Central Water-Cooled Chiller Unit 1', 'MECHANICAL_CHILLER', '120 TR (7°C Supply)', 95.0, 'PLANT-01', 'optimal'),
+          ('MEP-02', 'COMP-01', 'Atlas Copco Oil-Free Rotary Screw Air Compressor', 'AIR_COMPRESSOR', '250 CFM @ 8.5 Bar', 55.0, 'PLANT-01', 'optimal'),
+          ('MEP-03', 'SUB-01', 'Siemens 11KV/415V 1500KVA Substation', 'ELECTRICAL_SUBSTATION', '1500 KVA', 1200.0, 'PLANT-01', 'optimal')
+        ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
+      `);
+
+      // 13. HR Employees
+      await this.db.query(`
+        INSERT INTO hr_employees (id, emp_code, full_name, department, designation, plant_id, shift, salary_monthly, status, joining_date)
+        VALUES 
+          ('EMP-01', 'EMP-1001', 'Sunil Gaikwad', 'Injection Molding', 'Senior Press Operator', 'PLANT-01', 'Shift-A', 32000.00, 'active', '2022-04-15'),
+          ('EMP-02', 'EMP-1002', 'Mahesh Kulkarni', 'Tool Room', 'Mold Maintenance Specialist', 'PLANT-01', 'Shift-A', 42000.00, 'active', '2021-08-10'),
+          ('EMP-03', 'EMP-1003', 'Kavita Jadhav', 'Quality Assurance', 'CMM & Visual QC Inspector', 'PLANT-01', 'Shift-B', 28000.00, 'active', '2023-01-20')
+        ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
+      `);
+
+      // 14. Tasks & Notifications
+      await this.db.query(`
+        INSERT INTO tasks (id, tenant_id, task_number, assigned_to_id, title, description, priority, status, created_by)
+        VALUES 
+          ('TSK-001', 'PLANT-01', 'TASK-2026-081', 'USR-001', 'Approve Polymer Resin PO #0811 (IOCL)', '10 MT PP Copolymer purchase requisition awaiting executive authorization', 'HIGH', 'PENDING', 'USR-002'),
+          ('TSK-002', 'PLANT-01', 'TASK-2026-082', 'USR-003', 'Perform 8D Verification on NCR #0042', 'Review mold clamping hydraulic recalibration on IMM-150-01', 'MEDIUM', 'PENDING', 'USR-001')
+        ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title;
+      `);
+
+      await this.db.query(`
+        INSERT INTO notifications (id, tenant_id, user_id, title, message, type, severity, is_read)
+        VALUES 
+          ('NOTIF-01', 'PLANT-01', 'USR-001', 'OEE Threshold Achieved (88.4%)', 'IMM-150-01 has surpassed target OEE of 85.0% for Shift-A.', 'SYSTEM_ALERT', 'INFO', false),
+          ('NOTIF-02', 'PLANT-01', 'USR-001', 'Low Stock Warning: White Masterbatch', 'White MB stock at 3,200 KG (Reorder threshold: 1,500 KG).', 'INVENTORY_LOW', 'WARNING', false)
+        ON CONFLICT (id) DO UPDATE SET is_read = EXCLUDED.is_read;
+      `);
+
+      this.logger.log('✅ SP-PLASTECH Pre-Production database seeded successfully with 14 live domain datasets.');
     } catch (err: any) {
-      this.logger.warn(`Seed execution note: ${err.message}`);
+      this.logger.error(`Database seeding failed: ${err.message}`, err.stack);
     }
   }
 }
