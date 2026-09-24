@@ -18,6 +18,7 @@ export * as MepModule from './mep';
 export * as ScmModule from './scm';
 export * as CrmModule from './crm';
 export * as AdminModule from './admin';
+export * as AnalyticsModule from './analytics';
 export * as ArchitectureModule from './architecture';
 
 // Direct Feature Facades for Ergonomic Routing
@@ -36,4 +37,6 @@ export { MepViews } from './mep';
 export { ScmViews } from './scm';
 export { CrmViews } from './crm';
 export { AdminViews } from './admin';
+export { AnalyticsViews } from './analytics';
 export { ReactArchitectureGuide } from './architecture';
+

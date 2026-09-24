@@ -303,6 +303,7 @@ export const NAVIGATION_GROUPS: NavGroupDef[] = [
       { id: 'nav-ana-scm', label: 'Supply Chain Performance Reports', view: 'scmReports', icon: 'Activity' },
       { id: 'nav-ana-esg', label: 'ESG & Carbon Footprint', view: 'scmSustainability', icon: 'ShieldCheck' },
       { id: 'nav-ana-maint', label: 'Maintenance MTBF & MTTR', view: 'maintenanceReports', icon: 'Zap' },
+      { id: 'nav-ana-doc-builder', label: 'Custom Document & Report Builder', view: 'customDocBuilder', icon: 'FileText', badge: 'Builder', badgeColor: 'bg-[#E8622C]' },
     ],
   },
   {

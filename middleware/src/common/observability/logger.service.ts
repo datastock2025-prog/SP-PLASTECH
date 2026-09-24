@@ -99,4 +99,10 @@ export class ObservabilityLogger implements LoggerService {
     console.warn(formatted);
     this.writeToFile(formatted);
   }
+
+  logQuery(query: string, durationMs: number, tenantId?: string) {
+    const formatted = this.formatEntry('QUERY', { query, durationMs, tenantId });
+    console.log(formatted);
+    this.writeToFile(formatted);
+  }
 }

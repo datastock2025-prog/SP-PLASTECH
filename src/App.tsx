@@ -39,6 +39,7 @@ import {
   ScmViews,
   CrmViews,
   AdminViews,
+  AnalyticsViews,
   ReactArchitectureGuide,
 } from './modules';
 
@@ -344,7 +345,6 @@ export const App: React.FC = () => {
       shopFloor: ['Manufacturing', 'Shop Floor Console'],
       changeover: ['Manufacturing', 'Changeover (SMED)'],
       scrapDowntime: ['Manufacturing', 'Scrap & Downtime'],
-      oeeDash: ['Manufacturing', 'OEE Analytics'],
       genealogy: ['Manufacturing', 'Genealogy & EBR'],
       invDash: ['Stock & Warehouse', 'Inventory Dashboard'],
       stockList: ['Stock & Warehouse', 'Stock Overview'],
@@ -517,11 +517,8 @@ export const App: React.FC = () => {
       scmFreight: ['Supply Chain Management', 'Freight & Transport Management (TMS)'],
       scmTrackTrace: ['Supply Chain Management', '360° End-to-End Traceability'],
       scmSupplierRisk: ['Supply Chain Management', 'Supplier Risk & Dual-Sourcing'],
-      scmInventoryAging: ['Supply Chain Management', 'Inventory Aging & FEFO Shelf-Life'],
       scmOrderTimeline: ['Supply Chain Management', '16-Stage Order-to-Delivery Pipeline'],
       scmExceptions: ['Supply Chain Management', 'Exceptions & CAPA Incident Resolution'],
-      scmSustainability: ['Supply Chain Management', 'Circular Economy & ESG Metrics'],
-      scmReports: ['Supply Chain Management', 'SCM Intelligence & Reports'],
       scmSettings: ['Supply Chain Management', 'Planning Policies & Parameters'],
       scmRbac: ['Supply Chain Management', 'SCM Role-Based Access Control (RBAC)'],
       crmDashboard: ['CRM & Client 360', 'CRM Command Center'],
@@ -556,6 +553,14 @@ export const App: React.FC = () => {
       adminNotifications: ['Admin & System Settings', 'Notification Templates & Event Routing'],
       adminCustomFields: ['Admin & System Settings', 'Global System Parameters & User Defined Fields'],
       adminSystemParameters: ['Admin & System Settings', 'Global System Parameters & User Defined Fields'],
+      analyticsDash: ['Analytics & Intelligence', 'Executive KPI Dashboard'],
+      oeeDash: ['Analytics & Intelligence', 'OEE Analytics & Loss Pareto'],
+      qualityReports: ['Analytics & Intelligence', 'Quality Defect PPM & Six Sigma'],
+      scmInventoryAging: ['Analytics & Intelligence', 'Inventory Aging & Velocity'],
+      scmReports: ['Analytics & Intelligence', 'Supply Chain Performance Reports'],
+      scmSustainability: ['Analytics & Intelligence', 'ESG & Carbon Footprint'],
+      maintenanceReports: ['Analytics & Intelligence', 'Maintenance MTBF & MTTR'],
+      customDocBuilder: ['Analytics & Intelligence', 'Document Intelligence & Custom Builder'],
       myProfile: ['User Account', 'My Profile & Preferences'],
       userProfile: ['User Account', 'My Profile & Preferences'],
       profilePreferences: ['User Account', 'My Profile & Preferences'],
@@ -593,7 +598,6 @@ export const App: React.FC = () => {
     'shopFloor',
     'changeover',
     'scrapDowntime',
-    'oeeDash',
     'genealogy',
     'reportsHub',
     'mfgSettings',
@@ -806,7 +810,7 @@ export const App: React.FC = () => {
     'hrCompliance',
     'hrReports',
   ].includes(currentView) || currentView.startsWith('hr');
-  const isScm = currentView.startsWith('scm') || [
+  const isScm = (currentView.startsWith('scm') && !['scmInventoryAging', 'scmSustainability', 'scmReports'].includes(currentView)) || [
     'mrpRun',
     'scmControlTower',
     'scmDemandPlanning',
@@ -821,16 +825,23 @@ export const App: React.FC = () => {
     'scmFreight',
     'scmTrackTrace',
     'scmSupplierRisk',
-    'scmInventoryAging',
     'scmOrderTimeline',
     'scmExceptions',
-    'scmSustainability',
-    'scmReports',
     'scmSettings',
     'scmRbac',
   ].includes(currentView);
   const isCrm = currentView.startsWith('crm');
   const isAdmin = currentView.startsWith('admin');
+  const isAnalytics = [
+    'analyticsDash',
+    'oeeDash',
+    'qualityReports',
+    'scmInventoryAging',
+    'scmReports',
+    'scmSustainability',
+    'maintenanceReports',
+    'customDocBuilder',
+  ].includes(currentView);
 
   // Task 1: Strictly approved/released items for all operational modules & BOM builders
   const approvedItems = useMemo(
@@ -1258,6 +1269,15 @@ export const App: React.FC = () => {
 
           {isAdmin && (
             <AdminViews
+              currentView={currentView}
+              viewParams={viewParams}
+              onNavigate={handleNavigate}
+              showToast={showToast}
+            />
+          )}
+
+          {isAnalytics && (
+            <AnalyticsViews
               currentView={currentView}
               viewParams={viewParams}
               onNavigate={handleNavigate}
