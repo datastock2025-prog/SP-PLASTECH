@@ -30,7 +30,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     try {
       this.pool = new Pool({
         connectionString,
-        max: 20,
+        max: 25,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 3000,
       });
@@ -51,6 +51,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Execute query with optional connection
+   */
   public async query<T extends QueryResultRow = any>(text: string, params: any[] = []): Promise<QueryResult<T>> {
     if (this.isConnected && this.pool) {
       try {
@@ -63,6 +66,63 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
     // Fallback in-memory query handler
     return this.executeInMemoryQuery<T>(text, params);
+  }
+
+  /**
+   * Execute callback within a tenant-isolated RLS transaction
+   */
+  public async withTenantContext<T>(
+    tenantId: string,
+    userId: string,
+    callback: (client: PoolClient | DatabaseService) => Promise<T>
+  ): Promise<T> {
+    if (this.isConnected && this.pool) {
+      const client = await this.pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [tenantId]);
+        await client.query("SELECT set_config('app.current_user_id', $1, true)", [userId]);
+        
+        const result = await callback(client);
+        await client.query('COMMIT');
+        return result;
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    }
+
+    // In-memory fallback
+    return callback(this);
+  }
+
+  /**
+   * Acquire a PostgreSQL transaction-level advisory lock
+   */
+  public async withAdvisoryLock<T>(
+    lockKey: string,
+    callback: () => Promise<T>
+  ): Promise<T> {
+    if (this.isConnected && this.pool) {
+      const client = await this.pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [lockKey]);
+        const result = await callback();
+        await client.query('COMMIT');
+        return result;
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    }
+
+    // In-memory fallback runs sequentially
+    return callback();
   }
 
   public async getClient(): Promise<PoolClient> {
@@ -121,14 +181,13 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       'user_mfa_credentials',
       'user_mfa_challenges',
       'security_audit_logs',
-      'gdpr_compliance_requests',
-      'admin_numbering_sequences',
       'admin_approval_workflows',
+      'admin_approval_instances',
+      'admin_approval_tasks',
+      'admin_approval_delegations',
+      'admin_break_glass_vault',
       'admin_system_parameters',
-      'work_orders',
-      'items',
-      'journal_entries',
-      'purchase_orders',
+      'admin_numbering_sequences',
     ];
     tables.forEach((t) => {
       if (!this.inMemoryStore.has(t)) {
@@ -141,12 +200,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const cleanSql = text.trim().toLowerCase();
     let rows: any[] = [];
 
-    // Simple table parser for in-memory emulation
     for (const [tableName, tableRows] of this.inMemoryStore.entries()) {
       if (cleanSql.includes(tableName)) {
         if (cleanSql.startsWith('select')) {
           rows = [...tableRows];
-          // Simple ID or Email matching
           if (params.length > 0 && typeof params[0] === 'string') {
             const matchParam = params[0];
             const filtered = rows.filter(
@@ -156,12 +213,12 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
                 r.user_id === matchParam ||
                 r.session_id === matchParam ||
                 r.challenge_id === matchParam ||
-                r.code === matchParam
+                r.code === matchParam ||
+                r.tenant_id === matchParam
             );
             if (filtered.length > 0) rows = filtered;
           }
         } else if (cleanSql.startsWith('insert')) {
-          // Construct simulated row
           const newRow: any = { id: `mem_${Date.now()}_${Math.random().toString(36).substring(2, 6)}` };
           params.forEach((val, idx) => {
             newRow[`col_${idx}`] = val;

@@ -134,84 +134,617 @@ export const WorkspaceTasksView: React.FC<WorkspaceToolProps> = ({ onNavigate, s
 };
 
 export const WorkspaceApprovalsView: React.FC<WorkspaceToolProps> = ({ onNavigate, showToast }) => {
+  const [activeTab, setActiveTab] = useState<'MY_PENDING' | 'DELEGATED' | 'TEAM_QUEUE' | 'HISTORY'>('MY_PENDING');
+  const [domainFilter, setDomainFilter] = useState<string>('ALL');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [inspectItem, setInspectItem] = useState<any | null>(null);
+  const [reworkModalItem, setReworkModalItem] = useState<any | null>(null);
+  const [reworkReason, setReworkReason] = useState('');
+
   const [approvals, setApprovals] = useState([
-    { id: 'APP-201', type: 'Purchase Order', record: 'PO-2026-00789', desc: '40MT Virgin Polypropylene Copolymer (₹38.5 Lakhs)', initiator: 'Kavita Iyer', date: 'Today, 11:20 AM', amount: '₹38,50,000', view: 'poApprovals' },
-    { id: 'APP-202', type: 'Engineering Change (ECO)', record: 'ECO-2026-014', desc: 'Cavity Core insert revision for Bumper Mold M-004', initiator: 'R&D Engineering', date: 'Yesterday', amount: 'Tooling Rev B', view: 'ecoList' },
-    { id: 'APP-203', type: 'Credit Limit Exception', record: 'SO-2026-1234', desc: 'Maruti Suzuki ₹15L over standard 60-day credit exposure', initiator: 'Sales Desk', date: '2 days ago', amount: '₹15,00,000', view: 'creditControl' },
+    {
+      id: 'APP-201',
+      type: 'Purchase Order',
+      domain: 'Procurement',
+      record: 'PO-2026-00789',
+      desc: '40MT Virgin Polypropylene Copolymer (₹38.5 Lakhs)',
+      initiator: 'Kavita Iyer (SCM Buyer)',
+      date: 'Today, 11:20 AM',
+      amount: '₹38,50,000',
+      priority: 'HIGH',
+      slaHoursLeft: 4.5,
+      currentTier: 2,
+      totalTiers: 3,
+      tierName: 'Plant Budget & Working Capital Validation',
+      approverRole: 'Financial Controller',
+      isDelegated: false,
+      status: 'PENDING',
+      view: 'poApprovals',
+      vendor: 'Reliance Polymers Ltd',
+      costVariancePct: '+2.4% vs Last PO',
+      notes: 'Urgent resin batch required for Maruti Suzuki bumper molding run starting Friday.',
+      timeline: [
+        { tier: 1, name: 'Technical & Rate Variance Check', approver: 'SCM Purchase Manager (Arun Nair)', status: 'APPROVED', time: 'Today, 09:30 AM' },
+        { tier: 2, name: 'Plant Budget Validation', approver: 'Financial Controller (You)', status: 'CURRENT', time: 'Pending' },
+        { tier: 3, name: 'Executive Authorization', approver: 'Priya Rao (VP Ops)', status: 'WAITING', time: 'Queued' },
+      ],
+    },
+    {
+      id: 'APP-202',
+      type: 'Engineering Change (ECO)',
+      domain: 'Engineering',
+      record: 'ECO-2026-014',
+      desc: 'Cavity Core insert revision for Bumper Mold M-004',
+      initiator: 'R&D Tooling Engineering',
+      date: 'Yesterday, 04:15 PM',
+      amount: 'Tooling Rev B',
+      priority: 'CRITICAL',
+      slaHoursLeft: 1.2,
+      currentTier: 1,
+      totalTiers: 2,
+      tierName: 'Mold Feasibility & Cycle Time Impact',
+      approverRole: 'Tooling & DFM Lead',
+      isDelegated: false,
+      status: 'PENDING',
+      view: 'ecoList',
+      vendor: 'In-House Toolroom',
+      costVariancePct: 'Zero CapEx (+0.8s Cycle)',
+      notes: 'Shrinkage compensation for modified PP compound with 15% Talc filler.',
+      timeline: [
+        { tier: 1, name: 'Mold Feasibility & Cycle Time', approver: 'Tooling Lead (You)', status: 'CURRENT', time: 'Pending' },
+        { tier: 2, name: 'Quality & First Article Sign-off', approver: 'QA Director', status: 'WAITING', time: 'Queued' },
+      ],
+    },
+    {
+      id: 'APP-203',
+      type: 'Credit Limit Exception',
+      domain: 'Finance',
+      record: 'SO-2026-1234',
+      desc: 'Maruti Suzuki ₹15L over standard 60-day credit exposure',
+      initiator: 'Sales Desk (Rohan Verma)',
+      date: 'Yesterday, 06:40 PM',
+      amount: '₹15,00,000 Over-limit',
+      priority: 'MEDIUM',
+      slaHoursLeft: 14.0,
+      currentTier: 1,
+      totalTiers: 1,
+      tierName: 'Finance Director Over-Limit Sign-off',
+      approverRole: 'Finance Director',
+      isDelegated: true,
+      delegatedFrom: 'Priya Rao (CFO)',
+      status: 'PENDING',
+      view: 'creditControl',
+      vendor: 'Customer: Maruti Suzuki India',
+      costVariancePct: 'O/S ₹65L / Limit ₹50L',
+      notes: 'Customer payment committed for wire transfer on 28th. Order dispatch held on dock.',
+      timeline: [
+        { tier: 1, name: 'Finance Director Exception', approver: 'Delegated to You (Priya Rao OOO)', status: 'CURRENT', time: 'Pending' },
+      ],
+    },
+    {
+      id: 'APP-204',
+      type: 'Quality Quarantine Release',
+      domain: 'Quality',
+      record: 'MRB-2026-0089',
+      desc: 'Black speck scrap purge write-off for 480kg Masterbatch Lot',
+      initiator: 'Vikram Mehta (QA Engineer)',
+      date: '2 days ago',
+      amount: '₹96,000 Scrap Loss',
+      priority: 'HIGH',
+      slaHoursLeft: 0,
+      currentTier: 2,
+      totalTiers: 2,
+      tierName: 'Plant Manager Write-off Clearance',
+      approverRole: 'Plant Operations Head',
+      isDelegated: false,
+      status: 'PENDING',
+      view: 'quarantine',
+      vendor: 'Supplier: Clariant Colorants',
+      costVariancePct: 'Debit Note Issued to Vendor',
+      notes: 'Pigment agglomeration exceeded allowable delta-E. Supplier agreed to 100% credit note.',
+      timeline: [
+        { tier: 1, name: 'QA Root Cause & Quarantine', approver: 'QA Lead (Anand Kumar)', status: 'APPROVED', time: 'Yesterday' },
+        { tier: 2, name: 'Plant Manager Disposition', approver: 'Plant Head (You)', status: 'CURRENT', time: 'Overdue (SLA Breached)' },
+      ],
+    },
   ]);
 
-  const handleAction = (id: string, action: 'Approve' | 'Reject') => {
-    setApprovals(prev => prev.filter(a => a.id !== id));
-    showToast?.(`${action}d successfully`);
+  const [history, setHistory] = useState<any[]>([]);
+
+  // Filter items
+  const filteredApprovals = approvals.filter((item) => {
+    if (activeTab === 'DELEGATED' && !item.isDelegated) return false;
+    if (activeTab === 'MY_PENDING' && item.isDelegated) return false;
+    if (domainFilter !== 'ALL' && item.domain !== domainFilter) return false;
+    return true;
+  });
+
+  const handleAction = (id: string, action: 'Approve' | 'Reject', notes: string = '') => {
+    const item = approvals.find((a) => a.id === id);
+    if (!item) return;
+
+    setApprovals((prev) => prev.filter((a) => a.id !== id));
+    setSelectedIds((prev) => prev.filter((selId) => selId !== id));
+
+    const historyEntry = {
+      ...item,
+      status: action === 'Approve' ? 'APPROVED' : 'REJECTED',
+      decidedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      actionNotes: notes || (action === 'Approve' ? 'Approved through Universal Workflow Engine.' : 'Rejected by authorized reviewer.'),
+    };
+    setHistory((prev) => [historyEntry, ...prev]);
+
+    if (inspectItem?.id === id) setInspectItem(null);
+    if (reworkModalItem?.id === id) setReworkModalItem(null);
+
+    showToast?.(`${action === 'Approve' ? 'Approved' : 'Rejected'} ${item.record} successfully.`);
+  };
+
+  const handleBatchApprove = () => {
+    if (selectedIds.length === 0) return;
+    const count = selectedIds.length;
+    selectedIds.forEach((id) => handleAction(id, 'Approve', 'Batch Approved'));
+    showToast?.(`Batch approved ${count} transactions.`);
+  };
+
+  const handleRequestRework = () => {
+    if (!reworkModalItem || !reworkReason.trim()) {
+      showToast?.('Please provide rework instructions for the requester.');
+      return;
+    }
+    const item = reworkModalItem;
+    setApprovals((prev) => prev.filter((a) => a.id !== item.id));
+    setSelectedIds((prev) => prev.filter((selId) => selId !== item.id));
+
+    setHistory((prev) => [
+      {
+        ...item,
+        status: 'REWORK_REQUESTED',
+        decidedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        actionNotes: `Rework Requested: ${reworkReason}`,
+      },
+      ...prev,
+    ]);
+
+    setReworkModalItem(null);
+    setReworkReason('');
+    showToast?.(`Rework requested on ${item.record}. Document returned to ${item.initiator}.`);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredApprovals.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredApprovals.map((a) => a.id));
+    }
+  };
+
+  const toggleSelectOne = (id: string) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   };
 
   return (
     <div className="space-y-6">
+      {/* Top Banner */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
             <FileCheck className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">My Approvals Hub</h1>
-            <p className="text-xs text-slate-500">Multi-tier sign-offs across Purchase Orders, ECO revisions, Credit Approvals, and QC Releases</p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">Enterprise Approvals Hub</h1>
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                Universal Engine
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Multi-tier hierarchical authorization with SLA tracking, Segregation of Duties (SoD), and delegation proxy
+            </p>
           </div>
         </div>
-        <div className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
-          {approvals.length} PENDING DECISIONS
+
+        <div className="flex items-center gap-2">
+          {selectedIds.length > 0 && (
+            <RequireAuth roles={['admin', 'manager', 'lead', 'director']}>
+              <button
+                onClick={handleBatchApprove}
+                className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <CheckSquare className="w-3.5 h-3.5" />
+                Batch Approve ({selectedIds.length})
+              </button>
+            </RequireAuth>
+          )}
+          <div className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
+            {approvals.length} PENDING DECISIONS
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4">
-        {approvals.map(app => (
-          <div key={app.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs hover:border-slate-300 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap mb-1">
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">{app.type}</span>
-                <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">{app.record}</span>
-                <span className="text-xs font-semibold text-slate-900">{app.amount}</span>
+      {/* Tabs and Filters bar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            onClick={() => setActiveTab('MY_PENDING')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'MY_PENDING'
+                ? 'bg-white text-[#0F8B8D] shadow-xs border border-slate-200'
+                : 'text-slate-600 hover:bg-slate-200/60'
+            }`}
+          >
+            My Action Items ({approvals.filter((a) => !a.isDelegated).length})
+          </button>
+          <button
+            onClick={() => setActiveTab('DELEGATED')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+              activeTab === 'DELEGATED'
+                ? 'bg-white text-indigo-600 shadow-xs border border-slate-200'
+                : 'text-slate-600 hover:bg-slate-200/60'
+            }`}
+          >
+            <span>Delegated to Me</span>
+            <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 text-[10px] flex items-center justify-center font-bold">
+              {approvals.filter((a) => a.isDelegated).length}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('HISTORY')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'HISTORY'
+                ? 'bg-white text-slate-800 shadow-xs border border-slate-200'
+                : 'text-slate-600 hover:bg-slate-200/60'
+            }`}
+          >
+            Resolution History ({history.length})
+          </button>
+        </div>
+
+        {activeTab !== 'HISTORY' && (
+          <div className="flex items-center gap-2">
+            <Filter className="w-3.5 h-3.5 text-slate-400" />
+            <select
+              value={domainFilter}
+              onChange={(e) => setDomainFilter(e.target.value)}
+              className="px-2.5 py-1 text-xs font-semibold bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-[#0F8B8D]"
+            >
+              <option value="ALL">All ERP Domains</option>
+              <option value="Procurement">Procurement (PO/PR)</option>
+              <option value="Finance">Finance &amp; Credit</option>
+              <option value="Engineering">Engineering (ECO/BOM)</option>
+              <option value="Quality">Quality &amp; Quarantine</option>
+            </select>
+            {filteredApprovals.length > 0 && (
+              <button
+                onClick={toggleSelectAll}
+                className="px-2.5 py-1 text-xs font-semibold bg-white border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                {selectedIds.length === filteredApprovals.length ? 'Deselect All' : 'Select All'}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Main List */}
+      {activeTab === 'HISTORY' ? (
+        <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 shadow-xs">
+          {history.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 text-xs">
+              No approval actions recorded in this session yet.
+            </div>
+          ) : (
+            history.map((h) => (
+              <div key={h.id} className="p-4 flex items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                        h.status === 'APPROVED'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : h.status === 'REJECTED'
+                          ? 'bg-rose-100 text-rose-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}
+                    >
+                      {h.status}
+                    </span>
+                    <span className="font-mono text-xs font-bold text-slate-800">{h.record}</span>
+                    <span className="text-xs text-slate-500 font-semibold">{h.desc}</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    Decision at <b>{h.decidedAt}</b> &middot; Note: <i>{h.actionNotes}</i>
+                  </div>
+                </div>
+                <div className="text-right text-xs font-mono font-bold text-slate-700">{h.amount}</div>
               </div>
-              <h3 className="text-sm font-bold text-slate-900">{app.desc}</h3>
-              <div className="flex items-center gap-3 text-xs text-slate-500 mt-2">
-                <span>Requested by: <b>{app.initiator}</b></span>
-                <span>&bull;</span>
-                <span>{app.date}</span>
+            ))
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4">
+          {filteredApprovals.length === 0 ? (
+            <div className="bg-white p-12 rounded-xl border border-slate-200 text-center space-y-2">
+              <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+              <h3 className="text-sm font-bold text-slate-800">All Clear! No Pending Actions</h3>
+              <p className="text-xs text-slate-500">You have zero sign-off backlogs under this filter.</p>
+            </div>
+          ) : (
+            filteredApprovals.map((app) => {
+              const isSelected = selectedIds.includes(app.id);
+              const isSlaBreached = app.slaHoursLeft <= 0;
+              const isSlaWarning = app.slaHoursLeft > 0 && app.slaHoursLeft <= 4;
+
+              return (
+                <div
+                  key={app.id}
+                  className={`bg-white p-5 rounded-xl border transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xs ${
+                    isSelected ? 'border-[#0F8B8D] bg-cyan-50/20' : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-start gap-3 min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelectOne(app.id)}
+                      className="mt-1 rounded text-[#0F8B8D] focus:ring-[#0F8B8D] cursor-pointer"
+                    />
+
+                    <div className="min-w-0 space-y-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-800 uppercase tracking-wider">
+                          {app.domain}
+                        </span>
+                        <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">
+                          {app.record}
+                        </span>
+                        <span className="text-xs font-bold text-slate-900">{app.amount}</span>
+
+                        {app.isDelegated && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 flex items-center gap-1">
+                            Delegated from {app.delegatedFrom}
+                          </span>
+                        )}
+
+                        {isSlaBreached ? (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-800 flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-rose-600" /> SLA Breached (Auto-Escalating)
+                          </span>
+                        ) : isSlaWarning ? (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-amber-600" /> {app.slaHoursLeft}h SLA Remaining
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-slate-400" /> {app.slaHoursLeft}h SLA
+                          </span>
+                        )}
+                      </div>
+
+                      <h3 className="text-sm font-bold text-slate-900">{app.desc}</h3>
+
+                      <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
+                        <span>Requested by: <b className="text-slate-700">{app.initiator}</b></span>
+                        <span>&bull;</span>
+                        <span>{app.date}</span>
+                        <span>&bull;</span>
+                        <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-semibold">
+                          Tier {app.currentTier}/{app.totalTiers}: {app.tierName}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full md:w-auto justify-end shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
+                    <button
+                      onClick={() => setInspectItem(app)}
+                      className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors cursor-pointer"
+                    >
+                      Inspect &amp; Diff
+                    </button>
+
+                    <RequireAuth
+                      roles={['admin', 'manager', 'lead', 'director']}
+                      fallback={
+                        <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-1.5 rounded-lg border border-amber-200 flex items-center gap-1 font-medium">
+                          <Lock className="w-3 h-3" /> Sign-off Clearance Required
+                        </span>
+                      }
+                    >
+                      <button
+                        onClick={() => setReworkModalItem(app)}
+                        className="px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold transition-colors cursor-pointer"
+                      >
+                        Request Rework
+                      </button>
+                      <button
+                        onClick={() => handleAction(app.id, 'Reject')}
+                        className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition-colors cursor-pointer"
+                      >
+                        Reject
+                      </button>
+                      <button
+                        onClick={() => handleAction(app.id, 'Approve')}
+                        className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                      >
+                        One-Click Approve
+                      </button>
+                    </RequireAuth>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* Inspect & Side-by-Side Diff Modal */}
+      {inspectItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between p-5 border-b border-slate-200 bg-slate-50">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
+                    {inspectItem.domain}
+                  </span>
+                  <span className="font-mono text-xs font-bold text-slate-900">{inspectItem.record}</span>
+                </div>
+                <h3 className="text-base font-bold text-slate-900 mt-1">{inspectItem.desc}</h3>
+              </div>
+              <button
+                onClick={() => setInspectItem(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-6 text-xs">
+              {/* Document Summary Matrix */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <div>
+                  <span className="text-slate-400 uppercase font-semibold text-[10px]">Total Amount / Impact</span>
+                  <p className="font-bold text-sm text-slate-900 mt-0.5">{inspectItem.amount}</p>
+                </div>
+                <div>
+                  <span className="text-slate-400 uppercase font-semibold text-[10px]">Variance Indicator</span>
+                  <p className="font-semibold text-emerald-700 mt-0.5">{inspectItem.costVariancePct}</p>
+                </div>
+                <div>
+                  <span className="text-slate-400 uppercase font-semibold text-[10px]">Vendor / Entity</span>
+                  <p className="font-semibold text-slate-800 mt-0.5">{inspectItem.vendor}</p>
+                </div>
+              </div>
+
+              {/* Justification Notes */}
+              <div>
+                <h4 className="font-bold text-slate-800 uppercase tracking-wider text-[11px] mb-1.5">
+                  Commercial &amp; Operational Justification
+                </h4>
+                <div className="p-3.5 bg-indigo-50/50 rounded-xl border border-indigo-100 text-slate-700 leading-relaxed">
+                  {inspectItem.notes}
+                </div>
+              </div>
+
+              {/* Multi-Tier Signature Stepper */}
+              <div>
+                <h4 className="font-bold text-slate-800 uppercase tracking-wider text-[11px] mb-3">
+                  Hierarchical Approval Pipeline
+                </h4>
+                <div className="space-y-3 relative before:content-[''] before:absolute before:left-3.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
+                  {inspectItem.timeline.map((step: any, idx: number) => (
+                    <div key={idx} className="relative pl-9 flex items-center justify-between">
+                      <div
+                        className={`absolute left-1.5 top-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white ${
+                          step.status === 'APPROVED'
+                            ? 'bg-emerald-500 ring-4 ring-emerald-100'
+                            : step.status === 'CURRENT'
+                            ? 'bg-indigo-600 ring-4 ring-indigo-100 animate-pulse'
+                            : 'bg-slate-300'
+                        }`}
+                      >
+                        {idx + 1}
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900 text-xs">{step.name}</div>
+                        <div className="text-[11px] text-slate-500">{step.approver}</div>
+                      </div>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                          step.status === 'APPROVED'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : step.status === 'CURRENT'
+                            ? 'bg-indigo-100 text-indigo-800'
+                            : 'bg-slate-100 text-slate-500'
+                        }`}
+                      >
+                        {step.time}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 w-full md:w-auto justify-end shrink-0">
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
               <button
-                onClick={() => onNavigate(app.view)}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors"
+                onClick={() => {
+                  onNavigate(inspectItem.view);
+                  setInspectItem(null);
+                }}
+                className="text-xs font-semibold text-indigo-600 hover:underline cursor-pointer"
               >
-                Inspect Details
+                Open Full ERP Module Record &rarr;
               </button>
-              <RequireAuth
-                roles={['admin', 'manager', 'lead', 'director']}
-                fallback={
-                  <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-1.5 rounded-lg border border-amber-200 flex items-center gap-1 font-medium">
-                    <Lock className="w-3 h-3" />
-                    Sign-off Clearance Required
-                  </span>
-                }
-              >
+
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => handleAction(app.id, 'Reject')}
-                  className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition-colors"
+                  onClick={() => {
+                    setReworkModalItem(inspectItem);
+                    setInspectItem(null);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 text-xs font-semibold hover:bg-amber-100 cursor-pointer"
+                >
+                  Request Rework
+                </button>
+                <button
+                  onClick={() => handleAction(inspectItem.id, 'Reject')}
+                  className="px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 text-xs font-semibold hover:bg-rose-100 cursor-pointer"
                 >
                   Reject
                 </button>
                 <button
-                  onClick={() => handleAction(app.id, 'Approve')}
-                  className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-colors"
+                  onClick={() => handleAction(inspectItem.id, 'Approve')}
+                  className="px-4 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 cursor-pointer"
                 >
-                  One-Click Approve
+                  Approve Record
                 </button>
-              </RequireAuth>
+              </div>
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {/* Rework Request Modal */}
+      {reworkModalItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Request Rework &amp; Amendment</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Returning <b>{reworkModalItem.record}</b> to <b>{reworkModalItem.initiator}</b> for corrections.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">Detailed Feedback / Required Changes *</label>
+              <textarea
+                value={reworkReason}
+                onChange={(e) => setReworkReason(e.target.value)}
+                placeholder="e.g. Please negotiate a 2% volume discount with Reliance or update delivery schedule to split across two fortnights..."
+                rows={4}
+                className="w-full text-xs p-3 border border-slate-200 rounded-xl focus:ring-1 focus:ring-[#0F8B8D] focus:outline-hidden"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                onClick={() => setReworkModalItem(null)}
+                className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRequestRework}
+                className="px-4 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-xs cursor-pointer"
+              >
+                Send Rework Request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

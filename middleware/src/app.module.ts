@@ -8,6 +8,11 @@ import { ComplianceModule } from './modules/compliance/compliance.module';
 import { WebSocketModule } from './modules/websocket/websocket.module';
 import { BusinessModule } from './modules/business/business.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { ApprovalWorkflowModule } from './modules/approval-workflow/approval-workflow.module';
+import { ScmModule } from './modules/scm/scm.module';
+import { MfgQualityModule } from './modules/mfg-quality/mfg-quality.module';
+import { FinanceModule } from './modules/finance/finance.module';
+import { HealthModule } from './modules/health/health.module';
 import { CsrfDoubleSubmitMiddleware } from './common/middleware/csrf.middleware';
 
 @Module({
@@ -21,6 +26,11 @@ import { CsrfDoubleSubmitMiddleware } from './common/middleware/csrf.middleware'
     WebSocketModule,
     BusinessModule,
     AdminModule,
+    ApprovalWorkflowModule,
+    ScmModule,
+    MfgQualityModule,
+    FinanceModule,
+    HealthModule,
   ],
 })
 export class AppModule implements NestModule {

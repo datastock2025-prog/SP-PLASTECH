@@ -3,6 +3,8 @@ import { AppModule } from './app.module';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { SecurityExceptionFilter } from './common/filters/security-exception.filter';
+import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
+import { AuditHashInterceptor } from './common/interceptors/audit-hash.interceptor';
 import { Logger } from '@nestjs/common';
 
 async function bootstrap() {
@@ -62,19 +64,27 @@ async function bootstrap() {
       'X-Tenant-ID',
       'X-Unmask-PII',
       'X-Requested-With',
+      'X-Idempotency-Key',
+      'Idempotency-Key',
     ],
-    exposedHeaders: ['Set-Cookie'],
+    exposedHeaders: ['Set-Cookie', 'X-Audit-Block-Hash', 'X-Idempotency-Cache'],
   });
 
   // 5. Global Security Exception Filter with Incident IDs
   app.useGlobalFilters(new SecurityExceptionFilter());
+
+  // 6. Global Idempotency & Cryptographic Audit Interceptors
+  app.useGlobalInterceptors(
+    new IdempotencyInterceptor(),
+    new AuditHashInterceptor()
+  );
 
   const port = parseInt(process.env.PORT || '3001', 10);
   await app.listen(port, '0.0.0.0');
 
   logger.log(`================================================================`);
   logger.log(`🚀 Reboot ERP NestJS Backend Running on http://localhost:${port}/api`);
-  logger.log(`🔒 Enterprise 8-Layer Security Architecture Active & Enforced`);
+  logger.log(`🔒 Enterprise 8-Layer Security & Hardening Suite Active`);
   logger.log(`================================================================`);
 }
 
