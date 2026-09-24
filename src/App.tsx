@@ -892,7 +892,7 @@ export const App: React.FC = () => {
   return (
     <AuthContext.Provider value={{ currentUser, setCurrentUser }}>
       <RequireAuth currentUser={currentUser}>
-      <div className="flex flex-col h-screen w-full max-w-full overflow-hidden bg-[#F6F4EF] text-[#1C1F26] font-['Plus_Jakarta_Sans']">
+      <div className="flex flex-col h-screen w-full max-w-full overflow-hidden bg-[var(--paper)] text-[var(--text)] font-['Plus_Jakarta_Sans'] transition-colors duration-200">
       {/* Topbar: Fixed at top, full width */}
       <Topbar
         breadcrumbs={getBreadcrumbs()}

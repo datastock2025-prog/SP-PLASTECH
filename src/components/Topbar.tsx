@@ -263,20 +263,34 @@ export const Topbar: React.FC<TopbarProps> = ({
   const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS_LIST);
   const [unreadNotifCount, setUnreadNotifCount] = useState(5);
 
-  // Apply Theme to DOM
+  // Apply Theme to DOM & listen to external preference updates
   useEffect(() => {
     const root = document.documentElement;
     root.classList.remove('dark', 'theme-high-contrast');
+    root.setAttribute('data-theme', activeTheme);
     if (activeTheme === 'dark') {
       root.classList.add('dark');
     } else if (activeTheme === 'high_contrast') {
       root.classList.add('theme-high-contrast');
     } else if (activeTheme === 'system') {
-      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
         root.classList.add('dark');
+        root.setAttribute('data-theme', 'dark');
+      } else {
+        root.setAttribute('data-theme', 'light');
       }
     }
     localStorage.setItem('sp_theme', activeTheme);
+  }, [activeTheme]);
+
+  useEffect(() => {
+    const handleThemeChange = (e: any) => {
+      if (e.detail && e.detail !== activeTheme) {
+        setActiveTheme(e.detail);
+      }
+    };
+    window.addEventListener('sp_theme_changed', handleThemeChange);
+    return () => window.removeEventListener('sp_theme_changed', handleThemeChange);
   }, [activeTheme]);
 
   // Apply Display Density to DOM

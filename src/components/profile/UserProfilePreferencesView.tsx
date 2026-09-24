@@ -143,7 +143,7 @@ export const UserProfilePreferencesView: React.FC<Props> = ({
       bio: 'Operations lead managing polymer injection molding lines, quality gate enforcement, and production scheduling.',
 
       defaultLandingPage: 'home',
-      theme: (localStorage.getItem('reboot_theme') as any) || 'light',
+      theme: (localStorage.getItem('sp_theme') as any) || 'light',
       accentColor: '#0F8B8D',
       uiDensity: 'comfortable',
       defaultPageSize: 25,
@@ -204,7 +204,8 @@ export const UserProfilePreferencesView: React.FC<Props> = ({
   const handleSaveAll = () => {
     setIsSaving(true);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
-    localStorage.setItem('reboot_theme', prefs.theme);
+    localStorage.setItem('sp_theme', prefs.theme);
+    window.dispatchEvent(new CustomEvent('sp_theme_changed', { detail: prefs.theme }));
 
     // Update parent currentUser if callback provided
     if (currentUser && onUpdateUser) {
