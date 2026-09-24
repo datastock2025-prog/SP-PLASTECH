@@ -16,6 +16,7 @@ import { HealthModule } from './modules/health/health.module';
 import { HomeToolsModule } from './modules/home-tools/home-tools.module';
 import { FrontOfficeModule } from './modules/front-office/front-office.module';
 import { OperationsModule } from './modules/operations/operations.module';
+import { PlanningModule } from './modules/planning/planning.module';
 import { ObservabilityModule } from './common/observability/observability.module';
 import { CsrfDoubleSubmitMiddleware } from './common/middleware/csrf.middleware';
 
@@ -39,6 +40,7 @@ import { CsrfDoubleSubmitMiddleware } from './common/middleware/csrf.middleware'
     HomeToolsModule,
     FrontOfficeModule,
     OperationsModule,
+    PlanningModule,
   ],
 })
 export class AppModule implements NestModule {
