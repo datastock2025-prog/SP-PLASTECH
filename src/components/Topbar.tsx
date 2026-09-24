@@ -118,6 +118,84 @@ interface TopbarProps {
   showToast?: (msg: string) => void;
 }
 
+// Sample Notifications Dataset matching STEP-4
+export const INITIAL_NOTIFICATIONS_LIST = [
+  {
+    id: 'NOTIF-01',
+    title: 'Purchase Order Pending Approval',
+    desc: 'PO-2026-089 for 12,500 KG PP Resin ($24,200) requires director authorization.',
+    module: 'Procurement',
+    ref: 'PO-2026-089',
+    time: '12m ago',
+    priority: 'High',
+    type: 'approvals',
+    color: 'border-amber-500 bg-amber-50/50',
+    badgeColor: 'bg-amber-100 text-amber-800',
+    isRead: false,
+  },
+  {
+    id: 'NOTIF-02',
+    title: 'Machine Downtime Alert',
+    desc: 'Engel 650T (Press 04) reported hydraulic proportional valve alarm.',
+    module: 'Production',
+    ref: 'IMM-ENGEL-650',
+    time: '24m ago',
+    priority: 'Critical',
+    type: 'alerts',
+    color: 'border-rose-500 bg-rose-50/50',
+    badgeColor: 'bg-rose-100 text-rose-800',
+    isRead: false,
+  },
+  {
+    id: 'NOTIF-03',
+    title: 'Quality Hold Quarantined',
+    desc: 'Lot #LOT-2026-0412 sink mark defect flagged on Cavity #2. 84 pcs blocked.',
+    module: 'Quality',
+    ref: 'NCR-2026-0041',
+    time: '45m ago',
+    priority: 'Critical',
+    type: 'alerts',
+    color: 'border-rose-500 bg-rose-50/50',
+    badgeColor: 'bg-rose-100 text-rose-800',
+    isRead: false,
+  },
+  {
+    id: 'NOTIF-04',
+    title: 'Work Order Material Shortage',
+    desc: 'WO-2026-0415 requires Sabic PP 579S. Silo 02 balance is below minimum buffer.',
+    module: 'Warehouse',
+    ref: 'WO-2026-0415',
+    time: '1h ago',
+    priority: 'High',
+    type: 'tasks',
+    color: 'border-amber-500 bg-amber-50/50',
+    badgeColor: 'bg-amber-100 text-amber-800',
+    isRead: false,
+  },
+  {
+    id: 'NOTIF-05',
+    title: 'CMM Arm Calibration Due Soon',
+    desc: 'Mitutoyo 3D CMM inspection station periodic calibration due in 3 days.',
+    module: 'Quality',
+    ref: 'CAL-2026-11',
+    time: '3h ago',
+    priority: 'Informational',
+    type: 'system',
+    color: 'border-blue-500 bg-blue-50/50',
+    badgeColor: 'bg-blue-100 text-blue-800',
+    isRead: false,
+  },
+];
+
+// Tasks dataset matching STEP-5 (Approvals awaiting action & assigned tasks)
+export const INITIAL_PENDING_TASKS_LIST = [
+  { id: 'TSK-01', title: 'Approve Purchase Order PO-2026-089', module: 'Procurement', record: 'PO-2026-089', due: 'Today, 14:00', priority: 'Urgent', status: 'Pending Review' },
+  { id: 'TSK-02', title: 'Review BOM Revision v2.1 (Grille Assembly)', module: 'Engineering', record: 'BOM-BUMP-01', due: 'Tomorrow', priority: 'Medium', status: 'Pending Sign-off' },
+  { id: 'TSK-03', title: 'Inspect Mold Die MLD-AUTO-09 Cavity #2', module: 'Maintenance', record: 'MLD-AUTO-09', due: 'Today, 17:00', priority: 'High', status: 'In Progress' },
+  { id: 'TSK-04', title: 'Resolve MRB Disposition for Lot #LOT-0819', module: 'Quality', record: 'NCR-2026-0041', due: 'Sep 06', priority: 'Urgent', status: 'Quarantined' },
+  { id: 'TSK-05', title: 'Sign Off Night Shift C Overtime Sheets', module: 'HR', record: 'OT-2026-33', due: 'Today, 11:30', priority: 'Low', status: 'Pending Approval' },
+];
+
 export const Topbar: React.FC<TopbarProps> = ({
   breadcrumbs,
   searchQuery,
@@ -152,16 +230,62 @@ export const Topbar: React.FC<TopbarProps> = ({
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [selectedQuickAction, setSelectedQuickAction] = useState<QuickActionItem | null>(null);
 
-  // Topbar Settings State
+  // Topbar Settings State & Local Storage Persistence
   const [entities, setEntities] = useState<PlantEntity[]>(ENTERPRISE_ENTITIES);
-  const [activePlantId, setActivePlantId] = useState<string>(currentUser?.plantId || 'PLANT-01');
+  const [activePlantId, setActivePlantId] = useState<string>(() => {
+    return localStorage.getItem('sp_active_plant') || currentUser?.plantId || 'PLANT-01';
+  });
   const [plantSearchTerm, setPlantSearchTerm] = useState('');
   const [currentLang, setCurrentLang] = useState('EN');
-  const [activeTheme, setActiveTheme] = useState<'light' | 'dark' | 'system' | 'high_contrast'>('light');
-  const [pinnedActionIds, setPinnedActionIds] = useState<string[]>(['QA-001', 'QA-002', 'QA-004', 'QA-007', 'QA-008']);
+  
+  // Theme & Display Density State
+  const [activeTheme, setActiveTheme] = useState<'light' | 'dark' | 'system' | 'high_contrast'>(() => {
+    return (localStorage.getItem('sp_theme') as any) || 'light';
+  });
+  const [activeDensity, setActiveDensity] = useState<'compact' | 'standard' | 'comfortable'>(() => {
+    return (localStorage.getItem('sp_density') as any) || 'standard';
+  });
+
+  const [pinnedActionIds, setPinnedActionIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('sp_pinned_actions');
+      return saved ? JSON.parse(saved) : ['QA-001', 'QA-002', 'QA-004', 'QA-007', 'QA-008'];
+    } catch {
+      return ['QA-001', 'QA-002', 'QA-004', 'QA-007', 'QA-008'];
+    }
+  });
   const [recentActionIds, setRecentActionIds] = useState<string[]>(['QA-001', 'QA-002', 'QA-004']);
   const [activeNotificationTab, setActiveNotificationTab] = useState<'all' | 'approvals' | 'alerts' | 'tasks' | 'system'>('all');
   const [isOfflineSimulated, setIsOfflineSimulated] = useState(false);
+
+  // Interactive Live Tasks & Notifications State
+  const [pendingTasks, setPendingTasks] = useState(INITIAL_PENDING_TASKS_LIST);
+  const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS_LIST);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(5);
+
+  // Apply Theme to DOM
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.remove('dark', 'theme-high-contrast');
+    if (activeTheme === 'dark') {
+      root.classList.add('dark');
+    } else if (activeTheme === 'high_contrast') {
+      root.classList.add('theme-high-contrast');
+    } else if (activeTheme === 'system') {
+      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        root.classList.add('dark');
+      }
+    }
+    localStorage.setItem('sp_theme', activeTheme);
+  }, [activeTheme]);
+
+  // Apply Display Density to DOM
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.remove('density-compact', 'density-standard', 'density-comfortable');
+    root.classList.add(`density-${activeDensity}`);
+    localStorage.setItem('sp_density', activeDensity);
+  }, [activeDensity]);
 
   // Sync live plants from PostgreSQL
   useEffect(() => {
@@ -182,7 +306,7 @@ export const Topbar: React.FC<TopbarProps> = ({
           );
         }
       } catch {
-        // Fallback
+        // Fallback to enterprise entities
       }
     };
     fetchPlants();
@@ -255,6 +379,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   // Plant Switch Handler
   const handleSelectPlant = (entity: PlantEntity) => {
     setActivePlantId(entity.id);
+    localStorage.setItem('sp_active_plant', entity.id);
     setShowPlantDropdown(false);
     onPlantChange?.(entity.id, entity.name);
     showToast(`Switched active context to ${entity.name}`);
@@ -263,10 +388,14 @@ export const Topbar: React.FC<TopbarProps> = ({
   // Toggle Action Pin
   const handleTogglePin = (actionId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setPinnedActionIds((prev) =>
-      prev.includes(actionId) ? prev.filter((id) => id !== actionId) : [...prev, actionId]
-    );
-    showToast(pinnedActionIds.includes(actionId) ? 'Removed from favorites' : 'Pinned to favorites');
+    setPinnedActionIds((prev) => {
+      const updated = prev.includes(actionId) ? prev.filter((id) => id !== actionId) : [...prev, actionId];
+      try {
+        localStorage.setItem('sp_pinned_actions', JSON.stringify(updated));
+      } catch {}
+      showToast(prev.includes(actionId) ? 'Removed from favorites' : 'Pinned to favorites');
+      return updated;
+    });
   };
 
   // Execute Quick Action
@@ -284,78 +413,45 @@ export const Topbar: React.FC<TopbarProps> = ({
     }
   };
 
-  // Sample Notifications Dataset matching Prompt examples
-  const notificationsList = [
-    {
-      id: 'NOTIF-01',
-      title: 'Purchase Order Pending Approval',
-      desc: 'PO-2026-089 for 12,500 KG PP Resin ($24,200) requires director authorization.',
-      module: 'Procurement',
-      ref: 'PO-2026-089',
-      time: '12m ago',
-      priority: 'High',
-      type: 'approvals',
-      color: 'border-amber-500 bg-amber-50/50',
-      badgeColor: 'bg-amber-100 text-amber-800',
-    },
-    {
-      id: 'NOTIF-02',
-      title: 'Machine Downtime Alert',
-      desc: 'Engel 650T (Press 04) reported hydraulic proportional valve alarm.',
-      module: 'Production',
-      ref: 'IMM-ENGEL-650',
-      time: '24m ago',
-      priority: 'Critical',
-      type: 'alerts',
-      color: 'border-rose-500 bg-rose-50/50',
-      badgeColor: 'bg-rose-100 text-rose-800',
-    },
-    {
-      id: 'NOTIF-03',
-      title: 'Quality Hold Quarantined',
-      desc: 'Lot #LOT-2026-0412 sink mark defect flagged on Cavity #2. 84 pcs blocked.',
-      module: 'Quality',
-      ref: 'NCR-2026-0041',
-      time: '45m ago',
-      priority: 'Critical',
-      type: 'alerts',
-      color: 'border-rose-500 bg-rose-50/50',
-      badgeColor: 'bg-rose-100 text-rose-800',
-    },
-    {
-      id: 'NOTIF-04',
-      title: 'Work Order Material Shortage',
-      desc: 'WO-2026-0415 requires Sabic PP 579S. Silo 02 balance is below minimum buffer.',
-      module: 'Warehouse',
-      ref: 'WO-2026-0415',
-      time: '1h ago',
-      priority: 'High',
-      type: 'tasks',
-      color: 'border-amber-500 bg-amber-50/50',
-      badgeColor: 'bg-amber-100 text-amber-800',
-    },
-    {
-      id: 'NOTIF-05',
-      title: 'CMM Arm Calibration Due Soon',
-      desc: 'Mitutoyo 3D CMM inspection station periodic calibration due in 3 days.',
-      module: 'Quality',
-      ref: 'CAL-2026-11',
-      time: '3h ago',
-      priority: 'Informational',
-      type: 'system',
-      color: 'border-blue-500 bg-blue-50/50',
-      badgeColor: 'bg-blue-100 text-blue-800',
-    },
-  ];
+  // Task Handlers
+  const handleApproveTask = (taskId: string, title: string) => {
+    setPendingTasks((prev) => prev.filter((t) => t.id !== taskId));
+    showToast(`Approved & Completed: ${title}`);
+  };
 
-  // Tasks dataset matching STEP-5 (Approvals awaiting action & assigned tasks)
-  const pendingTasksList = [
-    { id: 'TSK-01', title: 'Approve Purchase Order PO-2026-089', module: 'Procurement', record: 'PO-2026-089', due: 'Today, 14:00', priority: 'Urgent', status: 'Pending Review' },
-    { id: 'TSK-02', title: 'Review BOM Revision v2.1 (Grille Assembly)', module: 'Engineering', record: 'BOM-BUMP-01', due: 'Tomorrow', priority: 'Medium', status: 'Pending Sign-off' },
-    { id: 'TSK-03', title: 'Inspect Mold Die MLD-AUTO-09 Cavity #2', module: 'Maintenance', record: 'MLD-AUTO-09', due: 'Today, 17:00', priority: 'High', status: 'In Progress' },
-    { id: 'TSK-04', title: 'Resolve MRB Disposition for Lot #LOT-0819', module: 'Quality', record: 'NCR-2026-0041', due: 'Sep 06', priority: 'Urgent', status: 'Quarantined' },
-    { id: 'TSK-05', title: 'Sign Off Night Shift C Overtime Sheets', module: 'HR', record: 'OT-2026-33', due: 'Today, 11:30', priority: 'Low', status: 'Pending Approval' },
-  ];
+  const handleRejectTask = (taskId: string, record: string) => {
+    setPendingTasks((prev) => prev.filter((t) => t.id !== taskId));
+    showToast(`Rejected / Requested Revision for ${record}`);
+  };
+
+  const handleSnoozeTask = (taskId: string) => {
+    setPendingTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, due: 'In 2 hours (Snoozed)' } : t))
+    );
+    showToast(`Snoozed task ${taskId} for 2 hours`);
+  };
+
+  // Notification Handlers
+  const handleMarkAllNotificationsRead = () => {
+    setUnreadNotifCount(0);
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    showToast('All notifications marked as read');
+  };
+
+  const handleDismissNotification = (notifId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setNotifications((prev) => prev.filter((n) => n.id !== notifId));
+    setUnreadNotifCount((prev) => Math.max(0, prev - 1));
+    showToast('Notification dismissed');
+  };
+
+  const handleOpenNotificationRecord = (ref: string, module: string) => {
+    setShowNotificationsDropdown(false);
+    showToast(`Opening ${module} record ${ref}`);
+    if (ref.startsWith('WO-') && onNavigate) onNavigate('mfgJobCard', { id: ref });
+    else if (ref.startsWith('PO-') && onNavigate) onNavigate('poList', { id: ref });
+    else if (ref.startsWith('NCR-') && onNavigate) onNavigate('ncrList', { id: ref });
+  };
 
   // Filter contextual quick actions based on current screen
   const contextualActions = INITIAL_QUICK_ACTIONS.filter((act) => {
@@ -451,7 +547,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Datastock Polymer Solutions &bull; Multi-Entity Architecture
+                  SP-PLASTECH Polymer Solutions &bull; Multi-Entity Architecture
                 </p>
                 <div className="relative mt-2">
                   <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
@@ -521,30 +617,6 @@ export const Topbar: React.FC<TopbarProps> = ({
               </div>
             </div>
           )}
-        </div>
-
-        {/* Current Breadcrumbs / Module Title */}
-        <div className="hidden xl:flex items-center gap-1.5 text-xs text-[#6B7280] truncate border-l border-slate-200 pl-3 shrink min-w-0">
-          {breadcrumbs.map((part, index) => {
-            const isLast = index === breadcrumbs.length - 1;
-            return (
-              <React.Fragment key={index}>
-                {index > 0 && <span className="opacity-40">/</span>}
-                <span
-                  onClick={() => {
-                    if (index === 0 && onNavigate) onNavigate('home');
-                  }}
-                  className={
-                    isLast
-                      ? 'text-[#1C1F26] font-bold truncate max-w-[110px]'
-                      : 'hover:text-[#1C1F26] cursor-pointer truncate max-w-[90px]'
-                  }
-                >
-                  {part}
-                </span>
-              </React.Fragment>
-            );
-          })}
         </div>
       </div>
 
@@ -755,9 +827,11 @@ export const Topbar: React.FC<TopbarProps> = ({
             title="Pending Approvals & Assigned Tasks"
           >
             <CheckSquare className="w-4 h-4 text-indigo-600" />
-            <span className="absolute -top-1 -right-1 min-w-4 h-4 rounded-full bg-indigo-600 text-white text-[9px] font-bold flex items-center justify-center px-1 border-2 border-white shadow-xs">
-              {pendingTasksList.length}
-            </span>
+            {pendingTasks.length > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-4 h-4 rounded-full bg-indigo-600 text-white text-[9px] font-bold flex items-center justify-center px-1 border-2 border-white shadow-xs">
+                {pendingTasks.length}
+              </span>
+            )}
           </button>
 
           {/* Tasks Dropdown Panel */}
@@ -770,7 +844,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                     <span>Action Tasks &amp; Approvals</span>
                   </div>
                   <p className="text-[11px] text-indigo-800/80 mt-0.5">
-                    {pendingTasksList.length} operational items awaiting your sign-off.
+                    {pendingTasks.length} operational items awaiting your sign-off.
                   </p>
                 </div>
                 <span className="text-[10px] font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-full">
@@ -779,59 +853,61 @@ export const Topbar: React.FC<TopbarProps> = ({
               </div>
 
               <div className="max-h-72 overflow-y-auto space-y-2">
-                {pendingTasksList.map((task) => (
-                  <div
-                    key={task.id}
-                    className="p-2.5 rounded-xl border border-slate-200 hover:border-indigo-300 bg-slate-50/60 hover:bg-indigo-50/30 transition-all text-xs"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold text-slate-900 truncate">{task.title}</span>
-                      <span
-                        className={`text-[9px] font-bold px-1.5 py-0.2 rounded shrink-0 ${
-                          task.priority === 'Urgent'
-                            ? 'bg-rose-100 text-rose-800'
-                            : task.priority === 'High'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-slate-200 text-slate-700'
-                        }`}
-                      >
-                        {task.priority}
-                      </span>
-                    </div>
-
-                    <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-                      <span>Module: <strong className="text-slate-700">{task.module}</strong></span>
-                      <span className="font-mono text-[10px] text-slate-400">Due: {task.due}</span>
-                    </div>
-
-                    <div className="flex items-center justify-end gap-1.5 mt-2 pt-2 border-t border-slate-200/80">
-                      <button
-                        onClick={() => {
-                          showToast(`Snoozed task ${task.id}`);
-                        }}
-                        className="px-2 py-1 rounded text-[10px] font-semibold text-slate-500 hover:bg-slate-200"
-                      >
-                        Snooze
-                      </button>
-                      <button
-                        onClick={() => {
-                          showToast(`Rejected / Requested Revision for ${task.record}`);
-                        }}
-                        className="px-2 py-1 rounded text-[10px] font-bold text-rose-600 hover:bg-rose-50"
-                      >
-                        Reject
-                      </button>
-                      <button
-                        onClick={() => {
-                          showToast(`Approved & Completed: ${task.title}`);
-                        }}
-                        className="px-2.5 py-1 rounded text-[10px] font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-2xs"
-                      >
-                        Approve / Done
-                      </button>
-                    </div>
+                {pendingTasks.length === 0 ? (
+                  <div className="text-center py-6 text-slate-400">
+                    <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-1.5 opacity-80" />
+                    <p className="text-xs font-bold text-slate-700">All tasks completed!</p>
+                    <p className="text-[10px] text-slate-400">No pending operational sign-offs.</p>
                   </div>
-                ))}
+                ) : (
+                  pendingTasks.map((task) => (
+                    <div
+                      key={task.id}
+                      className="p-2.5 rounded-xl border border-slate-200 hover:border-indigo-300 bg-slate-50/60 hover:bg-indigo-50/30 transition-all text-xs"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-slate-900 truncate">{task.title}</span>
+                        <span
+                          className={`text-[9px] font-bold px-1.5 py-0.2 rounded shrink-0 ${
+                            task.priority === 'Urgent'
+                              ? 'bg-rose-100 text-rose-800'
+                              : task.priority === 'High'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-slate-200 text-slate-700'
+                          }`}
+                        >
+                          {task.priority}
+                        </span>
+                      </div>
+
+                      <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+                        <span>Module: <strong className="text-slate-700">{task.module}</strong></span>
+                        <span className="font-mono text-[10px] text-slate-400">Due: {task.due}</span>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-1.5 mt-2 pt-2 border-t border-slate-200/80">
+                        <button
+                          onClick={() => handleSnoozeTask(task.id)}
+                          className="px-2 py-1 rounded text-[10px] font-semibold text-slate-500 hover:bg-slate-200 cursor-pointer"
+                        >
+                          Snooze
+                        </button>
+                        <button
+                          onClick={() => handleRejectTask(task.id, task.record)}
+                          className="px-2 py-1 rounded text-[10px] font-bold text-rose-600 hover:bg-rose-50 cursor-pointer"
+                        >
+                          Reject
+                        </button>
+                        <button
+                          onClick={() => handleApproveTask(task.id, task.title)}
+                          className="px-2.5 py-1 rounded text-[10px] font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-2xs cursor-pointer"
+                        >
+                          Approve / Done
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -852,11 +928,14 @@ export const Topbar: React.FC<TopbarProps> = ({
             title="Notifications & System Alerts"
           >
             <Bell className="w-4 h-4 text-slate-700" />
-            <span className="absolute -top-1 -right-1 min-w-4 h-4 rounded-full bg-[#E8622C] text-white text-[9px] font-bold flex items-center justify-center px-1 border-2 border-white shadow-xs">
-              5
-            </span>
-            {/* Critical alert pulsing dot */}
-            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+            {unreadNotifCount > 0 && (
+              <>
+                <span className="absolute -top-1 -right-1 min-w-4 h-4 rounded-full bg-[#E8622C] text-white text-[9px] font-bold flex items-center justify-center px-1 border-2 border-white shadow-xs">
+                  {unreadNotifCount}
+                </span>
+                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+              </>
+            )}
           </button>
 
           {/* Notification Dropdown Panel */}
@@ -871,8 +950,8 @@ export const Topbar: React.FC<TopbarProps> = ({
                   <p className="text-[11px] text-slate-500">Live operational events &amp; telemetry</p>
                 </div>
                 <button
-                  onClick={() => showToast('All notifications marked as read')}
-                  className="text-[11px] font-bold text-[#0F8B8D] hover:underline"
+                  onClick={handleMarkAllNotificationsRead}
+                  className="text-[11px] font-bold text-[#0F8B8D] hover:underline cursor-pointer"
                 >
                   Mark all as read
                 </button>
@@ -884,7 +963,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                   <button
                     key={tab}
                     onClick={() => setActiveNotificationTab(tab)}
-                    className={`px-2.5 py-1 rounded-lg capitalize whitespace-nowrap transition-colors ${
+                    className={`px-2.5 py-1 rounded-lg capitalize whitespace-nowrap transition-colors cursor-pointer ${
                       activeNotificationTab === tab
                         ? 'bg-[#14213D] text-white shadow-2xs'
                         : 'text-slate-600 hover:bg-slate-100'
@@ -897,34 +976,51 @@ export const Topbar: React.FC<TopbarProps> = ({
 
               {/* Notification Cards */}
               <div className="max-h-72 overflow-y-auto space-y-2">
-                {notificationsList
-                  .filter((n) => activeNotificationTab === 'all' || n.type === activeNotificationTab)
-                  .map((notif) => (
-                    <div
-                      key={notif.id}
-                      className={`p-2.5 rounded-xl border-l-4 border shadow-2xs text-xs space-y-1 ${notif.color}`}
-                    >
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold text-slate-900 truncate">{notif.title}</span>
-                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${notif.badgeColor}`}>
-                          {notif.priority}
-                        </span>
+                {notifications.filter((n) => activeNotificationTab === 'all' || n.type === activeNotificationTab).length === 0 ? (
+                  <div className="text-center py-6 text-slate-400 text-xs font-medium">
+                    No notifications in this category.
+                  </div>
+                ) : (
+                  notifications
+                    .filter((n) => activeNotificationTab === 'all' || n.type === activeNotificationTab)
+                    .map((notif) => (
+                      <div
+                        key={notif.id}
+                        className={`p-2.5 rounded-xl border-l-4 border shadow-2xs text-xs space-y-1 ${notif.color} ${
+                          notif.isRead ? 'opacity-70' : ''
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-bold text-slate-900 truncate">{notif.title}</span>
+                          <div className="flex items-center gap-1">
+                            <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${notif.badgeColor}`}>
+                              {notif.priority}
+                            </span>
+                            <button
+                              onClick={(e) => handleDismissNotification(notif.id, e)}
+                              className="text-slate-400 hover:text-slate-600 p-0.5"
+                              title="Dismiss"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-slate-600 leading-relaxed">{notif.desc}</p>
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
+                          <span>Ref: <strong className="font-mono text-slate-600">{notif.ref}</strong></span>
+                          <span>{notif.time}</span>
+                        </div>
+                        <div className="flex items-center justify-end gap-2 pt-1">
+                          <button
+                            onClick={() => handleOpenNotificationRecord(notif.ref, notif.module)}
+                            className="text-[11px] font-bold text-[#0F8B8D] hover:underline cursor-pointer"
+                          >
+                            View Record &rarr;
+                          </button>
+                        </div>
                       </div>
-                      <p className="text-[11px] text-slate-600 leading-relaxed">{notif.desc}</p>
-                      <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
-                        <span>Ref: <strong className="font-mono text-slate-600">{notif.ref}</strong></span>
-                        <span>{notif.time}</span>
-                      </div>
-                      <div className="flex items-center justify-end gap-2 pt-1">
-                        <button
-                          onClick={() => showToast(`Opened ${notif.ref}`)}
-                          className="text-[11px] font-bold text-[#0F8B8D] hover:underline"
-                        >
-                          View Record &rarr;
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                )}
               </div>
             </div>
           )}
@@ -952,10 +1048,10 @@ export const Topbar: React.FC<TopbarProps> = ({
               <div className="p-2.5 bg-slate-50 rounded-xl mb-1.5 border border-slate-100">
                 <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                   <LifeBuoy className="w-4 h-4 text-[#0F8B8D]" />
-                  <span>Reboot Plastics Knowledge Base</span>
+                  <span>SP-PLASTECH Knowledge Base</span>
                 </div>
                 <div className="text-[10px] text-slate-500 mt-0.5">
-                  Enterprise Suite v2.8.4 &bull; Plastics Edition
+                  SP-PLASTECH Enterprise Suite v2.8.4 &bull; Plastics Edition
                 </div>
               </div>
 
@@ -1090,11 +1186,14 @@ export const Topbar: React.FC<TopbarProps> = ({
           </button>
 
           {showThemeDropdown && (
-            <div className="absolute right-0 top-full mt-2 w-[calc(100vw-20px)] max-w-xs sm:w-56 bg-white border border-slate-200 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-              <div className="text-[11px] font-bold text-slate-500 uppercase px-2 py-1">
-                Visual Theme
+            <div className="absolute right-0 top-full mt-2 w-[calc(100vw-20px)] max-w-xs sm:w-64 bg-white border border-slate-200 rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="text-[11px] font-bold text-slate-500 uppercase px-1 pb-1.5 border-b border-slate-100 flex items-center justify-between">
+                <span>Visual Theme</span>
+                <span className="text-[10px] text-teal-700 bg-teal-50 px-1.5 py-0.2 rounded font-mono capitalize">
+                  {activeTheme}
+                </span>
               </div>
-              <div className="space-y-0.5 text-xs">
+              <div className="space-y-0.5 text-xs pt-1.5 pb-2">
                 {[
                   { id: 'light', label: 'Light Mode', icon: Sun },
                   { id: 'dark', label: 'Dark Industrial Header', icon: Moon },
@@ -1108,10 +1207,9 @@ export const Topbar: React.FC<TopbarProps> = ({
                       key={t.id}
                       onClick={() => {
                         setActiveTheme(t.id as any);
-                        setShowThemeDropdown(false);
                         showToast(`Theme switched to ${t.label}`);
                       }}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer ${
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors ${
                         isActive
                           ? 'bg-teal-50 text-[#0F8B8D] font-bold'
                           : 'hover:bg-slate-100 text-slate-700'
@@ -1122,6 +1220,40 @@ export const Topbar: React.FC<TopbarProps> = ({
                         <span>{t.label}</span>
                       </span>
                       {isActive && <Check className="w-3.5 h-3.5 text-[#0F8B8D]" />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Display Density Setting */}
+              <div className="text-[11px] font-bold text-slate-500 uppercase px-1 pt-2 pb-1.5 border-t border-slate-100 flex items-center justify-between">
+                <span>Display Density</span>
+                <span className="text-[10px] text-orange-700 bg-orange-50 px-1.5 py-0.2 rounded font-mono capitalize">
+                  {activeDensity}
+                </span>
+              </div>
+              <div className="space-y-0.5 text-xs pt-1">
+                {[
+                  { id: 'compact', label: 'Compact (High Density)' },
+                  { id: 'standard', label: 'Standard (Default)' },
+                  { id: 'comfortable', label: 'Comfortable (Spacious)' },
+                ].map((d) => {
+                  const isActive = activeDensity === d.id;
+                  return (
+                    <button
+                      key={d.id}
+                      onClick={() => {
+                        setActiveDensity(d.id as any);
+                        showToast(`Display density set to ${d.label}`);
+                      }}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors ${
+                        isActive
+                          ? 'bg-orange-50 text-[#E8622C] font-bold'
+                          : 'hover:bg-slate-100 text-slate-700'
+                      }`}
+                    >
+                      <span>{d.label}</span>
+                      {isActive && <Check className="w-3.5 h-3.5 text-[#E8622C]" />}
                     </button>
                   );
                 })}

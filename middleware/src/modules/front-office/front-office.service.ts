@@ -60,6 +60,9 @@ import {
   CreateForecastDto,
   CreateForecastDtoSchema,
 } from './front-office.dto';
+import { ObservabilityLogger } from '../../common/observability/logger.service';
+import { MetricsService } from '../../common/observability/metrics.service';
+import { TracingService } from '../../common/observability/tracing.service';
 
 @Injectable()
 export class FrontOfficeService {
@@ -73,7 +76,12 @@ export class FrontOfficeService {
     slowQueryLogs: [] as Array<{ sql: string; durationMs: number; timestamp: string }>,
   };
 
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly obsLogger: ObservabilityLogger,
+    private readonly metrics: MetricsService,
+    private readonly tracing: TracingService,
+  ) {}
 
   // ============================================================================
   // DATABASE OBSERVABILITY & TELEMETRY

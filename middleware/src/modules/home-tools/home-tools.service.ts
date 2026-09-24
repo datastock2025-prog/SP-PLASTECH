@@ -1,5 +1,12 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
+import { ObservabilityLogger } from '../../common/observability/logger.service';
+import { MetricsService } from '../../common/observability/metrics.service';
+import { TracingService } from '../../common/observability/tracing.service';
 import {
   CreateDashboardWidgetDto,
   CreateDashboardWidgetDtoSchema,
@@ -35,7 +42,12 @@ export class HomeToolsService {
   private auditLogsStore: any[] = [];
   private entityVersionsStore: any[] = [];
 
-  constructor(private readonly db: DatabaseService) {
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly obsLogger: ObservabilityLogger,
+    private readonly metrics: MetricsService,
+    private readonly tracing: TracingService,
+  ) {
     this.seedDefaultHomeToolsData();
   }
 

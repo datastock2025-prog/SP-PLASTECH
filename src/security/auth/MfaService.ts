@@ -10,7 +10,7 @@ class MfaService {
   /**
    * Generates a new TOTP secret, QR Code URI, and one-time emergency backup codes
    */
-  public generateTotpSetup(userEmail: string, issuer = 'Reboot ERP'): MfaSetupData {
+  public generateTotpSetup(userEmail: string, issuer = 'SP-PLASTECH ERP'): MfaSetupData {
     const array = new Uint8Array(20);
     window.crypto.getRandomValues(array);
     const secret = Array.from(array, (b) => (b % 26 + 10).toString(36).toUpperCase()).join('');

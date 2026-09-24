@@ -64,7 +64,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         <div className="min-h-screen flex items-center justify-center bg-[#F6F4EF] p-4 text-center">
           <div className="bg-white p-6 rounded-xl border border-[#E4E0D6] shadow-sm max-w-md">
             <h2 className="text-lg font-bold text-[#14213D] mb-2">Authentication Required</h2>
-            <p className="text-xs text-slate-500 mb-4">Please log in with your plant operator credentials to access Reboot ERP.</p>
+            <p className="text-xs text-slate-500 mb-4">Please log in with your plant operator credentials to access SP-PLASTECH ERP.</p>
             <button
               onClick={() => onNavigate('login')}
               className="px-4 py-2 bg-[#E8622C] text-white text-xs font-bold rounded-lg cursor-pointer hover:bg-[#D45320]"

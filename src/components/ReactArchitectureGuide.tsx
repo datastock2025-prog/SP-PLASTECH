@@ -302,10 +302,10 @@ export default defineConfig({
               <Code className="w-3.5 h-3.5 text-[#E8622C]" /> React 19+ Modular Monolith Architecture
             </div>
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-              Reboot ERP &mdash; Enterprise React Architecture Guide
+              SP-PLASTECH ERP &mdash; Enterprise React Architecture Guide
             </h1>
             <p className="text-sm text-slate-300 max-w-2xl mt-1.5 leading-relaxed">
-              Production-ready technical specification for Reboot Plastic Manufacturing ERP built with React 19, TypeScript, Modular Monolithic domain isolation, fine-grained state hooks, and high-throughput rendering.
+              Production-ready technical specification for SP-PLASTECH Plastic Manufacturing ERP built with React 19, TypeScript, Modular Monolithic domain isolation, fine-grained state hooks, and high-throughput rendering.
             </p>
           </div>
           <div className="flex items-center gap-3">

@@ -21,8 +21,8 @@ interface TenantContextType {
 const AVAILABLE_TENANTS: TenantInfo[] = [
   {
     tenantId: 'TENANT-ALPHA-IND',
-    tenantName: 'Reboot Polymer Dynamics Ltd. (Pune Plant)',
-    name: 'Reboot Polymer Dynamics Ltd. (Pune Plant)',
+    tenantName: 'SP-PLASTECH Polymer Solutions Ltd. (Pune Plant)',
+    name: 'SP-PLASTECH Polymer Solutions Ltd. (Pune Plant)',
     id: 'TENANT-ALPHA-IND',
     region: 'ap-south-1 (Mumbai)',
     complianceTier: 'GDPR_ENTERPRISE',
@@ -30,8 +30,8 @@ const AVAILABLE_TENANTS: TenantInfo[] = [
   },
   {
     tenantId: 'TENANT-BETA-US',
-    tenantName: 'Reboot Precision Tooling Inc. (Chicago Hub)',
-    name: 'Reboot Precision Tooling Inc. (Chicago Hub)',
+    tenantName: 'SP-PLASTECH Precision Tooling Inc. (Chicago Hub)',
+    name: 'SP-PLASTECH Precision Tooling Inc. (Chicago Hub)',
     id: 'TENANT-BETA-US',
     region: 'us-east-1 (N. Virginia)',
     complianceTier: 'SOC2_TYPE2',

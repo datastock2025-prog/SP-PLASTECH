@@ -462,11 +462,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {isOpenMobile ? (
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded bg-gradient-to-br from-[#E8622C] to-[#0F8B8D] flex items-center justify-center font-bold text-xs text-white">
-                  R
+                <div className="w-6 h-6 rounded bg-gradient-to-br from-[#E8622C] to-[#0F8B8D] flex items-center justify-center font-bold text-[10px] text-white">
+                  SP
                 </div>
                 <div>
-                  <div className="text-xs font-bold text-white leading-none">Reboot ERP</div>
+                  <div className="text-xs font-bold text-white leading-none">SP-PLASTECH ERP</div>
                   <div className="text-[10px] text-slate-400 leading-tight">Plastics Manufacturing</div>
                 </div>
               </div>
@@ -754,7 +754,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {isOpenMobile ? (
             <div className="flex items-center justify-between px-2 py-1">
               <div className="text-[10px] text-slate-400 font-mono">
-                Reboot v4.8 &bull; Industrial
+                SP-PLASTECH v4.8 &bull; Industrial
               </div>
               <button
                 onClick={onCloseMobile}
@@ -767,7 +767,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ) : !isCollapsed ? (
             <div className="flex items-center justify-between px-2 py-1">
               <div className="text-[10px] text-slate-400 font-mono">
-                Reboot v4.8 &bull; Industrial
+                SP-PLASTECH v4.8 &bull; Industrial
               </div>
               <button
                 onClick={onToggleCollapse}

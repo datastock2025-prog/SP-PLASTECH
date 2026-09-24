@@ -561,7 +561,7 @@ export const App: React.FC = () => {
       profilePreferences: ['User Account', 'My Profile & Preferences'],
       userPreferences: ['User Account', 'My Profile & Preferences'],
     };
-    return map[currentView] || ['Reboot ERP', currentView];
+    return map[currentView] || ['SP-PLASTECH ERP', currentView];
   };
 
   // Group membership checks

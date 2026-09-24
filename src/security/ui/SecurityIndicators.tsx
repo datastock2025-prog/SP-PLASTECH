@@ -57,26 +57,6 @@ export const SecurityIndicators: React.FC = () => {
     <>
       {/* Top/Header Security Indicators Bar */}
       <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
-        {/* TLS Encrypted Status */}
-        <div
-          title="End-to-End TLS 1.3 Encryption Active"
-          className="hidden md:flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 font-semibold"
-        >
-          <Lock className="w-3 h-3" />
-          <span className="font-mono text-[11px]">256-bit TLS</span>
-        </div>
-
-        {/* Tenant Indicator */}
-        {currentTenant && (
-          <div
-            title={`Active Tenant: ${currentTenant.name}`}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 font-semibold"
-          >
-            <Building2 className="w-3 h-3 text-indigo-600" />
-            <span className="truncate max-w-[120px]">{currentTenant.name}</span>
-          </div>
-        )}
-
         {/* Session Inactivity Countdown & Modal Trigger */}
         <button
           type="button"

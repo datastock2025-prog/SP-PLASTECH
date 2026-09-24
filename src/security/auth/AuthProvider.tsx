@@ -26,10 +26,10 @@ interface AuthContextType {
 
 const DEFAULT_ADMIN_USER: UserProfile = {
   id: 'USR-ADMIN-01',
-  email: 'security.admin@rebooterp.com',
+  email: 'security.admin@spplastech.com',
   fullName: 'Dr. Evelyn Reed',
   tenantId: 'TENANT-ALPHA-IND',
-  tenantName: 'Reboot Polymer Dynamics Ltd.',
+  tenantName: 'SP-PLASTECH Polymer Solutions Ltd.',
   role: 'SUPER_ADMIN',
   permissions: [
     'users.view', 'users.create', 'users.edit', 'users.delete', 'users.impersonate',
