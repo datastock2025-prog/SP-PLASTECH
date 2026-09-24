@@ -18,6 +18,7 @@ import { FrontOfficeModule } from './modules/front-office/front-office.module';
 import { OperationsModule } from './modules/operations/operations.module';
 import { PlanningModule } from './modules/planning/planning.module';
 import { HrModule } from './modules/hr/hr.module';
+import { ProcurementModule } from './modules/procurement/procurement.module';
 import { ObservabilityModule } from './common/observability/observability.module';
 import { CsrfDoubleSubmitMiddleware } from './common/middleware/csrf.middleware';
 
@@ -43,6 +44,7 @@ import { CsrfDoubleSubmitMiddleware } from './common/middleware/csrf.middleware'
     OperationsModule,
     PlanningModule,
     HrModule,
+    ProcurementModule,
   ],
 })
 export class AppModule implements NestModule {
