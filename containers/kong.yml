@@ -1,0 +1,72 @@
+_format_version: "2.1"
+_transform: true
+
+services:
+  # PostgREST REST API
+  - name: rest-v1
+    url: http://rest:3000/
+    routes:
+      - name: rest-v1-routes
+        strip_path: true
+        paths:
+          - /rest/v1/
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "http://localhost:3000"
+            - "http://127.0.0.1:3000"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+            - apikey
+            - Prefer
+            - Range
+            - x-client-info
+          exposed_headers:
+            - Content-Range
+            - Preference-Applied
+          credentials: true
+
+  # GoTrue Auth API
+  - name: auth-v1
+    url: http://auth:9999/
+    routes:
+      - name: auth-v1-routes
+        strip_path: true
+        paths:
+          - /auth/v1/
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "http://localhost:3000"
+            - "http://127.0.0.1:3000"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+            - apikey
+            - x-client-info
+          credentials: true
+
+consumers:
+  - username: anon
+    keyauth_credentials:
+      - key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlYm9vdC1kZXYiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTYwMDAwMDAwMCwiZXhwIjoxOTAwMDAwMDAwfQ.reboot_dev_anon_secure_token_key_2026
+  - username: service_role
+    keyauth_credentials:
+      - key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlYm9vdC1kZXYiLCJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjAwMDAwMDAwLCJleHAiOjE5MDAwMDAwMDB9.reboot_dev_service_role_secure_token_key_2026
