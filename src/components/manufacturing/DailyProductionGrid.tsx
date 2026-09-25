@@ -207,11 +207,34 @@ export const DailyProductionGridInner: React.FC<ProductionGridProps> = ({
   // Target Work Order for Material & Store Reconciliation (+pck +bop +con, BOM version) (Tasks 2 & 4)
   const [materialReconcileWO, setMaterialReconcileWO] = useState<WorkOrder | null>(null);
 
-  // High-Volume Lightweight Edits Buffer (Avoids copying 200,000+ objects on every keystroke)
-  const [editedRowsMap, setEditedRowsMap] = useState<Record<string, Partial<WorkOrder>>>({});
-  const [dirtyRowIds, setDirtyRowIds] = useState<Set<string>>(new Set());
+  // High-Volume Lightweight Edits Buffer (Persisted in localStorage so drafts are never lost on refresh)
+  const [editedRowsMap, setEditedRowsMap] = useState<Record<string, Partial<WorkOrder>>>(() => {
+    try {
+      const saved = localStorage.getItem('reboot_daily_prod_drafts');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {};
+  });
+  const [dirtyRowIds, setDirtyRowIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('reboot_daily_prod_dirty');
+      if (saved) {
+        const arr = JSON.parse(saved);
+        if (Array.isArray(arr)) return new Set(arr);
+      }
+    } catch {}
+    return new Set();
+  });
   const [manualRows, setManualRows] = useState<WorkOrder[]>([]);
   const [expandedRowIds, setExpandedRowIds] = useState<string[]>([]);
+
+  // Auto-sync draft changes to localStorage so refreshing never loses entered good qty/notes
+  useEffect(() => {
+    try {
+      localStorage.setItem('reboot_daily_prod_drafts', JSON.stringify(editedRowsMap));
+      localStorage.setItem('reboot_daily_prod_dirty', JSON.stringify(Array.from(dirtyRowIds)));
+    } catch {}
+  }, [editedRowsMap, dirtyRowIds]);
 
   // Fast Lookup Maps (Memoized O(1) Lookups for 200,000 items)
   const itemMap = useMemo(() => {
@@ -306,6 +329,7 @@ export const DailyProductionGridInner: React.FC<ProductionGridProps> = ({
         const isTargetMet = (masterWO.completed || 0) >= (masterWO.qty || 1);
         return {
           ...masterWO,
+          completed: 0, // Fresh shift input starts at 0 unless draft edit exists
           operator:
             masterWO.operator === 'Assigned Operator' || masterWO.operator === 'Operator'
               ? ''
@@ -544,23 +568,10 @@ export const DailyProductionGridInner: React.FC<ProductionGridProps> = ({
         console.warn('Inventory auto-sync warning:', invErr);
       }
 
-      // Task 1: Empty ALL shift entry fields in local edits buffer for the next shift entry
+      // Task 1: Empty and clear this row's draft from local edits buffer so next shift starts clean
       setEditedRowsMap((prev) => {
         const next = { ...prev };
-        next[id] = {
-          completed: 0,
-          scrap: 0,
-          downtimeMin: 0,
-          runnerQty: 0,
-          runnerWeightKg: 0,
-          lumbesQty: 0,
-          lumpsWeightKg: 0,
-          operator: '', // default empty operator for next shift
-          remark: '',   // empty remark notes for next shift
-          status: newStatus as any,
-          rejectionBreakdown: [],
-          downtimeIntervals: [],
-        };
+        delete next[id];
         return next;
       });
 
@@ -601,6 +612,10 @@ export const DailyProductionGridInner: React.FC<ProductionGridProps> = ({
   const handleDiscardAllDirty = () => {
     setEditedRowsMap({});
     setDirtyRowIds(new Set());
+    try {
+      localStorage.removeItem('reboot_daily_prod_drafts');
+      localStorage.removeItem('reboot_daily_prod_dirty');
+    } catch {}
     showToast('Discarded all unsaved local changes.');
   };
 
@@ -1606,12 +1621,16 @@ export const DailyProductionGridInner: React.FC<ProductionGridProps> = ({
                               <input
                                 type="number"
                                 min="0"
-                                max={plannedTarget}
-                                value={row.completed || ''}
+                                max={Math.max(0, plannedTarget - masterCompleted)}
+                                value={editedRowsMap[row.id]?.completed !== undefined ? (editedRowsMap[row.id]!.completed === 0 ? '' : editedRowsMap[row.id]!.completed) : (row.completed || '')}
                                 placeholder="0"
-                                onChange={(e) => handleCellChange(row.id, 'completed', parseInt(e.target.value, 10) || 0)}
+                                onChange={(e) => {
+                                  const raw = e.target.value;
+                                  const val = raw === '' ? 0 : parseInt(raw, 10) || 0;
+                                  handleCellChange(row.id, 'completed', val);
+                                }}
                                 className="w-full min-w-[56px] px-2 py-1 rounded-md border border-emerald-300 bg-emerald-50/40 font-mono text-right font-bold text-emerald-800 text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                                title={`Enter shift good output (Max remaining: ${Math.max(0, plannedTarget - masterCompleted)} PCS)`}
+                                title={`Enter shift good output (Max remaining: ${Math.max(0, plannedTarget - masterCompleted)} PCS | Produced so far: ${masterCompleted.toLocaleString()} PCS)`}
                               />
                             )}
                             <button
@@ -1632,7 +1651,9 @@ export const DailyProductionGridInner: React.FC<ProductionGridProps> = ({
                         {/* Remaining to Complete Plan (Task 2) */}
                         <td className="p-1.5 text-right">
                           {(() => {
-                            const currentShiftGood = Number(row.completed) || 0;
+                            const currentShiftGood = editedRowsMap[row.id]?.completed !== undefined
+                              ? Number(editedRowsMap[row.id]?.completed) || 0
+                              : Number(row.completed) || 0;
                             const totalGoodSoFar = masterCompleted + currentShiftGood;
                             const remainingNeedToComplete = Math.max(0, plannedTarget - totalGoodSoFar);
                             const isCompleted = remainingNeedToComplete === 0;
@@ -1643,7 +1664,7 @@ export const DailyProductionGridInner: React.FC<ProductionGridProps> = ({
                                     ? 'bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-2xs'
                                     : 'bg-amber-50 text-amber-900 border border-amber-200'
                                 }`}
-                                title={`Remaining to complete planned target (${plannedTarget.toLocaleString()} PCS) - Total so far: ${totalGoodSoFar.toLocaleString()} PCS`}
+                                title={`Remaining to complete planned target (${plannedTarget.toLocaleString()} PCS) - Total so far: ${totalGoodSoFar.toLocaleString()} PCS (Master: ${masterCompleted.toLocaleString()} PCS + Shift: ${currentShiftGood.toLocaleString()} PCS)`}
                               >
                                 <span>{remainingNeedToComplete.toLocaleString()}</span>
                                 <span className="text-[10px] font-normal text-slate-500">PCS</span>

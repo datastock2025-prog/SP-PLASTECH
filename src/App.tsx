@@ -87,15 +87,220 @@ import {
   AuthUser,
 } from './types';
 
+// Session & Idle Timeout Configuration (30 minutes of inactivity)
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+
+interface StoredAuthSession {
+  user: AuthUser;
+  plantId: string;
+  shiftId: string;
+  lastActiveTimestamp: number;
+}
+
+export interface NavHistoryEntry {
+  view: string;
+  params: any;
+  title: string;
+  timestamp: number;
+}
+
+export const getScreenTitle = (view: string, params: any = {}): string => {
+  const titles: Record<string, string> = {
+    home: 'Workspace Home',
+    tasks: 'Action Tasks & Approvals',
+    approvals: 'Approvals Hub',
+    notifications: 'Notification Center',
+    savedViews: 'Saved Views & Presets',
+    recentRecords: 'Recent Records Log',
+    architectureGuide: 'React Enterprise Architecture',
+    itemList: 'Item Master Grid',
+    itemDetail: `Item: ${params?.code || 'Detail'}`,
+    bomList: 'BOM / Formula Master Grid',
+    bomDetail: `BOM: ${params?.id || 'Detail'}`,
+    engineeringDash: 'Engineering Center',
+    bomDash: 'Engineering Center',
+    bomBuilder: `BOM Builder (${params?.id || 'New'})`,
+    bomTree: 'Multi-Level BOM Tree',
+    recipeFormula: 'Recipe Formula Scaler',
+    ecrList: 'ECR Requests',
+    ecoList: 'ECO Orders',
+    bomCompare: 'BOM Version Comparison',
+    bomVersions: 'BOM Versions & Diff Viewer',
+    whereUsed: 'Where-Used Traceability',
+    routingList: 'Process Routing Operations',
+    approvalWorkflow: 'Approval Workflow Hub',
+    machineList: 'Machines & Molds Master',
+    mfgDash: 'Manufacturing Command Center',
+    machineSchedule: 'Planning Board',
+    woList: 'Work Orders Management',
+    createWoGrid: 'Bulk Work Order Creation',
+    woDetail: `Work Order: ${params?.id || 'Detail'}`,
+    jitBoard: 'JIT Production Planner',
+    prodEntryGrid: params?.date ? `Daily Production (${params.date})` : 'Daily Production Entry',
+    shopFloor: 'Shop Floor Console',
+    changeover: 'Changeover (SMED)',
+    scrapDowntime: 'Scrap & Downtime Matrix',
+    genealogy: 'Genealogy & Electronic Batch Record',
+    invDash: 'Inventory Dashboard',
+    stockList: 'Stock Overview & Lot Ledger',
+    binMap: '2D Bin Location Map',
+    putaway: 'Putaway Management',
+    picking: 'Pick & Pack Fulfillment',
+    stockTransfer: 'Stock Transfer & Movement',
+    stockTransfers: 'Material Transfers & Requisitions',
+    transferDashboard: 'Stock Transfer & Movement',
+    cycleCount: 'Cycle Count Audits',
+    quarantine: 'Quarantine & Quality Hold',
+    regrindScrap: 'Closed-Loop Regrind Recycling',
+    subcontractList: 'Subcontracting (Job-Work)',
+    subcontractDetail: `Subcontract: ${params?.id || 'Detail'}`,
+    scanner: 'Handheld RF Barcode Scanner',
+    labelPrint: 'Zebra Thermal Label Generator',
+    procurementDash: 'Procurement Command Center',
+    procurementHub: 'Procurement Command Center',
+    supplierList: 'Supplier Directory',
+    supplierDetail: `Supplier: ${params?.id || 'Detail'}`,
+    supplierScorecard: 'Supplier 360 Scorecard',
+    supplierRisk: 'Vendor Risk & Compliance',
+    supplierContracts: 'Vendor Contracts & Blanket POs',
+    supplierPriceList: 'Vendor Price Schedules',
+    purchaseReqList: 'Purchase Requisitions (PR)',
+    purchaseReqForm: 'Create Purchase Requisition',
+    prDetail: `PR Detail (${params?.id || ''})`,
+    rfqList: 'Requests for Quotation (RFQ)',
+    rfqCompare: 'RFQ Comparison Matrix',
+    poList: 'Purchase Orders (PO)',
+    poDetail: `PO: ${params?.id || params?.poNumber || 'Detail'}`,
+    poPrint: 'Purchase Order Print View',
+    poApprovals: 'Multi-Tier PO Approvals',
+    grnList: 'Goods Receipt Notes (GRN)',
+    supplierInvoices: '3-Way Match Invoices',
+    purchaseReturns: 'Vendor Debit Notes & Returns',
+    procurementMrp: 'MRP Planning Engine',
+    qualityDash: 'Quality Intelligence Center',
+    inspectionList: 'Inspection Lots & Queue',
+    inspectionDetail: `Inspection: ${params?.id || 'Detail'}`,
+    qcExecution: 'QC Execution Station',
+    ncrList: 'Non-Conformance Reports (NCR)',
+    ncrDetail: `NCR: ${params?.id || 'Detail'}`,
+    capaList: 'CAPA Corrective Actions',
+    capaDetail: `CAPA: ${params?.id || 'Detail'}`,
+    coaList: 'Certificates of Analysis (COA)',
+    spcAnalysis: 'SPC Statistical Process Control',
+    maintenanceDash: 'Maintenance Command Center',
+    machineHealth: 'Machine Health Telemetry',
+    workOrderList: 'Maintenance Work Orders',
+    scheduleList: 'Preventive Maintenance Schedules',
+    toolingList: 'Mold & Tooling Master',
+    sparePartsList: 'Spare Parts Inventory',
+    breakdownReport: 'Breakdown Analysis & MTBF',
+    salesDash: 'Commercial Command Center',
+    customerList: 'Customer Master 360',
+    customerDetail: `Customer: ${params?.id || 'Detail'}`,
+    quoteList: 'Sales Quotations & CPQ',
+    quoteDetail: `Quote: ${params?.id || 'Detail'}`,
+    soList: 'Sales Orders',
+    soDetail: `Sales Order: ${params?.id || 'Detail'}`,
+    shipmentList: 'Outward Delivery & Dispatch',
+    customerPricing: 'Customer Pricing Schedules',
+    rmaList: 'Returns & RMA Management',
+    rmaDetail: `RMA: ${params?.id || 'Detail'}`,
+    salesForecast: 'Demand Forecasting',
+    financeDash: 'Financial Command Center',
+    chartOfAccounts: 'Chart of Accounts',
+    journalEntries: 'General Ledger Journals',
+    jeDetail: `Journal Entry: ${params?.id || 'Detail'}`,
+    arAging: 'Accounts Receivable Aging',
+    apAging: 'Accounts Payable Aging',
+    costingEngine: 'Product Costing & BOM Margin',
+    taxEngine: 'GST / Tax Engine',
+    fixedAssets: 'Fixed Assets Register',
+    financialStatements: 'Financial Statements (P&L, BS)',
+    adminDash: 'System Administration',
+    userList: 'User Directory & RBAC',
+    roleList: 'Roles & Permissions Matrix',
+    auditLog: 'Enterprise Audit Trail Log',
+    systemConfig: 'System Configuration',
+    integrationHub: 'Integration & API Hub',
+    backupRestore: 'Database Backup & Restore',
+    myProfile: 'User Profile & Preferences',
+  };
+  return titles[view] || view;
+};
+
 export const App: React.FC = () => {
-  // Authentication & Session State (Security Directive: in-memory state; mandatory login gate entry point)
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => null);
+  // Task 1: Persistent Session with Inactivity/Idle Timeout Gate
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
+    try {
+      const raw = localStorage.getItem('reboot_auth_session');
+      if (raw) {
+        const session: StoredAuthSession = JSON.parse(raw);
+        if (session && session.user && session.lastActiveTimestamp) {
+          const elapsed = Date.now() - session.lastActiveTimestamp;
+          if (elapsed < IDLE_TIMEOUT_MS) {
+            // Valid session within idle timeout threshold
+            session.lastActiveTimestamp = Date.now();
+            localStorage.setItem('reboot_auth_session', JSON.stringify(session));
+            return session.user;
+          } else {
+            // Expired session due to inactivity
+            localStorage.removeItem('reboot_auth_session');
+          }
+        }
+      }
+    } catch {}
+    return null;
+  });
+
   const [lastLoggedOutUser, setLastLoggedOutUser] = useState<AuthUser | null>(null);
 
-  // Current active navigation view
-  const [currentView, setCurrentView] = useState<string>('home');
-  const [viewParams, setViewParams] = useState<any>({});
+  // Task 3: Current active navigation view & parameters persisted across browser refresh
+  const [currentView, setCurrentView] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('reboot_active_view');
+      if (saved && saved.trim()) return saved;
+    } catch {}
+    return 'home';
+  });
+
+  const [viewParams, setViewParams] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem('reboot_view_params');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {};
+  });
+
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Task 3: Navigation History Stack ("Go to Previously Opened Screen" / Back / Forward)
+  const [navHistory, setNavHistory] = useState<NavHistoryEntry[]>(() => {
+    try {
+      const saved = sessionStorage.getItem('reboot_nav_history');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    const initialView = localStorage.getItem('reboot_active_view') || 'home';
+    let initialParams = {};
+    try {
+      const rawP = localStorage.getItem('reboot_view_params');
+      if (rawP) initialParams = JSON.parse(rawP);
+    } catch {}
+    return [{ view: initialView, params: initialParams, title: getScreenTitle(initialView, initialParams), timestamp: Date.now() }];
+  });
+
+  const [historyIndex, setHistoryIndex] = useState<number>(() => {
+    try {
+      const saved = sessionStorage.getItem('reboot_history_index');
+      if (saved !== null) {
+        const idx = parseInt(saved, 10);
+        if (!isNaN(idx)) return idx;
+      }
+    } catch {}
+    return 0;
+  });
 
   // Primary Business Entities State
   const [items, setItems] = useState<ItemMaster[]>(() => {
@@ -226,10 +431,71 @@ export const App: React.FC = () => {
     }, 3000);
   };
 
+  // Task 1: User Activity Tracker & Idle Session Expiry Daemon
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const updateActivityTimestamp = () => {
+      try {
+        const raw = localStorage.getItem('reboot_auth_session');
+        if (raw) {
+          const session: StoredAuthSession = JSON.parse(raw);
+          session.lastActiveTimestamp = Date.now();
+          localStorage.setItem('reboot_auth_session', JSON.stringify(session));
+        }
+      } catch {}
+    };
+
+    let lastThrottledTime = 0;
+    const handleUserActivity = () => {
+      const now = Date.now();
+      if (now - lastThrottledTime > 15000) { // Throttle writes to once every 15 seconds
+        lastThrottledTime = now;
+        updateActivityTimestamp();
+      }
+    };
+
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    activityEvents.forEach((evt) => window.addEventListener(evt, handleUserActivity, { passive: true }));
+
+    // Periodic check for idle timeout (every 30 seconds)
+    const idleCheckTimer = setInterval(() => {
+      try {
+        const raw = localStorage.getItem('reboot_auth_session');
+        if (raw) {
+          const session: StoredAuthSession = JSON.parse(raw);
+          const elapsed = Date.now() - (session.lastActiveTimestamp || 0);
+          if (elapsed >= IDLE_TIMEOUT_MS) {
+            // Idle timeout reached! Log out user
+            setLastLoggedOutUser(currentUser);
+            setCurrentUser(null);
+            localStorage.removeItem('reboot_auth_session');
+            showToast('🔒 Session timed out after 30 minutes of inactivity. Please log in again.');
+          }
+        }
+      } catch {}
+    }, 30000);
+
+    return () => {
+      activityEvents.forEach((evt) => window.removeEventListener(evt, handleUserActivity));
+      clearInterval(idleCheckTimer);
+    };
+  }, [currentUser]);
+
   const handlePlantChange = (plantId: string, plantName: string) => {
     if (currentUser) {
       const updatedUser = { ...currentUser, plantId };
       setCurrentUser(updatedUser);
+      try {
+        const raw = localStorage.getItem('reboot_auth_session');
+        if (raw) {
+          const session: StoredAuthSession = JSON.parse(raw);
+          session.user = updatedUser;
+          session.plantId = plantId;
+          session.lastActiveTimestamp = Date.now();
+          localStorage.setItem('reboot_auth_session', JSON.stringify(session));
+        }
+      } catch {}
     }
   };
 
@@ -292,40 +558,159 @@ export const App: React.FC = () => {
       const canonicalRole = normalizeRoleKey(newRole);
       const updatedUser = { ...currentUser, role: newRole, roleType: canonicalRole as any };
       setCurrentUser(updatedUser);
+      try {
+        const raw = localStorage.getItem('reboot_auth_session');
+        if (raw) {
+          const session: StoredAuthSession = JSON.parse(raw);
+          session.user = updatedUser;
+          session.lastActiveTimestamp = Date.now();
+          localStorage.setItem('reboot_auth_session', JSON.stringify(session));
+        }
+      } catch {}
       const defaultLanding = ROLE_DEFAULT_VIEW[canonicalRole] || 'home';
       if (!isViewAuthorizedForRole(canonicalRole, currentView)) {
-        setCurrentView(defaultLanding);
+        handleNavigate(defaultLanding);
       }
       showToast(`Role switched to ${newRole}. Workspace screens authorized.`);
     }
   };
 
+  // Task 1: Login with session timestamp persistence
   const handleLogin = (user: AuthUser, plantId: string, shiftId: string) => {
     setCurrentUser(user);
+    try {
+      const sessionData: StoredAuthSession = {
+        user,
+        plantId,
+        shiftId,
+        lastActiveTimestamp: Date.now(),
+      };
+      localStorage.setItem('reboot_auth_session', JSON.stringify(sessionData));
+    } catch {}
+
     const canonicalRole = normalizeRoleKey(user.role || user.roleType);
-    const defaultLanding = ROLE_DEFAULT_VIEW[canonicalRole] || 'home';
-    if (canonicalRole !== 'admin') {
-      setCurrentView(defaultLanding);
+    const savedActiveView = localStorage.getItem('reboot_active_view');
+    let targetView = ROLE_DEFAULT_VIEW[canonicalRole] || 'home';
+
+    if (savedActiveView && isViewAuthorizedForRole(canonicalRole, savedActiveView)) {
+      targetView = savedActiveView;
+    } else if (canonicalRole === 'admin') {
+      targetView = savedActiveView || 'home';
     }
+
+    let savedParams = {};
+    try {
+      const raw = localStorage.getItem('reboot_view_params');
+      if (raw) savedParams = JSON.parse(raw);
+    } catch {}
+
+    handleNavigate(targetView, savedParams);
     showToast(`Authenticated & Authorized as ${user.name} (${user.role}) — ${plantId}`);
   };
 
+  // Task 1: Manual Logout clears session immediately
   const handleLogout = () => {
     setLastLoggedOutUser(currentUser);
     setCurrentUser(null);
+    try {
+      localStorage.removeItem('reboot_auth_session');
+    } catch {}
     showToast('Terminal session locked / Signed out');
   };
 
   const handleSwitchUser = () => {
     setLastLoggedOutUser(currentUser);
     setCurrentUser(null);
+    try {
+      localStorage.removeItem('reboot_auth_session');
+    } catch {}
   };
 
-  const handleNavigate = (view: string, param?: any) => {
+  // Task 3: Navigation with history stack tracking & localStorage persistence
+  const handleNavigate = (view: string, param?: any, isNavTraversing?: boolean) => {
+    const p = param || {};
     setCurrentView(view);
-    setViewParams(param || {});
+    setViewParams(p);
     setIsMobileSidebarOpen(false);
+
+    try {
+      localStorage.setItem('reboot_active_view', view);
+      localStorage.setItem('reboot_view_params', JSON.stringify(p));
+    } catch {}
+
+    if (!isNavTraversing) {
+      const title = getScreenTitle(view, p);
+      const newEntry: NavHistoryEntry = {
+        view,
+        params: p,
+        title,
+        timestamp: Date.now(),
+      };
+
+      setNavHistory((prev) => {
+        const nextStack = [...prev.slice(0, historyIndex + 1), newEntry].slice(-25); // retain last 25 screens
+        try {
+          sessionStorage.setItem('reboot_nav_history', JSON.stringify(nextStack));
+          sessionStorage.setItem('reboot_history_index', String(nextStack.length - 1));
+        } catch {}
+        return nextStack;
+      });
+
+      setHistoryIndex((prev) => {
+        const nextIdx = Math.min(prev + 1, 24);
+        return nextIdx;
+      });
+    }
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Task 3: "Go to Previously Opened Screen" History Helpers
+  const canGoBack = historyIndex > 0;
+  const canGoForward = historyIndex < navHistory.length - 1;
+
+  const handleGoBack = () => {
+    if (canGoBack) {
+      const targetIdx = historyIndex - 1;
+      const target = navHistory[targetIdx];
+      if (target) {
+        setHistoryIndex(targetIdx);
+        try {
+          sessionStorage.setItem('reboot_history_index', String(targetIdx));
+        } catch {}
+        handleNavigate(target.view, target.params, true);
+        showToast(`Navigated back to: ${target.title}`);
+      }
+    }
+  };
+
+  const handleGoForward = () => {
+    if (canGoForward) {
+      const targetIdx = historyIndex + 1;
+      const target = navHistory[targetIdx];
+      if (target) {
+        setHistoryIndex(targetIdx);
+        try {
+          sessionStorage.setItem('reboot_history_index', String(targetIdx));
+        } catch {}
+        handleNavigate(target.view, target.params, true);
+        showToast(`Navigated forward to: ${target.title}`);
+      }
+    }
+  };
+
+  const handleJumpToHistoryIndex = (idx: number) => {
+    if (idx >= 0 && idx < navHistory.length) {
+      const target = navHistory[idx];
+      if (target) {
+        setHistoryIndex(idx);
+        try {
+          sessionStorage.setItem('reboot_history_index', String(idx));
+        } catch {}
+        handleNavigate(target.view, target.params, true);
+        showToast(`Switched to screen: ${target.title}`);
+      }
+    }
   };
 
   const openDrawer = (title: string, content: React.ReactNode, footer?: React.ReactNode) => {
@@ -926,6 +1311,13 @@ export const App: React.FC = () => {
         currentUser={currentUser}
         onLogout={handleLogout}
         onSwitchUser={handleSwitchUser}
+        canGoBack={canGoBack}
+        canGoForward={canGoForward}
+        onGoBack={handleGoBack}
+        onGoForward={handleGoForward}
+        navHistory={navHistory}
+        historyIndex={historyIndex}
+        onJumpToHistoryIndex={handleJumpToHistoryIndex}
         onToggleSidebar={() => {
           if (typeof window !== 'undefined' && window.innerWidth < 1024) {
             setIsMobileSidebarOpen((prev) => !prev);

@@ -38,6 +38,8 @@ import {
   Activity,
   Cpu,
   ArrowRight,
+  ArrowLeft,
+  History,
   ExternalLink,
   ShieldCheck,
   Send,
@@ -116,6 +118,13 @@ interface TopbarProps {
   onPlantChange?: (plantId: string, plantName: string) => void;
   onRoleChange?: (roleName: string) => void;
   showToast?: (msg: string) => void;
+  canGoBack?: boolean;
+  canGoForward?: boolean;
+  onGoBack?: () => void;
+  onGoForward?: () => void;
+  navHistory?: Array<{ view: string; params?: any; title: string; timestamp: number }>;
+  historyIndex?: number;
+  onJumpToHistoryIndex?: (idx: number) => void;
 }
 
 // Sample Notifications Dataset matching STEP-4
@@ -210,10 +219,18 @@ export const Topbar: React.FC<TopbarProps> = ({
   onPlantChange,
   onRoleChange,
   showToast = (_msg: string) => {},
+  canGoBack = false,
+  canGoForward = false,
+  onGoBack,
+  onGoForward,
+  navHistory = [],
+  historyIndex = 0,
+  onJumpToHistoryIndex,
 }) => {
   const handleOpenArchitectureGuide = openArchitectureGuide || (() => onNavigate?.('architectureGuide'));
   // Dropdown States
   const [showPlantDropdown, setShowPlantDropdown] = useState(false);
+  const [showHistoryDropdown, setShowHistoryDropdown] = useState(false);
   const [showQuickActionsDropdown, setShowQuickActionsDropdown] = useState(false);
   const [showTasksDropdown, setShowTasksDropdown] = useState(false);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
@@ -631,6 +648,145 @@ export const Topbar: React.FC<TopbarProps> = ({
               </div>
             </div>
           )}
+        </div>
+
+        {/* Task 3: Screen Navigation History Controls (Back, Forward, Recent Screens) */}
+        <div className="flex items-center gap-0.5 bg-slate-100/90 border border-slate-200/80 rounded-xl p-0.5 shrink-0">
+          {/* Go Back Button */}
+          <button
+            type="button"
+            onClick={onGoBack}
+            disabled={!canGoBack}
+            className={`p-1.5 rounded-lg text-slate-700 transition-all flex items-center justify-center ${
+              canGoBack
+                ? 'hover:bg-white hover:text-indigo-700 hover:shadow-2xs cursor-pointer'
+                : 'opacity-30 cursor-not-allowed text-slate-400'
+            }`}
+            title={canGoBack ? `Go back to: ${navHistory[historyIndex - 1]?.title || 'Previous Screen'}` : 'No previous screen in history'}
+            aria-label="Go back to previous screen"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Go Forward Button */}
+          <button
+            type="button"
+            onClick={onGoForward}
+            disabled={!canGoForward}
+            className={`p-1.5 rounded-lg text-slate-700 transition-all flex items-center justify-center ${
+              canGoForward
+                ? 'hover:bg-white hover:text-indigo-700 hover:shadow-2xs cursor-pointer'
+                : 'opacity-30 cursor-not-allowed text-slate-400'
+            }`}
+            title={canGoForward ? `Go forward to: ${navHistory[historyIndex + 1]?.title || 'Next Screen'}` : 'No forward screen in history'}
+            aria-label="Go forward to next screen"
+          >
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Recently Opened Screens Dropdown Trigger */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setShowHistoryDropdown(!showHistoryDropdown);
+                setShowPlantDropdown(false);
+                setShowQuickActionsDropdown(false);
+                setShowTasksDropdown(false);
+                setShowNotificationsDropdown(false);
+                setShowHelpDropdown(false);
+                setShowUserMenu(false);
+              }}
+              className={`p-1.5 rounded-lg text-slate-700 transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                showHistoryDropdown
+                  ? 'bg-indigo-600 text-white shadow-2xs'
+                  : 'hover:bg-white hover:text-indigo-700 hover:shadow-2xs'
+              }`}
+              title="View Navigation History & Recently Opened Screens"
+              aria-label="Navigation History"
+            >
+              <History className="w-3.5 h-3.5" />
+              {navHistory.length > 1 && (
+                <span className="text-[10px] font-mono font-bold px-1 rounded-full bg-slate-200/80 text-slate-700">
+                  {navHistory.length}
+                </span>
+              )}
+            </button>
+
+            {/* Recently Opened Screens Dropdown Panel */}
+            {showHistoryDropdown && (
+              <div className="absolute left-0 top-full mt-2 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="p-2.5 bg-gradient-to-r from-indigo-50 to-slate-50 border border-indigo-100 rounded-xl mb-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-indigo-600/10 text-indigo-600 flex items-center justify-center shrink-0">
+                      <History className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-900">Recently Opened Screens</div>
+                      <div className="text-[10px] text-slate-500">Jump directly to any active screen in session</div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">
+                    {historyIndex + 1} / {navHistory.length}
+                  </span>
+                </div>
+
+                <div className="max-h-72 overflow-y-auto space-y-1 divide-y divide-slate-100 pr-1">
+                  {navHistory.length === 0 ? (
+                    <div className="py-6 text-center text-xs text-slate-400">No screen navigation history yet.</div>
+                  ) : (
+                    navHistory.map((item, idx) => {
+                      const isCurrent = idx === historyIndex;
+                      const hasDate = item.params?.date;
+                      const hasId = item.params?.id || item.params?.code || item.params?.poNumber;
+                      return (
+                        <div
+                          key={`${item.view}-${idx}-${item.timestamp}`}
+                          onClick={() => {
+                            setShowHistoryDropdown(false);
+                            onJumpToHistoryIndex?.(idx);
+                          }}
+                          className={`pt-1.5 p-2 rounded-xl cursor-pointer transition-all flex items-center justify-between gap-2 text-xs ${
+                            isCurrent
+                              ? 'bg-indigo-50/90 border border-indigo-200 text-indigo-950 font-bold shadow-2xs'
+                              : 'hover:bg-slate-50 text-slate-700'
+                          }`}
+                        >
+                          <div className="min-w-0 flex items-center gap-2">
+                            <span
+                              className={`w-2 h-2 rounded-full shrink-0 ${
+                                isCurrent ? 'bg-indigo-600 ring-4 ring-indigo-200' : 'bg-slate-300'
+                              }`}
+                            />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`truncate ${isCurrent ? 'font-black text-indigo-900' : 'font-semibold text-slate-800'}`}>
+                                  {item.title}
+                                </span>
+                                {isCurrent && (
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                    Current
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-mono mt-0.5 flex items-center gap-1.5">
+                                <span>{item.view}</span>
+                                {hasDate && <span className="text-slate-500 font-semibold">&bull; Date: {hasDate}</span>}
+                                {hasId && <span className="text-slate-500 font-semibold">&bull; Ref: {hasId}</span>}
+                              </div>
+                            </div>
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                            #{idx + 1}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
