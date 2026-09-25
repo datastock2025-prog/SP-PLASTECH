@@ -1741,7 +1741,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                       return (
                         <tr
                           key={item.code}
-                          className={`hover:bg-amber-50/30 transition-colors cursor-pointer group ${
+                          className={`hover:bg-[#F0F6FF] transition-colors cursor-pointer group ${
                             isSelected ? 'bg-teal-50/40' : ''
                           }`}
                           onClick={() => onNavigate('itemDetail', { code: item.code })}
@@ -3703,7 +3703,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               <tbody className="divide-y divide-[#E4E0D6]">
                 {pagedMachines.length > 0 ? (
                   pagedMachines.map((m) => (
-                    <tr key={m.id} className="hover:bg-[#F9F8F5] transition-colors">
+                    <tr key={m.id} className="hover:bg-[#F0F6FF] transition-colors">
                       <td className="p-3"><span className="cell-code">{m.id}</span></td>
                       <td className="p-3 cell-name"><b>{m.name}</b><div className="cell-sub">{m.tonnage !== '—' ? m.tonnage : m.type}</div></td>
                       <td className="p-3"><span className="type-pill">{m.type}</span></td>
