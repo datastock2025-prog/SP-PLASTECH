@@ -98,6 +98,8 @@ export type StoreCategoryType =
   | 'Insert / Hardware'
   | 'Packaging Material'
   | 'WIP Store'
+  | 'Assembly Store'
+  | 'De-Flash Store'
   | 'Consumables'
   | 'Packaging Store'
   | 'BOP Store';
@@ -107,7 +109,7 @@ export interface InventoryStockItem {
   sku: string;
   name: string;
   category: StoreCategoryType;
-  storeType?: 'RM' | 'WIP' | 'CON' | 'PCK' | 'BOP' | 'FG';
+  storeType?: 'RM' | 'WIP' | 'ASM' | 'DFL' | 'CON' | 'PCK' | 'BOP' | 'FG';
   subCategory: string;
   resinGrade?: string;
   primaryWarehouse: string;

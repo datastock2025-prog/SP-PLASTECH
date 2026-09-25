@@ -46,6 +46,7 @@ import { DailyProductionExcelModal } from './DailyProductionExcelModal';
 import { DailyMaterialReconcileModal } from './DailyMaterialReconcileModal';
 import { JitOperatorAutocomplete } from './jit/JitOperatorAutocomplete';
 import { generateUniqueWorkOrderId } from './jit/jitCalculations';
+import { recordProductionShiftInventoryMovement } from '../../utils/warehouseSync';
 
 // ==========================================
 // 1. Enterprise Component Error Boundary
@@ -506,6 +507,25 @@ export const DailyProductionGridInner: React.FC<ProductionGridProps> = ({
       onUpdateWO(updatedMasterWO);
       onSyncWipLot?.(updatedMasterWO, 'grid_entry', `Accumulated shift production: +${shiftGood} Good PCS for ${id}`);
 
+      const dest = getItemStoreDestination(row.item);
+
+      // Task 3: Auto-deduct BOM Raw Materials & record Production Output to Warehouse Stock & Lot Ledger
+      try {
+        recordProductionShiftInventoryMovement({
+          workOrder: updatedMasterWO,
+          shiftGood,
+          shiftScrap,
+          shiftRunnerKg: shiftRunner,
+          shiftLumpsKg: shiftLumps,
+          operator: row.operator || 'Floor Operator',
+          destinationStore: dest,
+          boms,
+          items,
+        });
+      } catch (invErr) {
+        console.warn('Inventory auto-sync warning:', invErr);
+      }
+
       // Task 1: Empty ALL shift entry fields in local edits buffer for the next shift entry
       setEditedRowsMap((prev) => {
         const next = { ...prev };
@@ -532,9 +552,8 @@ export const DailyProductionGridInner: React.FC<ProductionGridProps> = ({
         return next;
       });
 
-      const dest = getItemStoreDestination(row.item);
       showToast(
-        `✅ Shift saved & summed for ${id}: +${shiftGood} Good PCS. Cumulative progress: ${newTotalGood.toLocaleString()}/${plannedQty.toLocaleString()} PCS (${dest.code}). All fields reset for next shift entry.${
+        `✅ Shift saved & summed for ${id}: +${shiftGood} Good PCS. Cumulative progress: ${newTotalGood.toLocaleString()}/${plannedQty.toLocaleString()} PCS (${dest.code}). Inventory & BOM materials updated.${
           isTargetMatched ? ' 🔒 Target reached — Work Order completed & locked!' : ''
         }`
       );
@@ -1389,6 +1408,7 @@ export const DailyProductionGridInner: React.FC<ProductionGridProps> = ({
                 <th className="p-2.5 text-left font-bold w-24">Shift</th>
                 <th className="p-2.5 text-right font-bold w-20">Planned</th>
                 <th className="p-2.5 text-right font-bold w-22">Good Output</th>
+                <th className="p-2.5 text-right font-bold w-24">Remaining</th>
                 <th className="p-2.5 text-left font-bold w-28">Status</th>
                 <th className="p-2.5 text-left font-bold w-28">Lead Operator</th>
                 {!isCompactView && <th className="p-2.5 text-left font-bold w-32">Remarks</th>}
@@ -1591,6 +1611,29 @@ export const DailyProductionGridInner: React.FC<ProductionGridProps> = ({
                           </div>
                         </td>
 
+                        {/* Remaining to Complete Plan (Task 2) */}
+                        <td className="p-1.5 text-right">
+                          {(() => {
+                            const currentShiftGood = Number(row.completed) || 0;
+                            const totalGoodSoFar = masterCompleted + currentShiftGood;
+                            const remainingNeedToComplete = Math.max(0, plannedTarget - totalGoodSoFar);
+                            const isCompleted = remainingNeedToComplete === 0;
+                            return (
+                              <div
+                                className={`px-2 py-1 rounded-md text-right font-mono font-bold text-xs inline-flex items-center gap-1 justify-end ${
+                                  isCompleted
+                                    ? 'bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-2xs'
+                                    : 'bg-amber-50 text-amber-900 border border-amber-200'
+                                }`}
+                                title={`Remaining to complete planned target (${plannedTarget.toLocaleString()} PCS) - Total so far: ${totalGoodSoFar.toLocaleString()} PCS`}
+                              >
+                                <span>{remainingNeedToComplete.toLocaleString()}</span>
+                                <span className="text-[10px] font-normal text-slate-500">PCS</span>
+                              </div>
+                            );
+                          })()}
+                        </td>
+
                         {/* Status Select */}
                         <td className="p-1.5">
                           <select
@@ -1679,7 +1722,7 @@ export const DailyProductionGridInner: React.FC<ProductionGridProps> = ({
                       {/* Interactive Entry & Cumulative Panel shown when (+) clicked */}
                       {isExpanded && (
                         <tr className="bg-amber-50/30 border-b border-amber-200/60">
-                          <td colSpan={isCompactView ? 10 : 11} className="p-3">
+                          <td colSpan={isCompactView ? 11 : 12} className="p-3">
                             <div className="bg-white border border-amber-200/80 rounded-xl p-4 shadow-sm space-y-3.5">
                               {/* Header */}
                               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
@@ -1904,7 +1947,7 @@ export const DailyProductionGridInner: React.FC<ProductionGridProps> = ({
                 })
               ) : (
                 <tr>
-                  <td colSpan={isCompactView ? 10 : 11} className="py-16 text-center text-xs text-[#9CA3AF] bg-[#FAF9F5]">
+                  <td colSpan={isCompactView ? 11 : 12} className="py-16 text-center text-xs text-[#9CA3AF] bg-[#FAF9F5]">
                     <div className="max-w-sm mx-auto space-y-2">
                       <div className="w-10 h-10 rounded-2xl bg-white border border-[#E4E0D6] text-[#9CA3AF] flex items-center justify-center mx-auto shadow-2xs">
                         <Search className="w-5 h-5" />

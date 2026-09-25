@@ -42,7 +42,7 @@ import {
   LedgerTransactionStatus,
 } from '../../types/warehouse';
 import { INITIAL_INVENTORY_STOCK, INITIAL_STOCK_MOVEMENT_LEDGER } from '../../data/warehouseData';
-import { getStockMovementLedger } from '../../utils/warehouseSync';
+import { getStockMovementLedger, getWarehouseStock } from '../../utils/warehouseSync';
 import { WarehouseStatusBadge } from './WarehouseStatusBadge';
 import { PaginationBar } from '../common/PaginationBar';
 import { ItemLotLedgerModal } from './ItemLotLedgerModal';
@@ -95,23 +95,37 @@ export const StockLedgerListView: React.FC<Props> = ({
 
   // Movement Ledger Entries state (synchronized with warehouse storage)
   const [movementLedger, setMovementLedger] = useState<StockMovementLedgerEntry[]>(() => getStockMovementLedger());
+  const [internalStock, setInternalStock] = useState<InventoryStockItem[]>(() => getWarehouseStock());
 
-  // Listen for real-time ledger updates from GRN Putaway
+  // Listen for real-time ledger and stock updates from GRN Putaway and Daily Production
   useEffect(() => {
     const handleLedgerUpdate = (e: any) => {
       if (e.detail?.ledger) {
         setMovementLedger(e.detail.ledger);
       }
     };
+    const handleStockUpdate = (e: any) => {
+      if (e.detail?.stock) {
+        setInternalStock(e.detail.stock);
+      }
+    };
     window.addEventListener('warehouse_ledger_updated', handleLedgerUpdate);
-    return () => window.removeEventListener('warehouse_ledger_updated', handleLedgerUpdate);
+    window.addEventListener('warehouse_stock_updated', handleStockUpdate);
+    return () => {
+      window.removeEventListener('warehouse_ledger_updated', handleLedgerUpdate);
+      window.removeEventListener('warehouse_stock_updated', handleStockUpdate);
+    };
   }, []);
 
-  // Store Type Definitions (Task-3)
+  const activeStockList = internalStock.length > 0 ? internalStock : (stockItems || []);
+
+  // Store Type Definitions (Task 4: Add Assembly Store and De-Flash Store)
   const storeTypes = [
     { id: 'ALL', label: 'All Stores', icon: Building2 },
     { id: 'RM', label: 'RM (Raw Materials)', icon: Package },
     { id: 'WIP', label: 'WIP (Work In Progress)', icon: Factory },
+    { id: 'ASM', label: 'ASM (Assembly Store)', icon: Layers },
+    { id: 'DFL', label: 'DFL (De-Flash Store)', icon: Sparkles },
     { id: 'CON', label: 'CON (Consumables)', icon: Wrench },
     { id: 'PCK', label: 'PCK (Packaging)', icon: Box },
     { id: 'BOP', label: 'BOP (Bought-Out Parts)', icon: Cpu },
@@ -124,6 +138,8 @@ export const StockLedgerListView: React.FC<Props> = ({
     'Masterbatch',
     'Regrind Polymer',
     'WIP Store',
+    'Assembly Store',
+    'De-Flash Store',
     'Consumables',
     'Packaging Store',
     'BOP Store',
@@ -153,6 +169,8 @@ export const StockLedgerListView: React.FC<Props> = ({
   const resolveStoreType = (item: InventoryStockItem): string => {
     if (item.storeType) return item.storeType;
     if (item.category === 'WIP Store') return 'WIP';
+    if (item.category === 'Assembly Store') return 'ASM';
+    if (item.category === 'De-Flash Store' || (item.category as string) === 'Deflash Store') return 'DFL';
     if (item.category === 'Consumables') return 'CON';
     if (item.category === 'Packaging Store' || item.category === 'Packaging Material') return 'PCK';
     if (item.category === 'BOP Store' || item.category === 'Insert / Hardware') return 'BOP';
@@ -160,9 +178,9 @@ export const StockLedgerListView: React.FC<Props> = ({
     return 'RM';
   };
 
-  // Filter Stock Overview Items by Search, Store Type (Task-3), and Category
+  // Filter Stock Overview Items by Search, Store Type (Task-3 & Task-4), and Category
   const filteredItems = useMemo(() => {
-    return (stockItems || []).filter((item) => {
+    return activeStockList.filter((item) => {
       const matchSearch =
         item.sku.toLowerCase().includes(search.toLowerCase()) ||
         item.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -176,7 +194,7 @@ export const StockLedgerListView: React.FC<Props> = ({
 
       return matchSearch && matchStore && matchCat && matchStatus;
     });
-  }, [stockItems, search, selectedStoreType, selectedCategory, selectedStatus]);
+  }, [activeStockList, search, selectedStoreType, selectedCategory, selectedStatus]);
 
   // Filter Master "Ledger Items" Grid (Task-2 & Task-4: search, status OPEN/CLOSED/IN TRANSIT)
   const filteredLedgerEntries = useMemo(() => {
@@ -591,7 +609,7 @@ export const StockLedgerListView: React.FC<Props> = ({
       </div>
 
       {/* Primary Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto scrollbar-none">
         {/* TAB 1: STOCK BALANCES OVERVIEW */}
         <button
           onClick={() => {
@@ -611,7 +629,7 @@ export const StockLedgerListView: React.FC<Props> = ({
               activeLedgerTab === 'overview' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
             }`}
           >
-            {stockItems.length}
+            {activeStockList.length}
           </span>
         </button>
 
@@ -687,7 +705,7 @@ export const StockLedgerListView: React.FC<Props> = ({
 
       {/* Task-3: Store Type Selector for Stock Overview & Stores */}
       {activeLedgerTab === 'overview' && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1">
           <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap mr-1">
             Store Location:
           </span>
@@ -695,8 +713,8 @@ export const StockLedgerListView: React.FC<Props> = ({
             const Icon = st.icon;
             const count =
               st.id === 'ALL'
-                ? stockItems.length
-                : stockItems.filter((item) => resolveStoreType(item) === st.id).length;
+                ? activeStockList.length
+                : activeStockList.filter((item) => resolveStoreType(item) === st.id).length;
 
             return (
               <button
@@ -728,7 +746,7 @@ export const StockLedgerListView: React.FC<Props> = ({
 
       {/* Task-4: Status Filter for Ledger Items (OPEN / CLOSED / IN TRANSIT) */}
       {activeLedgerTab === 'ledger_items' && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1">
           <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap mr-1">
             Ledger Status:
           </span>
@@ -790,7 +808,7 @@ export const StockLedgerListView: React.FC<Props> = ({
 
         {/* Tab Specific Filter Pills */}
         {activeLedgerTab === 'overview' && (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1 md:pb-0">
             {categories.map((cat) => (
               <button
                 key={cat}
@@ -811,7 +829,7 @@ export const StockLedgerListView: React.FC<Props> = ({
         )}
 
         {activeLedgerTab === 'inward' && (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1 md:pb-0">
             {inwardSources.map((src) => (
               <button
                 key={src.value}
@@ -832,7 +850,7 @@ export const StockLedgerListView: React.FC<Props> = ({
         )}
 
         {activeLedgerTab === 'outward' && (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1 md:pb-0">
             {outwardPurposes.map((purp) => (
               <button
                 key={purp.value}
@@ -856,7 +874,7 @@ export const StockLedgerListView: React.FC<Props> = ({
       {/* TAB 1: STOCK BALANCES OVERVIEW TABLE */}
       {activeLedgerTab === 'overview' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto scrollbar-none">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-semibold text-[11px]">
@@ -1216,7 +1234,7 @@ export const StockLedgerListView: React.FC<Props> = ({
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto scrollbar-none">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-semibold text-[11px]">
@@ -1314,7 +1332,7 @@ export const StockLedgerListView: React.FC<Props> = ({
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto scrollbar-none">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-semibold text-[11px]">
