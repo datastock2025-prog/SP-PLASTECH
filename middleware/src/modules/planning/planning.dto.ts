@@ -320,3 +320,17 @@ export const UpdateSupplierCapacityDtoSchema = z.object({
   status: z.enum(['ACTIVE', 'CONSTRAINED', 'OVERLOADED', 'INACTIVE']).default('ACTIVE'),
 });
 export type UpdateSupplierCapacityDto = z.input<typeof UpdateSupplierCapacityDtoSchema>;
+
+// JIT High-Volume Production Schedules Pagination DTO (500,000+ Records Scale)
+export const GetConsolidatedJitSchedulesDtoSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(500).default(25),
+  searchQuery: z.string().optional(),
+  statusFilter: z.enum(['ALL', 'DRAFT', 'RELEASED', 'SHORTAGE', 'FEASIBLE']).default('ALL'),
+  sortBy: z.enum(['planDate', 'scheduleNumber', 'totalPlannedHours', 'totalTargetPcs', 'totalMachinesCount', 'releasedCount', 'hasShortage', 'status']).default('planDate'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+  plantFilter: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+});
+export type GetConsolidatedJitSchedulesDto = z.input<typeof GetConsolidatedJitSchedulesDtoSchema>;

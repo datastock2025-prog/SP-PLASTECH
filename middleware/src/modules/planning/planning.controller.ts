@@ -358,4 +358,12 @@ export class PlanningController {
     const data = await this.service.getPlanningAnalytics(tenantId, filters);
     return { success: true, data };
   }
+
+  // JIT High-Volume Production Schedules (500,000+ records scale)
+  @Get('jit-schedules/consolidated/paginated')
+  async getConsolidatedJitSchedulesPaginated(@Query() query: any, @Req() req: any) {
+    const tenantId = req.headers['x-tenant-id'] || 'TENANT-ALPHA-IND';
+    const result = await this.service.getConsolidatedJitSchedulesPaginated(tenantId, query);
+    return result;
+  }
 }
