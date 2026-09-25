@@ -1368,6 +1368,163 @@ class MasterDataGovernanceService {
       return roleKey.includes(cleanAllowed) || cleanAllowed.includes(roleKey);
     });
   }
+
+  // ==========================================
+  // Task 2: Master Data CRUD Change Requests & Admin Approval Gate
+  // ==========================================
+  public getChangeRequests(status?: 'pending' | 'approved' | 'rejected'): MasterDataChangeRequest[] {
+    try {
+      const raw = localStorage.getItem('reboot_erp_master_data_change_requests');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          if (status) {
+            return parsed.filter((r) => r.status === status);
+          }
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load change requests', e);
+    }
+    return [];
+  }
+
+  public submitChangeRequest(req: {
+    requestType: 'CREATE' | 'UPDATE' | 'DELETE';
+    entityType?: 'ITEM_MASTER' | 'BOM_MASTER' | 'MACHINE_MASTER';
+    itemCode: string;
+    itemName: string;
+    requestedBy: string;
+    userRole: string;
+    reason: string;
+    payload?: any;
+    currentSnapshot?: any;
+  }): MasterDataChangeRequest {
+    const list = this.getChangeRequests();
+    const newRequest: MasterDataChangeRequest = {
+      id: `CRQ-${Date.now().toString().slice(-6)}`,
+      requestType: req.requestType,
+      entityType: req.entityType || 'ITEM_MASTER',
+      itemCode: req.itemCode.trim().toUpperCase(),
+      itemName: req.itemName.trim(),
+      requestedBy: req.requestedBy || 'Shopfloor User',
+      userRole: req.userRole || 'operator',
+      requestedAt: new Date().toISOString(),
+      status: 'pending',
+      reason: req.reason || 'User requested master data modification',
+      payload: req.payload,
+      currentSnapshot: req.currentSnapshot,
+    };
+
+    list.unshift(newRequest);
+    try {
+      localStorage.setItem('reboot_erp_master_data_change_requests', JSON.stringify(list));
+    } catch (e) {
+      console.warn('Failed to save change request', e);
+    }
+
+    this.recordAudit({
+      entityType: req.entityType || 'ITEM_MASTER',
+      entityCode: req.itemCode,
+      entityName: req.itemName,
+      action: req.requestType === 'CREATE' ? 'CREATE' : req.requestType === 'UPDATE' ? 'UPDATE' : 'DELETE',
+      changedBy: req.requestedBy,
+      userRole: req.userRole,
+      changeSummary: `Submitted ${req.requestType} change request for ${req.itemCode} (Pending Admin Approval). Reason: ${req.reason}`,
+    });
+
+    adminEventBus.emit('CHANGE_REQUEST_SUBMITTED', newRequest);
+    return newRequest;
+  }
+
+  public approveChangeRequest(
+    requestId: string,
+    reviewerName: string = 'Admin',
+    comment: string = 'Approved by Admin'
+  ): { success: boolean; request?: MasterDataChangeRequest } {
+    const list = this.getChangeRequests();
+    const idx = list.findIndex((r) => r.id === requestId);
+    if (idx < 0) return { success: false };
+
+    const target = list[idx];
+    target.status = 'approved';
+    target.reviewedBy = reviewerName;
+    target.reviewedAt = new Date().toISOString();
+    target.reviewComment = comment;
+
+    try {
+      localStorage.setItem('reboot_erp_master_data_change_requests', JSON.stringify(list));
+    } catch (e) {
+      console.warn('Failed to save approved change request', e);
+    }
+
+    this.recordAudit({
+      entityType: target.entityType || 'ITEM_MASTER',
+      entityCode: target.itemCode,
+      entityName: target.itemName,
+      action: 'APPROVE',
+      changedBy: reviewerName,
+      userRole: 'admin',
+      changeSummary: `Admin approved ${target.requestType} request for ${target.itemCode}. ${comment}`,
+    });
+
+    adminEventBus.emit('CHANGE_REQUEST_APPROVED', target);
+    return { success: true, request: target };
+  }
+
+  public rejectChangeRequest(
+    requestId: string,
+    reviewerName: string = 'Admin',
+    comment: string = 'Rejected by Admin'
+  ): { success: boolean; request?: MasterDataChangeRequest } {
+    const list = this.getChangeRequests();
+    const idx = list.findIndex((r) => r.id === requestId);
+    if (idx < 0) return { success: false };
+
+    const target = list[idx];
+    target.status = 'rejected';
+    target.reviewedBy = reviewerName;
+    target.reviewedAt = new Date().toISOString();
+    target.reviewComment = comment;
+
+    try {
+      localStorage.setItem('reboot_erp_master_data_change_requests', JSON.stringify(list));
+    } catch (e) {
+      console.warn('Failed to save rejected change request', e);
+    }
+
+    this.recordAudit({
+      entityType: target.entityType || 'ITEM_MASTER',
+      entityCode: target.itemCode,
+      entityName: target.itemName,
+      action: 'REJECT',
+      changedBy: reviewerName,
+      userRole: 'admin',
+      changeSummary: `Admin rejected ${target.requestType} request for ${target.itemCode}. Reason: ${comment}`,
+    });
+
+    adminEventBus.emit('CHANGE_REQUEST_REJECTED', target);
+    return { success: true, request: target };
+  }
+}
+
+export interface MasterDataChangeRequest {
+  id: string;
+  requestType: 'CREATE' | 'UPDATE' | 'DELETE';
+  entityType: 'ITEM_MASTER' | 'BOM_MASTER' | 'MACHINE_MASTER';
+  itemCode: string;
+  itemName: string;
+  requestedBy: string;
+  userRole: string;
+  requestedAt: string;
+  status: 'pending' | 'approved' | 'rejected';
+  reason: string;
+  payload?: any;
+  currentSnapshot?: any;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  reviewComment?: string;
 }
 
 export interface MasterDataChangeRecord {
@@ -1395,3 +1552,4 @@ export interface MasterDataGovernancePermissions {
 }
 
 export const masterDataGovernanceService = new MasterDataGovernanceService();
+

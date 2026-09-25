@@ -61,11 +61,13 @@ import {
   AuditHistoryModal,
   GovernancePermissionsModal,
 } from './masterdata/GovernanceModals';
+import { AdminApprovalsModal } from './masterdata/AdminApprovalsModal';
 import { itemService } from '../services/itemService';
 import {
   masterDataGovernanceService,
   MasterDataChangeRecord,
   MasterDataGovernancePermissions,
+  MasterDataChangeRequest,
 } from '../services/masterDataGovernanceService';
 import { adminEventBus } from '../services/adminService';
 
@@ -986,6 +988,15 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   const [isItemWizardOpen, setIsItemWizardOpen] = useState<boolean>(false);
   const [wizardEditItem, setWizardEditItem] = useState<ItemMaster | null>(null);
 
+  // Task 2: Admin Approvals & CRUD Change Request Center
+  const [isAdminApprovalsOpen, setIsAdminApprovalsOpen] = useState<boolean>(false);
+  const [pendingCrqCount, setPendingCrqCount] = useState<number>(() =>
+    masterDataGovernanceService.getChangeRequests('pending').length
+  );
+  const [isRaiseDeleteModalOpen, setIsRaiseDeleteModalOpen] = useState<boolean>(false);
+  const [deleteTargetItem, setDeleteTargetItem] = useState<ItemMaster | null>(null);
+  const [deleteReason, setDeleteReason] = useState<string>('');
+
   // Task 3: Audit Change History Modal State
   const [isAuditModalOpen, setIsAuditModalOpen] = useState<boolean>(false);
   const [auditTarget, setAuditTarget] = useState<{ type?: string; code?: string; name?: string }>({});
@@ -997,10 +1008,28 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   );
 
   useEffect(() => {
-    const unsub = adminEventBus.on('GOVERNANCE_PERMISSIONS_SAVED', (updated) => {
+    const updateCount = () => {
+      setPendingCrqCount(masterDataGovernanceService.getChangeRequests('pending').length);
+    };
+    const unsubGov = adminEventBus.on('GOVERNANCE_PERMISSIONS_SAVED', (updated) => {
       if (updated) setGovPerms(updated);
     });
-    return () => unsub();
+    const unsub1 = adminEventBus.on('CHANGE_REQUEST_SUBMITTED', updateCount);
+    const unsub2 = adminEventBus.on('CHANGE_REQUEST_APPROVED', updateCount);
+    const unsub3 = adminEventBus.on('CHANGE_REQUEST_REJECTED', updateCount);
+    const unsub4 = adminEventBus.on('CATALOG_RELOADED', (newItems) => {
+      if (newItems && Array.isArray(newItems)) {
+        newItems.forEach((i: ItemMaster) => onUpdateItem(i));
+      }
+    });
+
+    return () => {
+      unsubGov();
+      unsub1();
+      unsub2();
+      unsub3();
+      unsub4();
+    };
   }, []);
 
   // RBAC Permission checks
@@ -1018,50 +1047,93 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   const canEditBom = masterDataGovernanceService.canUserPerformAction('edit_bom', currentUser?.role);
 
   const handleOpenCreateItemWizard = () => {
-    if (!canCreateItem && !isSuperAdmin) {
-      showToast('Admin permission required to create items in catalog.');
-      return;
-    }
     setWizardEditItem(null);
     setIsItemWizardOpen(true);
   };
 
   const handleOpenEditItemWizard = (item: ItemMaster) => {
-    if (!canEditItem && !isSuperAdmin) {
-      showToast('Admin permission required to edit item specifications.');
-      return;
-    }
     setWizardEditItem(item);
     setIsItemWizardOpen(true);
   };
 
+  const handleApplyApproval = (req: MasterDataChangeRequest) => {
+    if (req.requestType === 'CREATE' && req.payload) {
+      const approvedItem = { ...req.payload, approval: 'approved' as const, status: 'active' as const };
+      itemService.saveItem(approvedItem);
+      onCreateItem(approvedItem);
+    } else if (req.requestType === 'UPDATE' && req.payload) {
+      const approvedItem = { ...req.payload, approval: 'approved' as const, status: 'active' as const };
+      itemService.saveItem(approvedItem);
+      onUpdateItem(approvedItem);
+    } else if (req.requestType === 'DELETE') {
+      itemService.deleteItem(req.itemCode);
+      onDeleteItem(req.itemCode);
+    }
+  };
+
+  const handleApplyRejection = (req: MasterDataChangeRequest) => {
+    const itm = items.find((i) => i.code === req.itemCode);
+    if (itm && itm.approval === 'pending') {
+      const rejectedItem = { ...itm, approval: 'rejected' as const, status: 'inactive' as const };
+      itemService.saveItem(rejectedItem);
+      onUpdateItem(rejectedItem);
+    }
+  };
+
   const handleSaveWizardItem = (savedItem: ItemMaster) => {
-    itemService.saveItem(savedItem);
     const exists = items.some((i) => i.code === savedItem.code);
+
+    if (!isSuperAdmin && !canCreateItem) {
+      // Non-admin user: Raise CRUD Change Request to Admin
+      const enriched = { ...savedItem, approval: 'pending' as const };
+      itemService.saveItem(enriched);
+      if (exists) {
+        onUpdateItem(enriched);
+      } else {
+        onCreateItem(enriched);
+      }
+      masterDataGovernanceService.submitChangeRequest({
+        requestType: exists ? 'UPDATE' : 'CREATE',
+        itemCode: savedItem.code,
+        itemName: savedItem.name,
+        requestedBy: currentUser?.name || 'Shopfloor User',
+        userRole: currentUser?.role || 'operator',
+        reason: exists ? 'User requested item specification updates' : 'New item registration request for catalog',
+        payload: enriched,
+      });
+      showToast(`✓ Submitted ${exists ? 'modification' : 'creation'} request for SKU ${savedItem.code} to Admin for approval.`);
+      setIsItemWizardOpen(false);
+      setWizardEditItem(null);
+      return;
+    }
+
+    // Admin direct save & release
+    const approvedItem = { ...savedItem, approval: 'approved' as const, status: savedItem.status || 'active' as const };
+    itemService.saveItem(approvedItem);
     if (exists) {
-      onUpdateItem(savedItem);
+      onUpdateItem(approvedItem);
       masterDataGovernanceService.recordAudit({
         entityType: 'ITEM_MASTER',
-        entityCode: savedItem.code,
-        entityName: savedItem.name,
+        entityCode: approvedItem.code,
+        entityName: approvedItem.name,
         action: 'UPDATE',
-        changedBy: currentUser?.name || 'Priya Rao (Admin)',
+        changedBy: currentUser?.name || 'Admin',
         userRole: currentUser?.role || 'admin',
-        changeSummary: `Updated Item Master SKU ${savedItem.code} attributes and tooling specifications.`,
+        changeSummary: `Updated Item Master SKU ${approvedItem.code} attributes and tooling specifications.`,
       });
-      showToast(`✓ Updated Item ${savedItem.code} in Master Data & recorded in PostgreSQL audit history.`);
+      showToast(`✓ Updated & Approved Item ${approvedItem.code} in Master Data.`);
     } else {
-      onCreateItem(savedItem);
+      onCreateItem(approvedItem);
       masterDataGovernanceService.recordAudit({
         entityType: 'ITEM_MASTER',
-        entityCode: savedItem.code,
-        entityName: savedItem.name,
+        entityCode: approvedItem.code,
+        entityName: approvedItem.name,
         action: 'CREATE',
-        changedBy: currentUser?.name || 'Priya Rao (Admin)',
+        changedBy: currentUser?.name || 'Admin',
         userRole: currentUser?.role || 'admin',
-        changeSummary: `Created new Item Master SKU ${savedItem.code} with approval status ${savedItem.approval}.`,
+        changeSummary: `Created & Approved new Item Master SKU ${approvedItem.code}.`,
       });
-      showToast(`✓ Created Item ${savedItem.code} in Master Data & recorded in PostgreSQL audit history.`);
+      showToast(`✓ Created & Approved Item ${approvedItem.code} in Master Data.`);
     }
     setIsItemWizardOpen(false);
     setWizardEditItem(null);
@@ -1255,6 +1327,46 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Task 2: Admin Approval Center for CRUD requests */}
+              <button
+                className={`btn btn-sm flex items-center gap-1.5 shadow-xs transition-all ${
+                  pendingCrqCount > 0
+                    ? 'bg-amber-600 hover:bg-amber-700 text-white font-bold animate-pulse'
+                    : 'btn-ghost border border-[#E4E0D6] text-slate-700 hover:bg-slate-50'
+                }`}
+                onClick={() => setIsAdminApprovalsOpen(true)}
+                title="Review pending CRUD change requests, deletions and additions requiring Admin approval"
+              >
+                <ShieldAlert className="w-3.5 h-3.5" />
+                <span>Admin Approvals</span>
+                {pendingCrqCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-white text-amber-900 font-bold ml-0.5">
+                    {pendingCrqCount}
+                  </span>
+                )}
+              </button>
+
+              {isSuperAdmin && (
+                <button
+                  className="btn btn-sm btn-ghost border border-[#0F8B8D]/40 text-[#0F8B8D] hover:bg-teal-50 flex items-center gap-1.5"
+                  onClick={() => {
+                    openConfirm(
+                      'Reload Document Catalog (1,719 SKUs)?',
+                      'This will synchronize and ensure all 1,719 items from the attached Master Catalog document are loaded live with full Admin approval.',
+                      () => {
+                        const reloaded = itemService.reloadDocumentCatalog();
+                        reloaded.forEach((i) => onUpdateItem(i));
+                        showToast(`✓ Synchronized ${reloaded.length} live approved items from Document Catalog!`);
+                      }
+                    );
+                  }}
+                  title="Synchronize and make 1,719 document items live and approved in Database"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Sync Live Catalog (1,719)
+                </button>
+              )}
+
               <button
                 className="btn btn-sm btn-ghost border border-[#E4E0D6] flex items-center gap-1.5"
                 onClick={() => {
@@ -1794,18 +1906,29 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                               </button>
                               <button
                                 className="p-1 text-[#6B7280] hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
-                                title="Delete Item (Admin Only)"
+                                title={isSuperAdmin ? 'Delete SKU (Admin Authority)' : 'Raise Deletion Request to Admin'}
                                 onClick={() => {
-                                  if (!isSuperAdmin && !canDeleteItem) {
-                                    showToast('Admin privileges required to delete items');
+                                  if (!isSuperAdmin) {
+                                    setDeleteTargetItem(item);
+                                    setDeleteReason('');
+                                    setIsRaiseDeleteModalOpen(true);
                                     return;
                                   }
                                   openConfirm(
                                     `Delete ${item.code}?`,
-                                    `This will remove ${item.name} from the master catalog.`,
+                                    `Are you sure you want to permanently delete SKU ${item.code} (${item.name}) from the live master catalog?`,
                                     () => {
                                       itemService.deleteItem(item.code);
                                       onDeleteItem(item.code);
+                                      masterDataGovernanceService.recordAudit({
+                                        entityType: 'ITEM_MASTER',
+                                        entityCode: item.code,
+                                        entityName: item.name,
+                                        action: 'DELETE',
+                                        changedBy: currentUser?.name || 'Admin',
+                                        userRole: 'admin',
+                                        changeSummary: `Admin deleted item ${item.code} from Master Catalog.`,
+                                      });
                                       showToast(`Item ${item.code} deleted`);
                                     }
                                   );
@@ -3652,6 +3775,96 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
           }}
           showToast={showToast}
         />
+      )}
+
+      {/* Task 2: Admin Approvals & CRUD Change Request Center Modal */}
+      <AdminApprovalsModal
+        isOpen={isAdminApprovalsOpen}
+        onClose={() => setIsAdminApprovalsOpen(false)}
+        onApplyApproval={handleApplyApproval}
+        onApplyRejection={handleApplyRejection}
+        showToast={showToast}
+      />
+
+      {/* Task 2: Raise Deletion Request Modal for Non-Admin Users */}
+      {isRaiseDeleteModalOpen && deleteTargetItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2 text-rose-700 font-bold text-sm">
+                <ShieldAlert className="w-5 h-5 text-rose-600" />
+                <span>Raise SKU Deletion Request to Admin</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRaiseDeleteModalOpen(false);
+                  setDeleteTargetItem(null);
+                }}
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1 text-xs">
+              <div className="font-bold text-amber-900">
+                Item is Approved / Active on Shopfloor
+              </div>
+              <p className="text-amber-800">
+                SKU <strong>{deleteTargetItem.code}</strong> ({deleteTargetItem.name}) cannot be directly deleted by standard users. Please provide a business reason for Admin approval.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">
+                Reason for Deletion Request *
+              </label>
+              <textarea
+                rows={3}
+                required
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                placeholder="e.g. Obsolete SKU replaced by ECR-2026-B, zero inventory on shopfloor..."
+                className="w-full p-2.5 border border-slate-300 rounded-xl text-xs outline-none focus:border-rose-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRaiseDeleteModalOpen(false);
+                  setDeleteTargetItem(null);
+                }}
+                className="btn btn-sm btn-ghost border text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!deleteReason.trim()}
+                onClick={() => {
+                  masterDataGovernanceService.submitChangeRequest({
+                    requestType: 'DELETE',
+                    itemCode: deleteTargetItem.code,
+                    itemName: deleteTargetItem.name,
+                    requestedBy: currentUser?.name || 'Shopfloor User',
+                    userRole: currentUser?.role || 'operator',
+                    reason: deleteReason.trim(),
+                    currentSnapshot: deleteTargetItem,
+                  });
+                  showToast(`✓ Submitted deletion request for SKU ${deleteTargetItem.code} to Admin for review.`);
+                  setIsRaiseDeleteModalOpen(false);
+                  setDeleteTargetItem(null);
+                }}
+                className="btn btn-sm bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center gap-1 shadow-sm disabled:opacity-50 cursor-pointer"
+              >
+                <Check className="w-3.5 h-3.5" /> Submit Request to Admin
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
