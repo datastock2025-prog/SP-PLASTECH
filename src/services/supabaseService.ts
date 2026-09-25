@@ -67,6 +67,34 @@ export const SupabaseDataService = {
     }
   },
 
+  // 2b. PROCUREMENT: SUPPLIER PRICE LISTS & CONTRACT FORMULAS
+  async getSupplierPriceLists(): Promise<DbResult<any[]>> {
+    try {
+      const { data, error } = await supabase
+        .from('supplier_price_lists')
+        .select('*')
+        .order('item_code', { ascending: true });
+      if (error) throw error;
+      return { data, error: null };
+    } catch (err: any) {
+      return { data: null, error: err.message };
+    }
+  },
+
+  async upsertSupplierPriceList(priceList: Record<string, any>): Promise<DbResult<any>> {
+    try {
+      const { data, error } = await supabase
+        .from('supplier_price_lists')
+        .upsert(priceList, { onConflict: 'id' })
+        .select()
+        .single();
+      if (error) throw error;
+      return { data, error: null };
+    } catch (err: any) {
+      return { data: null, error: err.message };
+    }
+  },
+
   // 3. PROCUREMENT: PURCHASE ORDERS
   async getPurchaseOrders(): Promise<DbResult<any[]>> {
     try {

@@ -323,6 +323,34 @@ CREATE TABLE IF NOT EXISTS public.goods_receipt_notes (
   updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS public.supplier_price_lists (
+  id TEXT PRIMARY KEY,
+  price_list_id TEXT NOT NULL,
+  supplier_id TEXT,
+  supplier_name TEXT NOT NULL,
+  group_category TEXT,
+  item_code TEXT NOT NULL,
+  item_name TEXT NOT NULL,
+  uom TEXT DEFAULT 'NOS',
+  currency TEXT DEFAULT 'INR (₹)',
+  unit_price NUMERIC(14, 4) NOT NULL,
+  effective_from DATE,
+  effective_to DATE,
+  moq INT DEFAULT 1,
+  lead_time_days INT DEFAULT 7,
+  price_type TEXT DEFAULT 'Fixed' CHECK (price_type IN ('Fixed', 'Indexed', 'Tiered', 'Formula')),
+  index_reference TEXT,
+  base_index_value NUMERIC(14, 4),
+  adjustment_formula TEXT,
+  freight_included BOOLEAN DEFAULT true,
+  packing_included BOOLEAN DEFAULT true,
+  tax_pct NUMERIC(5, 2) DEFAULT 18,
+  status TEXT DEFAULT 'Active' CHECK (status IN ('Active', 'Under_Review', 'Expired', 'Draft')),
+  tiers JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ============================================================================
 -- 8. DOMAIN 4: WAREHOUSE & INVENTORY
 -- ============================================================================
@@ -596,7 +624,7 @@ DECLARE
   tables text[] := ARRAY[
     'users_profile', 'audit_logs', 'approval_workflows', 'approval_requests',
     'categories', 'units_of_measure', 'warehouses', 'storage_bins', 'items', 'bill_of_materials', 'bom_items',
-    'suppliers', 'purchase_requisitions', 'rfqs', 'purchase_orders', 'goods_receipt_notes',
+    'suppliers', 'supplier_price_lists', 'purchase_requisitions', 'rfqs', 'purchase_orders', 'goods_receipt_notes',
     'inventory_stock', 'stock_ledger_entries', 'stock_transfers',
     'machines', 'work_orders', 'shift_logs',
     'qc_inspections', 'ncr_reports',
@@ -634,7 +662,7 @@ DECLARE
   tbl text;
   tables_with_updated_at text[] := ARRAY[
     'users_profile', 'approval_workflows', 'approval_requests',
-    'items', 'bill_of_materials', 'suppliers', 'purchase_requisitions', 'rfqs',
+    'items', 'bill_of_materials', 'suppliers', 'supplier_price_lists', 'purchase_requisitions', 'rfqs',
     'purchase_orders', 'goods_receipt_notes', 'machines', 'work_orders',
     'ncr_reports', 'customers', 'sales_orders', 'sales_invoices', 'employees'
   ];
@@ -659,6 +687,7 @@ $$;
 ALTER PUBLICATION supabase_realtime ADD TABLE 
   public.items,
   public.suppliers,
+  public.supplier_price_lists,
   public.purchase_orders,
   public.goods_receipt_notes,
   public.work_orders,

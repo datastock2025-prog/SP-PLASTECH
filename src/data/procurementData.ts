@@ -13,6 +13,7 @@ import {
   SupplierPriceListEntry,
 } from '../types/procurement';
 import { DOCUMENT_LIVE_SUPPLIERS_CATALOG } from './liveSuppliersCatalog';
+import { DOCUMENT_SUPPLIER_PRICE_LISTS } from './liveSupplierPriceLists';
 
 // ----------------------------------------------------
 // 1. LIVE SUPPLIERS MASTER DATA (Document RPTM0501T01 - 411 Live Records)
@@ -932,79 +933,7 @@ export const INITIAL_PROCUREMENT_CONTRACTS: SupplierContractRecord[] = [
 // ----------------------------------------------------
 // 9b. SUPPLIER PRICE LISTS / INDEXED CONTRACT SCHEDULES
 // ----------------------------------------------------
-export const INITIAL_SUPPLIER_PRICE_LISTS: SupplierPriceListEntry[] = [
-  {
-    id: 'PL-RIL-PP-01',
-    priceListId: 'PL-RIL-2026-Q3',
-    supplierId: 'SUP-S0128',
-    supplierName: 'RELIANCE INDUSTRIES LIMITED BANGALORE',
-    itemCode: 'RM-PP-NAT-001',
-    itemName: 'PP Natural Granules H110MA',
-    uom: 'KG',
-    currency: 'INR (₹)',
-    unitPrice: 78.50,
-    effectiveFrom: '2026-08-01',
-    effectiveTo: '2026-08-31',
-    moq: 5000,
-    leadTimeDays: 5,
-    priceType: 'Indexed',
-    indexReference: 'Platts CFR South Asia PP Raffia/Homo monthly average',
-    baseIndexValue: 75.00,
-    adjustmentFormula: 'P = Platts_PP_Index + ₹3.50/kg conversion adder',
-    freightIncluded: false,
-    packingIncluded: true,
-    taxPct: 18,
-    status: 'Active',
-  },
-  {
-    id: 'PL-IOCL-PP-02',
-    priceListId: 'PL-IOCL-2026-Q3',
-    supplierId: 'SUP-S0068',
-    supplierName: 'Indian Oil Corporation Ltd',
-    itemCode: 'RM-PP-NAT-001',
-    itemName: 'PP Injection Grade Polymer (1100FS)',
-    uom: 'KG',
-    currency: 'INR (₹)',
-    unitPrice: 79.20,
-    effectiveFrom: '2026-08-01',
-    effectiveTo: '2026-08-31',
-    moq: 10000,
-    leadTimeDays: 7,
-    priceType: 'Indexed',
-    indexReference: 'IOCL Panipat Monthly Basic Price Notification',
-    baseIndexValue: 76.20,
-    adjustmentFormula: 'P = IOCL_ExRefinery_Basic + Freight',
-    freightIncluded: true,
-    packingIncluded: true,
-    taxPct: 18,
-    status: 'Active',
-  },
-  {
-    id: 'PL-CLA-MB-03',
-    priceListId: 'PL-CLA-2026-Q3',
-    supplierId: 'SUP-S0009',
-    supplierName: 'APPL INDUSTRIES LIMITED HSR',
-    itemCode: 'MB-WHT-002',
-    itemName: 'White Masterbatch (70% TiO2)',
-    uom: 'KG',
-    currency: 'INR (₹)',
-    unitPrice: 162.00,
-    effectiveFrom: '2026-07-01',
-    effectiveTo: '2026-09-30',
-    moq: 200,
-    leadTimeDays: 7,
-    priceType: 'Tiered',
-    freightIncluded: true,
-    packingIncluded: true,
-    taxPct: 18,
-    status: 'Active',
-    tiers: [
-      { minQty: 200, maxQty: 500, price: 165.0, discountPct: 0 },
-      { minQty: 501, maxQty: 2000, price: 160.0, discountPct: 3 },
-      { minQty: 2001, maxQty: 10000, price: 155.0, discountPct: 6 },
-    ],
-  }
-];
+export const INITIAL_SUPPLIER_PRICE_LISTS: SupplierPriceListEntry[] = DOCUMENT_SUPPLIER_PRICE_LISTS;
 
 // ----------------------------------------------------
 // 10. MRP PURCHASE SUGGESTIONS DATA

@@ -36,6 +36,7 @@ import { ItemMaster } from '../../types';
 import { ProcurementStatusBadge } from './ProcurementStatusBadge';
 import { INITIAL_SUPPLIER_PRICE_LISTS } from '../../data/procurementData';
 import { itemService } from '../../services/itemService';
+import { SupabaseDataService } from '../../services/supabaseService';
 
 interface Props {
   priceLists?: SupplierPriceListEntry[];
@@ -217,6 +218,30 @@ export const SupplierPriceListView: React.FC<Props> = ({
       };
       setPriceLists((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
       onUpdatePriceList?.(updated);
+      SupabaseDataService.upsertSupplierPriceList({
+        id: updated.id,
+        price_list_id: updated.priceListId,
+        supplier_id: updated.supplierId,
+        supplier_name: updated.supplierName,
+        item_code: updated.itemCode,
+        item_name: updated.itemName,
+        uom: updated.uom,
+        currency: updated.currency,
+        unit_price: updated.unitPrice,
+        effective_from: updated.effectiveFrom,
+        effective_to: updated.effectiveTo,
+        moq: updated.moq,
+        lead_time_days: updated.leadTimeDays,
+        price_type: updated.priceType,
+        index_reference: updated.indexReference,
+        base_index_value: updated.baseIndexValue,
+        adjustment_formula: updated.adjustmentFormula,
+        freight_included: updated.freightIncluded,
+        packing_included: updated.packingIncluded,
+        tax_pct: updated.taxPct,
+        status: updated.status,
+        tiers: updated.tiers || []
+      }).catch(console.warn);
       showToast(`Price schedule ${updated.priceListId} updated successfully`);
     } else {
       const newEntry: SupplierPriceListEntry = {
@@ -244,6 +269,30 @@ export const SupplierPriceListView: React.FC<Props> = ({
       };
       setPriceLists((prev) => [newEntry, ...prev]);
       onCreatePriceList?.(newEntry);
+      SupabaseDataService.upsertSupplierPriceList({
+        id: newEntry.id,
+        price_list_id: newEntry.priceListId,
+        supplier_id: newEntry.supplierId,
+        supplier_name: newEntry.supplierName,
+        item_code: newEntry.itemCode,
+        item_name: newEntry.itemName,
+        uom: newEntry.uom,
+        currency: newEntry.currency,
+        unit_price: newEntry.unitPrice,
+        effective_from: newEntry.effectiveFrom,
+        effective_to: newEntry.effectiveTo,
+        moq: newEntry.moq,
+        lead_time_days: newEntry.leadTimeDays,
+        price_type: newEntry.priceType,
+        index_reference: newEntry.indexReference,
+        base_index_value: newEntry.baseIndexValue,
+        adjustment_formula: newEntry.adjustmentFormula,
+        freight_included: newEntry.freightIncluded,
+        packing_included: newEntry.packingIncluded,
+        tax_pct: newEntry.taxPct,
+        status: newEntry.status,
+        tiers: newEntry.tiers || []
+      }).catch(console.warn);
       showToast(`New price schedule ${newEntry.priceListId} for ${newEntry.supplierName} created!`);
     }
     setIsAddModalOpen(false);
