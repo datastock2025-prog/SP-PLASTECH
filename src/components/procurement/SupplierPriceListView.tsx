@@ -92,9 +92,53 @@ export const SupplierPriceListView: React.FC<Props> = ({
 
   const activeItemsList = items && items.length > 0 ? items : itemService.getItemsSync();
 
-  // Sync prop changes
+  // Sync live price lists from Supabase on mount
   React.useEffect(() => {
-    if (propPriceLists) {
+    let isMounted = true;
+    async function loadLivePriceLists() {
+      try {
+        const { data, error } = await SupabaseDataService.getSupplierPriceLists();
+        if (!error && data && data.length > 0 && isMounted) {
+          const mapped: SupplierPriceListEntry[] = data.map((d: any) => ({
+            id: d.id,
+            priceListId: d.price_list_id || d.priceListId,
+            supplierId: d.supplier_id || d.supplierId,
+            supplierName: d.supplier_name || d.supplierName,
+            groupCategory: d.group_category || d.groupCategory,
+            itemCode: d.item_code || d.itemCode,
+            itemName: d.item_name || d.itemName,
+            uom: d.uom,
+            currency: d.currency,
+            unitPrice: Number(d.unit_price || d.unitPrice || 0),
+            effectiveFrom: d.effective_from || d.effectiveFrom,
+            effectiveTo: d.effective_to || d.effectiveTo,
+            moq: d.moq,
+            leadTimeDays: d.lead_time_days || d.leadTimeDays,
+            priceType: d.price_type || d.priceType || 'Fixed',
+            indexReference: d.index_reference || d.indexReference,
+            baseIndexValue: d.base_index_value || d.baseIndexValue,
+            adjustmentFormula: d.adjustment_formula || d.adjustmentFormula,
+            freightIncluded: d.freight_included ?? d.freightIncluded ?? true,
+            packingIncluded: d.packing_included ?? d.packingIncluded ?? true,
+            taxPct: d.tax_pct ?? d.taxPct ?? 18,
+            status: d.status || 'Active',
+            tiers: d.tiers,
+          }));
+          setPriceLists(mapped);
+        }
+      } catch (err) {
+        console.warn('Live price list sync note:', err);
+      }
+    }
+    loadLivePriceLists();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Sync prop changes if passed explicitly
+  React.useEffect(() => {
+    if (propPriceLists && propPriceLists.length > 0) {
       setPriceLists(propPriceLists);
     }
   }, [propPriceLists]);
