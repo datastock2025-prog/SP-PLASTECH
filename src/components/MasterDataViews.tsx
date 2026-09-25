@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ItemMaster,
   BomMaster,
@@ -53,6 +53,8 @@ import {
   FileCheck2,
   ShieldAlert,
   Boxes,
+  MoreVertical,
+  MoreHorizontal,
 } from 'lucide-react';
 import { PaginationBar } from './common/PaginationBar';
 import { CreateItemWizardModal } from './masterdata/CreateItemWizardModal';
@@ -988,6 +990,10 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   const [isItemWizardOpen, setIsItemWizardOpen] = useState<boolean>(false);
   const [wizardEditItem, setWizardEditItem] = useState<ItemMaster | null>(null);
 
+  // Task 1: 3-Dots Action Dropdown Menu State
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState<boolean>(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
   // Task 2: Admin Approvals & CRUD Change Request Center
   const [isAdminApprovalsOpen, setIsAdminApprovalsOpen] = useState<boolean>(false);
   const [pendingCrqCount, setPendingCrqCount] = useState<number>(() =>
@@ -1006,6 +1012,16 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   const [govPerms, setGovPerms] = useState<MasterDataGovernancePermissions>(
     masterDataGovernanceService.getGovernancePermissions()
   );
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setIsMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const updateCount = () => {
@@ -1326,80 +1342,133 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                 High-throughput polymer parts catalog with injection molding tooling specs, live shot calculations &amp; RBAC governance.
               </p>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Task 2: Admin Approval Center for CRUD requests */}
+            <div className="flex items-center gap-3">
+              {/* + Create Item Primary 3D Button */}
               <button
-                className={`btn btn-sm flex items-center gap-1.5 shadow-xs transition-all ${
-                  pendingCrqCount > 0
-                    ? 'bg-amber-600 hover:bg-amber-700 text-white font-bold animate-pulse'
-                    : 'btn-ghost border border-[#E4E0D6] text-slate-700 hover:bg-slate-50'
-                }`}
-                onClick={() => setIsAdminApprovalsOpen(true)}
-                title="Review pending CRUD change requests, deletions and additions requiring Admin approval"
-              >
-                <ShieldAlert className="w-3.5 h-3.5" />
-                <span>Admin Approvals</span>
-                {pendingCrqCount > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-white text-amber-900 font-bold ml-0.5">
-                    {pendingCrqCount}
-                  </span>
-                )}
-              </button>
-
-              {isSuperAdmin && (
-                <button
-                  className="btn btn-sm btn-ghost border border-[#0F8B8D]/40 text-[#0F8B8D] hover:bg-teal-50 flex items-center gap-1.5"
-                  onClick={() => {
-                    openConfirm(
-                      'Reload Document Catalog (1,719 SKUs)?',
-                      'This will synchronize and ensure all 1,719 items from the attached Master Catalog document are loaded live with full Admin approval.',
-                      () => {
-                        const reloaded = itemService.reloadDocumentCatalog();
-                        reloaded.forEach((i) => onUpdateItem(i));
-                        showToast(`✓ Synchronized ${reloaded.length} live approved items from Document Catalog!`);
-                      }
-                    );
-                  }}
-                  title="Synchronize and make 1,719 document items live and approved in Database"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Sync Live Catalog (1,719)
-                </button>
-              )}
-
-              <button
-                className="btn btn-sm btn-ghost border border-[#E4E0D6] flex items-center gap-1.5"
-                onClick={() => {
-                  setAuditTarget({});
-                  setIsAuditModalOpen(true);
-                }}
-                title="View PostgreSQL Master Data Audit & Change History Logs"
-              >
-                <History className="w-3.5 h-3.5 text-[#0F8B8D]" />
-                Audit History
-              </button>
-              {isSuperAdmin && (
-                <button
-                  className="btn btn-sm btn-ghost border border-[#E4E0D6] flex items-center gap-1.5"
-                  onClick={() => setIsGovModalOpen(true)}
-                  title="Configure Role-Based Access Controls for Master Data & BOM Grids"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
-                  Governance RBAC
-                </button>
-              )}
-              <button
-                className="btn btn-sm btn-ghost border border-[#E4E0D6]"
-                onClick={() => showToast(`Exported ${items.length} items to CSV`)}
-              >
-                Export CSV
-              </button>
-              <button
-                className="btn btn-sm btn-primary shadow-sm flex items-center gap-1.5"
+                className="btn btn-primary shadow-md flex items-center gap-2 px-4 py-2 text-xs font-bold"
                 onClick={handleOpenCreateItemWizard}
               >
-                <Plus className="w-3.5 h-3.5" /> Create Item
+                <Plus className="w-4 h-4" />
+                <span>Create Item</span>
               </button>
+
+              {/* Task 1: 3-Dots Action Dropdown Menu */}
+              <div className="relative" ref={moreMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
+                  className={`btn p-2 rounded-xl flex items-center justify-center transition-all ${
+                    isMoreMenuOpen || pendingCrqCount > 0
+                      ? 'bg-slate-100 border-slate-400 text-slate-900 shadow-sm ring-2 ring-amber-400/50'
+                      : 'btn-ghost text-slate-700 hover:bg-slate-50'
+                  }`}
+                  title="More Master Catalog Operations"
+                >
+                  <MoreVertical className="w-4 h-4 text-slate-700" />
+                  {pendingCrqCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-amber-600 text-white text-[9px] font-mono font-extrabold flex items-center justify-center shadow-xs border border-white animate-pulse">
+                      {pendingCrqCount}
+                    </span>
+                  )}
+                </button>
+
+                {isMoreMenuOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-64 bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200 shadow-2xl z-40 py-2 animate-in zoom-in-95 duration-100 text-xs divide-y divide-slate-100">
+                    <div className="px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                      Catalog Governance &amp; Actions
+                    </div>
+
+                    <div className="py-1">
+                      {/* Admin Approvals */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMoreMenuOpen(false);
+                          setIsAdminApprovalsOpen(true);
+                        }}
+                        className="w-full px-3.5 py-2 text-left flex items-center justify-between text-slate-700 hover:bg-amber-50/80 hover:text-amber-900 transition-colors font-medium group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <ShieldAlert className="w-4 h-4 text-amber-600 group-hover:scale-110 transition-transform" />
+                          <span>Admin Approvals Queue</span>
+                        </div>
+                        {pendingCrqCount > 0 && (
+                          <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-amber-600 text-white font-bold">
+                            {pendingCrqCount}
+                          </span>
+                        )}
+                      </button>
+
+                      {/* Sync Live Catalog */}
+                      {isSuperAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMoreMenuOpen(false);
+                            openConfirm(
+                              'Reload Document Catalog (1,719 SKUs)?',
+                              'This will synchronize and ensure all 1,719 items from the attached Master Catalog document are loaded live with full Admin approval.',
+                              () => {
+                                const reloaded = itemService.reloadDocumentCatalog();
+                                reloaded.forEach((i) => onUpdateItem(i));
+                                showToast(`✓ Synchronized ${reloaded.length} live approved items from Document Catalog!`);
+                              }
+                            );
+                          }}
+                          className="w-full px-3.5 py-2 text-left flex items-center gap-2.5 text-slate-700 hover:bg-teal-50 hover:text-[#0F8B8D] transition-colors font-medium group cursor-pointer"
+                        >
+                          <Sparkles className="w-4 h-4 text-[#0F8B8D] group-hover:scale-110 transition-transform" />
+                          <span>Sync Live Catalog (1,719)</span>
+                        </button>
+                      )}
+
+                      {/* Audit History */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMoreMenuOpen(false);
+                          setAuditTarget({});
+                          setIsAuditModalOpen(true);
+                        }}
+                        className="w-full px-3.5 py-2 text-left flex items-center gap-2.5 text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors font-medium group cursor-pointer"
+                      >
+                        <History className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" />
+                        <span>Audit &amp; Change History</span>
+                      </button>
+
+                      {/* Governance RBAC */}
+                      {isSuperAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMoreMenuOpen(false);
+                            setIsGovModalOpen(true);
+                          }}
+                          className="w-full px-3.5 py-2 text-left flex items-center gap-2.5 text-slate-700 hover:bg-purple-50 hover:text-purple-700 transition-colors font-medium group cursor-pointer"
+                        >
+                          <ShieldCheck className="w-4 h-4 text-purple-600 group-hover:scale-110 transition-transform" />
+                          <span>Governance RBAC Controls</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="py-1">
+                      {/* Export CSV */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMoreMenuOpen(false);
+                          showToast(`Exported ${items.length} items to CSV`);
+                        }}
+                        className="w-full px-3.5 py-2 text-left flex items-center gap-2.5 text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors font-medium group cursor-pointer"
+                      >
+                        <Download className="w-4 h-4 text-slate-500 group-hover:scale-110 transition-transform" />
+                        <span>Export Catalog to CSV</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1702,7 +1771,10 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
 
                           <td className="p-3">
                             <div className="font-bold text-[#14213D] flex items-center gap-1.5 group-hover:text-[#0F8B8D] transition-colors">
-                              <span>{item.icon}</span> <span>{item.name}</span>
+                              {item.icon && typeof item.icon === 'string' && item.icon.length <= 3 && (
+                                <span className="text-sm">{item.icon}</span>
+                              )}
+                              <span>{item.name}</span>
                             </div>
                             <div className="text-[11px] text-[#6B7280] flex items-center gap-1.5 flex-wrap mt-0.5">
                               <span>{item.cat}</span>
