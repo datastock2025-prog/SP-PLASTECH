@@ -696,11 +696,13 @@ export const JitConsolidatedScheduleWorkOrders: React.FC<Props> = ({
                           <span
                             className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
                               job.status === 'Released'
+                                ? 'bg-indigo-100 text-indigo-800'
+                                : job.status === 'Confirmed' || job.isConfirmed
                                 ? 'bg-emerald-100 text-emerald-800'
                                 : 'bg-slate-100 text-slate-700'
                             }`}
                           >
-                            {job.status || 'Draft'}
+                            {job.status === 'Confirmed' ? 'Confirmed (Saved)' : job.status || 'Draft'}
                           </span>
                         </td>
 

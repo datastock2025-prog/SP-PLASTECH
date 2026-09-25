@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Calendar,
   Cpu,
@@ -6,6 +6,7 @@ import {
   FileSpreadsheet,
   Download,
   Printer,
+  CheckCircle,
   CheckCircle2,
   AlertTriangle,
   Layers,
@@ -119,8 +120,28 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
   // Modal states
   const [inspectedJob, setInspectedJob] = useState<PlannedMachineJob | null>(null);
 
-  // Task 2: No dummy next-day schedule, schedules are created manually
-  const [jobs, setJobs] = useState<PlannedMachineJob[]>([]);
+  // Task 2: Persistent DB/localStorage storage so confirmed jobs keep growing and persist
+  const [jobs, setJobs] = useState<PlannedMachineJob[]>(() => {
+    try {
+      const saved = localStorage.getItem('sp_jit_production_jobs');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load saved JIT jobs:', e);
+    }
+    return [];
+  });
+
+  // Sync to localStorage whenever jobs update
+  useEffect(() => {
+    try {
+      localStorage.setItem('sp_jit_production_jobs', JSON.stringify(jobs));
+    } catch (e) {
+      console.error('Failed to persist JIT jobs:', e);
+    }
+  }, [jobs]);
 
   // Filter jobs for currently selected dynamic plan date
   const currentPlanJobs = useMemo(() => {
@@ -151,7 +172,7 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
   const shortageCount = materialRequirements.filter((r) => r.feasibility === 'Critical_Shortage').length;
   const isAllFeasible = shortageCount === 0 && materialRequirements.length > 0;
 
-  // Handlers for Jobs
+  // Handlers for Jobs (CRUD & Persistence)
   const handleUpdateJob = (updated: PlannedMachineJob) => {
     setJobs((prev) => prev.map((j) => (j.id === updated.id ? updated : j)));
   };
@@ -176,6 +197,86 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
   const handleDeleteJob = (jobId: string) => {
     setJobs((prev) => prev.filter((j) => j.id !== jobId));
     showToast('Removed machine from daily plan');
+  };
+
+  // Task 2: Common Save / Confirm Schedule
+  const handleConfirmSchedule = (targetDate: string, scheduleNumber?: string) => {
+    const targetJobs = jobs.filter((j) => (j.planDate || planDate) === targetDate);
+    if (targetJobs.length === 0) {
+      showToast('⚠️ No jobs in this schedule to confirm.');
+      return;
+    }
+
+    const schId = scheduleNumber || generateUniqueScheduleNumber(jobs, targetDate);
+    const nowIso = new Date().toISOString();
+
+    setJobs((prev) => {
+      const updated = prev.map((j) => {
+        if ((j.planDate || planDate) === targetDate) {
+          return {
+            ...j,
+            status: j.status === 'Released' ? ('Released' as const) : ('Confirmed' as const),
+            isConfirmed: true,
+            confirmedAt: nowIso,
+            scheduleNumber: schId,
+            auditLog: [
+              ...(j.auditLog || []),
+              {
+                timestamp: new Date().toLocaleTimeString(),
+                action: `Schedule ${schId} Confirmed & Saved to DB`,
+                user: effectiveUser?.name || 'Production Planner',
+              },
+            ],
+          };
+        }
+        return j;
+      });
+      try {
+        localStorage.setItem('sp_jit_production_jobs', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+
+    showToast(`💾 Schedule ${schId} confirmed & saved to database! (${targetJobs.length} machine jobs)`);
+  };
+
+  // Task 2: Row-wise Save / Confirm Single Job
+  const handleConfirmSingleJob = (job: PlannedMachineJob) => {
+    const nowIso = new Date().toISOString();
+    const schId = job.scheduleNumber || generateUniqueScheduleNumber(jobs, job.planDate || planDate);
+
+    setJobs((prev) => {
+      const updated = prev.map((j) => {
+        if (j.id === job.id) {
+          return {
+            ...j,
+            status: j.status === 'Released' ? ('Released' as const) : ('Confirmed' as const),
+            isConfirmed: true,
+            confirmedAt: nowIso,
+            scheduleNumber: schId,
+            auditLog: [
+              ...(j.auditLog || []),
+              {
+                timestamp: new Date().toLocaleTimeString(),
+                action: `Job Confirmed & Saved to DB for Machine ${j.machineId}`,
+                user: effectiveUser?.name || 'Production Planner',
+              },
+            ],
+          };
+        }
+        return j;
+      });
+      try {
+        localStorage.setItem('sp_jit_production_jobs', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+
+    showToast(`✓ Confirmed & saved job for ${job.machineId} (${job.itemCode}) to database!`);
   };
 
   // Release a single machine job as a Work Order (Task 1 & Task 3)
@@ -781,6 +882,8 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
               onUpdateJob={handleUpdateJob}
               onDeleteJob={handleDeleteJob}
               onDuplicateJob={handleDuplicateJob}
+              onConfirmSingleJob={handleConfirmSingleJob}
+              onConfirmSchedule={handleConfirmSchedule}
               onReleaseSingleJob={handleReleaseSingleJob}
               onReleaseSchedule={handleReleaseDateJobs}
               onViewRecipe={(j) => setInspectedJob(j)}

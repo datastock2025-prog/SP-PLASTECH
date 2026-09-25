@@ -8,6 +8,7 @@ import {
   FileSpreadsheet,
   Download,
   AlertTriangle,
+  CheckCircle,
   CheckCircle2,
   Clock,
   Layers,
@@ -73,6 +74,8 @@ interface Props {
   onUpdateJob: (job: PlannedMachineJob) => void;
   onDeleteJob: (jobId: string) => void;
   onDuplicateJob: (job: PlannedMachineJob) => void;
+  onConfirmSingleJob?: (job: PlannedMachineJob) => void;
+  onConfirmSchedule?: (date: string, scheduleNumber: string) => void;
   onReleaseSingleJob: (job: PlannedMachineJob, onlyWo?: boolean) => void;
   onReleaseSchedule: (date: string, scheduleNumber: string, onlyWo?: boolean) => void;
   onViewRecipe: (job: PlannedMachineJob) => void;
@@ -94,6 +97,8 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
   onUpdateJob,
   onDeleteJob,
   onDuplicateJob,
+  onConfirmSingleJob,
+  onConfirmSchedule,
   onReleaseSingleJob,
   onReleaseSchedule,
   onViewRecipe,
@@ -168,6 +173,10 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
   const totalPcs = dateJobs.reduce((acc, j) => acc + j.calculatedPcs, 0);
   const releasedCount = dateJobs.filter((j) => j.status === 'Released').length;
   const isScheduleReleased = releasedCount === dateJobs.length && dateJobs.length > 0;
+  const confirmedCount = dateJobs.filter(
+    (j) => j.status === 'Confirmed' || j.status === 'Released' || j.isConfirmed
+  ).length;
+  const isScheduleConfirmed = confirmedCount === dateJobs.length && dateJobs.length > 0;
 
   // Task 2: Helper to find mapped Work Order for a machine job
   const getJobWorkOrder = (job: PlannedMachineJob): WorkOrder | undefined => {
@@ -476,10 +485,16 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
                 className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wide ${
                   isScheduleReleased
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
+                    : isScheduleConfirmed
+                    ? 'bg-teal-500/20 text-teal-300 border border-teal-400/30'
                     : 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
                 }`}
               >
-                {isScheduleReleased ? 'ALL WOS RELEASED' : 'Planning (Draft)'}
+                {isScheduleReleased
+                  ? 'ALL WOS RELEASED'
+                  : isScheduleConfirmed
+                  ? 'CONFIRMED (SAVED)'
+                  : 'Planning (Draft)'}
               </span>
             </div>
 
@@ -587,6 +602,23 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
               >
                 <Download className="w-4 h-4 text-slate-300" />
               </button>
+
+              {/* Task 2: Common Save / Confirm Schedule Button */}
+              {dateJobs.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onConfirmSchedule && onConfirmSchedule(selectedDate, scheduleNumber)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer border ${
+                    isScheduleConfirmed
+                      ? 'bg-teal-600/90 hover:bg-teal-600 text-white border-teal-500'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 hover:shadow'
+                  }`}
+                  title="Confirm and persist all machine jobs in this schedule to database"
+                >
+                  <CheckCircle className="w-3.5 h-3.5 text-white" />
+                  <span>{isScheduleConfirmed ? '✓ Confirmed (Saved)' : 'Save / Confirm Schedule'}</span>
+                </button>
+              )}
 
               {/* Task 1: Checkbox for "Only WO" (default unchecked / empty) */}
               <label
@@ -742,7 +774,7 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
         />
       ) : (
         /* SINGLE MASTER GRID: Listed out on this particular date under Schedule Number */
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm min-h-[300px] pb-4">
           {dateJobs.length === 0 ? (
             <div className="p-12 text-center space-y-3">
               <div className="w-12 h-12 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto">
@@ -756,7 +788,7 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto min-h-[260px]">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-100/90 text-slate-700 border-b border-slate-200 font-bold uppercase tracking-wider text-[10px]">
@@ -1084,6 +1116,14 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
                                   </span>
                                 );
                               }
+                              if (job.status === 'Confirmed' || job.isConfirmed) {
+                                return (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2.5 py-0.5 rounded-md shadow-2xs">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                    Confirmed (Saved)
+                                  </span>
+                                );
+                              }
                               return (
                                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-md">
                                   Planned (Draft)
@@ -1092,7 +1132,7 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
                             })()}
                           </td>
 
-                          {/* Actions (Task 1, 4, 6) */}
+                          {/* Actions (Task 1, 2, 4, 6) */}
                           <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                             {isEditing ? (
                               <div className="flex items-center justify-end gap-1">
@@ -1116,6 +1156,31 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
                               </div>
                             ) : (
                               <div className="flex items-center justify-end gap-1.5">
+                                {/* Row-wise Confirm / Save Button (Task 2) */}
+                                {!isReleased && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      onConfirmSingleJob
+                                        ? onConfirmSingleJob(job)
+                                        : onUpdateJob({ ...job, status: 'Confirmed', isConfirmed: true })
+                                    }
+                                    className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                                      job.status === 'Confirmed' || job.isConfirmed
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                                        : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 shadow-2xs'
+                                    }`}
+                                    title={
+                                      job.status === 'Confirmed' || job.isConfirmed
+                                        ? 'Job is confirmed & saved in DB (Click to update/re-save)'
+                                        : 'Confirm & Save this machine job to DB'
+                                    }
+                                  >
+                                    <CheckCircle className="w-3.5 h-3.5" />
+                                    <span>{job.status === 'Confirmed' || job.isConfirmed ? 'Confirmed' : 'Confirm'}</span>
+                                  </button>
+                                )}
+
                                 <button
                                   type="button"
                                   onClick={() => toggleJobDetails(job.id)}
@@ -1144,7 +1209,7 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
                                   <Edit2 className="w-3.5 h-3.5" />
                                 </button>
 
-                                {/* 3-Dot Dropdown Options (Task 1) */}
+                                {/* 3-Dot Dropdown Options (Task 1: Unclipped, Auto-Upward/Downward smart placement) */}
                                 <div className="relative">
                                   <button
                                     type="button"
@@ -1152,78 +1217,109 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
                                       setOpenActionMenuId(openActionMenuId === job.id ? null : job.id)
                                     }
                                     className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                                    title="More Options (Traveler, Excel, CSV, Duplicate, Delete)"
+                                    title="More Options (Traveler, Confirm, Excel, CSV, Duplicate, Delete)"
                                   >
                                     <MoreVertical className="w-4 h-4" />
                                   </button>
 
                                   {openActionMenuId === job.id && (
-                                    <div
-                                      className="absolute right-0 top-full mt-1 w-52 bg-white border border-slate-200 rounded-xl shadow-xl z-40 py-1 text-xs text-left"
-                                      onClick={() => setOpenActionMenuId(null)}
-                                    >
-                                      {/* Work Order Traveler */}
-                                      <button
-                                        type="button"
-                                        onClick={() => setTravelerJob(job)}
-                                        className="w-full text-left px-3 py-2 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 flex items-center gap-2 font-medium"
+                                    <>
+                                      {/* Invisible backdrop to dismiss dropdown on click outside */}
+                                      <div
+                                        className="fixed inset-0 z-40 bg-transparent"
+                                        onClick={() => setOpenActionMenuId(null)}
+                                      />
+                                      <div
+                                        className={`absolute right-0 w-56 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 py-1.5 text-xs text-left ${
+                                          idx >= Math.max(0, dateJobs.length - 2)
+                                            ? 'bottom-full mb-1.5'
+                                            : 'top-full mt-1.5'
+                                        }`}
+                                        onClick={() => setOpenActionMenuId(null)}
                                       >
-                                        <Barcode className="w-3.5 h-3.5 text-indigo-600" />
-                                        <span>Work Order Traveler</span>
-                                      </button>
+                                        {/* Work Order Traveler */}
+                                        <button
+                                          type="button"
+                                          onClick={() => setTravelerJob(job)}
+                                          className="w-full text-left px-3 py-2 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 flex items-center gap-2 font-medium"
+                                        >
+                                          <Barcode className="w-3.5 h-3.5 text-indigo-600" />
+                                          <span>Work Order Traveler</span>
+                                        </button>
 
-                                      {/* Export Single Job to Excel */}
-                                      <button
-                                        type="button"
-                                        onClick={() => exportSingleJobToExcel(job, boms, items, stores)}
-                                        className="w-full text-left px-3 py-2 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 flex items-center gap-2 font-medium"
-                                      >
-                                        <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                                        <span>Export to Excel (.xlsx)</span>
-                                      </button>
+                                        {/* Row-wise Confirm in dropdown */}
+                                        {!isReleased && (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              onConfirmSingleJob
+                                                ? onConfirmSingleJob(job)
+                                                : onUpdateJob({ ...job, status: 'Confirmed', isConfirmed: true })
+                                            }
+                                            className="w-full text-left px-3 py-2 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 flex items-center gap-2 font-medium"
+                                          >
+                                            <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                            <span>
+                                              {job.status === 'Confirmed' || job.isConfirmed
+                                                ? 'Re-Confirm / Save Job'
+                                                : 'Confirm & Save Job'}
+                                            </span>
+                                          </button>
+                                        )}
 
-                                      {/* Export Single Job to CSV */}
-                                      <button
-                                        type="button"
-                                        onClick={() => exportSingleJobToCsv(job, boms, items)}
-                                        className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2 font-medium"
-                                      >
-                                        <Download className="w-3.5 h-3.5 text-slate-500" />
-                                        <span>Export to CSV (.csv)</span>
-                                      </button>
+                                        {/* Export Single Job to Excel */}
+                                        <button
+                                          type="button"
+                                          onClick={() => exportSingleJobToExcel(job, boms, items, stores)}
+                                          className="w-full text-left px-3 py-2 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 flex items-center gap-2 font-medium"
+                                        >
+                                          <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                                          <span>Export to Excel (.xlsx)</span>
+                                        </button>
 
-                                      <div className="border-t border-slate-100 my-1" />
+                                        {/* Export Single Job to CSV */}
+                                        <button
+                                          type="button"
+                                          onClick={() => exportSingleJobToCsv(job, boms, items)}
+                                          className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2 font-medium"
+                                        >
+                                          <Download className="w-3.5 h-3.5 text-slate-500" />
+                                          <span>Export to CSV (.csv)</span>
+                                        </button>
 
-                                      {/* Edit Job */}
-                                      <button
-                                        type="button"
-                                        onClick={(e) => handleStartEdit(job, e)}
-                                        className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2 font-medium"
-                                      >
-                                        <Edit2 className="w-3.5 h-3.5 text-slate-500" />
-                                        <span>Edit Machine Job</span>
-                                      </button>
+                                        <div className="border-t border-slate-100 my-1" />
 
-                                      {/* Duplicate Job */}
-                                      <button
-                                        type="button"
-                                        onClick={() => handleProtectedDuplicate(job)}
-                                        className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2 font-medium"
-                                      >
-                                        <Copy className="w-3.5 h-3.5 text-slate-500" />
-                                        <span>Duplicate Job</span>
-                                      </button>
+                                        {/* Edit Job */}
+                                        <button
+                                          type="button"
+                                          onClick={(e) => handleStartEdit(job, e)}
+                                          className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2 font-medium"
+                                        >
+                                          <Edit2 className="w-3.5 h-3.5 text-slate-500" />
+                                          <span>Edit Machine Job</span>
+                                        </button>
 
-                                      {/* Delete Job */}
-                                      <button
-                                        type="button"
-                                        onClick={() => handleProtectedDelete(job.id)}
-                                        className="w-full text-left px-3 py-2 hover:bg-rose-50 text-rose-600 flex items-center gap-2 font-medium"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                                        <span>Remove from Schedule</span>
-                                      </button>
-                                    </div>
+                                        {/* Duplicate Job */}
+                                        <button
+                                          type="button"
+                                          onClick={() => handleProtectedDuplicate(job)}
+                                          className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2 font-medium"
+                                        >
+                                          <Copy className="w-3.5 h-3.5 text-slate-500" />
+                                          <span>Duplicate Job</span>
+                                        </button>
+
+                                        {/* Delete Job */}
+                                        <button
+                                          type="button"
+                                          onClick={() => handleProtectedDelete(job.id)}
+                                          className="w-full text-left px-3 py-2 hover:bg-rose-50 text-rose-600 flex items-center gap-2 font-medium"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                                          <span>Remove from Schedule</span>
+                                        </button>
+                                      </div>
+                                    </>
                                   )}
                                 </div>
                               </div>

@@ -31,7 +31,9 @@ export interface PlannedMachineJob {
   priority: 'High' | 'Normal' | 'Urgent';
   expectedFinishDate?: string;
   expectedFinishTime?: string;
-  status: 'Draft' | 'Feasible' | 'Material_Shortage' | 'Released';
+  status: 'Draft' | 'Feasible' | 'Material_Shortage' | 'Confirmed' | 'Released';
+  isConfirmed?: boolean;
+  confirmedAt?: string;
   workOrderGenerated?: string;
   workOrderId?: string;
   scheduleNumber?: string;

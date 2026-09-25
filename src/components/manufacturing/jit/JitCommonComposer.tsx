@@ -315,16 +315,30 @@ export const JitCommonComposer: React.FC<Props> = ({
     cycleTimeSec > 0
   );
 
-  // Submit Handler
+  // Submit Handler (Task 3: after add and add to production button are clicked all common fields are empty wait for next input)
   const handleSubmitAdd = () => {
     if (!canSubmit) return;
     onAddJob(currentJobObject);
 
-    // Pick next machine sequentially if available
-    const currentIndex = machines.findIndex((m) => m.id === selectedMachineId);
-    if (currentIndex !== -1 && currentIndex + 1 < machines.length) {
-      setSelectedMachineId(machines[currentIndex + 1].id);
-    }
+    // Reset all common input fields to empty waiting for next input
+    setSelectedMachineId('');
+    setSelectedItemCode('');
+    setSelectedMoldId('');
+    setSelectedBomId('');
+    setCavities(0);
+    setCycleTimeSec(0);
+    setIsCustomCavity(false);
+    setIsCustomCycleTime(false);
+    setShift('Full Day 24H');
+    setPlannedHours(0);
+    setEfficiencyPct(95);
+    setOperator('');
+    setPriority('Normal');
+    setCalcMode('hours_to_pcs');
+    setTargetPcsInput(0);
+    setCustomFinishDate('');
+    setCustomFinishTime('');
+    setIsCustomFinish(false);
   };
 
   // Stock status check
