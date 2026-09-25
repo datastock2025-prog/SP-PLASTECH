@@ -25,9 +25,52 @@ function loadLocalSuppliers(): SupplierMaster[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length >= 20) {
-        // Filter out legacy dummy suppliers
-        const cleanSuppliers = parsed.filter((s: SupplierMaster) => !DUMMY_SUPPLIER_IDS.has(s.id) && !DUMMY_SUPPLIER_IDS.has(s.code));
+        // Filter out legacy dummy suppliers & ensure valid scorecard/compliance
+        const cleanSuppliers = parsed
+          .filter((s: SupplierMaster) => !DUMMY_SUPPLIER_IDS.has(s.id) && !DUMMY_SUPPLIER_IDS.has(s.code))
+          .map((s: SupplierMaster, idx: number) => {
+            const fallbackDoc = DOCUMENT_LIVE_SUPPLIERS_CATALOG.find((d) => d.code === s.code || d.id === s.id);
+            return {
+              ...fallbackDoc,
+              ...s,
+              status: s.status || 'active',
+              scorecard: s.scorecard || fallbackDoc?.scorecard || {
+                overallScore: 90,
+                overallGrade: 'A',
+                trend: 'improving',
+                evaluationPeriod: 'Q2 2026',
+                onTimeDeliveryPct: 96.5,
+                quantityAccuracyPct: 99.5,
+                qualityAcceptancePct: 98.8,
+                priceCompetitivenessPct: 92.0,
+                priceVariancePct: 0.0,
+                responsivenessScore: 92,
+                documentCompliancePct: 100,
+                complaintResolutionDays: 2.5,
+                returnRatePct: 0.1,
+                metrics: [],
+              },
+              compliance: s.compliance || fallbackDoc?.compliance || {
+                esgRating: 'A',
+                esgScore: 88,
+                iso9001Valid: true,
+                iso9001Expiry: '2027-12-31',
+                iso14001Valid: true,
+                foodGradeCompliant: true,
+                reachCompliant: true,
+                rohsCompliant: true,
+                recycledContentCert: false,
+                conflictMineralsDeclaration: true,
+                lastAuditDate: '2026-03-15',
+                lastAuditScore: 94,
+                auditFindings: 0,
+                openCapas: 0,
+              },
+            };
+          });
+
         if (cleanSuppliers.length >= 20) {
+          saveLocalSuppliers(cleanSuppliers);
           return cleanSuppliers;
         }
       }

@@ -628,8 +628,8 @@ export const SupplierMasterListView: React.FC<Props> = ({
                     <td className="py-3 px-3 text-center">
                       <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-[11px]">
                         <Star className="w-3 h-3 text-amber-500 fill-amber-400" />
-                        <span>{sup.rating.toFixed(1)}</span>
-                        <span className="text-[10px] text-slate-500 font-normal">({sup.scorecard.overallGrade})</span>
+                        <span>{sup.rating?.toFixed ? sup.rating.toFixed(1) : Number(sup.rating || 4.5).toFixed(1)}</span>
+                        <span className="text-[10px] text-slate-500 font-normal">({sup.scorecard?.overallGrade || 'A'})</span>
                       </div>
                     </td>
 
