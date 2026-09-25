@@ -68,12 +68,15 @@ export const SupplierMasterListView: React.FC<Props> = ({
   const categories: string[] = [
     'All',
     'Virgin Resin',
-    'Masterbatch & Colorants',
-    'Additives & Fillers',
-    'Regrind & Recycled',
     'Packaging Materials',
+    'Consumables & Lubricants',
     'Molds & Tooling',
     'Machine Spare Parts',
+    'Additives & Fillers',
+    'Subcontracting Services',
+    'Testing & Calibration Services',
+    'Masterbatch & Colorants',
+    'Regrind & Recycled',
   ];
 
   // Filtering

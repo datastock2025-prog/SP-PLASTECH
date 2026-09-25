@@ -4,7 +4,8 @@
 // ============================================================================
 
 export { ProcurementViews } from '../../components/ProcurementViews';
-export { initialPurchaseOrders } from '../../data/initialData';
+export { DOCUMENT_LIVE_SUPPLIERS_CATALOG } from '../../data/liveSuppliersCatalog';
+export { supplierService } from '../../services/procurement/supplierService';
 export {
   INITIAL_PROCUREMENT_SUPPLIERS,
   INITIAL_PURCHASE_REQUISITIONS,

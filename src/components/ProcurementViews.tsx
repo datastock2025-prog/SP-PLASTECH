@@ -52,6 +52,8 @@ import { ProcurementSettingsView } from './procurement/ProcurementSettingsView';
 
 import { ItemMaster } from '../types';
 import { INITIAL_ITEMS } from '../data/initialData';
+import { supplierService } from '../services/procurement/supplierService';
+import { itemService } from '../services/itemService';
 
 interface Props {
   view?: string;
@@ -115,9 +117,15 @@ export const ProcurementViews: React.FC<Props> = ({
   const activeView = view || currentSubView || 'procurementDash';
   const activeParam = viewParams || selectedParam;
 
-  // Local state for full interactive procurement lifecycle
-  const [items, setItems] = useState<ItemMaster[]>(propItems || INITIAL_ITEMS);
-  const [suppliers, setSuppliers] = useState<SupplierMaster[]>(propSuppliers || INITIAL_PROCUREMENT_SUPPLIERS);
+  // Local state for full interactive procurement lifecycle with live service fallbacks
+  const [items, setItems] = useState<ItemMaster[]>(() => {
+    if (propItems && propItems.length > 0) return propItems;
+    return itemService.getItemsSync();
+  });
+  const [suppliers, setSuppliers] = useState<SupplierMaster[]>(() => {
+    if (propSuppliers && propSuppliers.length > 0) return propSuppliers;
+    return supplierService.getSuppliersSync();
+  });
   const [prs, setPrs] = useState<PurchaseRequisition[]>(propPrs || INITIAL_PURCHASE_REQUISITIONS);
   const [rfqs, setRfqs] = useState<RequestForQuotation[]>(propRfqs || INITIAL_PROCUREMENT_RFQS);
   const [pos, setPos] = useState<ExtendedPurchaseOrder[]>(propPos || INITIAL_EXTENDED_POS);
@@ -129,18 +137,21 @@ export const ProcurementViews: React.FC<Props> = ({
   const [mrpSuggestions] = useState<MrpPurchaseSuggestion[]>(propMrpSuggestions || INITIAL_MRP_SUGGESTIONS);
   const [risks] = useState<SupplierRiskItem[]>(INITIAL_SUPPLIER_RISKS);
 
-  // Updaters with optional prop delegators
+  // Updaters with live database & local storage synchronization
   const handleUpdateItem = (updated: ItemMaster) => {
+    itemService.saveItem(updated).catch(console.warn);
     setItems((prev) => prev.map((i) => (i.code === updated.code ? updated : i)));
     propOnUpdateItem?.(updated);
   };
 
   const handleUpdateSupplier = (updated: SupplierMaster) => {
+    supplierService.saveSupplier(updated).catch(console.warn);
     setSuppliers((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
     propOnUpdateSupplier?.(updated);
   };
 
   const handleCreateSupplier = (created: SupplierMaster) => {
+    supplierService.saveSupplier(created).catch(console.warn);
     setSuppliers((prev) => [created, ...prev]);
     propOnCreateSupplier?.(created);
   };
@@ -218,7 +229,7 @@ export const ProcurementViews: React.FC<Props> = ({
     case 'supplierView':
       return (
         <SupplierDetailView
-          supplierId={activeParam?.id || suppliers[0]?.id || 'SUP-001'}
+          supplierId={activeParam?.id || suppliers[0]?.id || 'SUP-S0128'}
           suppliers={suppliers}
           pos={pos}
           grns={grns}

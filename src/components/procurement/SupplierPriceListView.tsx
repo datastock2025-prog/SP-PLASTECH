@@ -35,7 +35,7 @@ import { SupplierPriceListEntry, SupplierMaster } from '../../types/procurement'
 import { ItemMaster } from '../../types';
 import { ProcurementStatusBadge } from './ProcurementStatusBadge';
 import { INITIAL_SUPPLIER_PRICE_LISTS } from '../../data/procurementData';
-import { INITIAL_ITEMS } from '../../data/initialData';
+import { itemService } from '../../services/itemService';
 
 interface Props {
   priceLists?: SupplierPriceListEntry[];
@@ -89,7 +89,7 @@ export const SupplierPriceListView: React.FC<Props> = ({
   const [isItemCodeFocused, setIsItemCodeFocused] = useState(false);
   const [isItemNameFocused, setIsItemNameFocused] = useState(false);
 
-  const activeItemsList = items && items.length > 0 ? items : INITIAL_ITEMS;
+  const activeItemsList = items && items.length > 0 ? items : itemService.getItemsSync();
 
   // Sync prop changes
   React.useEffect(() => {

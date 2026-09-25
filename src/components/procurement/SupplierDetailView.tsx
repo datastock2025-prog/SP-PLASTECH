@@ -64,7 +64,7 @@ export const SupplierDetailView: React.FC<Props> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<number>(0);
 
-  const supplier = suppliers.find((s) => s.id === supplierId) || suppliers[0];
+  const supplier = suppliers.find((s) => s.id === supplierId || s.code === supplierId) || suppliers[0];
 
   if (!supplier) {
     return (

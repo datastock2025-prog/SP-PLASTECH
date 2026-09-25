@@ -506,17 +506,18 @@ export const INITIAL_STOCK_TXNS: StockTransaction[] = [
 ];
 
 export const INITIAL_SUPPLIERS: Supplier[] = [
-  { code: 'SUP-001', name: 'Reliance Polymers', category: 'Raw Material', rating: 4.6, leadTime: '7 days', contact: 'Anil Mehta', email: 'anil.mehta@relpoly.example', phone: '+91 98200 11223', status: 'active' },
-  { code: 'SUP-002', name: 'GAIL Polymers', category: 'Raw Material', rating: 4.2, leadTime: '10 days', contact: 'Sunita Rao', email: 'sunita.rao@gailpoly.example', phone: '+91 98330 44556', status: 'active' },
-  { code: 'SUP-003', name: 'Borealis India', category: 'Masterbatch & Additives', rating: 4.8, leadTime: '12 days', contact: 'Vivek Shah', email: 'vivek.shah@borealis.example', phone: '+91 98450 77889', status: 'active' },
-  { code: 'SUP-004', name: 'Haldia Petrochemicals', category: 'Raw Material', rating: 3.9, leadTime: '14 days', contact: 'Rina Das', email: 'rina.das@haldia.example', phone: '+91 98110 22334', status: 'active' },
-  { code: 'SUP-005', name: 'Precision Tooling Works', category: 'Spare Parts & Tooling', rating: 4.4, leadTime: '5 days', contact: 'Manoj Iyer', email: 'manoj@precisiontools.example', phone: '+91 98220 99001', status: 'inactive' },
+  { code: 'S0128', name: 'RELIANCE INDUSTRIES LIMITED BANGALORE', category: 'Raw Material', rating: 4.8, leadTime: '7 days', contact: 'Commercial Sales Desk', email: 'sales.blr@ril.example', phone: '+91 80 2222 0000', status: 'active' },
+  { code: 'S0068', name: 'INDIAN OIL CORPORATION LIMITED', category: 'Raw Material', rating: 4.6, leadTime: '7 days', contact: 'Mr. Manoharan', email: 'mano@blissgroup.com', phone: '9280237165', status: 'active' },
+  { code: 'S0009', name: 'APPL INDUSTRIES LIMITED HSR', category: 'Raw Material', rating: 4.7, leadTime: '5 days', contact: 'Mr. Praveen', email: 'sbd.bangalore@applindustries.com', phone: '9677194010', status: 'active' },
+  { code: 'S0017', name: 'BHANSALI ENGINEERING POLYMERS LIMITED', category: 'Raw Material', rating: 4.8, leadTime: '7 days', contact: 'Mr. Sirraj', email: 'syedsirajudeen@bhansaliabs.com', phone: '9986599155', status: 'active' },
+  { code: 'S0010', name: 'AR INDUSTRIES', category: 'Packaging Materials', rating: 4.5, leadTime: '4 days', contact: 'Sales Desk Hosur', email: 'sales@arindustries.example', phone: '+91 4344 220000', status: 'active' },
+  { code: 'C0003', name: 'EXIDE INDUSTRIAL LIMITED (WEST BENGAL)', category: 'Raw Material', rating: 4.6, leadTime: '6 days', contact: 'Shuvadeep B', email: 'ShuvadeepB@exide.co.in', phone: '9800013756', status: 'active' },
 ];
 
 export const INITIAL_PURCHASE_ORDERS: PurchaseOrder[] = [
   {
     id: 'PO-3390',
-    supplier: 'SUP-001',
+    supplier: 'S0128',
     orderDate: '14 Aug 2026',
     expectedDate: '21 Aug 2026',
     approval: 'approved',
@@ -526,7 +527,7 @@ export const INITIAL_PURCHASE_ORDERS: PurchaseOrder[] = [
   },
   {
     id: 'PO-3391',
-    supplier: 'SUP-002',
+    supplier: 'S0068',
     orderDate: '18 Aug 2026',
     expectedDate: '28 Aug 2026',
     approval: 'pending',
