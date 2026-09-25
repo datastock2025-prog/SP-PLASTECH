@@ -12,12 +12,15 @@ import {
   Building2,
   CalendarCheck,
   Fingerprint,
+  Lock,
+  ShieldCheck,
 } from 'lucide-react';
-import { MachineMaster, ItemMaster, BomMaster } from '../../../types';
+import { MachineMaster, ItemMaster, BomMaster, AuthUser } from '../../../types';
 import { MoldMaster } from '../../../data/manufacturingData';
 import { PlannedMachineJob, JitShift, StoreInventoryNode } from './jitTypes';
 import { JitItemAutocomplete } from './JitItemAutocomplete';
 import { JitOperatorAutocomplete } from './JitOperatorAutocomplete';
+import { useAuthContext } from '../../../shared/components/RequireAuth';
 import {
   calculatePcsFromHours,
   calculateHoursFromPcs,
@@ -50,6 +53,7 @@ interface Props {
   boms: BomMaster[];
   stores: StoreInventoryNode[];
   selectedPlant?: string;
+  currentUser?: AuthUser | null;
   onChangePlant?: (plant: string) => void;
   onAddJob: (job: PlannedMachineJob) => void;
   onOpenRecipeModal: (job: PlannedMachineJob) => void;
@@ -63,37 +67,54 @@ export const JitCommonComposer: React.FC<Props> = ({
   molds,
   boms,
   selectedPlant: controlledPlant,
+  currentUser: propUser,
   onChangePlant,
   onAddJob,
   onOpenRecipeModal,
 }) => {
-  // Plant selection state
-  const [internalPlant, setInternalPlant] = useState<string>('PLANT-01');
+  const authContext = useAuthContext();
+  const effectiveUser = propUser || authContext.currentUser;
+  const userAssignedPlant = effectiveUser?.plantId || localStorage.getItem('sp_active_plant') || 'PLANT-01';
+
+  // Task 1: Check admin permission based on user ID / role / roleType / permissions
+  const isAdmin = Boolean(
+    effectiveUser?.role?.toLowerCase().includes('admin') ||
+    effectiveUser?.roleType?.toLowerCase().includes('admin') ||
+    effectiveUser?.id?.toLowerCase().includes('admin') ||
+    effectiveUser?.permissions?.includes('all') ||
+    effectiveUser?.permissions?.includes('admin') ||
+    effectiveUser?.permissions?.includes('change_plant') ||
+    effectiveUser?.permissions?.includes('plant_override')
+  );
+
+  // Plant selection state: defaults to login plant
+  const [internalPlant, setInternalPlant] = useState<string>(userAssignedPlant);
   const activePlant = controlledPlant || internalPlant;
   const handleSelectPlant = (newPlant: string) => {
+    if (!isAdmin) return; // Only admin can change plant
     setInternalPlant(newPlant);
     if (onChangePlant) onChangePlant(newPlant);
   };
 
-  // Active selection states inside composer
-  const [selectedMachineId, setSelectedMachineId] = useState<string>(machines[0]?.id || 'IMM-250T-03');
-  const [selectedItemCode, setSelectedItemCode] = useState<string>('FG-CTN-500');
-  const [selectedMoldId, setSelectedMoldId] = useState<string>('MLD-1001');
-  const [selectedBomId, setSelectedBomId] = useState<string>('BOM-1001');
-  const [cavities, setCavities] = useState<number>(4);
-  const [cycleTimeSec, setCycleTimeSec] = useState<number>(12.0);
+  // Task 1: Initially ALL form fields are empty!
+  const [selectedMachineId, setSelectedMachineId] = useState<string>('');
+  const [selectedItemCode, setSelectedItemCode] = useState<string>('');
+  const [selectedMoldId, setSelectedMoldId] = useState<string>('');
+  const [selectedBomId, setSelectedBomId] = useState<string>('');
+  const [cavities, setCavities] = useState<number>(0);
+  const [cycleTimeSec, setCycleTimeSec] = useState<number>(0);
   const [isCustomCavity, setIsCustomCavity] = useState<boolean>(false);
   const [isCustomCycleTime, setIsCustomCycleTime] = useState<boolean>(false);
   const [shift, setShift] = useState<JitShift>('Full Day 24H');
-  const [plannedHours, setPlannedHours] = useState<number>(16.0);
+  const [plannedHours, setPlannedHours] = useState<number>(0);
   const [efficiencyPct, setEfficiencyPct] = useState<number>(95);
   const [operator, setOperator] = useState<string>('');
   const [priority, setPriority] = useState<'High' | 'Normal' | 'Urgent'>('Normal');
   const [calcMode, setCalcMode] = useState<'hours_to_pcs' | 'pcs_to_hours'>('hours_to_pcs');
-  const [targetPcsInput, setTargetPcsInput] = useState<number>(18240);
+  const [targetPcsInput, setTargetPcsInput] = useState<number>(0);
 
-  // Editable Expected Finish Date & Time State (Task 1)
-  const autoFinish = calculateExpectedFinish(planDate, plannedHours, shift);
+  // Editable Expected Finish Date & Time State
+  const autoFinish = calculateExpectedFinish(planDate, plannedHours > 0 ? plannedHours : 8, shift);
   const [customFinishDate, setCustomFinishDate] = useState<string>('');
   const [customFinishTime, setCustomFinishTime] = useState<string>('');
   const [isCustomFinish, setIsCustomFinish] = useState<boolean>(false);
@@ -103,39 +124,45 @@ export const JitCommonComposer: React.FC<Props> = ({
 
   // Entities
   const selectedMachine = machines.find((m) => m.id === selectedMachineId);
-  const selectedItem = items.find((i) => i.code === selectedItemCode) || items[0];
+  const selectedItem = selectedItemCode ? items.find((i) => i.code === selectedItemCode) : undefined;
   
-  // Task 1: Compatible Approved/Released BOMs only for this part
-  const matchingBoms = boms.filter(
-    (b) => b.parent === selectedItemCode && (b.status === 'approved' || b.status === 'released')
-  );
-  const fallbackApprovedBom = boms.find(
-    (b) => b.parent === selectedItemCode && (b.status === 'approved' || b.status === 'released')
-  );
+  // Compatible Approved/Released BOMs only for selected item
+  const matchingBoms = selectedItemCode
+    ? boms.filter((b) => b.parent === selectedItemCode && (b.status === 'approved' || b.status === 'released'))
+    : [];
+  const fallbackApprovedBom = selectedItemCode
+    ? boms.find((b) => b.parent === selectedItemCode)
+    : undefined;
   const bom = matchingBoms.find((b) => b.id === selectedBomId) || matchingBoms[0] || fallbackApprovedBom;
 
-  // Task 2: Linked Formula ID
-  const activeFormulaId = getFormulaRecipeId(
-    selectedItemCode,
-    selectedItem?.name,
-    bom?.version || '2.1',
-    bom?.formulaCode || bom?.recipeCode
-  );
+  // Linked Formula ID
+  const activeFormulaId = selectedItemCode
+    ? getFormulaRecipeId(
+        selectedItemCode,
+        selectedItem?.name,
+        bom?.version || '2.1',
+        bom?.formulaCode || bom?.recipeCode
+      )
+    : '—';
 
   // Compatible molds
-  const compatibleMolds = molds.filter((m) =>
-    selectedItemCode ? m.compatibleProducts.includes(selectedItemCode) || m.id === selectedMoldId : true
-  );
+  const compatibleMolds = selectedItemCode
+    ? molds.filter((m) => m.compatibleProducts?.includes(selectedItemCode) || m.id === selectedMoldId)
+    : molds;
 
   // Calculate output PCS based on parameters
   const calculatedPcs =
-    calcMode === 'hours_to_pcs'
+    !selectedItemCode || cavities <= 0 || cycleTimeSec <= 0 || plannedHours <= 0
+      ? 0
+      : calcMode === 'hours_to_pcs'
       ? calculatePcsFromHours(plannedHours, cycleTimeSec, cavities, efficiencyPct)
       : targetPcsInput;
 
   // Hourly velocity rate
   const velocityPcsHr =
-    cycleTimeSec > 0 ? Math.round((3600 / cycleTimeSec) * cavities * (efficiencyPct / 100)) : 0;
+    selectedItemCode && cycleTimeSec > 0 && cavities > 0
+      ? Math.round((3600 / cycleTimeSec) * cavities * (efficiencyPct / 100))
+      : 0;
 
   // Day load percentage (assuming 24h day)
   const dayLoadPct = Math.min(100, Math.round((plannedHours / 24) * 100));
@@ -146,43 +173,67 @@ export const JitCommonComposer: React.FC<Props> = ({
   let estMbKg = 0;
   let estPckNos = 0;
 
-  if (lines.length > 0) {
-    for (const line of lines) {
-      const matItem = items.find((i) => i.code === line.item);
-      const cat = categorizeBomLine(line, matItem, activePlant).cat;
-      const totalReq = (line.qty || 0) * (1 + (line.scrap || 0) / 100) * calculatedPcs;
+  if (selectedItemCode && calculatedPcs > 0) {
+    if (lines.length > 0) {
+      for (const line of lines) {
+        const matItem = items.find((i) => i.code === line.item);
+        const cat = categorizeBomLine(line, matItem, activePlant).cat;
+        const totalReq = (line.qty || 0) * (1 + (line.scrap || 0) / 100) * calculatedPcs;
 
-      if (cat === 'RM') estRmKg += totalReq;
-      else if (cat === 'MB') estMbKg += totalReq;
-      else if (cat === 'PCK') estPckNos += totalReq;
+        if (cat === 'RM') estRmKg += totalReq;
+        else if (cat === 'MB') estMbKg += totalReq;
+        else if (cat === 'PCK') estPckNos += totalReq;
+      }
+    } else {
+      estRmKg = Number((calculatedPcs * 0.05).toFixed(3));
+      estMbKg = Number((calculatedPcs * 0.0012).toFixed(3));
+      estPckNos = Number((calculatedPcs / 200).toFixed(3));
     }
-  } else {
-    // Standard realistic synthetic estimate for plastics
-    estRmKg = Number((calculatedPcs * 0.05).toFixed(3));
-    estMbKg = Number((calculatedPcs * 0.0012).toFixed(3));
-    estPckNos = Number((calculatedPcs / 200).toFixed(3));
   }
 
-  // Handle Item Select from Autocomplete
+  // Task 1: Handle Item Select from Autocomplete - Autofills BOM, Mold, Machine & Runtime
   const handleItemSelect = (newItem: ItemMaster, suggestedMold?: MoldMaster) => {
     setSelectedItemCode(newItem.code);
-    const matchedBoms = boms.filter((b) => b.parent === newItem.code);
-    if (matchedBoms.length > 0) {
-      setSelectedBomId(matchedBoms[0].id);
+
+    // Auto-match approved BOM
+    const matchedBoms = boms.filter((b) => b.parent === newItem.code && (b.status === 'approved' || b.status === 'released'));
+    const defaultBom = matchedBoms[0] || boms.find((b) => b.parent === newItem.code);
+    if (defaultBom) {
+      setSelectedBomId(defaultBom.id);
+    } else {
+      setSelectedBomId('BOM-1001');
     }
 
+    // Auto-match compatible mold
     const matchedMold =
       suggestedMold ||
-      molds.find((m) => m.compatibleProducts.includes(newItem.code)) ||
+      molds.find((m) => m.compatibleProducts?.includes(newItem.code)) ||
+      molds.find((m) => m.name.toLowerCase().includes(newItem.name.toLowerCase().split(' ')[0])) ||
       molds[0];
 
     if (matchedMold) {
       setSelectedMoldId(matchedMold.id);
-      setCavities(matchedMold.cavities || 2);
+      setCavities(matchedMold.cavities || 4);
       setIsCustomCavity(false);
-      const ct = newItem.standardCycleTime || matchedMold.averageCycleTimeSec || 14.0;
+      const ct = newItem.standardCycleTime || matchedMold.averageCycleTimeSec || 12.0;
       setCycleTimeSec(ct);
       setIsCustomCycleTime(false);
+    }
+
+    // Auto-match suitable machine if not yet selected
+    if (!selectedMachineId) {
+      const suitableMachine = machines.find((m) =>
+        (matchedMold?.tonnage ? (m.tonnage || 0) >= matchedMold.tonnage : true) &&
+        m.status === 'running'
+      ) || machines.find((m) => m.status === 'running') || machines[0];
+      if (suitableMachine) {
+        setSelectedMachineId(suitableMachine.id);
+      }
+    }
+
+    // Default planned runtime if currently 0
+    if (plannedHours === 0) {
+      setPlannedHours(shift === 'Full Day 24H' ? 16.0 : 8.0);
     }
   };
 
@@ -221,7 +272,7 @@ export const JitCommonComposer: React.FC<Props> = ({
     planDate: planDate,
     plant: activePlant,
     plantName: selectedPlantObj.name,
-    machineId: selectedMachineId,
+    machineId: selectedMachineId || (machines[0]?.id || 'IMM-250T-03'),
     itemCode: selectedItemCode,
     itemName: selectedItem?.name || 'Selected Part',
     moldId: selectedMoldId,
@@ -255,11 +306,18 @@ export const JitCommonComposer: React.FC<Props> = ({
       : undefined,
   };
 
+  const canSubmit = Boolean(
+    selectedItemCode &&
+    selectedMachineId &&
+    calculatedPcs > 0 &&
+    plannedHours > 0 &&
+    cavities > 0 &&
+    cycleTimeSec > 0
+  );
+
   // Submit Handler
   const handleSubmitAdd = () => {
-    if (!selectedItemCode) return;
-    if (calculatedPcs <= 0 || plannedHours <= 0) return;
-
+    if (!canSubmit) return;
     onAddJob(currentJobObject);
 
     // Pick next machine sequentially if available
@@ -270,7 +328,7 @@ export const JitCommonComposer: React.FC<Props> = ({
   };
 
   // Stock status check
-  const availableFgStock = selectedItem ? parseStockNumber(selectedItem.avail || selectedItem.stock) : 18400;
+  const availableFgStock = selectedItem ? parseStockNumber(selectedItem.avail || selectedItem.stock) : 0;
   const isShortage = calculatedPcs > 0 && estRmKg > 8000;
 
   return (
@@ -292,6 +350,7 @@ export const JitCommonComposer: React.FC<Props> = ({
             onChange={(e) => setSelectedMachineId(e.target.value)}
             className="font-bold text-slate-900 bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none shadow-2xs"
           >
+            <option value="">-- Select Injection Machine --</option>
             {machines.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.id} — {m.name} ({m.tonnage || 'Standard'})
@@ -318,21 +377,33 @@ export const JitCommonComposer: React.FC<Props> = ({
             </div>
           )}
 
-          {/* Plant Selector */}
+          {/* Plant Selector: Defaults to login user's plant, Admin gets privilege to change */}
           <div className="flex items-center gap-1 ml-1 sm:ml-2">
             <Building2 className="w-3.5 h-3.5 text-indigo-600" />
             <span className="text-[11px] font-semibold text-slate-600 hidden sm:inline">Plant:</span>
-            <select
-              value={activePlant}
-              onChange={(e) => handleSelectPlant(e.target.value)}
-              className="bg-white border border-indigo-200 text-slate-800 font-bold rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            >
-              {JIT_PLANT_OPTIONS.map((p) => (
-                <option key={p.code} value={p.code}>
-                  {p.code} &mdash; {p.unit} ({p.location.split(',')[0]})
-                </option>
-              ))}
-            </select>
+            {isAdmin ? (
+              <select
+                value={activePlant}
+                onChange={(e) => handleSelectPlant(e.target.value)}
+                className="bg-white border border-indigo-200 text-slate-800 font-bold rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                title="Admin access: Click to change target manufacturing plant"
+              >
+                {JIT_PLANT_OPTIONS.map((p) => (
+                  <option key={p.code} value={p.code}>
+                    {p.code} &mdash; {p.unit} ({p.location.split(',')[0]})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 border border-slate-300 rounded-md text-slate-700 font-bold text-xs"
+                title={`Assigned to ${selectedPlantObj.name}. Admin access required to switch plants.`}
+              >
+                <Lock className="w-3 h-3 text-slate-400" />
+                <span>{selectedPlantObj.code} &mdash; {selectedPlantObj.unit}</span>
+                <span className="text-[9px] bg-slate-200 text-slate-600 px-1 rounded font-normal">Assigned</span>
+              </div>
+            )}
           </div>
 
           {/* Plan Date Picker */}
@@ -350,7 +421,11 @@ export const JitCommonComposer: React.FC<Props> = ({
 
         {/* Right: Feasibility + Recipe & Stores + ADD button */}
         <div className="flex items-center gap-2">
-          {isShortage ? (
+          {!selectedItemCode ? (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+              <span>Select item to check stock</span>
+            </span>
+          ) : isShortage ? (
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
               <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
               <span>Shortage Alert</span>
@@ -364,9 +439,10 @@ export const JitCommonComposer: React.FC<Props> = ({
 
           <button
             type="button"
-            onClick={() => onOpenRecipeModal(currentJobObject)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-            title="Inspect BOM recipe explosion & connected plant stores"
+            onClick={() => selectedItemCode && onOpenRecipeModal(currentJobObject)}
+            disabled={!selectedItemCode}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+            title={selectedItemCode ? "Inspect BOM recipe explosion & connected plant stores" : "Select an item first to inspect recipe"}
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
             <span>Recipe &amp; Stores</span>
@@ -376,8 +452,9 @@ export const JitCommonComposer: React.FC<Props> = ({
           <button
             type="button"
             onClick={handleSubmitAdd}
-            className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold rounded-lg shadow-sm transition-all hover:scale-[1.02] text-xs cursor-pointer"
-            title="Submit and add this machine job to the schedule grid below"
+            disabled={!canSubmit}
+            className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold rounded-lg shadow-sm transition-all hover:scale-[1.02] text-xs cursor-pointer"
+            title={canSubmit ? "Submit and add this machine job to the schedule grid below" : "Please select Item, Machine and runtime hours before adding"}
           >
             <Plus className="w-4 h-4 stroke-[3]" />
             <span>+ ADD</span>
@@ -406,39 +483,39 @@ export const JitCommonComposer: React.FC<Props> = ({
           <div className="bg-slate-50/70 border border-slate-200/90 rounded-xl p-3 text-xs space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-slate-500">Category:</span>
-              <span className="font-bold text-slate-800">{selectedItem?.cat || 'Containers'}</span>
+              <span className="font-bold text-slate-800">{selectedItem?.cat || '—'}</span>
             </div>
 
             <div className="flex items-center justify-between">
               <span className="text-slate-500">Available FG Stock:</span>
               <span className="font-black text-emerald-600 font-mono">
-                {availableFgStock.toLocaleString()} PCS
+                {selectedItem ? `${availableFgStock.toLocaleString()} PCS` : '—'}
               </span>
             </div>
 
             {/* Task 1: Linked BOM Switch Option */}
             <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/60">
               <span className="text-slate-500 font-medium">Linked BOM:</span>
-              <select
-                value={selectedBomId}
-                onChange={(e) => setSelectedBomId(e.target.value)}
-                className="bg-white border border-indigo-200 text-indigo-800 font-mono font-bold rounded px-2 py-0.5 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                title="Switch linked Bill of Materials (BOM) revision or alternate recipe"
-              >
-                {matchingBoms.length > 0 ? (
-                  matchingBoms.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.id} ({b.version || 'v2.1'}) &mdash; {b.name || 'Active BOM'}
-                    </option>
-                  ))
-                ) : (
-                  <>
+              {selectedItem ? (
+                <select
+                  value={selectedBomId}
+                  onChange={(e) => setSelectedBomId(e.target.value)}
+                  className="bg-white border border-indigo-200 text-indigo-800 font-mono font-bold rounded px-2 py-0.5 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                  title="Switch linked Bill of Materials (BOM) revision or alternate recipe"
+                >
+                  {matchingBoms.length > 0 ? (
+                    matchingBoms.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.id} ({b.version || 'v2.1'}) &mdash; {b.name || 'Active BOM'}
+                      </option>
+                    ))
+                  ) : (
                     <option value="BOM-1001">BOM-1001 (v2.1) &mdash; Standard Injection</option>
-                    <option value="BOM-1001-ALT">BOM-1001-ALT (v1.0) &mdash; High Recycled Blend</option>
-                    <option value="BOM-STD">BOM-STD &mdash; Dynamic Formulation</option>
-                  </>
-                )}
-              </select>
+                  )}
+                </select>
+              ) : (
+                <span className="text-slate-400 font-mono text-[11px]">Select item first</span>
+              )}
             </div>
 
             {/* Task 2: Linked Formula ID */}
@@ -447,13 +524,17 @@ export const JitCommonComposer: React.FC<Props> = ({
                 <Fingerprint className="w-3.5 h-3.5 text-cyan-600" />
                 <span>Formula ID:</span>
               </span>
-              <span
-                className="px-2 py-0.5 rounded font-mono font-black text-[11px] bg-cyan-50 text-cyan-800 border border-cyan-300 shadow-2xs flex items-center gap-1"
-                title="Unique Recipe Formula Identification Number linked to active BOM Version"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
-                {activeFormulaId}
-              </span>
+              {selectedItemCode ? (
+                <span
+                  className="px-2 py-0.5 rounded font-mono font-black text-[11px] bg-cyan-50 text-cyan-800 border border-cyan-300 shadow-2xs flex items-center gap-1"
+                  title="Unique Recipe Formula Identification Number linked to active BOM Version"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
+                  {activeFormulaId}
+                </span>
+              ) : (
+                <span className="text-slate-400 font-mono text-[11px]">—</span>
+              )}
             </div>
 
             <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
@@ -483,17 +564,12 @@ export const JitCommonComposer: React.FC<Props> = ({
             onChange={(e) => handleMoldChange(e.target.value)}
             className="w-full font-medium text-slate-800 bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none truncate"
           >
-            {compatibleMolds.length > 0
-              ? compatibleMolds.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.id} — {m.name} ({m.cavities} Cav)
-                  </option>
-                ))
-              : molds.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.id} — {m.name} ({m.cavities} Cav)
-                  </option>
-                ))}
+            <option value="">-- Select or Auto-matched Mold --</option>
+            {compatibleMolds.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.id} — {m.name} ({m.cavities} Cav)
+              </option>
+            ))}
           </select>
 
           {/* Two inputs: Cavities (Nos) and Cycle Time (sec) */}
@@ -511,8 +587,9 @@ export const JitCommonComposer: React.FC<Props> = ({
                   type="number"
                   min="1"
                   max="64"
-                  value={cavities}
-                  onChange={(e) => handleCavityChange(Math.max(1, parseInt(e.target.value) || 1))}
+                  placeholder="0"
+                  value={cavities > 0 ? cavities : ''}
+                  onChange={(e) => handleCavityChange(Math.max(1, parseInt(e.target.value) || 0))}
                   className="w-full pl-8 pr-2 py-1.5 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                 />
               </div>
@@ -531,8 +608,9 @@ export const JitCommonComposer: React.FC<Props> = ({
                   type="number"
                   min="1"
                   step="0.5"
-                  value={cycleTimeSec}
-                  onChange={(e) => handleCycleTimeChange(Math.max(1, parseFloat(e.target.value) || 1))}
+                  placeholder="0"
+                  value={cycleTimeSec > 0 ? cycleTimeSec : ''}
+                  onChange={(e) => handleCycleTimeChange(Math.max(1, parseFloat(e.target.value) || 0))}
                   className="w-full pl-8 pr-2 py-1.5 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                 />
               </div>
@@ -604,11 +682,12 @@ export const JitCommonComposer: React.FC<Props> = ({
             <div className="relative flex items-center">
               <input
                 type="number"
-                min="0.5"
+                min="0"
                 max="24"
                 step="0.5"
-                value={plannedHours}
-                onChange={(e) => setPlannedHours(Math.min(24, Math.max(0.5, parseFloat(e.target.value) || 0.5)))}
+                placeholder="0"
+                value={plannedHours > 0 ? plannedHours : ''}
+                onChange={(e) => setPlannedHours(Math.min(24, Math.max(0, parseFloat(e.target.value) || 0)))}
                 className="w-full px-3 py-1.5 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none pr-9"
               />
               <span className="absolute right-3 text-xs font-semibold text-slate-400 pointer-events-none">hrs</span>
@@ -628,7 +707,7 @@ export const JitCommonComposer: React.FC<Props> = ({
             </span>
           </div>
 
-          {/* Expected Finish Date & Time Editable Controls (Task 1) */}
+          {/* Expected Finish Date & Time Editable Controls */}
           <div className="bg-indigo-50/70 border border-indigo-100 rounded-xl p-2.5 text-[10px] text-indigo-900 space-y-1.5">
             <div className="font-bold flex items-center justify-between text-[11px]">
               <span className="flex items-center gap-1">
@@ -689,7 +768,9 @@ export const JitCommonComposer: React.FC<Props> = ({
               {calculatedPcs.toLocaleString()} <span className="text-xs font-bold text-slate-500">PCS</span>
             </div>
             <span className="text-[10px] text-slate-500 block">
-              Based on {plannedHours}h × {cavities} Cav × {cycleTimeSec}s
+              {selectedItemCode && cavities > 0 && cycleTimeSec > 0 && plannedHours > 0
+                ? `Based on ${plannedHours}h × ${cavities} Cav × ${cycleTimeSec}s`
+                : 'Configure item and machine parameters'}
             </span>
           </div>
 
@@ -721,7 +802,9 @@ export const JitCommonComposer: React.FC<Props> = ({
           <button
             type="button"
             onClick={handleSubmitAdd}
-            className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 text-xs hover:shadow cursor-pointer"
+            disabled={!canSubmit}
+            className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold rounded-lg shadow-sm transition-all flex items-center justify-center gap-2 text-xs hover:shadow cursor-pointer"
+            title={canSubmit ? "Add configured machine job to production schedule" : "Please select Item, Machine and runtime hours to add"}
           >
             <Plus className="w-4 h-4 stroke-[3]" />
             <span>ADD TO PRODUCTION SCHEDULE</span>

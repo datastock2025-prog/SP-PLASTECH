@@ -1080,6 +1080,7 @@ export const App: React.FC = () => {
               machines={machines}
               boms={boms}
               stockTxns={initialStockTransactions}
+              currentUser={currentUser}
               selectedId={viewParams.id}
               onNavigate={handleNavigate}
               onUpdateWO={(updated) => {

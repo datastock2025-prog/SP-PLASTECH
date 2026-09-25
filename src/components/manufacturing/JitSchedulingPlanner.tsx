@@ -25,7 +25,9 @@ import {
   MachineMaster,
   ItemMaster,
   BomMaster,
+  AuthUser,
 } from '../../types';
+import { useAuthContext } from '../../shared/components/RequireAuth';
 import { MoldMaster } from '../../data/manufacturingData';
 import {
   PlannedMachineJob,
@@ -51,6 +53,7 @@ import { JitSingleScheduleGrid } from './jit/JitSingleScheduleGrid';
 import { JitConsolidatedScheduleWorkOrders } from './jit/JitConsolidatedScheduleWorkOrders';
 import { JitRecipeModal } from './jit/JitRecipeModal';
 import { JitStoreInventoryModal } from './jit/JitStoreInventoryModal';
+import { JitStoreFeasibilityView } from './jit/JitStoreFeasibilityView';
 
 interface Props {
   workOrders: WorkOrder[];
@@ -58,6 +61,7 @@ interface Props {
   items: ItemMaster[];
   molds?: MoldMaster[];
   boms?: BomMaster[];
+  currentUser?: AuthUser | null;
   onNavigate: (view: string, params?: any) => void;
   onUpdateWO: (wo: WorkOrder) => void;
   onCreateWO: (wo: WorkOrder) => void;
@@ -73,12 +77,16 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
   items,
   molds = [],
   boms = [],
+  currentUser: propUser,
   onNavigate,
   onUpdateWO,
   onCreateWO,
   openConfirm,
   showToast,
 }) => {
+  const authContext = useAuthContext();
+  const effectiveUser = propUser || authContext.currentUser;
+
   // Top 3-dot menu state (Task 2)
   const [isTopMenuOpen, setIsTopMenuOpen] = useState(false);
 
@@ -99,9 +107,10 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
     return d.toISOString().split('T')[0];
   }, []);
 
-  // State: Target Production Plan Date
+  // State: Target Production Plan Date & Plant
   const [planDate, setPlanDate] = useState<string>(tomorrowStr);
-  const [plannerPlant, setPlannerPlant] = useState<string>('PLANT-01');
+  const defaultPlant = effectiveUser?.plantId || localStorage.getItem('sp_active_plant') || 'PLANT-01';
+  const [plannerPlant, setPlannerPlant] = useState<string>(defaultPlant);
   const [activeTab, setActiveTab] = useState<'schedule' | 'feasibility' | 'summary'>('schedule');
 
   // Stores state (default connected + custom future stores)
@@ -110,142 +119,8 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
   // Modal states
   const [inspectedJob, setInspectedJob] = useState<PlannedMachineJob | null>(null);
 
-  // Initial planned jobs under tomorrow's date (Task 1: Operator default ideal empty)
-  const [jobs, setJobs] = useState<PlannedMachineJob[]>([
-    {
-      id: 'job-imm-01',
-      planDate: tomorrowStr,
-      plant: 'PLANT-01',
-      plantName: 'Plant 01: Injection Molding Unit',
-      machineId: machines[0]?.id || 'IMM-180T-01',
-      itemCode: 'FG-CTN-500',
-      itemName: 'Plastic Container 500ml',
-      moldId: 'MLD-1001',
-      moldName: '500ml Round Container 4-Cavity Tool',
-      cavities: 4,
-      cycleTimeSec: 12.0,
-      plannedHours: 16.0,
-      calculatedPcs: 18240,
-      targetPcs: 18240,
-      calculationMode: 'hours_to_pcs',
-      shift: 'Full Day 24H',
-      efficiencyPct: 95,
-      operator: '',
-      priority: 'High',
-      status: 'Draft',
-    },
-    {
-      id: 'job-imm-02',
-      planDate: tomorrowStr,
-      plant: 'PLANT-01',
-      plantName: 'Plant 01: Injection Molding Unit',
-      machineId: machines[1]?.id || 'IMM-250T-03',
-      itemCode: 'FG-BKT-010',
-      itemName: 'Household Bucket 10L',
-      moldId: 'MLD-1003',
-      moldName: 'Household 10L Bucket & Handle 2-Cavity',
-      cavities: 2,
-      cycleTimeSec: 18.0,
-      plannedHours: 16.0,
-      calculatedPcs: 6080,
-      targetPcs: 6080,
-      calculationMode: 'hours_to_pcs',
-      shift: 'Shift A (06:00 - 14:00)',
-      efficiencyPct: 95,
-      operator: '',
-      priority: 'Normal',
-      status: 'Draft',
-    },
-    {
-      id: 'job-imm-03',
-      planDate: tomorrowStr,
-      plant: 'PLANT-01',
-      plantName: 'Plant 01: Injection Molding Unit',
-      machineId: machines[2]?.id || 'IMM-350T-02',
-      itemCode: 'FG-PAL-010',
-      itemName: 'Plastic Pallet Heavy Duty',
-      moldId: 'MLD-1002',
-      moldName: 'Industrial Heavy Pallet 1-Cavity Mold',
-      cavities: 1,
-      cycleTimeSec: 45.0,
-      plannedHours: 8.0,
-      calculatedPcs: 608,
-      targetPcs: 608,
-      calculationMode: 'hours_to_pcs',
-      shift: 'Shift B (14:00 - 22:00)',
-      efficiencyPct: 95,
-      operator: '',
-      priority: 'High',
-      status: 'Draft',
-    },
-    {
-      id: 'job-imm-04',
-      planDate: dayAfterTomorrowStr,
-      plant: 'PLANT-01',
-      plantName: 'Plant 01: Injection Molding Unit',
-      machineId: machines[0]?.id || 'IMM-180T-01',
-      itemCode: 'FG-CTN-500',
-      itemName: 'Plastic Container 500ml',
-      moldId: 'MLD-1001',
-      moldName: '500ml Round Container 4-Cavity Tool',
-      cavities: 4,
-      cycleTimeSec: 12.0,
-      plannedHours: 16.0,
-      calculatedPcs: 18240,
-      targetPcs: 18240,
-      calculationMode: 'hours_to_pcs',
-      shift: 'Full Day 24H',
-      efficiencyPct: 95,
-      operator: '',
-      priority: 'Normal',
-      status: 'Draft',
-    },
-    {
-      id: 'job-imm-05',
-      planDate: dayAfterTomorrowStr,
-      plant: 'PLANT-01',
-      plantName: 'Plant 01: Injection Molding Unit',
-      machineId: machines[1]?.id || 'IMM-250T-03',
-      itemCode: 'FG-BKT-010',
-      itemName: 'Household Bucket 10L',
-      moldId: 'MLD-1003',
-      moldName: 'Household 10L Bucket & Handle 2-Cavity',
-      cavities: 2,
-      cycleTimeSec: 18.0,
-      plannedHours: 8.0,
-      calculatedPcs: 3040,
-      targetPcs: 3040,
-      calculationMode: 'hours_to_pcs',
-      shift: 'Shift A (06:00 - 14:00)',
-      efficiencyPct: 95,
-      operator: '',
-      priority: 'High',
-      status: 'Draft',
-    },
-    {
-      id: 'job-imm-06',
-      planDate: todayStr,
-      plant: 'PLANT-01',
-      plantName: 'Plant 01: Injection Molding Unit',
-      machineId: machines[1]?.id || 'IMM-250T-03',
-      itemCode: 'FG-CTN-500',
-      itemName: 'Plastic Container 500ml',
-      moldId: 'MLD-1001',
-      moldName: '500ml Round Container 4-Cavity Tool',
-      cavities: 4,
-      cycleTimeSec: 12.0,
-      plannedHours: 24.0,
-      calculatedPcs: 27360,
-      targetPcs: 27360,
-      calculationMode: 'hours_to_pcs',
-      shift: 'Full Day 24H',
-      efficiencyPct: 95,
-      operator: '',
-      priority: 'Urgent',
-      status: 'Released',
-      workOrderId: `WO-${todayStr.replace(/-/g, '')}-01`,
-    },
-  ]);
+  // Task 2: No dummy next-day schedule, schedules are created manually
+  const [jobs, setJobs] = useState<PlannedMachineJob[]>([]);
 
   // Filter jobs for currently selected dynamic plan date
   const currentPlanJobs = useMemo(() => {
@@ -880,6 +755,7 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
               onChangePlanDate={setPlanDate}
               selectedPlant={plannerPlant}
               onChangePlant={setPlannerPlant}
+              currentUser={effectiveUser}
               machines={machines}
               items={items}
               molds={molds}

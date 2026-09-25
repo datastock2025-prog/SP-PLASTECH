@@ -5,6 +5,7 @@ import {
   MachineMaster,
   BomMaster,
   StockTransaction,
+  AuthUser,
 } from '../types';
 import { INITIAL_MOLDS } from '../data/manufacturingData';
 
@@ -53,6 +54,7 @@ interface ManufacturingProps {
   machines: MachineMaster[];
   boms: BomMaster[];
   stockTxns: StockTransaction[];
+  currentUser?: AuthUser | null;
   selectedId?: string;
   onNavigate: (view: string, param?: any) => void;
   onUpdateWO: (wo: WorkOrder) => void;
@@ -72,6 +74,7 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
   machines,
   boms,
   stockTxns,
+  currentUser,
   selectedId,
   onNavigate,
   onUpdateWO,
@@ -322,6 +325,7 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
           items={items}
           boms={boms}
           molds={INITIAL_MOLDS}
+          currentUser={currentUser}
           onNavigate={onNavigate}
           onUpdateWO={onUpdateWO}
           onCreateWO={onCreateWO}
