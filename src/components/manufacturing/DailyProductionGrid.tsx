@@ -134,6 +134,7 @@ interface ProductionGridProps {
   items: ItemMaster[];
   molds: MoldMaster[];
   boms?: BomMaster[];
+  initialDate?: string;
   onNavigate: (view: string, param?: any) => void;
   onUpdateWO: (wo: WorkOrder) => void;
   onCreateWO: (wo: WorkOrder) => void;
@@ -149,6 +150,7 @@ export const DailyProductionGridInner: React.FC<ProductionGridProps> = ({
   items,
   molds,
   boms = [],
+  initialDate,
   onNavigate,
   onUpdateWO,
   onCreateWO,
@@ -166,7 +168,17 @@ export const DailyProductionGridInner: React.FC<ProductionGridProps> = ({
     return `${year}-${month}-${day}`;
   };
 
-  const [selectedDate, setSelectedDate] = useState<string>('2026-08-21');
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    if (initialDate && initialDate.trim() !== '') return initialDate;
+    return getTodayDateStr();
+  });
+
+  useEffect(() => {
+    if (initialDate && initialDate.trim() !== '') {
+      setSelectedDate(initialDate);
+    }
+  }, [initialDate]);
+
   const [selectedShift, setSelectedShift] = useState<string>('all');
   const [selectedMachineFilter, setSelectedMachineFilter] = useState<string>('all');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
@@ -269,6 +281,12 @@ export const DailyProductionGridInner: React.FC<ProductionGridProps> = ({
     const dates = Array.from(dateIndexMap.keys()).sort().reverse();
     return dates;
   }, [dateIndexMap]);
+
+  useEffect(() => {
+    if (availableDates.length > 0 && selectedDate && !availableDates.includes(selectedDate) && !initialDate) {
+      setSelectedDate(availableDates[0]);
+    }
+  }, [availableDates, initialDate]);
 
   // Fast Memoized Filtered Dataset (O(1) partitioned when date is selected)
   const filteredGridRows = useMemo(() => {

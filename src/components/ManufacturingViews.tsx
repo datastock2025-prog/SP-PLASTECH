@@ -49,6 +49,7 @@ import {
 
 interface ManufacturingProps {
   view: string;
+  viewParams?: any;
   workOrders: WorkOrder[];
   items: ItemMaster[];
   machines: MachineMaster[];
@@ -69,6 +70,7 @@ interface ManufacturingProps {
 
 export const ManufacturingViews: React.FC<ManufacturingProps> = ({
   view,
+  viewParams,
   workOrders,
   items,
   machines,
@@ -381,6 +383,7 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
           items={items}
           molds={INITIAL_MOLDS}
           boms={boms}
+          initialDate={viewParams?.date}
           onNavigate={onNavigate}
           onUpdateWO={onUpdateWO}
           onCreateWO={onCreateWO}

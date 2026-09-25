@@ -107,7 +107,19 @@ export const App: React.FC = () => {
   });
   const [boms, setBoms] = useState<BomMaster[]>(INITIAL_BOMS);
   const [machines, setMachines] = useState<MachineMaster[]>(initialMachines);
-  const [workOrders, setWorkOrders] = useState<WorkOrder[]>(initialWorkOrders);
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>(() => {
+    try {
+      const saved = localStorage.getItem('reboot_work_orders');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Filter out legacy dummy work orders
+          return parsed.filter((w) => !['WO-1188', 'WO-1189', 'WO-1190', 'WO-1191', 'WO-1192', 'WO-1193'].includes(w.id));
+        }
+      }
+    } catch {}
+    return [];
+  });
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(initialPurchaseOrders);
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>(initialSalesOrders);
   const [accounts, setAccounts] = useState<Account[]>(initialAccounts);
@@ -119,6 +131,13 @@ export const App: React.FC = () => {
   const [quotations, setQuotations] = useState<Quotation[]>(initialQuotations);
   const [rmas, setRmas] = useState<ReturnMerchandise[]>(INITIAL_RMAS);
 
+  // Sync workOrders with localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('reboot_work_orders', JSON.stringify(workOrders));
+    } catch {}
+  }, [workOrders]);
+
   // Sync Item Master & Core Entities with Live Database Store
   useEffect(() => {
     itemService.getItems().then((fetched) => {
@@ -126,7 +145,10 @@ export const App: React.FC = () => {
     });
 
     liveDataStore.getWorkOrders().then((woList) => {
-      if (woList && woList.length > 0) setWorkOrders(woList);
+      if (woList && woList.length > 0) {
+        const cleanList = woList.filter((w) => !['WO-1188', 'WO-1189', 'WO-1190', 'WO-1191', 'WO-1192', 'WO-1193'].includes(w.id));
+        if (cleanList.length > 0) setWorkOrders(cleanList);
+      }
     });
 
     liveDataStore.getPurchaseOrders().then((poList) => {
@@ -1075,6 +1097,7 @@ export const App: React.FC = () => {
           {isManufacturing && (
             <ManufacturingViews
               view={currentView}
+              viewParams={viewParams}
               workOrders={workOrders}
               items={approvedItems}
               machines={machines}
@@ -1085,9 +1108,11 @@ export const App: React.FC = () => {
               onNavigate={handleNavigate}
               onUpdateWO={(updated) => {
                 setWorkOrders((prev) => prev.map((w) => (w.id === updated.id ? updated : w)));
+                liveDataStore.saveWorkOrder(updated).catch(console.warn);
               }}
               onCreateWO={(newWO) => {
                 setWorkOrders((prev) => (prev.some((w) => w.id === newWO.id) ? prev : [newWO, ...prev]));
+                liveDataStore.saveWorkOrder(newWO).catch(console.warn);
               }}
               onDeleteWO={(id) => {
                 setWorkOrders((prev) => prev.filter((w) => w.id !== id));

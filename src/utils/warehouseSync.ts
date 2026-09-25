@@ -2,6 +2,7 @@ import { InventoryStockItem, InventoryStockLot, StockMovementLedgerEntry } from 
 import { INITIAL_INVENTORY_STOCK, INITIAL_STOCK_MOVEMENT_LEDGER } from '../data/warehouseData';
 import { GrnPutawayTask } from '../types/grnTypes';
 import { WorkOrder, BomMaster, ItemMaster } from '../types';
+import { liveDataStore } from '../services/liveDataStore';
 
 const STOCK_STORAGE_KEY = 'reboot_warehouse_stock';
 const LEDGER_STORAGE_KEY = 'reboot_stock_movement_ledger';
@@ -11,7 +12,14 @@ export function getWarehouseStock(): InventoryStockItem[] {
     const stored = localStorage.getItem(STOCK_STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Filter out legacy static dummy items so live testing is 100% clean
+        const cleaned = parsed.filter(
+          (item) =>
+            !['ASM-BEZEL-SUBASSY-01', 'DFL-CAP-MOLDED-01', 'FG-AUTO-BEZEL-01', 'WIP-AUTO-HOUSING-01', 'WIP-SWITCH-BEZEL-02'].includes(item.sku)
+        );
+        return cleaned;
+      }
     }
   } catch (e) {
     console.warn('Failed to parse warehouse stock from storage', e);
@@ -24,7 +32,11 @@ export function getStockMovementLedger(): StockMovementLedgerEntry[] {
     const stored = localStorage.getItem(LEDGER_STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) {
+        // Filter out legacy mock ledger entries
+        const cleaned = parsed.filter((entry) => !entry.id.startsWith('LDG-2026-'));
+        return cleaned;
+      }
     }
   } catch (e) {
     console.warn('Failed to parse movement ledger from storage', e);
@@ -548,6 +560,21 @@ export function recordProductionShiftInventoryMovement(params: {
       })
     );
   }
+
+  // Persist to backend database asynchronously
+  liveDataStore.recordProductionEntry({
+    workOrderId: workOrder.id,
+    machineId: workOrder.machine || 'IMM-250T-03',
+    operatorId: operator,
+    goodQty: shiftGood,
+    scrapQty: shiftScrap,
+    downtimeMinutes: 0,
+    actualCycleTimeSec: Number(workOrder.cycleTimeStd) || 14.8,
+    cavities: 4,
+    shift: workOrder.shift || 'SHIFT-A',
+    lotNumber: `LOT-${workOrder.id}-${todayStr.replace(/-/g, '').slice(2)}`,
+    notes: `Production entry: +${shiftGood} Good PCS into store. Operator: ${operator}.`,
+  }).catch((err) => console.warn('Backend production logging notification:', err));
 
   return {
     updatedStock: currentStock,

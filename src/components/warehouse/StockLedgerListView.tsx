@@ -978,6 +978,15 @@ export const StockLedgerListView: React.FC<Props> = ({
                     </tr>
                   );
                 })}
+                {paginatedOverviewItems.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="py-12 text-center text-slate-400">
+                      <Package className="w-8 h-8 mx-auto mb-2 text-slate-300 opacity-60" />
+                      <div className="font-semibold text-slate-600 text-xs">No stock items in this store location</div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">Stock entries will populate automatically when production shift output is saved or GRN putaway is completed.</div>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -1195,6 +1204,15 @@ export const StockLedgerListView: React.FC<Props> = ({
                     </React.Fragment>
                   );
                 })}
+                {paginatedLedgerItems.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-slate-400">
+                      <FileText className="w-8 h-8 mx-auto mb-2 text-blue-300 opacity-60" />
+                      <div className="font-semibold text-slate-600 text-xs">No ledger movement transactions recorded yet</div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">Transactions log in real time on production shift saves, material issues, and receipts.</div>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -1293,6 +1311,15 @@ export const StockLedgerListView: React.FC<Props> = ({
                     </td>
                   </tr>
                 ))}
+                {paginatedInwardItems.length === 0 && (
+                  <tr>
+                    <td colSpan={9} className="py-12 text-center text-slate-400">
+                      <ArrowDownLeft className="w-8 h-8 mx-auto mb-2 text-teal-300 opacity-60" />
+                      <div className="font-semibold text-slate-600 text-xs">No inward origin transactions recorded yet</div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">Inward receipts from vendor GRNs and molding production outputs will appear here.</div>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -1395,6 +1422,15 @@ export const StockLedgerListView: React.FC<Props> = ({
                     </td>
                   </tr>
                 ))}
+                {paginatedOutwardItems.length === 0 && (
+                  <tr>
+                    <td colSpan={10} className="py-12 text-center text-slate-400">
+                      <ArrowUpRight className="w-8 h-8 mx-auto mb-2 text-orange-300 opacity-60" />
+                      <div className="font-semibold text-slate-600 text-xs">No outward purpose transactions recorded yet</div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">Outward issues for Work Orders, assembly lines, and customer dispatches will appear here.</div>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
