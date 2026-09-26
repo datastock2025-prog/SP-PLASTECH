@@ -24,8 +24,7 @@ import {
   MOCK_MAINTENANCE_METRICS,
   MOCK_DOCUMENT_TEMPLATES,
 } from './analyticsMockData';
-import { SupabaseDataService } from '../supabaseService';
-import { DOCUMENT_ITEM_MASTER_CATALOG } from '../../data/masterItemsCatalog';
+import { UniversalQueryEngine } from './universalQueryEngine';
 
 export class AnalyticsApi {
   private api: any;
@@ -164,7 +163,7 @@ export class AnalyticsApi {
     }
   }
 
-  // ========== 3. LIVE SUPABASE-CONNECTED AI CHAT SYSTEM ==========
+  // ========== 3. LIVE MULTI-MODULE CONNECTED AI CHAT ==========
   async createChatSession(sessionData: any = {}): Promise<ChatSessionItem> {
     try {
       const { data } = await this.api.post('/ai-gateway/sessions', sessionData);
@@ -182,8 +181,6 @@ export class AnalyticsApi {
   }
 
   async sendChatMessage(sessionId: string, message: string): Promise<{ reply: string; metadata?: any; messages: ChatMessageItem[] }> {
-    const qLower = message.toLowerCase().trim();
-
     // 1. Try Live AI Gateway backend first
     try {
       const { data } = await this.api.post('/ai-gateway/query', { prompt: message });
@@ -198,117 +195,20 @@ export class AnalyticsApi {
         };
       }
     } catch {
-      // Fallback to Live Supabase DB Query Engine
+      // Fallback to Universal Live Query Engine
     }
 
-    // 2. High-Speed Live Supabase & Catalog Query Engine (<50ms)
-    try {
-      let reply = '';
-      let sqlSample = '';
+    // 2. High-Speed Multi-Module Query Engine
+    const res = await UniversalQueryEngine.processQuery(message);
 
-      // --- Item Master Query (Accurate Count: 1,719 Verified Items) ---
-      if (qLower.includes('item') || qLower.includes('material') || qLower.includes('resin') || qLower.includes('product') || qLower.includes('inventory') || qLower.includes('catalog')) {
-        const totalItems = DOCUMENT_ITEM_MASTER_CATALOG.length || 1719;
-        const fgCount = DOCUMENT_ITEM_MASTER_CATALOG.filter((i) => i.type?.toLowerCase().includes('finished')).length || 842;
-        const rmCount = DOCUMENT_ITEM_MASTER_CATALOG.filter((i) => i.type?.toLowerCase().includes('raw') || i.cat === 'PP' || i.cat === 'HDPE').length || 384;
-        const spareCount = totalItems - fgCount - rmCount;
-
-        sqlSample = 'SELECT count(*), type FROM items GROUP BY type;';
-        
-        reply = `📦 **Live Supabase & Catalog Intelligence**: Found **${totalItems.toLocaleString()} Total Verified Item Master Records** in the database.\n\n` +
-          `• **Finished Goods (FG)**: **${fgCount.toLocaleString()} items** (Blow Molded Bottles, Injection Preforms, Industrial Crates)\n` +
-          `• **Raw Material Polymer Resins (RM)**: **${rmCount.toLocaleString()} grades** (PP, HDPE, LDPE, Masterbatches)\n` +
-          `• **Spare Parts & Tooling Assets**: **${spareCount.toLocaleString()} components** (Guide Bushes, 8-Cavity Mould Parts, Ejector Pins)\n\n` +
-          `*100% of master items have approved routing destinations and standard cycle times configured.*`;
-      }
-      // --- Customers Query (121 Master Accounts) ---
-      else if (qLower.includes('customer') || qLower.includes('client') || qLower.includes('buyer') || qLower.includes('account')) {
-        const { data: customers } = await SupabaseDataService.getCustomers();
-        const total = customers && customers.length > 0 ? customers.length : 121;
-        sqlSample = 'SELECT code, name, customer_type, tier, credit_limit FROM customers ORDER BY name ASC;';
-
-        const sample = customers && customers.length > 0
-          ? customers.slice(0, 4).map((c: any) => `• **${c.name || c.code}** (${c.tier || 'Tier 1'} | Credit: ₹${(c.credit_limit || 1000000).toLocaleString()})`).join('\n')
-          : '• **Maruti Suzuki India Ltd** (Tier 1 OEM | Credit: ₹50,00,000)\n• **Tata Motors PV Ltd** (Tier 1 OEM | Credit: ₹40,00,000)\n• **Bajaj Auto Industrial** (Tier 1 OEM | Credit: ₹25,00,000)\n• **Ashok Leyland Commercial** (Tier 1 OEM | Credit: ₹35,00,000)';
-
-        reply = `📊 **Live Master Customer Directory**: Found **${total} Active Customer Accounts** in the database.\n\n` +
-          `**Top Tier-1 OEM Customers Sample:**\n${sample}\n\n` +
-          `*All customer accounts are synchronized with live credit terms, GSTIN profiles, and payment cycles.*`;
-      }
-      // --- Suppliers & Procurement Query ---
-      else if (qLower.includes('supplier') || qLower.includes('vendor') || qLower.includes('purchase order') || qLower.includes('po')) {
-        const { data: suppliers } = await SupabaseDataService.getSuppliers();
-        const total = suppliers && suppliers.length > 0 ? suppliers.length : 47;
-        sqlSample = 'SELECT code, name, category, rating, payment_terms FROM suppliers LIMIT 5;';
-
-        const sample = suppliers && suppliers.length > 0
-          ? suppliers.slice(0, 4).map((s: any) => `• **${s.name || s.code}** (${s.category || 'Polymer Resin'} | Rating: ⭐ ${s.rating || 4.8})`).join('\n')
-          : '• **Reliance Industries Ltd (Petrochemicals)** (Virgin PP/HDPE | Rating: ⭐ 4.9)\n• **IOCL Polymer Division** (Blow Molding Resin | Rating: ⭐ 4.7)\n• **Clariant Color Masterbatches** (Additive Dyes | Rating: ⭐ 4.8)\n• **Supreme Mould Dies Ltd** (Tooling & Maintenance | Rating: ⭐ 4.6)';
-
-        reply = `🏭 **Live Procurement Supplier Directory**: Retrieved **${total} Approved Vendors** from the database.\n\n` +
-          `**Top Qualified Suppliers:**\n${sample}\n\n` +
-          `*Contract terms, formula indexations (ICIS / Platts), and quality ratings are tracked live.*`;
-      }
-      // --- Machines, OEE & Work Orders Query ---
-      else if (qLower.includes('machine') || qLower.includes('work order') || qLower.includes('imm') || qLower.includes('production') || qLower.includes('oee')) {
-        sqlSample = 'SELECT machine_code, name, tonnage, status, oee_percentage FROM machines;';
-
-        reply = `⚙️ **Live Manufacturing Telemetry (Supabase DB)**:\n` +
-          `• **Active Injection Molding Machines**: **14 Bays Operational** (IMM-01 to IMM-14, 80T to 650T clamping force).\n` +
-          `• **Overall Plant OEE**: **84.6%** (Availability 91.2%, Performance 94.5%, Quality 98.8%).\n` +
-          `• **Open Work Orders**: **26 Production Batches** scheduled across Shifts 1, 2, and 3.\n` +
-          `• **Top Bottleneck**: Mold changeover time (42.5 hrs/month) currently in SMED optimization.`;
-      }
-      // --- Quality & PPM Defect Breakdown ---
-      else if (qLower.includes('quality') || qLower.includes('ppm') || qLower.includes('defect') || qLower.includes('scrap')) {
-        reply = `🛡️ **Live Quality & Six Sigma Intelligence**:\n` +
-          `• **Plant Quality Defect Rate**: **240 PPM** (Six Sigma Level: **4.82**).\n` +
-          `• **First Pass Yield (FPY)**: **98.2%** (Target: 98.0% | Adherence: **100.2%**).\n` +
-          `• **Pareto Scrap Defects**: Flash (38%), Short Shot (24%), Burnt Marks (16%), Warpage (12%), Other (10%).\n` +
-          `• **Statistical Process Control**: Zero active Western Electric Rule violations in current shift.`;
-      }
-      // --- Calculations & Financials ---
-      else if (qLower.includes('cost') || qLower.includes('revenue') || qLower.includes('ebitda') || qLower.includes('energy') || qLower.includes('calculate')) {
-        reply = `💰 **Live Financial & Energy Cost Breakdown**:\n` +
-          `• **Gross Revenue YTD**: **₹2.84 Cr** (+5.4% above operational budget target).\n` +
-          `• **Energy Cost per kg Plastic**: **₹7.22 / kg** (Average consumption: 0.85 kWh/kg produced).\n` +
-          `• **Virgin vs Regrind Cost Saving**: **18.4% cost reduction** utilizing 20% verified in-house regrind mix.\n` +
-          `• **EPR Credit Liability**: Zero deficit (Surplus +14.2 Tons recycled PET credits).`;
-      }
-      // --- Default Executive Synthesis ---
-      else {
-        reply = `✨ **SP-PLASTECH Enterprise Intelligence Brief**:\nFor your query: "*${message}*", live database state reports:\n` +
-          `• **Item Master Catalog**: **1,719 Verified Items**\n` +
-          `• **Master Accounts**: **121 Customers**, **47 Suppliers** active\n` +
-          `• **Plant Status**: Operational Nominal (OEE **84.6%**, Quality **240 PPM**, Revenue **₹2.84 Cr**)\n` +
-          `• **Instant Export Available**: Click any button below to download Excel, PDF, CSV, or PPTX presentation.`;
-      }
-
-      return {
-        reply,
-        metadata: {
-          database: 'Supabase Cloud (PostgreSQL 16)',
-          endpoint: 'https://gqrelwvmeoqvfnanoutz.supabase.co',
-          sqlExecuted: sqlSample || 'SELECT count(*) FROM public.items;',
-          executionTimeMs: 24,
-          readOnlyEnforced: true,
-          timestamp: new Date().toISOString(),
-        },
-        messages: [
-          { id: `M1-${Date.now()}`, sessionId, role: 'USER', content: message, createdAt: new Date().toISOString() },
-          { id: `M2-${Date.now()}`, sessionId, role: 'ASSISTANT', content: reply, createdAt: new Date().toISOString() },
-        ],
-      };
-    } catch {
-      const fallbackReply = `Connected to live database. Master catalog: 1,719 items, 121 customer accounts, Plant OEE 84.6%.`;
-      return {
-        reply: fallbackReply,
-        messages: [
-          { id: `M1-${Date.now()}`, sessionId, role: 'USER', content: message, createdAt: new Date().toISOString() },
-          { id: `M2-${Date.now()}`, sessionId, role: 'ASSISTANT', content: fallbackReply, createdAt: new Date().toISOString() },
-        ],
-      };
-    }
+    return {
+      reply: res.reply,
+      metadata: res.metadata,
+      messages: [
+        { id: `M1-${Date.now()}`, sessionId, role: 'USER', content: message, createdAt: new Date().toISOString() },
+        { id: `M2-${Date.now()}`, sessionId, role: 'ASSISTANT', content: res.reply, createdAt: new Date().toISOString() },
+      ],
+    };
   }
 
   async exportChatToDocument(sessionId: string, exportConfig: any): Promise<any> {

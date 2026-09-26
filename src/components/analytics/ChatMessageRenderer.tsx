@@ -22,10 +22,10 @@ export const ChatMessageRenderer: React.FC<ChatMessageRendererProps> = ({ conten
     return <div className="text-white font-medium text-xs leading-relaxed">{content}</div>;
   }
 
-  // Determine if message has chart data
-  const hasOeeData = /oee|availability|performance|quality/i.test(content);
-  const hasDefectData = /defect|scrap|flash|short shot|ppm/i.test(content);
-  const hasItemData = /item|catalog|molded/i.test(content);
+  // Determine if user explicitly requested a chart visualization
+  const showChart = Boolean(metadata?.showChart);
+  const isOeeChart = showChart && (metadata?.chartType === 'oee' || /oee|availability/i.test(content));
+  const isDefectChart = showChart && (metadata?.chartType === 'defect' || /defect|scrap|ppm|pareto/i.test(content));
 
   const oeeChartData = [
     { name: 'Availability', value: 91.2, color: '#0f766e' },
@@ -109,8 +109,8 @@ export const ChatMessageRenderer: React.FC<ChatMessageRendererProps> = ({ conten
       {/* Clean Rendered Text */}
       <div className="text-xs text-slate-800">{parseCleanText(content)}</div>
 
-      {/* Embedded Chart Visualization if applicable */}
-      {hasOeeData && (
+      {/* Embedded Chart Visualization strictly when requested */}
+      {isOeeChart && (
         <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl my-2">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
@@ -138,7 +138,7 @@ export const ChatMessageRenderer: React.FC<ChatMessageRendererProps> = ({ conten
         </div>
       )}
 
-      {hasDefectData && (
+      {isDefectChart && (
         <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl my-2">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
