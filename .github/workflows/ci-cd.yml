@@ -1,4 +1,4 @@
-name: SP PLASTECH ERP CI/CD & DB Sync
+name: SP PLASTECH ERP CI/CD & Production Build
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-and-test:
-    name: Build Frontend & Backend Middleware
+    name: Build Frontend & Backend Services
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -27,11 +27,16 @@ jobs:
       - name: Build Frontend Application
         run: npm run build
 
-
       - name: Install & Build Middleware Backend
         run: |
           cd middleware
           npm ci
+          npm run build
+
+      - name: Install & Build Core Enterprise Backend
+        run: |
+          cd backend
+          npm install --no-audit --prefer-offline
           npm run build
 
   sync-database:
