@@ -1,8 +1,34 @@
+# Dependencies
 node_modules/
-build/
+.pnp
+.pnp.js
+
+# Production Builds
 dist/
-coverage/
-.DS_Store
-*.log
-.env*
+build/
+.next/
+out/
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 !.env.example
+*.pem
+
+# Scratch, Dumps & Temp Files
+scratch/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+coverage/
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

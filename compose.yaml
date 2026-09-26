@@ -1,3 +1,9 @@
+# ==============================================================================
+# SP-PLASTECH ERP — LOCAL OFFLINE DEVELOPMENT STACK (PODMAN / SUPABASE)
+# Use this compose file for local offline testing with Kong, GoTrue, PostgREST & Studio.
+# For production VPS deployment, use `docker-compose.yml`.
+# ==============================================================================
+
 services:
   frontend:
     build:
