@@ -443,8 +443,8 @@ export const CrmCustomer360View: React.FC<CrmCustomer360ViewProps> = ({
             <tbody className="divide-y divide-slate-200">
               {complaints.map(c => (
                 <tr key={c.id} className="hover:bg-slate-50">
-                  <td className="p-3 font-bold text-slate-900 font-mono">{c.complaintNumber}</td>
-                  <td className="p-3 font-medium text-slate-800">{c.complaintCategory}</td>
+                  <td className="p-3 font-bold text-slate-900 font-mono">{c.complaintNumber || c.complaintCode || c.id}</td>
+                  <td className="p-3 font-medium text-slate-800">{c.complaintCategory || c.complaintType || 'Quality Defect'}</td>
                   <td className="p-3">
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">
                       {c.severity}
@@ -455,8 +455,8 @@ export const CrmCustomer360View: React.FC<CrmCustomer360ViewProps> = ({
                       {c.status}
                     </span>
                   </td>
-                  <td className="p-3 font-mono text-slate-700">{c.batchNumber || 'N/A'}</td>
-                  <td className="p-3 font-semibold text-teal-700">{c.capaStatus || 'In Root Cause Analysis'}</td>
+                  <td className="p-3 font-mono text-slate-700">{c.batchNumber || c.batchLotNumber || 'N/A'}</td>
+                  <td className="p-3 font-semibold text-teal-700">{c.capaStatus || (c.linkedCapaId ? `CAPA: ${c.linkedCapaId}` : 'In Root Cause Analysis')}</td>
                 </tr>
               ))}
               {complaints.length === 0 && (

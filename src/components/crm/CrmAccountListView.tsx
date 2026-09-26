@@ -41,6 +41,17 @@ export const CrmAccountListView: React.FC<CrmAccountListViewProps> = ({
   const [creditStatusFilter, setCreditStatusFilter] = useState('All');
   const [showCreateModal, setShowCreateModal] = useState(false);
 
+  // Scalable Pagination & Navigation State (Supports 500,000+ Records)
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [jumpPageInput, setJumpPageInput] = useState<string>('');
+
+  // Reset pagination to page 1 on filter/search change
+  const handleFilterChange = (setter: React.Dispatch<React.SetStateAction<any>>, value: any) => {
+    setter(value);
+    setCurrentPage(1);
+  };
+
   // New Account State
   const [newAccForm, setNewAccForm] = useState<Partial<Account>>({
     accountCode: `CUST-PLAST-0${mockAccounts.length + 1}`,
@@ -165,6 +176,47 @@ export const CrmAccountListView: React.FC<CrmAccountListViewProps> = ({
 
   const formatCurrency = (val: number) => `₹${(val / 100000).toFixed(1)}L`;
 
+  // Memoized calculations for massive dataset scalability (500,000+ records)
+  const totalFilteredRecords = filteredAccounts.length;
+  const totalPages = Math.ceil(totalFilteredRecords / pageSize) || 1;
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedAccounts = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize;
+    return filteredAccounts.slice(start, start + pageSize);
+  }, [filteredAccounts, safeCurrentPage, pageSize]);
+
+  const startIndex = totalFilteredRecords === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1;
+  const endIndex = Math.min(safeCurrentPage * pageSize, totalFilteredRecords);
+
+  const handleJumpToPage = (e: React.FormEvent) => {
+    e.preventDefault();
+    const pageNum = parseInt(jumpPageInput, 10);
+    if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
+      setCurrentPage(pageNum);
+      setJumpPageInput('');
+    }
+  };
+
+  const getPageNumbers = () => {
+    const delta = 2;
+    const range: (number | string)[] = [];
+    for (let i = Math.max(2, safeCurrentPage - delta); i <= Math.min(totalPages - 1, safeCurrentPage + delta); i++) {
+      range.push(i);
+    }
+    if (safeCurrentPage - delta > 2) {
+      range.unshift('...');
+    }
+    if (safeCurrentPage + delta < totalPages - 1) {
+      range.push('...');
+    }
+    range.unshift(1);
+    if (totalPages > 1 && !range.includes(totalPages)) {
+      range.push(totalPages);
+    }
+    return range;
+  };
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -230,7 +282,7 @@ export const CrmAccountListView: React.FC<CrmAccountListViewProps> = ({
             type="text"
             placeholder="Search account code, customer name..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => handleFilterChange(setSearchQuery, e.target.value)}
             className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-teal-500"
           />
         </div>
@@ -238,7 +290,7 @@ export const CrmAccountListView: React.FC<CrmAccountListViewProps> = ({
         <div className="flex items-center gap-2.5">
           <select
             value={customerGroupFilter}
-            onChange={(e) => setCustomerGroupFilter(e.target.value)}
+            onChange={(e) => handleFilterChange(setCustomerGroupFilter, e.target.value)}
             className="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-700 focus:ring-2 focus:ring-teal-500"
           >
             <option value="All">All Customer Groups</option>
@@ -251,7 +303,7 @@ export const CrmAccountListView: React.FC<CrmAccountListViewProps> = ({
 
           <select
             value={creditStatusFilter}
-            onChange={(e) => setCreditStatusFilter(e.target.value)}
+            onChange={(e) => handleFilterChange(setCreditStatusFilter, e.target.value)}
             className="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-700 focus:ring-2 focus:ring-teal-500"
           >
             <option value="All">All Credit Statuses</option>
@@ -281,70 +333,190 @@ export const CrmAccountListView: React.FC<CrmAccountListViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {filteredAccounts.map(acc => (
-                <tr
-                  key={acc.id}
-                  onClick={() => onNavigate('crmCustomer360', { accountId: acc.id })}
-                  className="hover:bg-teal-50/30 transition-colors cursor-pointer group"
-                >
-                  <td className="p-3">
-                    <div className="flex items-center gap-1.5 font-bold text-slate-900 group-hover:text-teal-700">
-                      {acc.isPreferredCustomer && <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 shrink-0" />}
-                      <span>{acc.accountName}</span>
-                    </div>
-                    <div className="text-[10px] text-slate-500 font-mono">{acc.accountCode} • {acc.city}, {acc.state}</div>
-                  </td>
-                  <td className="p-3">
-                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium text-[11px]">
-                      {acc.customerGroup}
-                    </span>
-                  </td>
-                  <td className="p-3 text-slate-800">{acc.accountManager}</td>
-                  <td className="p-3">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                      acc.creditStatus === 'Good Standing' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                      acc.creditStatus === 'Near Limit' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                      'bg-rose-50 text-rose-700 border border-rose-200'
-                    }`}>
-                      {acc.creditStatus}
-                    </span>
-                  </td>
-                  <td className="p-3 font-semibold text-slate-900">{formatCurrency(acc.availableCredit)}</td>
-                  <td className="p-3">
-                    <div className="font-bold text-slate-800">{formatCurrency(acc.outstandingBalance)}</div>
-                    {acc.overdueAmount > 0 && (
-                      <div className="text-[10px] text-rose-600 font-semibold">Overdue: {formatCurrency(acc.overdueAmount)}</div>
-                    )}
-                  </td>
-                  <td className="p-3 font-bold text-indigo-700">{formatCurrency(acc.openOrdersValue)}</td>
-                  <td className="p-3 font-bold text-teal-800">{formatCurrency(acc.totalRevenueYtd)}</td>
-                  <td className="p-3">
-                    <div className="flex items-center gap-1">
-                      <span className={`w-2 h-2 rounded-full ${acc.healthScore >= 90 ? 'bg-emerald-500' : acc.healthScore >= 75 ? 'bg-amber-500' : 'bg-rose-500'}`} />
-                      <span className="font-bold text-slate-800">{acc.healthScore}%</span>
-                    </div>
-                  </td>
-                  <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        onClick={() => onNavigate('crmCustomer360', { accountId: acc.id })}
-                        className="px-2 py-1 bg-teal-50 hover:bg-teal-100 text-teal-700 font-semibold rounded text-[11px] border border-teal-200"
-                      >
-                        360°
-                      </button>
-                      <button
-                        onClick={() => handleToggleBlock(acc.id)}
-                        className={`p-1 rounded ${acc.isBlocked ? 'text-rose-600 hover:bg-rose-50' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700'}`}
-                        title={acc.isBlocked ? 'Unblock Account' : 'Block Account'}
-                      >
-                        {acc.isBlocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
+              {paginatedAccounts.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="p-8 text-center text-slate-400 text-xs font-medium">
+                    No customer accounts match your search or filter criteria.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                paginatedAccounts.map(acc => (
+                  <tr
+                    key={acc.id}
+                    onClick={() => onNavigate('crmCustomer360', { accountId: acc.id })}
+                    className="hover:bg-teal-50/30 transition-colors cursor-pointer group"
+                  >
+                    <td className="p-3">
+                      <div className="flex items-center gap-1.5 font-bold text-slate-900 group-hover:text-teal-700">
+                        {acc.isPreferredCustomer && <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 shrink-0" />}
+                        <span>{acc.accountName}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-mono">{acc.accountCode} • {acc.city}, {acc.state}</div>
+                    </td>
+                    <td className="p-3">
+                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium text-[11px]">
+                        {acc.customerGroup}
+                      </span>
+                    </td>
+                    <td className="p-3 text-slate-800">{acc.accountManager}</td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                        acc.creditStatus === 'Good Standing' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                        acc.creditStatus === 'Near Limit' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                        'bg-rose-50 text-rose-700 border border-rose-200'
+                      }`}>
+                        {acc.creditStatus}
+                      </span>
+                    </td>
+                    <td className="p-3 font-semibold text-slate-900">{formatCurrency(acc.availableCredit)}</td>
+                    <td className="p-3">
+                      <div className="font-bold text-slate-800">{formatCurrency(acc.outstandingBalance)}</div>
+                      {acc.overdueAmount > 0 && (
+                        <div className="text-[10px] text-rose-600 font-semibold">Overdue: {formatCurrency(acc.overdueAmount)}</div>
+                      )}
+                    </td>
+                    <td className="p-3 font-bold text-indigo-700">{formatCurrency(acc.openOrdersValue)}</td>
+                    <td className="p-3 font-bold text-teal-800">{formatCurrency(acc.totalRevenueYtd)}</td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-1">
+                        <span className={`w-2 h-2 rounded-full ${acc.healthScore >= 90 ? 'bg-emerald-500' : acc.healthScore >= 75 ? 'bg-amber-500' : 'bg-rose-500'}`} />
+                        <span className="font-bold text-slate-800">{acc.healthScore}%</span>
+                      </div>
+                    </td>
+                    <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => onNavigate('crmCustomer360', { accountId: acc.id })}
+                          className="px-2 py-1 bg-teal-50 hover:bg-teal-100 text-teal-700 font-semibold rounded text-[11px] border border-teal-200"
+                        >
+                          360°
+                        </button>
+                        <button
+                          onClick={() => handleToggleBlock(acc.id)}
+                          className={`p-1 rounded ${acc.isBlocked ? 'text-rose-600 hover:bg-rose-50' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700'}`}
+                          title={acc.isBlocked ? 'Unblock Account' : 'Block Account'}
+                        >
+                          {acc.isBlocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
+        </div>
+
+        {/* Enterprise Scalable Pagination Toolbar (500,000+ records) */}
+        <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+          <div className="flex items-center gap-3">
+            <span className="font-medium">
+              Showing <strong className="text-slate-900">{startIndex.toLocaleString()}</strong> to{' '}
+              <strong className="text-slate-900">{endIndex.toLocaleString()}</strong> of{' '}
+              <strong className="text-slate-900">{totalFilteredRecords.toLocaleString()}</strong> accounts
+            </span>
+
+            <div className="flex items-center gap-1 text-[11px] text-slate-500">
+              <span>Rows per page:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="px-2 py-1 bg-white border border-slate-300 rounded font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={250}>250</option>
+                <option value={500}>500</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Page Navigation Buttons */}
+            <div className="flex items-center gap-1">
+              <button
+                disabled={safeCurrentPage <= 1}
+                onClick={() => setCurrentPage(1)}
+                className="px-2 py-1 bg-white border border-slate-200 rounded text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 font-semibold"
+                title="First Page"
+              >
+                &laquo;
+              </button>
+              <button
+                disabled={safeCurrentPage <= 1}
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                className="px-2.5 py-1 bg-white border border-slate-200 rounded text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 font-semibold"
+                title="Previous Page"
+              >
+                &lsaquo; Prev
+              </button>
+
+              {/* Page Number Badges */}
+              <div className="flex items-center gap-1 mx-1">
+                {getPageNumbers().map((p, idx) =>
+                  p === '...' ? (
+                    <span key={`ell-${idx}`} className="px-1 text-slate-400">...</span>
+                  ) : (
+                    <button
+                      key={`page-${p}`}
+                      onClick={() => setCurrentPage(Number(p))}
+                      className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors ${
+                        safeCurrentPage === p
+                          ? 'bg-teal-700 text-white shadow-xs'
+                          : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  )
+                )}
+              </div>
+
+              <button
+                disabled={safeCurrentPage >= totalPages}
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                className="px-2.5 py-1 bg-white border border-slate-200 rounded text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 font-semibold"
+                title="Next Page"
+              >
+                Next &rsaquo;
+              </button>
+              <button
+                disabled={safeCurrentPage >= totalPages}
+                onClick={() => setCurrentPage(totalPages)}
+                className="px-2 py-1 bg-white border border-slate-200 rounded text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 font-semibold"
+                title="Last Page"
+              >
+                &raquo;
+              </button>
+            </div>
+
+            {/* Direct Jump to Page Form */}
+            {totalPages > 5 && (
+              <form onSubmit={handleJumpToPage} className="flex items-center gap-1 pl-2 border-l border-slate-200">
+                <span className="text-[11px] text-slate-500">Go to:</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={totalPages}
+                  placeholder="Page"
+                  value={jumpPageInput}
+                  onChange={(e) => setJumpPageInput(e.target.value)}
+                  className="w-14 px-1.5 py-1 bg-white border border-slate-300 rounded text-xs text-center focus:ring-1 focus:ring-teal-500"
+                />
+                <button
+                  type="submit"
+                  className="px-2 py-1 bg-slate-200 hover:bg-slate-300 rounded text-[11px] font-semibold text-slate-700"
+                >
+                  Go
+                </button>
+              </form>
+            )}
+          </div>
         </div>
       </div>
 

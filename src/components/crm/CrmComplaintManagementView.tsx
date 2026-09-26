@@ -56,6 +56,17 @@ export const CrmComplaintManagementView: React.FC<CrmComplaintManagementViewProp
     assignedTo: 'Anand Kulkarni (QA Head)',
   });
 
+  const getCode = (c?: Complaint | null) => c?.complaintNumber || c?.complaintCode || c?.id || 'CMP-2026-001';
+  const getName = (c?: Complaint | null) => c?.accountName || c?.customerName || 'Customer Account';
+  const getCategory = (c?: Complaint | null) => c?.complaintCategory || c?.complaintType || 'Quality Defect';
+  const getBatch = (c?: Complaint | null) => c?.batchNumber || c?.batchLotNumber || 'N/A';
+  const getQty = (c?: Complaint | null) => Number(c?.affectedQuantity) || 1000;
+  const getUom = (c?: Complaint | null) => c?.uom || 'KG';
+  const getDate = (c?: Complaint | null) => c?.dateLogged || c?.complaintDate || '2026-09-01';
+  const getTargetDate = (c?: Complaint | null) => c?.targetResolutionDate || c?.slaDueDate || '2026-09-08';
+  const getDesc = (c?: Complaint | null) => c?.defectDescription || c?.description || 'Quality issue under investigation';
+  const getAssignee = (c?: Complaint | null) => c?.assignedTo || c?.assignedInvestigator || 'QA Engineering Lead';
+
   const filteredComplaints = useMemo(() => {
     return complaints.filter(c => {
       if (initialAccountId && c.accountId !== initialAccountId) return false;
@@ -64,10 +75,10 @@ export const CrmComplaintManagementView: React.FC<CrmComplaintManagementViewProp
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
-          c.complaintNumber.toLowerCase().includes(q) ||
-          c.accountName.toLowerCase().includes(q) ||
-          c.complaintCategory.toLowerCase().includes(q) ||
-          (c.batchNumber && c.batchNumber.toLowerCase().includes(q))
+          getCode(c).toLowerCase().includes(q) ||
+          getName(c).toLowerCase().includes(q) ||
+          getCategory(c).toLowerCase().includes(q) ||
+          getBatch(c).toLowerCase().includes(q)
         );
       }
       return true;
@@ -179,7 +190,7 @@ export const CrmComplaintManagementView: React.FC<CrmComplaintManagementViewProp
               >
                 <div className="flex items-center justify-between">
                   <div className="font-bold text-xs text-slate-900 font-mono">
-                    {complaint.complaintNumber}
+                    {getCode(complaint)}
                   </div>
                   <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold ${
                     complaint.severity === 'Critical' ? 'bg-rose-100 text-rose-800' :
@@ -189,11 +200,11 @@ export const CrmComplaintManagementView: React.FC<CrmComplaintManagementViewProp
                   </span>
                 </div>
 
-                <div className="font-semibold text-xs text-slate-800">{complaint.accountName}</div>
-                <div className="text-xs text-slate-600 font-medium truncate">{complaint.complaintCategory}</div>
+                <div className="font-semibold text-xs text-slate-800">{getName(complaint)}</div>
+                <div className="text-xs text-slate-600 font-medium truncate">{getCategory(complaint)}</div>
 
                 <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100">
-                  <span className="font-mono">Batch: {complaint.batchNumber || 'N/A'}</span>
+                  <span className="font-mono">Batch: {getBatch(complaint)}</span>
                   <span className="font-semibold text-rose-700">{complaint.status}</span>
                 </div>
               </div>
@@ -210,19 +221,19 @@ export const CrmComplaintManagementView: React.FC<CrmComplaintManagementViewProp
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-base font-black text-rose-900">
-                      {selectedComplaint.complaintNumber}
+                      {getCode(selectedComplaint)}
                     </span>
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800">
                       {selectedComplaint.severity}
                     </span>
                   </div>
-                  <div className="text-sm font-bold text-slate-800 mt-0.5">{selectedComplaint.accountName}</div>
-                  <div className="text-xs text-slate-500">Logged: {selectedComplaint.dateLogged} | Target: {selectedComplaint.targetResolutionDate}</div>
+                  <div className="text-sm font-bold text-slate-800 mt-0.5">{getName(selectedComplaint)}</div>
+                  <div className="text-xs text-slate-500">Logged: {getDate(selectedComplaint)} | Target: {getTargetDate(selectedComplaint)}</div>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => showToast(`Generated formal 8D CAPA PDF for ${selectedComplaint.complaintNumber}`)}
+                    onClick={() => showToast(`Generated formal 8D CAPA PDF for ${getCode(selectedComplaint)}`)}
                     className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1"
                   >
                     <Download className="w-3.5 h-3.5" />
@@ -241,9 +252,9 @@ export const CrmComplaintManagementView: React.FC<CrmComplaintManagementViewProp
               {/* Defect Description */}
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1 text-xs">
                 <span className="font-bold text-slate-700 block">Defect Statement & Affected Quantity:</span>
-                <p className="text-slate-800 font-medium">{selectedComplaint.defectDescription}</p>
+                <p className="text-slate-800 font-medium">{getDesc(selectedComplaint)}</p>
                 <div className="text-[11px] text-slate-500 pt-1">
-                  Affected Batch: <strong className="font-mono text-slate-800">{selectedComplaint.batchNumber}</strong> ({selectedComplaint.affectedQuantity.toLocaleString()} {selectedComplaint.uom})
+                  Affected Batch: <strong className="font-mono text-slate-800">{getBatch(selectedComplaint)}</strong> ({getQty(selectedComplaint).toLocaleString()} {getUom(selectedComplaint)})
                 </div>
               </div>
 
@@ -252,7 +263,7 @@ export const CrmComplaintManagementView: React.FC<CrmComplaintManagementViewProp
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold text-rose-900 uppercase text-[11px]">8D Corrective & Preventive Action (CAPA)</h3>
                   <span className="font-bold text-rose-800 bg-white px-2 py-0.5 rounded border border-rose-200">
-                    {selectedComplaint.capaStatus || 'In Progress'}
+                    {selectedComplaint.capaStatus || (selectedComplaint.linkedCapaId ? `CAPA: ${selectedComplaint.linkedCapaId}` : 'In Progress')}
                   </span>
                 </div>
 
@@ -260,13 +271,13 @@ export const CrmComplaintManagementView: React.FC<CrmComplaintManagementViewProp
                   <div className="p-2.5 bg-white rounded-lg border border-rose-100">
                     <span className="font-bold text-slate-800 block mb-0.5">Root Cause (5-Why Analysis):</span>
                     <p className="text-slate-700">
-                      {selectedComplaint.rootCause || 'Extruder zone 4 heating element degradation caused localized polymer overheating and charred degraded black specs.'}
+                      {selectedComplaint.rootCauseAnalysis || selectedComplaint.investigationDetails || 'Extruder zone 4 heating element degradation caused localized polymer overheating and charred degraded black specs.'}
                     </p>
                   </div>
                   <div className="p-2.5 bg-white rounded-lg border border-rose-100">
                     <span className="font-bold text-slate-800 block mb-0.5">Corrective & Preventive Action (CAPA):</span>
                     <p className="text-slate-700">
-                      {selectedComplaint.correctiveAction || 'Replaced thermocouple on Extruder #3, installed inline optical melt purity camera, and updated PM checklist to bi-weekly thermocouple calibration.'}
+                      {selectedComplaint.resolutionSummary || 'Replaced thermocouple on Extruder #3, installed inline optical melt purity camera, and updated PM checklist to bi-weekly thermocouple calibration.'}
                     </p>
                   </div>
                 </div>
@@ -274,7 +285,7 @@ export const CrmComplaintManagementView: React.FC<CrmComplaintManagementViewProp
 
               {/* Status Update Actions */}
               <div className="flex items-center justify-between pt-2">
-                <span className="text-xs text-slate-500">QA Lead: <strong>{selectedComplaint.assignedTo}</strong></span>
+                <span className="text-xs text-slate-500">QA Lead: <strong>{getAssignee(selectedComplaint)}</strong></span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleUpdateStatus(selectedComplaint.id, 'Resolved')}
