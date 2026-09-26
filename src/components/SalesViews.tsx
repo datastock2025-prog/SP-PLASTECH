@@ -417,7 +417,20 @@ export const SalesViews: React.FC<SalesProps> = ({
     view === 'monthlyReconciliation' ||
     view === 'reconciliation'
   ) {
-    const currentSub = salesSubNav;
+    const currentSub =
+      view === 'soDashboard'
+        ? 'dashboard'
+        : view === 'soWizard' || view === 'soCreate'
+        ? 'wizard'
+        : view === 'monthlyPlanOrders' || view === 'monthlyPlan'
+        ? 'plans'
+        : view === 'dailyQuickEntry'
+        ? 'quickEntry'
+        : view === 'monthlyReconciliation' || view === 'reconciliation'
+        ? 'reconciliation'
+        : view === 'soList' || view === 'salesOrders'
+        ? 'list'
+        : salesSubNav;
 
     return (
       <div className="space-y-4">
@@ -742,6 +755,8 @@ export const SalesViews: React.FC<SalesProps> = ({
         ? 'eInvoice'
         : view === 'complianceDashboard' || view === 'complianceExceptions' || view === 'exceptions'
         ? 'compliance'
+        : view === 'deliverySchedule' || view === 'salesDeliveries' || view === 'dispatch' || view === 'dispatchDash'
+        ? 'dashboard'
         : dispatchSubNav;
 
     // If viewing single challan detail (ONLY when explicitly in challans or challanDetail)

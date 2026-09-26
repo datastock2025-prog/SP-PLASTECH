@@ -63,9 +63,18 @@ export const CrmViews: React.FC<CrmViewsProps> = ({
 
   // Derive active top tab
   const getActiveTabId = () => {
-    if (currentView === 'crmLeadDetail') return 'crmLeadList';
-    if (currentView === 'crmOpportunityDetail') return 'crmOpportunityPipeline';
-    if (currentView === 'crmCustomer360') return 'crmAccountList';
+    if (currentView === 'crmLeadDetail' || currentView === 'crmLeads' || currentView === 'leads') return 'crmLeadList';
+    if (currentView === 'crmOpportunityDetail' || currentView === 'crmOpportunities' || currentView === 'crmOpps' || currentView === 'opportunities') return 'crmOpportunityPipeline';
+    if (currentView === 'crmCustomer360' || currentView === 'crmAccounts' || currentView === 'accounts') return 'crmAccountList';
+    if (currentView === 'crmContacts' || currentView === 'contacts') return 'crmContactList';
+    if (currentView === 'crmFeedback' || currentView === 'crmComplaints' || currentView === 'claims') return 'crmComplaintManagement';
+    if (currentView === 'crmActivities') return 'crmActivityManagement';
+    if (currentView === 'crmCosting') return 'crmInquiryCosting';
+    if (currentView === 'crmQuotes') return 'crmQuotationManagement';
+    if (currentView === 'crmSamples') return 'crmSampleRequest';
+    if (currentView === 'crmDocs') return 'crmDocumentCenter';
+    if (currentView === 'crmSegmentation') return 'crmCustomerSegmentation';
+    if (currentView === 'crmAnalytics' || currentView === 'crmReports') return 'crmAnalyticsReports';
     return currentView;
   };
 
@@ -74,9 +83,12 @@ export const CrmViews: React.FC<CrmViewsProps> = ({
   const renderContent = () => {
     switch (currentView) {
       case 'crmDashboard':
+      case 'crm':
         return <CrmDashboardView onNavigate={onNavigate} showToast={showToast} />;
 
       case 'crmLeadList':
+      case 'crmLeads':
+      case 'leads':
         return (
           <CrmLeadListView
             onNavigate={onNavigate}
@@ -96,6 +108,9 @@ export const CrmViews: React.FC<CrmViewsProps> = ({
         );
 
       case 'crmOpportunityPipeline':
+      case 'crmOpportunities':
+      case 'crmOpps':
+      case 'opportunities':
         return (
           <CrmOpportunityPipelineView
             onNavigate={onNavigate}
@@ -115,6 +130,8 @@ export const CrmViews: React.FC<CrmViewsProps> = ({
         );
 
       case 'crmAccountList':
+      case 'crmAccounts':
+      case 'accounts':
         return (
           <CrmAccountListView
             onNavigate={onNavigate}
@@ -124,6 +141,7 @@ export const CrmViews: React.FC<CrmViewsProps> = ({
         );
 
       case 'crmCustomer360':
+      case 'customer360':
         return (
           <CrmCustomer360View
             accountId={viewParams?.accountId || 'ACC-1001'}
@@ -133,6 +151,8 @@ export const CrmViews: React.FC<CrmViewsProps> = ({
         );
 
       case 'crmContactList':
+      case 'crmContacts':
+      case 'contacts':
         return (
           <CrmContactListView
             onNavigate={onNavigate}
@@ -142,12 +162,17 @@ export const CrmViews: React.FC<CrmViewsProps> = ({
         );
 
       case 'crmActivityManagement':
+      case 'crmActivities':
+      case 'activities':
         return <CrmActivityManagementView onNavigate={onNavigate} showToast={showToast} />;
 
       case 'crmInquiryCosting':
+      case 'crmCosting':
+      case 'costing':
         return <CrmInquiryCostingView onNavigate={onNavigate} showToast={showToast} />;
 
       case 'crmQuotationManagement':
+      case 'crmQuotes':
         return (
           <CrmQuotationManagementView
             onNavigate={onNavigate}
@@ -158,6 +183,8 @@ export const CrmViews: React.FC<CrmViewsProps> = ({
         );
 
       case 'crmSampleRequest':
+      case 'crmSamples':
+      case 'sampleRequests':
         return (
           <CrmSampleRequestView
             onNavigate={onNavigate}
@@ -168,6 +195,9 @@ export const CrmViews: React.FC<CrmViewsProps> = ({
         );
 
       case 'crmComplaintManagement':
+      case 'crmFeedback':
+      case 'crmComplaints':
+      case 'claims':
         return (
           <CrmComplaintManagementView
             onNavigate={onNavigate}
@@ -177,6 +207,7 @@ export const CrmViews: React.FC<CrmViewsProps> = ({
         );
 
       case 'crmDocumentCenter':
+      case 'crmDocs':
         return (
           <CrmDocumentCenterView
             onNavigate={onNavigate}
@@ -186,9 +217,12 @@ export const CrmViews: React.FC<CrmViewsProps> = ({
         );
 
       case 'crmCustomerSegmentation':
+      case 'crmSegmentation':
         return <CrmCustomerSegmentationView onNavigate={onNavigate} showToast={showToast} />;
 
       case 'crmAnalyticsReports':
+      case 'crmAnalytics':
+      case 'crmReports':
         return <CrmAnalyticsReportsView onNavigate={onNavigate} showToast={showToast} />;
 
       default:
