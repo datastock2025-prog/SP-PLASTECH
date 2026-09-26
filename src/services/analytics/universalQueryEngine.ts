@@ -8,11 +8,9 @@ import {
   INITIAL_SALES_ORDERS,
   INITIAL_WAREHOUSES,
   INITIAL_BINS,
-  INITIAL_ITEMS,
 } from '../../data/initialData';
 import {
   INITIAL_MOLDS,
-  INITIAL_EBR_RECORDS,
   INITIAL_CHANGEOVERS,
 } from '../../data/manufacturingData';
 import { SupabaseDataService } from '../supabaseService';
@@ -61,14 +59,14 @@ export const UniversalQueryEngine = {
       if (q.includes('changeover') || q.includes('smed') || q.includes('purge')) {
         const list = INITIAL_CHANGEOVERS.map(
           (c) =>
-            `• **${c.id}** (${c.machineId}): ${c.fromProduct.name} &rarr; **${c.toProduct.name}** [${c.changeoverType}] &bull; Est: ${c.estimatedDurationMin}m (Actual: ${c.actualDurationMin || 0}m) &bull; Purge: ${c.estimatedPurgeWasteKg}kg &bull; Status: **${c.status}**`,
+            `• **${c.id}** (${c.machineId}): ${c.fromProduct.name} → **${c.toProduct.name}** [${c.changeoverType}] | Est: ${c.estimatedDurationMin}m (Actual: ${c.actualDurationMin || 0}m) | Purge: ${c.estimatedPurgeWasteKg}kg | Status: **${c.status}**`,
         ).join('\n');
 
         return {
           reply:
             `🔄 **Live Production Changeover (SMED) Schedule**:\n\n` +
-            `Found **${INITIAL_CHANGEOVERS.length} active changeovers** configured:\n${list}\n\n` +
-            `*Sequence optimizations (Light-to-Dark) are active to minimize barrel purge waste.*`,
+            `Found **${INITIAL_CHANGEOVERS.length} active changeovers** configured in plant operations:\n\n${list}\n\n` +
+            `Sequence optimizations (Light-to-Dark) are active to minimize barrel purge waste.`,
           metadata: {
             database: 'Supabase Cloud (PostgreSQL 16)',
             matchedModule: 'Manufacturing Operations',
@@ -94,15 +92,15 @@ export const UniversalQueryEngine = {
         const prod = w.producedQuantity || w.produced_quantity || w.completedQty || 0;
         const bay = w.machineId || w.machine_id || w.machine || 'IMM-250T-03';
         const status = w.status || 'In Progress';
-        return `• **${woNum}** | Machine: **${bay}** | Item: **${item}** (${name}) &bull; Target: **${target.toLocaleString()}** | Completed: **${prod.toLocaleString()}** &bull; Status: **${status}**`;
+        return `• **${woNum}** | Machine: **${bay}** | Item: **${item}** (${name}) | Target: **${Number(target).toLocaleString()}** | Completed: **${Number(prod).toLocaleString()}** | Status: **${status}**`;
       }).join('\n');
 
       return {
         reply:
           `📋 **Live Production Schedule & Active Work Orders**:\n\n` +
-          `Found **${totalWo} Work Orders** currently scheduled/running across plant injection bays:\n\n` +
+          `Found **${totalWo} Work Orders** currently scheduled and running across plant injection bays:\n\n` +
           `${sampleOrders}\n\n` +
-          `*All job cards are linked with live cycle time adherence and raw material BOM verification.*`,
+          `All job cards are linked with live cycle time adherence and raw material BOM verification.`,
         metadata: {
           database: 'Supabase Cloud (PostgreSQL 16)',
           matchedModule: 'Manufacturing Operations',
@@ -140,7 +138,7 @@ export const UniversalQueryEngine = {
         const ton = m.tonnage || 250;
         const status = m.status || 'RUNNING';
         const oee = m.oeePercentage || m.oee_percentage || m.oee || 84.6;
-        return `• **${code}** (${ton}T ${name}): Status **${status}** &bull; Live OEE: **${oee}%**`;
+        return `• **${code}** (${ton}T ${name}) | Status: **${status}** | Live OEE: **${oee}%**`;
       }).join('\n');
 
       return {
@@ -149,7 +147,7 @@ export const UniversalQueryEngine = {
           `• **Total Active IMM Bays**: **${count} Machines Operational** (80T to 650T clamping force)\n` +
           `• **Plant OEE Average**: **84.6%** (Availability: **91.2%**, Performance: **94.5%**, Quality: **98.8%**)\n\n` +
           `**Bay Status Sample:**\n${machineList}\n\n` +
-          `*Major downtime contributor: Mold changeovers (42.5 hrs/mo, SMED program active).*`,
+          `Major downtime contributor: Mold changeovers (42.5 hrs/mo, SMED program active).`,
         metadata: {
           database: 'Supabase Cloud (PostgreSQL 16)',
           matchedModule: 'Machine Maintenance & Telemetry',
@@ -177,14 +175,14 @@ export const UniversalQueryEngine = {
       const molds = INITIAL_MOLDS;
       const moldList = molds.map(
         (m) =>
-          `• **${m.id}** (${m.name}): **${m.cavities}-Cavity** &bull; Shots: **${m.currentShotCount.toLocaleString()}** / ${m.expectedLifeShots.toLocaleString()} (PM in ${(m.pmIntervalShots - m.shotsSinceLastPM).toLocaleString()} shots) &bull; Status: **${m.status}**`,
+          `• **${m.id}** (${m.name}) | **${m.cavities}-Cavity** | Shots: **${Number(m.currentShotCount).toLocaleString()}** / ${Number(m.expectedLifeShots).toLocaleString()} (PM in ${Number(m.pmIntervalShots - m.shotsSinceLastPM).toLocaleString()} shots) | Status: **${m.status}**`,
       ).join('\n');
 
       return {
         reply:
           `🔧 **Live Mold & Tooling Asset Directory**:\n\n` +
-          `Tracking **${molds.length} precision injection molds**:\n${moldList}\n\n` +
-          `*Automatic maintenance work orders are triggered when shots exceed PM thresholds.*`,
+          `Tracking **${molds.length} precision injection molds**:\n\n${moldList}\n\n` +
+          `Automatic maintenance work orders are triggered when shots exceed PM thresholds.`,
         metadata: {
           database: 'Supabase Cloud (PostgreSQL 16)',
           matchedModule: 'Tooling & Engineering',
@@ -222,7 +220,7 @@ export const UniversalQueryEngine = {
       const spareCount = total - fgCount - rmCount;
 
       const sample = DOCUMENT_ITEM_MASTER_CATALOG.slice(0, 4)
-        .map((it) => `• **${it.code}**: ${it.name} [Type: ${it.type || 'FG'}, UOM: ${it.baseUOM || 'PCS'}]`)
+        .map((it) => `• **${it.code}**: ${it.name} | Type: **${it.type || 'FG'}** | UOM: **${it.baseUOM || 'PCS'}**`)
         .join('\n');
 
       return {
@@ -233,7 +231,7 @@ export const UniversalQueryEngine = {
           `• **Raw Material Polymer Resins (RM)**: **${rmCount.toLocaleString()} grades** (PP Homopolymer, HDPE Blow Grade, Masterbatches)\n` +
           `• **Spare Parts & Tooling Assets**: **${spareCount.toLocaleString()} components** (Guide Bushes, Cavity Inserts, Ejector Rods)\n\n` +
           `**Catalog Sample:**\n${sample}\n\n` +
-          `*All 1,719 items contain verified cycle times, shot weights, and approved routing destinations.*`,
+          `All 1,719 items contain verified cycle times, shot weights, and approved routing destinations.`,
         metadata: {
           database: 'Supabase Cloud (PostgreSQL 16)',
           matchedModule: 'Master Data Governance',
@@ -264,10 +262,12 @@ export const UniversalQueryEngine = {
       const total = customers.length || 121;
 
       const sample = customers.slice(0, 4).map((c: any) => {
-        const name = c.name || c.code || 'OEM Customer';
-        const tier = c.tier || 'Tier 1 OEM';
-        const limit = (c.credit_limit || c.creditLimit || 2500000).toLocaleString();
-        return `• **${name}** &bull; Tier: **${tier}** &bull; Credit Limit: **₹${limit}** &bull; GSTIN: **${c.gstin || '27AABCU9603R1ZM'}**`;
+        const name = c.name && c.name !== c.code ? c.name : `Customer Account ${c.code || c.id}`;
+        const code = c.code || c.id || 'CUST-001';
+        const tier = c.tier || c.customer_type || 'Tier 1 OEM';
+        const limit = Number(c.credit_limit || c.creditLimit || 1000000).toLocaleString();
+        const gstin = c.gstin || '27AABCU9603R1ZM';
+        return `• **${code}** (${name}) | Tier: **${tier}** | Credit Limit: **₹${limit}** | GSTIN: **${gstin}**`;
       }).join('\n');
 
       return {
@@ -276,7 +276,7 @@ export const UniversalQueryEngine = {
           `Retrieved **${total} Master Customer Accounts** from the database:\n\n` +
           `${sample}\n\n` +
           `• **On-Time In-Full (OTIF) Delivery**: **96.4%** (+1.5% MoM)\n` +
-          `*All accounts are synchronized with active payment terms and dispatch staging.*`,
+          `All accounts are synchronized with active payment terms and dispatch staging.`,
         metadata: {
           database: 'Supabase Cloud (PostgreSQL 16)',
           matchedModule: 'Sales & CRM',
@@ -310,7 +310,7 @@ export const UniversalQueryEngine = {
         const cat = s.category || 'Polymer Resin';
         const rating = s.rating || 4.8;
         const terms = s.paymentTerms || s.payment_terms || 'Net 60 Days';
-        return `• **${name}** [${cat}] &bull; Rating: ⭐ **${rating}** &bull; Terms: **${terms}**`;
+        return `• **${name}** [${cat}] | Rating: ⭐ **${rating}** | Terms: **${terms}**`;
       }).join('\n');
 
       return {
@@ -318,7 +318,7 @@ export const UniversalQueryEngine = {
           `🏭 **Live Qualified Supplier & Procurement Directory**:\n\n` +
           `Found **${total} Approved Vendors** active in database:\n\n` +
           `${sample}\n\n` +
-          `*Purchase orders are linked with live formula price indexations (ICIS / Platts).*`,
+          `Purchase orders are linked with live formula price indexations (ICIS / Platts).`,
         metadata: {
           database: 'Supabase Cloud (PostgreSQL 16)',
           matchedModule: 'Procurement & SCM',
@@ -349,7 +349,7 @@ export const UniversalQueryEngine = {
           `🛡️ **Live Quality Assurance & Six Sigma Telemetry**:\n\n` +
           `• **Customer Defect Rate**: **240 PPM** (Six Sigma Level: **4.82**)\n` +
           `• **First Pass Yield (FPY)**: **98.2%** (Target: 98.0% | Adherence: **100.2%**)\n` +
-          `• **Pareto Scrap Defects**: **Flash (38%)**, **Short Shot (24%)**, **Burnt Marks (16%)**, **Warpage (12%)**, **Other (10%)**\n` +
+          `• **Pareto Scrap Defects**: Flash (38%), Short Shot (24%), Burnt Marks (16%), Warpage (12%), Other (10%)\n` +
           `• **SPC Control Charts**: In Statistical Control (0 Western Electric violations in active shift)`,
         metadata: {
           database: 'Supabase Cloud (PostgreSQL 16)',
@@ -415,8 +415,8 @@ export const UniversalQueryEngine = {
       return {
         reply:
           `🏬 **Live Warehouse & Bin Storage Distribution**:\n\n` +
-          `Managing **${INITIAL_WAREHOUSES.length} Plant Warehouses** and **${INITIAL_BINS.length} Staging Bins**:\n${whList}\n\n` +
-          `*Quarantine zones and regrind floor bays are active.*`,
+          `Managing **${INITIAL_WAREHOUSES.length} Plant Warehouses** and **${INITIAL_BINS.length} Staging Bins**:\n\n${whList}\n\n` +
+          `Quarantine zones and regrind floor bays are active.`,
         metadata: {
           database: 'Supabase Cloud (PostgreSQL 16)',
           matchedModule: 'Warehouse & Inventory',
@@ -442,7 +442,7 @@ export const UniversalQueryEngine = {
         `• **Customer Accounts**: 121 active master accounts\n` +
         `• **Suppliers**: 47 approved vendors\n` +
         `• **Quality**: 240 PPM defect rate\n\n` +
-        `*Try asking: "Show production schedule", "List item master count", "Show machines", "List customers", or "Quality defects".*`,
+        `Try asking: "Show production schedule", "List item master count", "Show machines", "List customers", or "Quality defects".`,
       metadata: {
         database: 'Supabase Cloud (PostgreSQL 16)',
         matchedModule: 'Universal Search',

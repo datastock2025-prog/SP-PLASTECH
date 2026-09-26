@@ -44,36 +44,51 @@ export const ChatMessageRenderer: React.FC<ChatMessageRendererProps> = ({ conten
 
   // Clean raw markdown asterisks and format lines
   const parseCleanText = (text: string) => {
-    const lines = text.split('\n');
+    // 1. Sanitize string: decode entities and normalize separators
+    const sanitized = text
+      .replace(/&bull;/gi, ' • ')
+      .replace(/&middot;/gi, ' · ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"');
+
+    const lines = sanitized.split('\n');
     return lines.map((line, lIdx) => {
-      if (!line.trim()) return <div key={lIdx} className="h-1.5" />;
+      const trimmed = line.trim();
+      if (!trimmed) return <div key={lIdx} className="h-1.5" />;
+
+      // Check if line is a bullet item (strip leading bullet characters to prevent duplicate bullets)
+      const isBullet = /^[•\-\*]\s*/.test(trimmed);
+      const cleanContent = isBullet ? trimmed.replace(/^[•\-\*]\s*/, '') : trimmed;
 
       // Parse bold segments **text**
-      const parts = line.split(/(\*\*[^*]+\*\*)/g);
-      const renderedLine = parts.map((part, pIdx) => {
+      const parts = cleanContent.split(/(\*\*[^*]+\*\*)/g);
+      const renderedParts = parts.map((part, pIdx) => {
         if (part.startsWith('**') && part.endsWith('**')) {
           const boldText = part.slice(2, -2);
           return (
-            <span key={pIdx} className="font-bold text-slate-900 bg-slate-100/80 px-1 py-0.5 rounded">
+            <strong key={pIdx} className="font-semibold text-slate-900 bg-slate-100/90 px-1 py-0.5 rounded text-[11px]">
               {boldText}
-            </span>
+            </strong>
           );
         }
         return <span key={pIdx}>{part}</span>;
       });
 
-      if (line.trim().startsWith('•') || line.trim().startsWith('-')) {
+      if (isBullet) {
         return (
-          <div key={lIdx} className="flex items-start gap-1.5 my-1 text-slate-700 pl-1">
-            <span className="text-teal-600 font-bold">•</span>
-            <div>{renderedLine}</div>
+          <div key={lIdx} className="flex items-start gap-2 my-1 text-slate-700 pl-1 leading-relaxed text-xs">
+            <span className="text-teal-600 font-bold mt-0.5 text-xs select-none">•</span>
+            <div className="flex-1">{renderedParts}</div>
           </div>
         );
       }
 
       return (
-        <div key={lIdx} className="my-0.5 text-slate-700 leading-relaxed">
-          {renderedLine}
+        <div key={lIdx} className="my-1 text-slate-700 leading-relaxed text-xs">
+          {renderedParts}
         </div>
       );
     });
