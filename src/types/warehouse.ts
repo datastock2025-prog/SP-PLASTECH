@@ -74,15 +74,16 @@ export interface StockMovementLedgerEntry {
 
   // "Where From In" (Inward Origin)
   sourceType?: 'VENDOR_GRN' | 'PRODUCTION_OUTPUT' | 'DEFLASH_RETURN' | 'REGRIND_RECOVERY' | 'INTER_PLANT_TRANSFER' | 'INITIAL_OPENING';
-  sourceOrigin: string;          // e.g. "Reliance Petrochemicals (PO-2026-081)"
-  sourceReference: string;       // e.g. "GRN-2026-001"
-  sourceLocation: string;        // e.g. "Inward Receiving Dock #1"
+  sourceOrigin?: string;          // e.g. "Reliance Petrochemicals (PO-2026-081)"
+  sourceReference?: string;       // e.g. "GRN-2026-001"
+  sourceLocation?: string;        // e.g. "Inward Receiving Dock #1"
 
   // "What Purpose Is Out" (Outward Purpose)
   purposeType?: 'PRODUCTION_ISSUE' | 'ASSEMBLY_REQUISITION' | 'DEFLASH_TRIMMING' | 'CUSTOMER_DISPATCH' | 'QC_REJECTION_SCRAP' | 'SUBCONTRACT_JOB';
-  purposeDescription: string;    // e.g. "Issued for Automotive Bumper Housing Molding"
-  destinationStore: string;      // e.g. "PRD-STORE (IMM Line #3)"
-  outwardReference: string;      // e.g. "WO-2026-0881"
+  purposeDescription?: string;    // e.g. "Issued for Automotive Bumper Housing Molding"
+  destinationStore?: string;      // e.g. "PRD-STORE (IMM Line #3)"
+  outwardReference?: string;      // e.g. "WO-2026-0881"
+
 
   authorizedBy: string;          // e.g. "Ramesh K. (Store In-Charge)"
   runningBalance: number;

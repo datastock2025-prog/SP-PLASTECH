@@ -29,7 +29,10 @@ export interface ProductionEntryPayload {
   downtimeReason?: string;
   cavities: number;
   actualCycleTimeSec: number;
+  lotNumber?: string;
+  notes?: string;
 }
+
 
 export interface ProductionEntryResult {
   success: boolean;
@@ -105,7 +108,8 @@ class LiveDataStore {
           status: 'running',
           produced: payload.goodQty,
           scrap: payload.scrapQty,
-        } as WorkOrder,
+        } as unknown as WorkOrder,
+
         computedOee: {
           availabilityPct,
           performancePct,

@@ -78,7 +78,9 @@ export interface SupplierPriceListEntry {
   priceListId: string;
   supplierId?: string;
   supplierName?: string;
+  groupCategory?: string;
   itemCode: string;
+
   itemName: string;
   uom?: string;
   currency: string;
@@ -167,7 +169,9 @@ export interface SupplierMaster {
   code: string;
   name: string;
   legalName?: string;
+  shortName?: string;
   type: SupplierType;
+
   category: SupplierCategory;
   status: SupplierStatus;
   rating: number; // 1.0 - 5.0
@@ -204,9 +208,17 @@ export interface SupplierMaster {
     id: string;
     date: string;
     user: string;
-    action: string;
-    details: string;
+    action?: string;
+    details?: string;
+    type?: string;
+    title?: string;
+    description?: string;
+    [key: string]: any;
   }>;
+
+
+
+
 }
 
 // ----------------------------------------------------

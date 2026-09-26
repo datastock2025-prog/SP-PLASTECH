@@ -955,7 +955,8 @@ class MasterDataGovernanceService {
   }
 
   public recordAudit(entry: {
-    entityType: 'ITEM_MASTER' | 'BOM_MASTER' | 'PLANT' | 'ROUTING';
+    entityType: 'ITEM_MASTER' | 'BOM_MASTER' | 'PLANT' | 'ROUTING' | 'MACHINE_MASTER' | string;
+
     entityCode: string;
     entityName?: string;
     action: 'CREATE' | 'UPDATE' | 'APPROVE' | 'REJECT' | 'DELETE' | 'VERSION_RELEASE';
@@ -1529,7 +1530,8 @@ export interface MasterDataChangeRequest {
 
 export interface MasterDataChangeRecord {
   id: string;
-  entityType: 'ITEM_MASTER' | 'BOM_MASTER' | 'PLANT' | 'ROUTING';
+  entityType: 'ITEM_MASTER' | 'BOM_MASTER' | 'PLANT' | 'ROUTING' | 'MACHINE_MASTER' | string;
+
   entityCode: string;
   entityName?: string;
   action: 'CREATE' | 'UPDATE' | 'APPROVE' | 'REJECT' | 'DELETE' | 'VERSION_RELEASE';

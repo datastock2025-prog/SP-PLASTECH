@@ -147,15 +147,13 @@ class SupplierService {
 
     saveLocalSuppliers(this.cache);
 
-    adminEventBus.emit({
-      type: 'NOTIFICATION_PUBLISHED',
-      payload: {
-        title: 'Supplier Master Updated',
-        message: `Supplier ${enrichedSupplier.code} (${enrichedSupplier.name}) saved in live catalog.`,
-        level: 'INFO',
-        timestamp: new Date().toISOString(),
-      },
+    adminEventBus.emit('NOTIFICATION_PUBLISHED', {
+      title: 'Supplier Master Updated',
+      message: `Supplier ${enrichedSupplier.code} (${enrichedSupplier.name}) saved in live catalog.`,
+      level: 'INFO',
+      timestamp: new Date().toISOString(),
     });
+
 
     return enrichedSupplier;
   }
