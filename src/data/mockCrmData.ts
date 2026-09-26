@@ -403,11 +403,72 @@ export const mockOpportunities: Opportunity[] = [
   },
 ];
 
+import { LIVE_CUSTOMERS_CATALOG } from './liveCustomersCatalog';
+
 export const mockAccounts: Account[] = [
+  ...LIVE_CUSTOMERS_CATALOG.map((c, idx) => {
+    let customerGroup: Account['customerGroup'] = 'Automotive Tier-1';
+    if (c.customerType === 'Packaging / Industrial') customerGroup = 'Packaging Converter';
+    else if (c.customerType === 'Direct Distributor') customerGroup = 'Distributor';
+    else if (c.name.includes('HEALTH') || c.name.includes('LAB')) customerGroup = 'Healthcare/Pharma';
+    else if (c.name.includes('FMCG')) customerGroup = 'FMCG Major';
+    else if (c.name.includes('TOOL') || c.name.includes('CNC')) customerGroup = 'Industrial OEM';
+
+    let customerType: Account['customerType'] = 'Standard Account';
+    if (c.tier === 'Tier 1') customerType = 'Key Strategic Account';
+    else if (c.tier === 'Tier 2') customerType = 'High Volume Account';
+
+    let segmentTier: Account['segmentTier'] = 'Tier 3 - Growth';
+    if (c.tier === 'Tier 1') segmentTier = 'Tier 1 - Strategic';
+    else if (c.tier === 'Tier 2') segmentTier = 'Tier 2 - Growth';
+
+    let paymentTerms: Account['paymentTerms'] = 'Net 45 Days';
+    if (c.paymentTerms.includes('30')) paymentTerms = 'Net 30 Days';
+    else if (c.paymentTerms.includes('60')) paymentTerms = 'Net 60 Days';
+    else if (c.paymentTerms.includes('Immediate')) paymentTerms = 'Advance 100%';
+
+    return {
+      id: `ACC-SP-${c.code}`,
+      accountCode: c.code,
+      accountName: c.name,
+      customerGroup,
+      customerType,
+      industry: c.segment || 'Automotive OEM / Tier-1',
+      accountManager: idx % 2 === 0 ? 'Rajesh Sharma' : 'Pooja Nair',
+      status: 'Active' as const,
+      creditStatus: 'Good Standing' as const,
+      riskRating: (c.tier === 'Tier 1' ? 'Low' : c.tier === 'Tier 2' ? 'Moderate' : 'High') as any,
+      isPreferredCustomer: c.tier === 'Tier 1',
+      isBlocked: false,
+      phone: c.mobile || '+91 98400 00000',
+      email: c.email || `${c.code.toLowerCase()}@spplastech-partners.com`,
+      website: `https://${c.code.toLowerCase()}.sp-partner.in`,
+      address: c.address || 'Industrial Area, Hosur',
+      city: c.destination || 'Hosur',
+      state: c.state || 'Tamil Nadu',
+      country: 'India',
+      gstin: c.gstin,
+      panNumber: c.gstin ? c.gstin.slice(2, 12) : '',
+      creditLimit: c.creditLimit,
+      availableCredit: c.creditLimit - c.currentBalance,
+      outstandingBalance: c.currentBalance,
+      overdueAmount: c.overdueAmount,
+      paymentTerms,
+      openOpportunitiesValue: 250000 + (idx * 35000),
+      openOrdersValue: 150000 + (idx * 20000),
+      totalRevenueYtd: 1200000 + (idx * 110000),
+      lastOrderDate: '2026-08-20',
+      nextExpectedOrderDate: '2026-09-15',
+      customerRating: 4.8,
+      healthScore: 95,
+      segmentTier,
+    };
+  }),
   {
     id: 'ACC-1001',
     accountCode: 'CUST-MOBIS-01',
     accountName: 'Hyundai Mobis Automotive India',
+
     customerGroup: 'Automotive Tier-1',
     customerType: 'Key Strategic Account',
     industry: 'Automotive OEM / Tier-1',

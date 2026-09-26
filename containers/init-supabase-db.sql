@@ -115,6 +115,65 @@ CREATE TABLE IF NOT EXISTS public.purchase_orders (
   updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS public.customers (
+  id TEXT PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  customer_type TEXT DEFAULT 'OEM',
+  tier TEXT DEFAULT 'Tier 1',
+  gstin TEXT,
+  credit_limit NUMERIC(14, 2) DEFAULT 1000000,
+  credit_days INT DEFAULT 45,
+  status TEXT DEFAULT 'active',
+  contacts JSONB DEFAULT '[]'::jsonb,
+  addresses JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS public.warehouses (
+  id TEXT PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  plant_id TEXT DEFAULT 'SP-PLASTECH-01',
+  location_type TEXT DEFAULT 'INTERNAL',
+  address TEXT,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS public.machines (
+  id TEXT PRIMARY KEY,
+  machine_code TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  machine_type TEXT NOT NULL,
+  tonnage INT,
+  manufacturer TEXT,
+  plant_location TEXT DEFAULT 'Shopfloor Bay 1',
+  status TEXT DEFAULT 'RUNNING',
+  oee_percentage NUMERIC(5, 2) DEFAULT 85.0,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS public.sales_orders (
+  id TEXT PRIMARY KEY,
+  so_number TEXT UNIQUE NOT NULL,
+  customer_id TEXT REFERENCES public.customers(id),
+  customer_code TEXT NOT NULL,
+  customer_name TEXT NOT NULL,
+  order_date DATE DEFAULT CURRENT_DATE,
+  delivery_due_date DATE,
+  currency TEXT DEFAULT 'INR (₹)',
+  subtotal NUMERIC(14, 2) DEFAULT 0,
+  tax_amount NUMERIC(14, 2) DEFAULT 0,
+  total_amount NUMERIC(14, 2) DEFAULT 0,
+  status TEXT DEFAULT 'CONFIRMED',
+  lines JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS public.audit_logs (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   action_type TEXT NOT NULL,
@@ -129,14 +188,24 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
 -- 5. ROW LEVEL SECURITY (RLS) POLICIES (SECURITY ENFORCEMENT)
 ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.warehouses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.machines ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sales_orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.purchase_orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
--- Policy 1: Everyone (anon & authenticated) can SELECT approved active records
+-- Policy 1: Everyone (anon & authenticated) can SELECT
 CREATE POLICY "Allow public read access on suppliers" 
 ON public.suppliers FOR SELECT 
 TO anon, authenticated, service_role 
 USING (true);
+
+CREATE POLICY "Allow public read access on customers" 
+ON public.customers FOR SELECT 
+TO anon, authenticated, service_role 
+USING (true);
+
 
 CREATE POLICY "Allow public read access on items" 
 ON public.items FOR SELECT 

@@ -571,12 +571,27 @@ export const INITIAL_PURCHASE_ORDERS: PurchaseOrder[] = [
   }
 ];
 
-export const INITIAL_CUSTOMERS: Customer[] = [
-  { code: 'CUST-001', name: 'Metro Retail Distributors', segment: 'Retail Chain', creditLimit: 2000000, contact: 'Karan Mehta', email: 'karan@metroretail.example', phone: '+91 98200 55667', status: 'active' },
-  { code: 'CUST-002', name: 'GreenPack FMCG Pvt Ltd', segment: 'FMCG', creditLimit: 1500000, contact: 'Neha Kulkarni', email: 'neha@greenpack.example', phone: '+91 98330 11222', status: 'active' },
-  { code: 'CUST-003', name: 'Bharat AgroTech', segment: 'Agriculture', creditLimit: 800000, contact: 'Suresh Patil', email: 'suresh@bharatagro.example', phone: '+91 98450 33445', status: 'active' },
-  { code: 'CUST-004', name: 'UrbanHome Essentials', segment: 'D2C / E-commerce', creditLimit: 500000, contact: 'Priyanka Shah', email: 'priyanka@urbanhome.example', phone: '+91 98110 66778', status: 'inactive' },
-];
+import { LIVE_CUSTOMERS_CATALOG } from './liveCustomersCatalog';
+
+export const INITIAL_CUSTOMERS: Customer[] = LIVE_CUSTOMERS_CATALOG.map(c => ({
+  code: c.code,
+  name: c.name,
+  segment: c.segment,
+  creditLimit: c.creditLimit,
+  contact: c.contactPerson,
+  email: c.email,
+  phone: c.mobile,
+  status: c.status,
+  gstin: c.gstin,
+  billingAddress: c.address,
+  paymentTerms: c.paymentTerms,
+  accountManager: 'Ananya Rao',
+  riskRating: c.riskRating,
+  creditStatus: 'good_standing' as const,
+  creditUsed: c.currentBalance,
+  overdueAmount: c.overdueAmount,
+}));
+
 
 export const INITIAL_SALES_ORDERS: SalesOrder[] = [
   {

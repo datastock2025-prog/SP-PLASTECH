@@ -1,0 +1,59 @@
+name: SP PLASTECH ERP CI/CD & DB Sync
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build Frontend & Backend Middleware
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Frontend Dependencies
+        run: npm ci
+
+      - name: Verify TypeScript & Build Frontend
+        run: |
+          npm run lint
+          npm run build
+
+      - name: Install & Build Middleware Backend
+        run: |
+          cd middleware
+          npm ci
+          npm run build
+
+  sync-database:
+    name: Verify & Synchronize Supabase Database
+    runs-on: ubuntu-latest
+    needs: [build-and-test]
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://gqrelwvmeoqvfnanoutz.supabase.co' }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'sb_publishable_RN013pGcuejquwnEeW-n3Q_Ly2qVu2R' }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://reboot:reboot_dev@localhost:5432/reboot_erp' }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies for DB Sync
+        run: npm ci
+
+      - name: Run Supabase Database Synchronizer
+        run: node scripts/syncPodmanAndSupabase.cjs

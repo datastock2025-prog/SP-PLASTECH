@@ -164,6 +164,21 @@ export const SupabaseDataService = {
     }
   },
 
+  async upsertCustomer(customer: Record<string, any>): Promise<DbResult<any>> {
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .upsert(customer, { onConflict: 'id' })
+        .select()
+        .single();
+      if (error) throw error;
+      return { data, error: null };
+    } catch (err: any) {
+      return { data: null, error: err.message };
+    }
+  },
+
+
   async getSalesOrders(): Promise<DbResult<any[]>> {
     try {
       const { data, error } = await supabase
