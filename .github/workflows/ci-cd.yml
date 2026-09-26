@@ -27,12 +27,6 @@ jobs:
       - name: Build Frontend Application
         run: npm run build
 
-      - name: Install & Build Middleware Backend
-        run: |
-          cd middleware
-          npm ci
-          npm run build
-
       - name: Install & Build Core Enterprise Backend
         run: |
           cd backend
