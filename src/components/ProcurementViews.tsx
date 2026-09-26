@@ -393,6 +393,7 @@ export const ProcurementViews: React.FC<Props> = ({
     case 'supplierInvoices':
     case 'invoiceMatching':
     case 'supplierInvoiceList':
+    case 'supplierInvoiceMatch':
     case 'invoices':
       return (
         <SupplierInvoiceManagementView

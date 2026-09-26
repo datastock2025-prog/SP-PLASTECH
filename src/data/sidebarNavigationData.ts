@@ -283,6 +283,7 @@ export const NAVIGATION_GROUPS: NavGroupDef[] = [
       { id: 'nav-proc-po', label: 'Purchase Orders (PO)', view: 'poList', icon: 'Receipt', badge: '12 Open', badgeColor: 'bg-cyan-600', subGroup: 'Sourcing' },
       { id: 'nav-proc-approvals', label: 'Multi-Tier PO Approvals', view: 'poApprovals', icon: 'FileCheck', subGroup: 'Sourcing' },
       { id: 'nav-proc-grn', label: 'Goods Receipts (GRN)', view: 'grnList', icon: 'Package', subGroup: 'Sourcing' },
+      { id: 'nav-proc-invoices', label: '3-Way Match & Invoices', view: 'supplierInvoices', icon: 'FileCheck', badge: 'AI OCR', badgeColor: 'bg-[#0F8B8D]', subGroup: 'Sourcing', tooltip: 'AI 3-Way Match: PO vs GRN vs Vendor Invoice' },
       { id: 'nav-proc-returns', label: 'Vendor Debit Notes & Returns', view: 'purchaseReturns', icon: 'RotateCcw', subGroup: 'Sourcing' },
       { id: 'nav-proc-scorecards', label: 'Supplier Performance Scorecards', view: 'supplierScorecard', icon: 'Award', subGroup: 'Sourcing' },
       { id: 'nav-proc-risk', label: 'Supplier Risk & Compliance', view: 'supplierRisk', icon: 'ShieldAlert', subGroup: 'Sourcing' },
