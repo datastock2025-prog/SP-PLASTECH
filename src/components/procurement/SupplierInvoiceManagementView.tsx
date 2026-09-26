@@ -13,11 +13,14 @@ import {
   CreditCard,
   Building,
   Truck,
+  Sparkles,
+  LayoutGrid,
 } from 'lucide-react';
 import { SupplierInvoiceRecord, ExtendedPurchaseOrder } from '../../types/procurement';
 import { ProcurementStatusBadge } from './ProcurementStatusBadge';
 import { usePagination } from '../../hooks/usePagination';
 import { PaginationBar } from '../common/PaginationBar';
+import { InvoiceOcrVerificationWorkspace, OcrInvoiceDocument } from './InvoiceOcrVerificationWorkspace';
 
 interface Props {
   invoices: SupplierInvoiceRecord[];
@@ -34,6 +37,7 @@ export const SupplierInvoiceManagementView: React.FC<Props> = ({
   onUpdateInvoice,
   showToast,
 }) => {
+  const [viewMode, setViewMode] = useState<'ai-matcher' | 'classic'>('ai-matcher');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMatchStatus, setSelectedMatchStatus] = useState<string>('All');
   const [selectedInvoice, setSelectedInvoice] = useState<SupplierInvoiceRecord | null>(invoices[0] || null);
@@ -81,8 +85,11 @@ export const SupplierInvoiceManagementView: React.FC<Props> = ({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold font-['Space_Grotesk'] text-[#14213D]">
+          <h1 className="text-xl font-bold font-['Space_Grotesk'] text-[#14213D] flex items-center gap-2">
             Supplier Invoices & 3-Way Matching
+            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-[#0F8B8D]/10 text-[#0F8B8D] border border-[#0F8B8D]/20">
+              AI Powered OCR
+            </span>
           </h1>
           <p className="text-xs text-slate-500">
             Verify PO contract price, warehouse GRN accepted quantities, and vendor tax invoices before AP payment release
@@ -90,6 +97,30 @@ export const SupplierInvoiceManagementView: React.FC<Props> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Mode Switcher */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold">
+            <button
+              onClick={() => setViewMode('ai-matcher')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition ${
+                viewMode === 'ai-matcher'
+                  ? 'bg-white text-[#0F8B8D] shadow-sm font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-[#0F8B8D]" /> AI OCR Split-Screen
+            </button>
+            <button
+              onClick={() => setViewMode('classic')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition ${
+                viewMode === 'classic'
+                  ? 'bg-white text-[#14213D] shadow-sm font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5 text-slate-500" /> Classic Grid
+            </button>
+          </div>
+
           <button
             onClick={() => onNavigate('procurementReports')}
             className="flex items-center gap-1.5 px-3.5 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold shadow-sm transition"
@@ -99,8 +130,14 @@ export const SupplierInvoiceManagementView: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Main Split Interface */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {viewMode === 'ai-matcher' ? (
+        <InvoiceOcrVerificationWorkspace
+          showToast={showToast}
+          onNavigate={onNavigate}
+        />
+      ) : (
+        /* Main Split Interface */
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 1 Column: Invoice List */}
         <div className="space-y-4">
           <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center gap-2">
@@ -257,6 +294,7 @@ export const SupplierInvoiceManagementView: React.FC<Props> = ({
           )}
         </div>
       </div>
+      )}
     </div>
   );
 };

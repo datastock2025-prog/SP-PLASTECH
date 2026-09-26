@@ -41,6 +41,7 @@ import { PurchaseOrderPrintView } from './procurement/PurchaseOrderPrintView';
 import { PurchaseApprovalWorkflowView } from './procurement/PurchaseApprovalWorkflowView';
 import { GoodsReceiptNoteView } from './procurement/GoodsReceiptNoteView';
 import { SupplierInvoiceManagementView } from './procurement/SupplierInvoiceManagementView';
+import { InvoiceOcrVerificationWorkspace } from './procurement/InvoiceOcrVerificationWorkspace';
 import { ProcurementPlanningMrpView } from './procurement/ProcurementPlanningMrpView';
 import { SupplierPerformanceScorecardView } from './procurement/SupplierPerformanceScorecardView';
 import { SupplierContractManagementView } from './procurement/SupplierContractManagementView';
@@ -399,6 +400,18 @@ export const ProcurementViews: React.FC<Props> = ({
           pos={pos}
           onNavigate={onNavigate}
           onUpdateInvoice={handleUpdateInvoice}
+          showToast={showToast}
+        />
+      );
+
+    case 'invoiceOcr':
+    case 'invoiceOcrVerification':
+    case 'ocrInvoiceMatcher':
+    case 'threeWayMatch':
+      return (
+        <InvoiceOcrVerificationWorkspace
+          initialInvoiceId={activeParam?.id || activeParam?.invoiceId}
+          onNavigate={onNavigate}
           showToast={showToast}
         />
       );
