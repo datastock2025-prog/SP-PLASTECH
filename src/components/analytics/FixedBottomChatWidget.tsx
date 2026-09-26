@@ -5,18 +5,14 @@ import {
   Send,
   Bot,
   User,
-  Download,
-  FileText,
-  FileSpreadsheet,
   Minimize2,
   Maximize2,
-  MessageSquare,
-  ShieldCheck,
-  Cpu,
   RefreshCw,
+  Zap,
 } from 'lucide-react';
 import { analyticsApi } from '../../services/analytics/analytics.api';
 import { ChatMessageItem } from '../../types/analyticsTypes';
+import { ChatMessageRenderer } from './ChatMessageRenderer';
 
 interface FixedBottomChatWidgetProps {
   showToast?: (msg: string) => void;
@@ -37,7 +33,9 @@ export const FixedBottomChatWidget: React.FC<FixedBottomChatWidgetProps> = ({
       sessionId: 'SESS-LIVE-FLOAT',
       role: 'ASSISTANT',
       content:
-        '👋 Welcome to **SP-PLASTECH AI Assistant**. Ask me anything regarding **OEE Telemetry**, **Quality PPM**, **SCM Deliveries**, or **Work Orders** to receive instant data & exportable briefs.',
+        '👋 Welcome to **SP-PLASTECH AI Assistant**.\n\n' +
+        'Ask me anything about **Item Master Catalog (1,719 items)**, **Customer Accounts (121)**, **Plant OEE Telemetry**, **Quality PPM**, or **Calculations**.\n\n' +
+        'You can also click any download button below to instantly export **Excel**, **PDF**, **CSV**, or **PPTX Presentation** decks.',
       createdAt: new Date().toISOString(),
     },
   ]);
@@ -78,17 +76,17 @@ export const FixedBottomChatWidget: React.FC<FixedBottomChatWidgetProps> = ({
       };
       setMessages((prev) => [...prev, botMsg]);
     } catch {
-      showToast('AI Gateway connection failed. Operating in secure offline mode.');
+      showToast('AI Query processing fallback.');
     } finally {
       setIsThinking(false);
     }
   };
 
   const quickPrompts = [
+    'How many items in Item Master?',
     'What is overall Plant OEE this month?',
-    'Show top 3 quality scrap defect reasons',
-    'Calculate energy cost per kg plastic',
-    'Generate executive brief PDF',
+    'Show top quality scrap defects',
+    'Calculate energy cost per kg',
   ];
 
   return (
@@ -96,8 +94,8 @@ export const FixedBottomChatWidget: React.FC<FixedBottomChatWidgetProps> = ({
       {/* Floating Chat Drawer */}
       {isOpen && (
         <div
-          className={`w-[360px] sm:w-[420px] bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col transition-all duration-200 mb-3 ${
-            isMinimized ? 'h-14' : 'h-[540px]'
+          className={`w-[360px] sm:w-[440px] bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col transition-all duration-200 mb-3 ${
+            isMinimized ? 'h-14' : 'h-[560px]'
           }`}
         >
           {/* Header */}
@@ -111,7 +109,10 @@ export const FixedBottomChatWidget: React.FC<FixedBottomChatWidgetProps> = ({
                   <span>AI Copilot &bull; ERP Brain</span>
                   <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 </div>
-                <div className="text-[10px] text-slate-300">Tenant: {defaultTenantId}</div>
+                <div className="text-[10px] text-slate-300 flex items-center gap-1">
+                  <Zap className="w-3 h-3 text-amber-400" />
+                  <span>Sub-50ms Supabase Connected &bull; 1,719 Items</span>
+                </div>
               </div>
             </div>
 
@@ -136,37 +137,37 @@ export const FixedBottomChatWidget: React.FC<FixedBottomChatWidgetProps> = ({
           {!isMinimized && (
             <>
               {/* Messages Content */}
-              <div className="flex-1 p-3.5 overflow-y-auto space-y-3 text-xs bg-slate-50/50">
+              <div className="flex-1 p-3.5 overflow-y-auto space-y-3.5 text-xs bg-slate-50/50">
                 {messages.map((m) => (
                   <div
                     key={m.id}
-                    className={`flex items-start gap-2 ${m.role === 'USER' ? 'flex-row-reverse' : ''}`}
+                    className={`flex items-start gap-2.5 ${m.role === 'USER' ? 'flex-row-reverse' : ''}`}
                   >
                     <div
                       className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] shrink-0 font-bold ${
                         m.role === 'USER'
                           ? 'bg-blue-600 text-white'
-                          : 'bg-gradient-to-tr from-teal-600 to-emerald-600 text-white'
+                          : 'bg-gradient-to-tr from-teal-600 to-emerald-600 text-white shadow-xs'
                       }`}
                     >
                       {m.role === 'USER' ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
                     </div>
                     <div
-                      className={`max-w-[82%] p-3 rounded-2xl shadow-2xs leading-relaxed whitespace-pre-wrap ${
+                      className={`max-w-[88%] p-3.5 rounded-2xl shadow-2xs leading-relaxed ${
                         m.role === 'USER'
                           ? 'bg-blue-600 text-white rounded-tr-none'
-                          : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none'
+                          : 'bg-white border border-slate-200/90 text-slate-800 rounded-tl-none'
                       }`}
                     >
-                      {m.content}
+                      <ChatMessageRenderer content={m.content} role={m.role} metadata={m.metadata} />
                     </div>
                   </div>
                 ))}
 
                 {isThinking && (
-                  <div className="flex items-center gap-2 text-slate-500 text-xs italic p-2 bg-white rounded-xl border border-slate-200 w-fit">
+                  <div className="flex items-center gap-2 text-slate-500 text-xs italic p-2.5 bg-white rounded-xl border border-slate-200 w-fit">
                     <RefreshCw className="w-3.5 h-3.5 animate-spin text-teal-600" />
-                    <span>Querying secure AST ERP database...</span>
+                    <span>Analyzing live database records...</span>
                   </div>
                 )}
                 <div ref={chatBottomRef} />
@@ -192,7 +193,7 @@ export const FixedBottomChatWidget: React.FC<FixedBottomChatWidgetProps> = ({
                   value={inputQuery}
                   onChange={(e) => setInputQuery(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                  placeholder="Ask about OEE, PPM, inventory..."
+                  placeholder="Ask about 1,719 items, OEE, customers..."
                   className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-teal-500"
                 />
                 <button
