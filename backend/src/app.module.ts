@@ -9,6 +9,7 @@ import { MoldModule } from './modules/operations/mold/mold.module';
 import { SpcModule } from './modules/quality/spc/spc.module';
 import { SustainabilityModule } from './modules/sustainability/sustainability.module';
 import { AiChatModule } from './modules/ai-chat/ai-chat.module';
+import { AiGatewayModule } from './modules/ai-gateway/ai-gateway.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { AiChatModule } from './modules/ai-chat/ai-chat.module';
     SpcModule,
     SustainabilityModule,
     AiChatModule,
+    AiGatewayModule,
   ],
   controllers: [],
   providers: [ObservabilityService],

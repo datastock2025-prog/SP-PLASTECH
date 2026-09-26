@@ -1,0 +1,92 @@
+{
+  "name": "SP-PLASTECH Enterprise Error Handler & Alert Workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "node-error-trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "string": [
+            {
+              "name": "failedWorkflow",
+              "value": "={{ $json.workflow.name }}"
+            },
+            {
+              "name": "errorMessage",
+              "value": "={{ $json.execution.error.message }}"
+            },
+            {
+              "name": "executionId",
+              "value": "={{ $json.execution.id }}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ $now.toISO() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-format-error",
+      "name": "Format Incident Payload",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "none",
+        "requestMethod": "POST",
+        "url": "http://backend:3000/api/ai-gateway/n8n-trigger",
+        "options": {
+          "headers": {
+            "Content-Type": "application/json",
+            "X-Webhook-Secret": "sp_plastech_n8n_webhook_secret_2026"
+          }
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ JSON.stringify({ workflowName: 'incident_alert', payload: $json }) }}"
+      },
+      "id": "node-notify-admin",
+      "name": "Alert ERP Incident Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [720, 300]
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Format Incident Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Incident Payload": {
+      "main": [
+        [
+          {
+            "node": "Alert ERP Incident Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

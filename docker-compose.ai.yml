@@ -1,0 +1,100 @@
+# ==============================================================================
+# SP-PLASTECH ERP — AI & INTEGRATION SIDECAR INFRASTRUCTURE
+# Open WebUI + Ollama + n8n with strict network isolation and resource limits
+# ==============================================================================
+
+version: '3.8'
+
+networks:
+  sp-plastech-internal:
+    driver: bridge
+    internal: false # Internal bridge connecting AI sidecars to NestJS backend
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. OLLAMA LLM INFERENCE ENGINE
+  # ----------------------------------------------------------------------------
+  ollama:
+    image: docker.io/ollama/ollama:latest
+    container_name: sp-plastech-ollama
+    restart: unless-stopped
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_NUM_PARALLEL=2
+      - OLLAMA_MAX_LOADED_MODELS=1
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - sp-plastech-internal
+    ports:
+      - "127.0.0.1:11434:11434" # Exposed only to localhost/internal network
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4096M
+        reservations:
+          memory: 1024M
+
+  # ----------------------------------------------------------------------------
+  # 2. OPEN WEBUI CHAT INTERFACE & RAG PIPELINE
+  # ----------------------------------------------------------------------------
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: sp-plastech-open-webui
+    restart: unless-stopped
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - WEBUI_AUTH=true
+      - WEBUI_SECRET_KEY=${OPEN_WEBUI_SECRET:-sp_plastech_openwebui_supersecret_2026}
+      - NESTJS_GATEWAY_URL=http://backend:3000/api/ai-gateway
+      - ENABLE_SIGNUP=false
+    volumes:
+      - openwebui_data:/app/backend/data
+    networks:
+      - sp-plastech-internal
+    ports:
+      - "127.0.0.1:8080:8080" # Exposed behind NGINX reverse proxy
+    depends_on:
+      - ollama
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1024M
+
+  # ----------------------------------------------------------------------------
+  # 3. N8N INTEGRATION & OAUTH WORKFLOW ENGINE
+  # ----------------------------------------------------------------------------
+  n8n:
+    image: docker.io/n8nio/n8n:latest
+    container_name: sp-plastech-n8n
+    restart: unless-stopped
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-sp_plastech_n8n_secure_pwd_2026}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-sp_plastech_n8n_vault_encryption_key_32chars}
+      - N8N_HOST=n8n.sp-plastech.local
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://n8n:5678/
+      - GENERIC_TIMEZONE=Asia/Kolkata
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=168 # 7 days retention
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - sp-plastech-internal
+    ports:
+      - "127.0.0.1:5678:5678" # Access restricted via reverse proxy and M2M headers
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1024M
+
+volumes:
+  ollama_models:
+  openwebui_data:
+  n8n_data:

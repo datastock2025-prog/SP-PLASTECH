@@ -14,6 +14,7 @@ import {
   FileText,
   AlertCircle,
   Building2,
+  Shield,
 } from 'lucide-react';
 import { analyticsApi } from '../../services/analytics/analytics.api';
 import { ExecutiveKpiSummary } from '../../types/analyticsTypes';
@@ -21,6 +22,8 @@ import { KpiCard } from './KpiCard';
 import { FilterPanel } from './FilterPanel';
 import { ExportModal } from './ExportModal';
 import { ChatAssistantModal } from './ChatAssistantModal';
+import { FixedBottomChatWidget } from './FixedBottomChatWidget';
+import { AdminDomainRbacControl, DomainPermissionConfig } from './AdminDomainRbacControl';
 
 interface ModernAnalyticsDashboardProps {
   onNavigate?: (view: string, param?: any) => void;
@@ -40,6 +43,18 @@ export const ModernAnalyticsDashboard: React.FC<ModernAnalyticsDashboardProps> =
   });
   const [showExportModal, setShowExportModal] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
+  const [showRbacModal, setShowRbacModal] = useState(false);
+
+  // User Domain RBAC State
+  const activeRole = localStorage.getItem('userRole') || 'ADMIN';
+  const [allowedDomains, setAllowedDomains] = useState<Record<string, boolean>>({
+    FINANCIAL: true,
+    PRODUCTION: true,
+    QUALITY: true,
+    SUPPLY_CHAIN: true,
+    SUSTAINABILITY: true,
+    MAINTENANCE: true,
+  });
 
   const loadData = async () => {
     setLoading(true);
@@ -55,10 +70,42 @@ export const ModernAnalyticsDashboard: React.FC<ModernAnalyticsDashboardProps> =
 
   useEffect(() => {
     loadData();
-  }, [filters]);
+
+    // Load RBAC matrix if stored
+    try {
+      const saved = localStorage.getItem('sp_domain_rbac_matrix');
+      if (saved) {
+        const matrix: DomainPermissionConfig[] = JSON.parse(saved);
+        const userPerm = matrix.find((m) => m.role === activeRole) || matrix[0];
+        if (userPerm) {
+          setAllowedDomains({
+            FINANCIAL: userPerm.canViewFinancial,
+            PRODUCTION: userPerm.canViewProductionOee,
+            QUALITY: userPerm.canViewQualityPpm,
+            SUPPLY_CHAIN: userPerm.canViewScmOtif,
+            SUSTAINABILITY: userPerm.canViewEsgCarbon,
+            MAINTENANCE: userPerm.canViewMaintenanceMtbf,
+          });
+        }
+      }
+    } catch {
+      // default open
+    }
+  }, [filters, activeRole]);
+
+  // Filter KPI scorecards based on domain RBAC
+  const filteredKpis = data?.kpis?.filter((kpi) => {
+    if (kpi.kpiCategory === 'FINANCIAL' && !allowedDomains.FINANCIAL) return false;
+    if (kpi.kpiCategory === 'PRODUCTION' && !allowedDomains.PRODUCTION) return false;
+    if (kpi.kpiCategory === 'QUALITY' && !allowedDomains.QUALITY) return false;
+    if (kpi.kpiCategory === 'SUPPLY_CHAIN' && !allowedDomains.SUPPLY_CHAIN) return false;
+    if (kpi.kpiCategory === 'SUSTAINABILITY' && !allowedDomains.SUSTAINABILITY) return false;
+    if (kpi.kpiCategory === 'MAINTENANCE' && !allowedDomains.MAINTENANCE) return false;
+    return true;
+  });
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto relative pb-20">
       {/* Top Banner & Action Controls */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-[#14213D] to-slate-900 text-white p-5 sm:p-6 rounded-3xl shadow-xl border border-slate-800">
         <div>
@@ -90,6 +137,14 @@ export const ModernAnalyticsDashboard: React.FC<ModernAnalyticsDashboardProps> =
             <span>Export Brief</span>
           </button>
           <button
+            onClick={() => setShowRbacModal(true)}
+            className="px-3 py-2 rounded-xl text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/30 flex items-center gap-1.5 transition-all cursor-pointer"
+            title="Admin Domain RBAC Data Controls"
+          >
+            <Shield className="w-3.5 h-3.5" />
+            <span>Domain RBAC</span>
+          </button>
+          <button
             onClick={loadData}
             className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all cursor-pointer"
             title="Refresh Real-Time Telemetry"
@@ -106,69 +161,77 @@ export const ModernAnalyticsDashboard: React.FC<ModernAnalyticsDashboardProps> =
         onReset={() => setFilters({ dateRange: 'last_30_days', plantId: 'ALL', shift: 'ALL' })}
       />
 
-      {/* Top 4 Executive Scorecard Cards */}
+      {/* Top Executive Scorecard Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-200 p-4.5 shadow-2xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shrink-0">
-            <DollarSign className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Gross Revenue YTD</div>
-            <div className="text-xl font-bold text-slate-900 font-mono mt-0.5">₹2.84 Cr</div>
-            <div className="text-[10px] text-emerald-600 font-bold flex items-center gap-0.5 mt-0.5">
-              <TrendingUp className="w-3 h-3" /> +5.4% vs Target
+        {allowedDomains.FINANCIAL && (
+          <div className="bg-white rounded-2xl border border-slate-200 p-4.5 shadow-2xs flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shrink-0">
+              <DollarSign className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Gross Revenue YTD</div>
+              <div className="text-xl font-bold text-slate-900 font-mono mt-0.5">₹2.84 Cr</div>
+              <div className="text-[10px] text-emerald-600 font-bold flex items-center gap-0.5 mt-0.5">
+                <TrendingUp className="w-3 h-3" /> +5.4% vs Target
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-4.5 shadow-2xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-teal-50 text-[#0F8B8D] flex items-center justify-center font-bold shrink-0">
-            <Activity className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Overall Plant OEE</div>
-            <div className="text-xl font-bold text-slate-900 font-mono mt-0.5">84.6%</div>
-            <div className="text-[10px] text-teal-600 font-bold flex items-center gap-0.5 mt-0.5">
-              Target 85.0% (99.5% Adherence)
+        {allowedDomains.PRODUCTION && (
+          <div className="bg-white rounded-2xl border border-slate-200 p-4.5 shadow-2xs flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center font-bold shrink-0">
+              <Activity className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Overall Plant OEE</div>
+              <div className="text-xl font-bold text-slate-900 font-mono mt-0.5">84.6%</div>
+              <div className="text-[10px] text-teal-600 font-bold flex items-center gap-0.5 mt-0.5">
+                Target 85.0% (99.5% Adherence)
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-4.5 shadow-2xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold shrink-0">
-            <Award className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">First Pass Yield (FPY)</div>
-            <div className="text-xl font-bold text-slate-900 font-mono mt-0.5">98.2%</div>
-            <div className="text-[10px] text-indigo-600 font-bold flex items-center gap-0.5 mt-0.5">
-              240 PPM (Six Sigma 4.82)
+        {allowedDomains.QUALITY && (
+          <div className="bg-white rounded-2xl border border-slate-200 p-4.5 shadow-2xs flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold shrink-0">
+              <Award className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">First Pass Yield (FPY)</div>
+              <div className="text-xl font-bold text-slate-900 font-mono mt-0.5">98.2%</div>
+              <div className="text-[10px] text-indigo-600 font-bold flex items-center gap-0.5 mt-0.5">
+                240 PPM (Six Sigma 4.82)
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-4.5 shadow-2xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-orange-50 text-[#E8622C] flex items-center justify-center font-bold shrink-0">
-            <Truck className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">On-Time Delivery (OTIF)</div>
-            <div className="text-xl font-bold text-slate-900 font-mono mt-0.5">96.4%</div>
-            <div className="text-[10px] text-emerald-600 font-bold flex items-center gap-0.5 mt-0.5">
-              <TrendingUp className="w-3 h-3" /> +1.5% MoM
+        {allowedDomains.SUPPLY_CHAIN && (
+          <div className="bg-white rounded-2xl border border-slate-200 p-4.5 shadow-2xs flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-orange-50 text-[#E8622C] flex items-center justify-center font-bold shrink-0">
+              <Truck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">On-Time Delivery (OTIF)</div>
+              <div className="text-xl font-bold text-slate-900 font-mono mt-0.5">96.4%</div>
+              <div className="text-[10px] text-emerald-600 font-bold flex items-center gap-0.5 mt-0.5">
+                <TrendingUp className="w-3 h-3" /> +1.5% MoM
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Grid of Modular KPI Cards */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-            Operational Dimension Scorecards ({data?.kpis?.length || 0} Domain Metrics)
+            Operational Dimension Scorecards ({filteredKpis?.length || 0} Visible Domain Metrics)
           </h2>
           <button
-            onClick={() => onNavigate?.('customDocBuilder')}
+            onClick={() => setShowRbacModal(true)}
             className="text-xs font-bold text-[#0F8B8D] hover:underline flex items-center gap-1 cursor-pointer"
           >
             <Sliders className="w-3.5 h-3.5" />
@@ -177,7 +240,7 @@ export const ModernAnalyticsDashboard: React.FC<ModernAnalyticsDashboardProps> =
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {data?.kpis?.map((kpi) => (
+          {filteredKpis?.map((kpi) => (
             <KpiCard
               key={kpi.id}
               kpi={kpi}
@@ -219,7 +282,7 @@ export const ModernAnalyticsDashboard: React.FC<ModernAnalyticsDashboardProps> =
         </div>
       </div>
 
-      {/* Export & Chat Modals */}
+      {/* Modals */}
       <ExportModal
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
@@ -232,6 +295,27 @@ export const ModernAnalyticsDashboard: React.FC<ModernAnalyticsDashboardProps> =
         onClose={() => setShowChatModal(false)}
         showToast={showToast}
       />
+      <AdminDomainRbacControl
+        isOpen={showRbacModal}
+        onClose={() => setShowRbacModal(false)}
+        showToast={showToast}
+        onPermissionsUpdated={(configs) => {
+          const userPerm = configs.find((m) => m.role === activeRole) || configs[0];
+          if (userPerm) {
+            setAllowedDomains({
+              FINANCIAL: userPerm.canViewFinancial,
+              PRODUCTION: userPerm.canViewProductionOee,
+              QUALITY: userPerm.canViewQualityPpm,
+              SUPPLY_CHAIN: userPerm.canViewScmOtif,
+              SUSTAINABILITY: userPerm.canViewEsgCarbon,
+              MAINTENANCE: userPerm.canViewMaintenanceMtbf,
+            });
+          }
+        }}
+      />
+
+      {/* Floating Bottom-Right AI Assistant Chat Widget */}
+      <FixedBottomChatWidget showToast={showToast} />
     </div>
   );
 };
