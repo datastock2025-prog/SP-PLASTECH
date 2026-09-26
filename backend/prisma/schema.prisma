@@ -13,7 +13,7 @@ datasource db {
 }
 
 // ------------------------------------------------------------------------------
-// 1. TENANCY, AUTHENTICATION & RBAC
+// 1. TENANCY, AUTHENTICATION, RBAC & SESSIONS
 // ------------------------------------------------------------------------------
 
 model Tenant {
@@ -26,14 +26,19 @@ model Tenant {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  users       User[]
-  roles       Role[]
-  auditLogs   AuditLog[]
-  items       Item[]
-  suppliers   Supplier[]
-  customers   Customer[]
-  machines    Machine[]
-  workOrders  WorkOrder[]
+  users               User[]
+  roles               Role[]
+  auditLogs           AuditLog[]
+  items               Item[]
+  suppliers           Supplier[]
+  customers           Customer[]
+  machines            Machine[]
+  workOrders          WorkOrder[]
+  molds               Mold[]
+  dmsDocuments        DmsDocument[]
+  apiKeys             ApiKey[]
+  workflowDefinitions WorkflowDefinition[]
+  workflowInstances   WorkflowInstance[]
 
   @@index([code])
 }
@@ -49,6 +54,9 @@ model User {
   roleId         String
   role           Role      @relation(fields: [roleId], references: [id])
   status         String    @default("ACTIVE") // ACTIVE, SUSPENDED, INACTIVE
+  mfaEnabled     Boolean   @default(false)
+  mfaSecret      String?
+  backupCodes    Json      @default("[]")
   version        Int       @default(1)
   createdById    String?
   updatedById    String?
@@ -57,8 +65,39 @@ model User {
   updatedAt      DateTime  @updatedAt
 
   auditLogs      AuditLog[]
+  sessions       UserSession[]
 
   @@index([tenantId, email])
+}
+
+model UserSession {
+  id          String   @id @default(uuid())
+  tenantId    String
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId    String
+  ipAddress   String
+  userAgent   String
+  lastActiveAt DateTime @default(now())
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, userId, deviceId])
+}
+
+model ApiKey {
+  id          String    @id @default(uuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  prefix      String
+  hashedKey   String    @unique
+  scopes      Json      @default("[]")
+  expiresAt   DateTime?
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([tenantId, prefix])
 }
 
 model Role {
@@ -83,7 +122,7 @@ model RolePermission {
   id          String   @id @default(uuid())
   roleId      String
   role        Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  module      String   // "OPERATIONS", "FINANCE", "PROCUREMENT", "AI_CHAT"
+  module      String   // "OPERATIONS", "FINANCE", "PROCUREMENT", "AI_CHAT", "QUALITY"
   action      String   // "READ", "CREATE", "UPDATE", "DELETE", "APPROVE"
   createdAt   DateTime @default(now())
 
@@ -98,7 +137,7 @@ model AuditLog {
   id          String   @id @default(uuid())
   tenantId    String
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  entityName  String   // "Item", "Supplier", "PurchaseOrder", "WorkOrder"
+  entityName  String   // "Item", "Supplier", "PurchaseOrder", "WorkOrder", "Mold"
   recordId    String
   action      String   // "CREATE", "UPDATE", "DELETE", "AI_QUERY"
   oldData     Json?
@@ -128,7 +167,7 @@ model EntityVersion {
 }
 
 // ------------------------------------------------------------------------------
-// 3. MASTER DATA: ITEMS, BOM & MACHINES
+// 3. MASTER DATA: ITEMS, BOM, MACHINES & MOLDS
 // ------------------------------------------------------------------------------
 
 model Item {
@@ -211,9 +250,44 @@ model Machine {
   updatedAt     DateTime    @updatedAt
 
   workOrders    WorkOrder[]
+  molds         Mold[]
 
   @@unique([tenantId, machineCode])
   @@index([tenantId, status])
+}
+
+model Mold {
+  id                         String        @id @default(uuid())
+  tenantId                   String
+  tenant                     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  moldCode                   String
+  name                       String
+  cavityCount                Int           @default(1)
+  totalShots                 Int           @default(0)
+  maxShotsBeforeMaintenance  Int           @default(50000)
+  lastMaintenanceShots       Int           @default(0)
+  status                     String        @default("ACTIVE") // ACTIVE, MAINTENANCE_REQUIRED, UNDER_MAINTENANCE, RETIRED
+  mountedMachineId           String?
+  mountedMachine             Machine?      @relation(fields: [mountedMachineId], references: [id])
+  createdAt                  DateTime      @default(now())
+  updatedAt                  DateTime      @updatedAt
+
+  shotLogs                   MoldShotLog[]
+
+  @@unique([tenantId, moldCode])
+  @@index([tenantId, status])
+}
+
+model MoldShotLog {
+  id          String   @id @default(uuid())
+  moldId      String
+  mold        Mold     @relation(fields: [moldId], references: [id], onDelete: Cascade)
+  shotsAdded  Int
+  workOrderId String?
+  operatorId  String?
+  timestamp   DateTime @default(now())
+
+  @@index([moldId])
 }
 
 model WorkOrder {
@@ -238,7 +312,108 @@ model WorkOrder {
 }
 
 // ------------------------------------------------------------------------------
-// 4. PROCUREMENT & SALES
+// 4. QUALITY (SPC) & SUSTAINABILITY (EPR & ENERGY)
+// ------------------------------------------------------------------------------
+
+model SpcInspection {
+  id          String   @id @default(uuid())
+  tenantId    String
+  itemCode    String
+  parameter   String   // e.g. "Wall Thickness (mm)", "Weight (g)"
+  subgroupId  String
+  samples     Json     // Array of numeric readings [1.24, 1.25, 1.23, 1.26, 1.24]
+  subgroupMean Decimal @db.Decimal(10, 4)
+  subgroupRange Decimal @db.Decimal(10, 4)
+  isViolation Boolean  @default(false)
+  violationRule String?
+  inspectorId String
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, itemCode, parameter])
+}
+
+model EprCreditLog {
+  id                      String   @id @default(uuid())
+  tenantId                String
+  period                  String   // "2026-Q1"
+  category                String   // "CAT_I_RIGID", "CAT_II_FLEXIBLE"
+  totalPlasticProducedKg  Decimal  @db.Decimal(14, 3)
+  recycledPlasticUsedKg   Decimal  @db.Decimal(14, 3)
+  mandatoryTargetPct      Decimal  @db.Decimal(5, 2)
+  liabilityAmountInr      Decimal  @db.Decimal(14, 2)
+  createdAt               DateTime @default(now())
+
+  @@index([tenantId, period])
+}
+
+model EnergyLog {
+  id               String   @id @default(uuid())
+  tenantId         String
+  machineId        String
+  shiftDate        String
+  shiftNumber      Int
+  kwhConsumed      Decimal  @db.Decimal(10, 2)
+  producedWeightKg Decimal  @db.Decimal(10, 2)
+  kwhPerKg         Decimal  @db.Decimal(8, 4)
+  costInr          Decimal  @db.Decimal(10, 2)
+  createdAt        DateTime @default(now())
+
+  @@index([tenantId, machineId, shiftDate])
+}
+
+// ------------------------------------------------------------------------------
+// 5. WORKFLOW ENGINE & DOCUMENT MANAGEMENT (DMS)
+// ------------------------------------------------------------------------------
+
+model WorkflowDefinition {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  entityType  String   // "PURCHASE_ORDER", "SALES_ORDER", "WORK_ORDER"
+  configJson  Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  instances   WorkflowInstance[]
+
+  @@unique([tenantId, entityType])
+}
+
+model WorkflowInstance {
+  id                   String             @id @default(uuid())
+  tenantId             String
+  tenant               Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  workflowDefinitionId String
+  workflowDefinition   WorkflowDefinition @relation(fields: [workflowDefinitionId], references: [id], onDelete: Cascade)
+  entityId             String
+  currentState         String
+  history              Json               @default("[]")
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@index([tenantId, entityId])
+}
+
+model DmsDocument {
+  id           String   @id @default(uuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  folderPath   String
+  fileName     String
+  version      Int      @default(1)
+  storageKey   String
+  mimeType     String
+  fileSizeBytes Int
+  tags         Json     @default("[]")
+  uploadedById String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([tenantId, folderPath])
+}
+
+// ------------------------------------------------------------------------------
+// 6. PROCUREMENT & SALES
 // ------------------------------------------------------------------------------
 
 model Supplier {

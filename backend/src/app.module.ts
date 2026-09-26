@@ -1,9 +1,27 @@
 import { Module, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
 import { ObservabilityService } from './observability/observability.service';
+import { AuthModule } from './modules/auth/auth.module';
+import { IntegrationsModule } from './integrations/integrations.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { WorkflowModule } from './modules/workflow/workflow.module';
+import { DmsModule } from './modules/dms/dms.module';
+import { MoldModule } from './modules/operations/mold/mold.module';
+import { SpcModule } from './modules/quality/spc/spc.module';
+import { SustainabilityModule } from './modules/sustainability/sustainability.module';
 import { AiChatModule } from './modules/ai-chat/ai-chat.module';
 
 @Module({
-  imports: [AiChatModule],
+  imports: [
+    AuthModule,
+    IntegrationsModule,
+    NotificationsModule,
+    WorkflowModule,
+    DmsModule,
+    MoldModule,
+    SpcModule,
+    SustainabilityModule,
+    AiChatModule,
+  ],
   controllers: [],
   providers: [ObservabilityService],
   exports: [ObservabilityService],
