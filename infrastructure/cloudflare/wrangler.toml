@@ -1,0 +1,19 @@
+name = "sp-plastech-edge-gateway"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+
+# Environment Variables
+[vars]
+BACKEND_ORIGIN_URL = "https://api.spplastech.com"
+JWT_SECRET = "sp_plastech_super_jwt_secret_key_at_least_32_chars_long_2026"
+
+# KV Namespaces for Distributed Rate Limiting & Response Caching
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "sp_plastech_rate_limit_kv_id"
+preview_id = "sp_plastech_rate_limit_kv_preview"
+
+[[kv_namespaces]]
+binding = "CACHE_KV"
+id = "sp_plastech_cache_kv_id"
+preview_id = "sp_plastech_cache_kv_preview"

@@ -1,0 +1,285 @@
+// ==============================================================================
+// SP-PLASTECH ERP — PRISMA MULTI-TENANT ENTERPRISE SCHEMA
+// Strict Multi-Tenancy (tenantId), Decimal Precision, Audit & Versioning
+// ==============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------------------------
+// 1. TENANCY, AUTHENTICATION & RBAC
+// ------------------------------------------------------------------------------
+
+model Tenant {
+  id          String   @id @default(uuid())
+  code        String   @unique // e.g. "SP-HOSUR-01", "SP-CHENNAI-02"
+  name        String   // "SP Plastech Hosur Plant"
+  domain      String?
+  isActive    Boolean  @default(true)
+  settings    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  roles       Role[]
+  auditLogs   AuditLog[]
+  items       Item[]
+  suppliers   Supplier[]
+  customers   Customer[]
+  machines    Machine[]
+  workOrders  WorkOrder[]
+
+  @@index([code])
+}
+
+model User {
+  id             String    @id @default(uuid())
+  tenantId       String
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email          String    @unique
+  passwordHash   String
+  fullName       String
+  phone          String?
+  roleId         String
+  role           Role      @relation(fields: [roleId], references: [id])
+  status         String    @default("ACTIVE") // ACTIVE, SUSPENDED, INACTIVE
+  version        Int       @default(1)
+  createdById    String?
+  updatedById    String?
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  auditLogs      AuditLog[]
+
+  @@index([tenantId, email])
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  tenantId    String
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code        String           // "ADMIN", "PLANT_MANAGER", "OPERATOR", "FINANCE"
+  name        String
+  description String?
+  isSystem    Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  users       User[]
+  permissions RolePermission[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}
+
+model RolePermission {
+  id          String   @id @default(uuid())
+  roleId      String
+  role        Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  module      String   // "OPERATIONS", "FINANCE", "PROCUREMENT", "AI_CHAT"
+  action      String   // "READ", "CREATE", "UPDATE", "DELETE", "APPROVE"
+  createdAt   DateTime @default(now())
+
+  @@unique([roleId, module, action])
+}
+
+// ------------------------------------------------------------------------------
+// 2. AUDIT LOGGING & IMMUTABLE VERSION SNAPSHOTS
+// ------------------------------------------------------------------------------
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  entityName  String   // "Item", "Supplier", "PurchaseOrder", "WorkOrder"
+  recordId    String
+  action      String   // "CREATE", "UPDATE", "DELETE", "AI_QUERY"
+  oldData     Json?
+  newData     Json?
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  ipAddress   String?
+  userAgent   String?
+  timestamp   DateTime @default(now())
+
+  @@index([tenantId, entityName, recordId])
+  @@index([tenantId, timestamp])
+}
+
+model EntityVersion {
+  id          String   @id @default(uuid())
+  tenantId    String
+  entityName  String
+  recordId    String
+  version     Int
+  snapshot    Json
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@unique([tenantId, entityName, recordId, version])
+  @@index([tenantId, entityName, recordId])
+}
+
+// ------------------------------------------------------------------------------
+// 3. MASTER DATA: ITEMS, BOM & MACHINES
+// ------------------------------------------------------------------------------
+
+model Item {
+  id               String   @id @default(uuid())
+  tenantId         String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code             String   // "RM-PP-001", "FG-BKT-10L"
+  name             String
+  category         String   // "Raw Material", "Finished Good", "Masterbatch"
+  entityType       String   @default("Finished Molded Component")
+  unit             String   @default("KG")
+  stock            Decimal  @default(0) @db.Decimal(14, 4)
+  minStock         Decimal  @default(0) @db.Decimal(14, 4)
+  maxStock         Decimal  @default(0) @db.Decimal(14, 4)
+  cost             Decimal  @default(0) @db.Decimal(14, 4)
+  sellingPrice     Decimal  @default(0) @db.Decimal(14, 4)
+  partWeightGrams  Decimal  @default(0) @db.Decimal(10, 3)
+  runnerWeightGrams Decimal @default(0) @db.Decimal(10, 3)
+  cavityCount      Int      @default(1)
+  cycleTimeSeconds Decimal  @default(0) @db.Decimal(8, 2)
+  gstHsnCode       String?
+  status           String   @default("ACTIVE")
+  version          Int      @default(1)
+  createdById      String?
+  updatedById      String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  boms             BillOfMaterial[]
+  bomComponents    BomComponent[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, category])
+}
+
+model BillOfMaterial {
+  id           String         @id @default(uuid())
+  tenantId     String
+  bomNumber    String
+  parentItemId String
+  parentItem   Item           @relation(fields: [parentItemId], references: [id], onDelete: Cascade)
+  version      Int            @default(1)
+  isActive     Boolean        @default(true)
+  yieldPercent Decimal        @default(100.0) @db.Decimal(5, 2)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  components   BomComponent[]
+
+  @@unique([tenantId, bomNumber])
+  @@index([tenantId, parentItemId])
+}
+
+model BomComponent {
+  id              String         @id @default(uuid())
+  bomId           String
+  bom             BillOfMaterial @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  componentItemId String
+  componentItem   Item           @relation(fields: [componentItemId], references: [id])
+  quantity        Decimal        @db.Decimal(14, 6)
+  uom             String         @default("KG")
+  scrapPercentage Decimal        @default(0) @db.Decimal(5, 2)
+  remarks         String?
+
+  @@index([bomId])
+}
+
+model Machine {
+  id            String      @id @default(uuid())
+  tenantId      String
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  machineCode   String
+  name          String
+  machineType   String
+  tonnage       Int
+  plantLocation String      @default("Shopfloor Bay 1")
+  status        String      @default("RUNNING") // RUNNING, IDLE, BREAKDOWN, MAINTENANCE
+  oeePercentage Decimal     @default(85.0) @db.Decimal(5, 2)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  workOrders    WorkOrder[]
+
+  @@unique([tenantId, machineCode])
+  @@index([tenantId, status])
+}
+
+model WorkOrder {
+  id               String   @id @default(uuid())
+  tenantId         String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  woNumber         String
+  itemCode         String
+  itemName         String
+  targetQuantity   Decimal  @db.Decimal(12, 2)
+  producedQuantity Decimal  @default(0) @db.Decimal(12, 2)
+  rejectedQuantity Decimal  @default(0) @db.Decimal(12, 2)
+  machineId        String?
+  machine          Machine? @relation(fields: [machineId], references: [id])
+  status           String   @default("PLANNED") // PLANNED, IN_PROGRESS, COMPLETED, CANCELLED
+  version          Int      @default(1)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([tenantId, woNumber])
+  @@index([tenantId, status])
+}
+
+// ------------------------------------------------------------------------------
+// 4. PROCUREMENT & SALES
+// ------------------------------------------------------------------------------
+
+model Supplier {
+  id            String   @id @default(uuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code          String
+  name          String
+  shortName     String?
+  category      String
+  status        String   @default("active")
+  rating        Decimal  @default(4.5) @db.Decimal(3, 1)
+  paymentTerms  String   @default("Net 60 Days")
+  deliveryTerms String   @default("Ex Work")
+  gstin         String?
+  contacts      Json     @default("[]")
+  addresses     Json     @default("[]")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}
+
+model Customer {
+  id           String   @id @default(uuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code         String
+  name         String
+  customerType String   @default("OEM")
+  tier         String   @default("Tier 1")
+  gstin        String?
+  creditLimit  Decimal  @default(1000000) @db.Decimal(14, 2)
+  creditDays   Int      @default(45)
+  status       String   @default("active")
+  contacts     Json     @default("[]")
+  addresses    Json     @default("[]")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}

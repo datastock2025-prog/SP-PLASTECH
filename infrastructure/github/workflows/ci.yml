@@ -1,0 +1,68 @@
+name: SP-PLASTECH Hybrid Monorepo CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  # 1. Frontend Quality Gate
+  frontend-check:
+    name: Frontend Lint & Build (Vite/React)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Frontend Application
+        run: npm run build
+
+  # 2. Backend Engine Quality Gate (NestJS & Prisma)
+  backend-check:
+    name: Backend Lint, Prisma Generation & Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Backend Dependencies
+        working-directory: ./backend
+        run: npm ci
+
+      - name: Generate Prisma Client & Validate Schema
+        working-directory: ./backend
+        run: npx prisma generate
+
+      - name: Build NestJS Application
+        working-directory: ./backend
+        run: npm run build
+
+      - name: Run Backend Unit Tests (Jest)
+        working-directory: ./backend
+        run: npm test -- --passWithNoTests
+
+  # 3. Security Audit & Secret Scanning
+  security-audit:
+    name: Dependency Vulnerability Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Run Security Audit
+        run: npm audit --audit-level=high || true

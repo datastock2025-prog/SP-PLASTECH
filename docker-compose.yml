@@ -1,0 +1,108 @@
+# ==============================================================================
+# SP-PLASTECH HYBRID MONOREPO — PRODUCTION & DEVELOPMENT DOCKER COMPOSE
+# Optimized for 2GB RAM Low-Cost VPS (Memory bounded, resource capped)
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  # 1. PostgreSQL 16 Enterprise Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: sp-plastech-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres_secure_dev_password_2026}
+      POSTGRES_DB: ${DB_NAME:-sp_plastech_erp}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./containers/init-supabase-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-sp_plastech_erp}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - sp_internal_net
+
+  # 2. Redis 7 Cache & Session Store
+  redis:
+    image: redis:7-alpine
+    container_name: sp-plastech-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:-redis_secure_dev_2026}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 192M
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_secure_dev_2026}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - sp_internal_net
+
+  # 3. NestJS Enterprise Middleware Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runner
+    container_name: sp-plastech-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres_secure_dev_password_2026}@postgres:5432/${DB_NAME:-sp_plastech_erp}?schema=public&sslmode=disable
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_secure_dev_2026}
+      JWT_SECRET: ${JWT_SECRET:-sp_plastech_super_jwt_secret_key_at_least_32_chars_long_2026}
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-sp_plastech_refresh_token_secret_key_2026_secure}
+      JWT_REFRESH_EXPIRES_IN: 7d
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,https://sp-plastech.pages.dev}
+      CLOUDFLARE_R2_ACCOUNT_ID: ${CLOUDFLARE_R2_ACCOUNT_ID:-}
+      CLOUDFLARE_R2_ACCESS_KEY: ${CLOUDFLARE_R2_ACCESS_KEY:-}
+      CLOUDFLARE_R2_SECRET_KEY: ${CLOUDFLARE_R2_SECRET_KEY:-}
+      CLOUDFLARE_R2_BUCKET_NAME: ${CLOUDFLARE_R2_BUCKET_NAME:-sp-plastech-docs}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    ports:
+      - "127.0.0.1:3000:3000"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.2'
+          memory: 640M
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - sp_internal_net
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  sp_internal_net:
+    driver: bridge
