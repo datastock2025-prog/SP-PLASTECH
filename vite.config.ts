@@ -20,7 +20,7 @@ export default defineConfig(() => {
       allowedHosts: true as const,
       proxy: {
         '/api': {
-          target: process.env.MIDDLEWARE_URL || 'http://localhost:3001',
+          target: process.env.BACKEND_URL || process.env.VITE_API_URL || 'http://localhost:3000',
           changeOrigin: true,
         },
       },
