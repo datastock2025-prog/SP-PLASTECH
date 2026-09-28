@@ -15,7 +15,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { IntegrationConnector } from '../../types/admin';
-import { mockIntegrations } from '../../data/mockAdminData';
+import { integrations, mockIntegrations } from '../../data/adminData';
 
 interface AdminIntegrationsViewProps {
   showToast?: (msg: string) => void;

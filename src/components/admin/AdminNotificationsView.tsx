@@ -13,7 +13,7 @@ import {
   Sliders,
 } from 'lucide-react';
 import { NotificationTemplate } from '../../types/admin';
-import { mockNotificationTemplates } from '../../data/mockAdminData';
+import { notificationTemplates, mockNotificationTemplates } from '../../data/adminData';
 
 interface AdminNotificationsViewProps {
   showToast?: (msg: string) => void;

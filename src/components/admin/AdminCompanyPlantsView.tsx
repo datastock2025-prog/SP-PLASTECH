@@ -21,7 +21,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { CompanyProfile, PlantDetails } from '../../types/admin';
-import { mockCompanyProfile } from '../../data/mockAdminData';
+import { companyProfile, mockCompanyProfile } from '../../data/adminData';
 import { adminService, adminEventBus } from '../../services/adminService';
 
 interface AdminCompanyPlantsViewProps {

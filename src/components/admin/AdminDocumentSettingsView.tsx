@@ -23,7 +23,7 @@ import {
   Shield,
   Layers,
 } from 'lucide-react';
-import { DocumentSettingPolicy, mockDocumentPolicies } from '../../data/mockAdminExtendedData';
+import { DocumentSettingPolicy, documentPolicies, mockDocumentPolicies } from '../../data/adminExtendedData';
 
 interface AdminDocumentSettingsViewProps {
   showToast?: (msg: string) => void;

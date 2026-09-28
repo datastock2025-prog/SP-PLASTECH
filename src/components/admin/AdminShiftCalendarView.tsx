@@ -24,12 +24,14 @@ import {
 import {
   ShiftCalendarConfig,
   HolidayOvertimeRule,
+  shifts,
+  holidays,
   mockShifts,
   mockHolidays,
-} from '../../data/mockAdminExtendedData';
+} from '../../data/adminExtendedData';
 import { adminService } from '../../services/adminService';
 import { PlantDetails } from '../../types/admin';
-import { mockCompanyProfile } from '../../data/mockAdminData';
+import { companyProfile, mockCompanyProfile } from '../../data/adminData';
 
 interface AdminShiftCalendarViewProps {
   showToast?: (msg: string) => void;

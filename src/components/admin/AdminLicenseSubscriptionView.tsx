@@ -16,7 +16,7 @@ import {
   PhoneCall,
   Mail,
 } from 'lucide-react';
-import { LicenseSubscriptionDetails, mockLicenseDetails } from '../../data/mockAdminExtendedData';
+import { LicenseSubscriptionDetails, licenseDetails, mockLicenseDetails } from '../../data/adminExtendedData';
 
 interface AdminLicenseSubscriptionViewProps {
   showToast?: (msg: string) => void;

@@ -26,7 +26,7 @@ import {
   Check,
   X,
 } from 'lucide-react';
-import { ReasonCodeItem, mockReasonCodes } from '../../data/mockAdminExtendedData';
+import { ReasonCodeItem, reasonCodes, mockReasonCodes } from '../../data/adminExtendedData';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { SupabaseDataService } from '../../services/supabaseService';
 import { adminEventBus } from '../../services/adminService';

@@ -1,4 +1,4 @@
-import { MasterDataRecord, mockMasterDataRecords } from '../data/mockAdminExtendedData';
+import { MasterDataRecord, masterDataRecords, mockMasterDataRecords } from '../data/adminExtendedData';
 import { adminEventBus } from './adminService';
 
 const STORAGE_KEY = 'reboot_erp_master_data_governance';

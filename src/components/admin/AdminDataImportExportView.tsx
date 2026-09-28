@@ -12,7 +12,7 @@ import {
   Search,
   FileText,
 } from 'lucide-react';
-import { DataExchangeJob, mockDataExchangeJobs } from '../../data/mockAdminExtendedData';
+import { DataExchangeJob, dataExchangeJobs, mockDataExchangeJobs } from '../../data/adminExtendedData';
 
 interface AdminDataImportExportViewProps {
   showToast?: (msg: string) => void;

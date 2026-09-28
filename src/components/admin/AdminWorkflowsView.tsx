@@ -15,7 +15,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { ApprovalWorkflow, ApprovalTier } from '../../types/admin';
-import { mockApprovalWorkflows, mockAdminRoles } from '../../data/mockAdminData';
+import { approvalWorkflows, adminRoles, mockApprovalWorkflows, mockAdminRoles } from '../../data/adminData';
 
 interface AdminWorkflowsViewProps {
   showToast?: (msg: string) => void;

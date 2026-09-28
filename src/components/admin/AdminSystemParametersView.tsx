@@ -13,7 +13,7 @@ import {
   ToggleRight,
 } from 'lucide-react';
 import { SystemParameter } from '../../types/admin';
-import { mockSystemParameters } from '../../data/mockAdminData';
+import { systemParameters, mockSystemParameters } from '../../data/adminData';
 import { adminService } from '../../services/adminService';
 
 interface AdminSystemParametersViewProps {

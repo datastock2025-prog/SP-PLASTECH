@@ -39,7 +39,7 @@ import {
   Store,
 } from 'lucide-react';
 import { ItemMaster, ItemType, ApprovalStatus, ItemStatus } from '../../types';
-import { MasterDataRecord } from '../../data/mockAdminExtendedData';
+import { MasterDataRecord } from '../../data/adminExtendedData';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { itemService } from '../../services/itemService';
 import { adminEventBus } from '../../services/adminService';

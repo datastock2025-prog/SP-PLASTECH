@@ -14,7 +14,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { BackupRecord } from '../../types/admin';
-import { mockBackupRecords } from '../../data/mockAdminData';
+import { backupRecords, mockBackupRecords } from '../../data/adminData';
 
 interface AdminBackupsViewProps {
   showToast?: (msg: string) => void;

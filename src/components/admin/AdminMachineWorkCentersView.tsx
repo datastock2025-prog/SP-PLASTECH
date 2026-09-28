@@ -27,10 +27,10 @@ import {
   History,
   ShieldCheck,
 } from 'lucide-react';
-import { MachineWorkCenterConfig, mockMachineWorkCenters } from '../../data/mockAdminExtendedData';
+import { MachineWorkCenterConfig, machineWorkCenters, mockMachineWorkCenters } from '../../data/adminExtendedData';
 import { adminService, adminEventBus } from '../../services/adminService';
 import { PlantDetails } from '../../types/admin';
-import { mockCompanyProfile } from '../../data/mockAdminData';
+import { companyProfile, mockCompanyProfile } from '../../data/adminData';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { isUserAdmin } from '../../utils/warehouseSync';
 import { useAuthContext } from '../../shared/components/RequireAuth';

@@ -20,10 +20,10 @@ import {
   Clock,
   Briefcase,
 } from 'lucide-react';
-import { UserGroup, mockUserGroups } from '../../data/mockAdminExtendedData';
-import { adminService } from '../../services/adminService';
+import { UserGroup, userGroups } from '../../data/adminExtendedData';
+import { adminService, adminEventBus } from '../../services/adminService';
 import { AdminUser } from '../../types/admin';
-import { mockAdminUsers } from '../../data/mockAdminData';
+import { adminUsers } from '../../data/adminData';
 
 interface AdminUserGroupsViewProps {
   showToast?: (msg: string) => void;
@@ -32,11 +32,26 @@ interface AdminUserGroupsViewProps {
 export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
-  const [groups, setGroups] = useState<UserGroup[]>(mockUserGroups);
-  const [allUsers, setAllUsers] = useState<AdminUser[]>(mockAdminUsers);
+  const [groups, setGroups] = useState<UserGroup[]>(userGroups);
+  const [allUsers, setAllUsers] = useState<AdminUser[]>(() => adminService.getCachedUsers());
   const [search, setSearch] = useState('');
   const [selectedDept, setSelectedDept] = useState('ALL');
   const [selectedGroup, setSelectedGroup] = useState<UserGroup>(groups[0]);
+
+  useEffect(() => {
+    adminService.getUsers().then((u) => {
+      if (u && u.length > 0) setAllUsers(u);
+    });
+
+    const unsub = adminEventBus.subscribe((event) => {
+      if (event === 'USER_CREATED' || event === 'USER_UPDATED') {
+        adminService.getUsers().then((u) => {
+          if (u && u.length > 0) setAllUsers(u);
+        });
+      }
+    });
+    return unsub;
+  }, []);
 
   // Modals State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);

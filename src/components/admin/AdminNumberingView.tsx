@@ -14,7 +14,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { NumberingSequence } from '../../types/admin';
-import { mockNumberingSequences } from '../../data/mockAdminData';
+import { numberingSequences, mockNumberingSequences } from '../../data/adminData';
 import { adminService, adminEventBus } from '../../services/adminService';
 
 interface AdminNumberingViewProps {

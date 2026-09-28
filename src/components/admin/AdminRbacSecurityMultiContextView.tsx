@@ -34,13 +34,15 @@ import {
   MultiContextScopePolicy,
   RowLevelSecurityRule,
   BreakGlassRequest,
+  AdminUser,
 } from '../../types/admin';
 import {
-  mockMultiContextPolicies,
-  mockRowLevelSecurityRules,
-  mockBreakGlassRequests,
-} from '../../data/mockAdminExtendedData';
-import { mockAdminUsers, mockAdminRoles } from '../../data/mockAdminData';
+  multiContextPolicies,
+  rowLevelSecurityRules,
+  breakGlassRequests,
+  ActiveSessionRecord,
+} from '../../data/adminExtendedData';
+import { adminUsers, adminRoles } from '../../data/adminData';
 import { adminService, adminEventBus } from '../../services/adminService';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { useAuthContext } from '../../shared/components/RequireAuth';
@@ -58,7 +60,7 @@ function loadStoredContexts(): MultiContextScopePolicy[] {
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
   } catch (e) {}
-  return [...mockMultiContextPolicies];
+  return [...multiContextPolicies];
 }
 
 function loadStoredRls(): RowLevelSecurityRule[] {
@@ -69,7 +71,7 @@ function loadStoredRls(): RowLevelSecurityRule[] {
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
   } catch (e) {}
-  return [...mockRowLevelSecurityRules];
+  return [...rowLevelSecurityRules];
 }
 
 function loadStoredBreakGlass(): BreakGlassRequest[] {
@@ -80,7 +82,7 @@ function loadStoredBreakGlass(): BreakGlassRequest[] {
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
   } catch (e) {}
-  return [...mockBreakGlassRequests];
+  return [...breakGlassRequests];
 }
 
 interface AdminRbacSecurityMultiContextViewProps {
@@ -94,6 +96,9 @@ export const AdminRbacSecurityMultiContextView: React.FC<AdminRbacSecurityMultiC
   const [activeTab, setActiveTab] = useState<
     'contexts' | 'rls' | 'guardrails' | 'breakglass' | 'sessions'
   >('contexts');
+
+  // Live Users for Context & RLS Governance
+  const [liveUsers, setLiveUsers] = useState<AdminUser[]>(() => adminService.getCachedUsers());
 
   // Context Policies State
   const [contexts, setContexts] = useState<MultiContextScopePolicy[]>(loadStoredContexts);
@@ -133,69 +138,33 @@ export const AdminRbacSecurityMultiContextView: React.FC<AdminRbacSecurityMultiC
   });
 
   // Test RLS query evaluator state
-  const [testUserContext, setTestUserContext] = useState(mockAdminUsers[1]?.id || '');
+  const [testUserContext, setTestUserContext] = useState<string>('');
   const [evaluatedSqlResult, setEvaluatedSqlResult] = useState<string | null>(null);
 
   const selectedContext = contexts.find((c) => c.id === selectedContextId) || contexts[0];
 
-  // Active Sessions Live Feed Mock
-  const [activeSessions, setActiveSessions] = useState([
-    {
-      id: 'SES-991',
-      userName: 'Rajesh Sharma',
-      role: 'Plant Operations Manager',
-      plant: 'Plant 1 - Chennai',
-      ip: '192.168.10.14',
-      device: 'Shopfloor HMI Station #04',
-      loginTime: '08:14 AM',
-      anomalyScore: 'Low (0.02)',
-      status: 'Active',
-    },
-    {
-      id: 'SES-992',
-      userName: 'Priya Patel',
-      role: 'Quality Director & QA Lead',
-      plant: 'Plant 2 - Pune',
-      ip: '192.168.20.88',
-      device: 'Lab Spectrophotometer PC',
-      loginTime: '08:45 AM',
-      anomalyScore: 'Low (0.01)',
-      status: 'Active',
-    },
-    {
-      id: 'SES-993',
-      userName: 'Amitabh Joshi',
-      role: 'Lead DevOps & DBA',
-      plant: 'Corporate HQ Mumbai (Break-Glass)',
-      ip: '14.139.120.4',
-      device: 'Secure Linux Admin Terminal',
-      loginTime: '09:05 AM',
-      anomalyScore: 'Elevated (0.64) - Break-Glass Session',
-      status: 'Elevated',
-    },
-    {
-      id: 'SES-994',
-      userName: 'Suresh Patil',
-      role: 'Shift Supervisor A',
-      plant: 'Plant 1 - Chennai',
-      ip: '192.168.10.92',
-      device: 'Handheld RF Gun #12',
-      loginTime: '06:02 AM',
-      anomalyScore: 'Low (0.04)',
-      status: 'Active',
-    },
-    {
-      id: 'SES-995',
-      userName: 'Vikram Mehta',
-      role: 'Procurement Lead',
-      plant: 'Corporate HQ Mumbai',
-      ip: '172.16.4.19',
-      device: 'Corporate Laptop (Dell Latitude)',
-      loginTime: '09:12 AM',
-      anomalyScore: 'Low (0.05)',
-      status: 'Active',
-    },
-  ]);
+  // Live Active Sessions State
+  const [activeSessions, setActiveSessions] = useState<ActiveSessionRecord[]>(() => adminService.getActiveSessions());
+
+  useEffect(() => {
+    adminService.getUsers().then((u) => {
+      if (u && u.length > 0) {
+        setLiveUsers(u);
+        if (!testUserContext) setTestUserContext(u[0]?.id || '');
+      }
+    });
+
+    const unsub = adminEventBus.subscribe((event) => {
+      if (event === 'USER_CREATED' || event === 'USER_UPDATED') {
+        adminService.getUsers().then((u) => {
+          if (u && u.length > 0) setLiveUsers(u);
+        });
+      } else if (event === 'SESSION_TERMINATED' || event === 'SESSIONS_REFRESHED') {
+        setActiveSessions(adminService.getActiveSessions());
+      }
+    });
+    return unsub;
+  }, []);
 
   const handleToggleGeofence = (contextId: string) => {
     const updated = contexts.map((c) => (c.id === contextId ? { ...c, enforceGeofence: !c.enforceGeofence } : c));
@@ -388,9 +357,10 @@ export const AdminRbacSecurityMultiContextView: React.FC<AdminRbacSecurityMultiC
   };
 
   const handleEvaluateRlsQuery = () => {
-    const user = mockAdminUsers.find((u) => u.id === testUserContext) || mockAdminUsers[0];
+    const user = liveUsers.find((u) => u.id === testUserContext) || liveUsers[0] || adminUsers[0];
+    const userPlant = user.plantIds?.[0] || 'PLANT-01';
     const generatedQuery = `SELECT * FROM mfg_work_orders 
-WHERE \`plant_id\` = '${user.plantIds[0] || 'PLANT-01'}' 
+WHERE \`plant_id\` = '${userPlant}' 
   AND \`tenant_id\` = 'TENANT-REBOOT-PLASTICS'
   AND \`is_deleted\` = FALSE
 ORDER BY \`created_at\` DESC 
@@ -401,8 +371,9 @@ ORDER BY \`created_at\` DESC
   };
 
   const handleTerminateSession = (sessionId: string, userName: string) => {
-    setActiveSessions((prev) => prev.filter((s) => s.id !== sessionId));
-    showToast(`Terminated remote session ${sessionId} for user ${userName}.`);
+    const updated = adminService.terminateSession(sessionId, currentUser?.fullName || 'Super Administrator');
+    setActiveSessions(updated);
+    showToast(`✓ Terminated remote active session ${sessionId} (${userName}). Recorded in audit ledger.`);
   };
 
   return (
@@ -620,7 +591,7 @@ ORDER BY \`created_at\` DESC
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {mockAdminUsers.slice(0, 6).map((u) => {
+                  {liveUsers.map((u) => {
                     const isGlobal = u.roleName === 'Super Administrator' || u.roleName === 'Finance Controller';
                     const isMulti = (u.plantNames || []).length > 1;
 
@@ -759,7 +730,7 @@ ORDER BY \`created_at\` DESC
                     onChange={(e) => setTestUserContext(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300"
                   >
-                    {mockAdminUsers.map((u) => (
+                    {liveUsers.map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.fullName} ({u.roleName} - {u.plantNames?.[0] || 'Plant 1'})
                       </option>
@@ -989,8 +960,12 @@ ORDER BY \`created_at\` DESC
               </p>
             </div>
             <button
-              onClick={() => showToast('Refreshed active session telemetry across all plants.')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              onClick={() => {
+                const refreshed = adminService.refreshActiveSessions();
+                setActiveSessions(refreshed);
+                showToast('✓ Refreshed active session telemetry across all plants.');
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               Refresh Feed

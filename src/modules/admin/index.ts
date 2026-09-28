@@ -5,6 +5,18 @@
 
 export { AdminViews } from '../../components/AdminViews';
 export {
+  systemHealth,
+  adminUsers,
+  adminRoles,
+  companyProfile,
+  numberingSequences,
+  approvalWorkflows,
+  securityPolicy,
+  auditLogs,
+  integrations,
+  backupRecords,
+  notificationTemplates,
+  systemParameters,
   mockSystemHealth,
   mockAdminUsers,
   mockAdminRoles,
@@ -17,8 +29,27 @@ export {
   mockBackupRecords,
   mockNotificationTemplates,
   mockSystemParameters,
-} from '../../data/mockAdminData';
+} from '../../data/adminData';
 export {
+  userGroups,
+  workflowConfigs,
+  warehouseLocations,
+  machineWorkCenters,
+  shifts,
+  holidays,
+  reasonCodes,
+  masterDataRecords,
+  documentPolicies,
+  loginAuditRecords,
+  dataExchangeJobs,
+  retentionPolicies,
+  licenseDetails,
+  sodRules,
+  sodViolations,
+  simulationScenarios,
+  multiContextPolicies,
+  rowLevelSecurityRules,
+  breakGlassRequests,
   mockUserGroups,
   mockWorkflowConfigs,
   mockWarehouseLocations,
@@ -38,7 +69,7 @@ export {
   mockMultiContextPolicies,
   mockRowLevelSecurityRules,
   mockBreakGlassRequests,
-} from '../../data/mockAdminExtendedData';
+} from '../../data/adminExtendedData';
 
 export type {
   AdminSystemHealth,

@@ -28,16 +28,16 @@ import {
 } from 'lucide-react';
 import { AdminUser, AdminRole, PlantDetails } from '../../types/admin';
 import { adminService, adminEventBus } from '../../services/adminService';
-import { mockAdminUsers, mockAdminRoles, mockCompanyProfile } from '../../data/mockAdminData';
+import { adminUsers, adminRoles, companyProfile } from '../../data/adminData';
 
 interface AdminUsersViewProps {
   showToast?: (msg: string) => void;
 }
 
 export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_msg: string) => {} }) => {
-  const [users, setUsers] = useState<AdminUser[]>(mockAdminUsers);
-  const [roles, setRoles] = useState<AdminRole[]>(mockAdminRoles);
-  const [plants, setPlants] = useState<PlantDetails[]>(mockCompanyProfile.plants);
+  const [users, setUsers] = useState<AdminUser[]>(() => adminService.getCachedUsers());
+  const [roles, setRoles] = useState<AdminRole[]>(() => adminService.getCachedRoles());
+  const [plants, setPlants] = useState<PlantDetails[]>(() => adminService.getCachedPlants());
   const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedRole, setSelectedRole] = useState('ALL');
@@ -63,9 +63,9 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
         adminService.getRoles(),
         adminService.getPlants(),
       ]);
-      setUsers(fetchedUsers);
-      setRoles(fetchedRoles);
-      setPlants(fetchedPlants);
+      if (fetchedUsers && fetchedUsers.length > 0) setUsers(fetchedUsers);
+      if (fetchedRoles && fetchedRoles.length > 0) setRoles(fetchedRoles);
+      if (fetchedPlants && fetchedPlants.length > 0) setPlants(fetchedPlants);
     } catch {
       // Handled in service fallback
     } finally {
@@ -75,8 +75,12 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
 
   useEffect(() => {
     loadData();
-    const unsub = adminEventBus.subscribe(() => {
-      adminService.getUsers().then(setUsers);
+    const unsub = adminEventBus.subscribe((event, payload) => {
+      if (event === 'USER_CREATED' || event === 'USER_UPDATED' || event === 'DATA_CHANGED') {
+        adminService.getUsers().then((u) => {
+          if (u && u.length > 0) setUsers(u);
+        });
+      }
     });
     return unsub;
   }, []);
@@ -319,7 +323,7 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
             className="text-xs py-2 px-3 rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
           >
             <option value="ALL">All Roles</option>
-            {mockAdminRoles.map((r) => (
+            {roles.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}
               </option>
@@ -333,7 +337,7 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
             className="text-xs py-2 px-3 rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
           >
             <option value="ALL">All Plants</option>
-            {mockCompanyProfile.plants.map((p) => (
+            {plants.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.plantName}
               </option>
@@ -616,7 +620,7 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
                     onChange={(e) => setFormData({ ...formData, roleId: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
                   >
-                    {mockAdminRoles.map((r) => (
+                    {roles.map((r) => (
                       <option key={r.id} value={r.id}>
                         {r.name}
                       </option>
@@ -643,7 +647,7 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
               <div>
                 <label className="block font-semibold text-slate-700 mb-1.5">Authorized Plant Facilities</label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {mockCompanyProfile.plants.map((p) => {
+                  {plants.map((p) => {
                     const currentPlantIds = formData.plantIds || [];
                     const isChecked = currentPlantIds.includes(p.id);
                     return (

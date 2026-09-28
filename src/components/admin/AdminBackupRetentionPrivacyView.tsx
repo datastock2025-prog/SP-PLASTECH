@@ -13,7 +13,7 @@ import {
   Play,
   CheckCircle2,
 } from 'lucide-react';
-import { DataRetentionPolicy, mockRetentionPolicies } from '../../data/mockAdminExtendedData';
+import { DataRetentionPolicy, retentionPolicies, mockRetentionPolicies } from '../../data/adminExtendedData';
 
 interface AdminBackupRetentionPrivacyViewProps {
   showToast?: (msg: string) => void;

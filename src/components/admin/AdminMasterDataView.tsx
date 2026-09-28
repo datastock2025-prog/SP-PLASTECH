@@ -24,7 +24,7 @@ import {
   Sparkles,
   GitMerge,
 } from 'lucide-react';
-import { MasterDataRecord } from '../../data/mockAdminExtendedData';
+import { MasterDataRecord, masterDataRecords, mockMasterDataRecords } from '../../data/adminExtendedData';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { adminEventBus } from '../../services/adminService';
 import { PaginationBar } from '../common/PaginationBar';

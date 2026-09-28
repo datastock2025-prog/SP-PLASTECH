@@ -32,7 +32,7 @@ import {
   KeyRound,
   RefreshCw,
 } from 'lucide-react';
-import { WorkflowRuleConfig, mockWorkflowConfigs } from '../../data/mockAdminExtendedData';
+import { WorkflowRuleConfig, workflowConfigs, mockWorkflowConfigs } from '../../data/adminExtendedData';
 import { adminEventBus } from '../../services/adminService';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { useAuthContext } from '../../shared/components/RequireAuth';

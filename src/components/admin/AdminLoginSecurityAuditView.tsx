@@ -15,7 +15,7 @@ import {
   Download,
   RefreshCw,
 } from 'lucide-react';
-import { SecurityLoginAuditRecord, mockLoginAuditRecords } from '../../data/mockAdminExtendedData';
+import { SecurityLoginAuditRecord, loginAuditRecords, mockLoginAuditRecords } from '../../data/adminExtendedData';
 
 interface AdminLoginSecurityAuditViewProps {
   showToast?: (msg: string) => void;

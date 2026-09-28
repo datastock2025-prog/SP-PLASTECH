@@ -46,15 +46,15 @@ import {
   AdminUser,
 } from '../../types/admin';
 import {
-  mockAdminRoles,
-  mockAdminUsers,
-} from '../../data/mockAdminData';
+  adminRoles,
+  adminUsers,
+} from '../../data/adminData';
 import {
-  mockSodRules,
-  mockSodViolations,
-  mockSimulationScenarios,
-  mockMultiContextPolicies,
-} from '../../data/mockAdminExtendedData';
+  sodRules,
+  sodViolations,
+  simulationScenarios,
+  multiContextPolicies,
+} from '../../data/adminExtendedData';
 import { WorkspaceModuleRbacView } from './WorkspaceModuleRbacView';
 import { useWorkspaceRbac } from '../../hooks/useWorkspaceRbac';
 import { adminService, adminEventBus } from '../../services/adminService';
@@ -75,7 +75,7 @@ function loadStoredRoles(): AdminRole[] {
   } catch (e) {
     console.warn('Failed to load stored roles', e);
   }
-  return [...mockAdminRoles];
+  return [...adminRoles];
 }
 
 function saveStoredRoles(roles: AdminRole[]) {
@@ -131,7 +131,7 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
   // Simulator Sandbox State
   // -------------------------------------------------------------
   const [simSubjectType, setSimSubjectType] = useState<'user' | 'role' | 'multi_role'>('user');
-  const [simSelectedUserId, setSimSelectedUserId] = useState<string>(liveUsers[0]?.id || mockAdminUsers[0]?.id || '');
+  const [simSelectedUserId, setSimSelectedUserId] = useState<string>(liveUsers[0]?.id || adminUsers[0]?.id || '');
   const [simSelectedRoleId, setSimSelectedRoleId] = useState<string>(roles[1]?.id || roles[0]?.id || '');
   const [simMultiRoleIds, setSimMultiRoleIds] = useState<string[]>([roles[1]?.id, roles[2]?.id].filter(Boolean));
   const [simSelectedPlant, setSimSelectedPlant] = useState<string>('PLANT_CHE_01');
@@ -460,7 +460,7 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
       let subjectName = '';
 
       if (simSubjectType === 'user') {
-        const user = liveUsers.find((u) => u.id === simSelectedUserId) || liveUsers[0] || mockAdminUsers[0];
+        const user = liveUsers.find((u) => u.id === simSelectedUserId) || liveUsers[0] || adminUsers[0];
         subjectName = `${user.fullName} (${user.designation})`;
         const matchingRole = roles.find((r) => r.id === user.roleId) || roles[0];
         targetRoles = [matchingRole];
@@ -1836,7 +1836,7 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h2 className="text-sm font-bold text-slate-900">Assigned User Breakdown</h2>
-              <span className="text-xs text-slate-400">{mockAdminUsers.length} Users</span>
+              <span className="text-xs text-slate-400">{liveUsers.length} Users</span>
             </div>
 
             <div className="space-y-2 text-xs">

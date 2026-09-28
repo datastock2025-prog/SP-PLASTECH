@@ -21,7 +21,7 @@ import {
   X,
   RefreshCw,
 } from 'lucide-react';
-import { WarehouseLocationConfig, mockWarehouseLocations } from '../../data/mockAdminExtendedData';
+import { WarehouseLocationConfig, warehouseLocations, mockWarehouseLocations } from '../../data/adminExtendedData';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { SupabaseDataService } from '../../services/supabaseService';
 import { adminEventBus } from '../../services/adminService';

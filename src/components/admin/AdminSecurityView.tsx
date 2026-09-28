@@ -16,7 +16,7 @@ import {
   Terminal,
 } from 'lucide-react';
 import { SecurityPolicySettings } from '../../types/admin';
-import { mockSecurityPolicy } from '../../data/mockAdminData';
+import { securityPolicy, mockSecurityPolicy } from '../../data/adminData';
 import { adminEventBus } from '../../services/adminService';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { useAuthContext } from '../../shared/components/RequireAuth';
