@@ -33,6 +33,59 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { WorkflowRuleConfig, mockWorkflowConfigs } from '../../data/mockAdminExtendedData';
+import { adminEventBus } from '../../services/adminService';
+import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
+import { useAuthContext } from '../../shared/components/RequireAuth';
+
+const WORKFLOW_RULES_STORAGE_KEY = 'reboot_erp_workflow_rules_v2';
+const DELEGATIONS_STORAGE_KEY = 'reboot_erp_delegations_v2';
+const BREAK_GLASS_LOGS_STORAGE_KEY = 'reboot_erp_break_glass_logs_v2';
+
+function loadStoredWorkflows(): WorkflowRuleConfig[] {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(WORKFLOW_RULES_STORAGE_KEY) : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+  return [...mockWorkflowConfigs];
+}
+
+function loadStoredDelegations(): ApprovalDelegation[] {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(DELEGATIONS_STORAGE_KEY) : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+  return [
+    {
+      id: 'DEL-001',
+      delegatorName: 'Priya Rao',
+      delegatorRole: 'VP Operations / CFO Proxy',
+      delegateeName: 'Anand Kumar',
+      delegateeRole: 'Senior Operations Lead',
+      validFrom: '2026-09-24',
+      validUntil: '2026-10-02',
+      domainScope: 'Procurement (POs < ₹10L) & Credit Exceptions',
+      reason: 'Overseas OEM Client Summit in Tokyo & Annual Leave',
+      status: 'Active',
+    },
+  ];
+}
+
+function loadStoredBreakGlassLogs(): BreakGlassLog[] {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(BREAK_GLASS_LOGS_STORAGE_KEY) : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+  return [];
+}
 
 interface AdminApprovalWorkflowConfigViewProps {
   showToast?: (msg: string) => void;
@@ -67,53 +120,12 @@ export interface BreakGlassLog {
 export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConfigViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
+  const { currentUser } = useAuthContext();
   const [activeAdminTab, setActiveAdminTab] = useState<'RULES' | 'DELEGATIONS' | 'BREAK_GLASS' | 'SOD_POLICY' | 'SIMULATOR'>('RULES');
-  const [workflows, setWorkflows] = useState<WorkflowRuleConfig[]>(mockWorkflowConfigs);
+  const [workflows, setWorkflows] = useState<WorkflowRuleConfig[]>(loadStoredWorkflows);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>(workflows[0]?.id || '');
-
-  // Delegations State
-  const [delegations, setDelegations] = useState<ApprovalDelegation[]>([
-    {
-      id: 'DEL-001',
-      delegatorName: 'Priya Rao',
-      delegatorRole: 'VP Operations / CFO Proxy',
-      delegateeName: 'Anand Kumar',
-      delegateeRole: 'Senior Operations Lead',
-      validFrom: '2026-09-24',
-      validUntil: '2026-10-02',
-      domainScope: 'Procurement (POs < ₹10L) & Credit Exceptions',
-      reason: 'Overseas OEM Client Summit in Tokyo & Annual Leave',
-      status: 'Active',
-    },
-    {
-      id: 'DEL-002',
-      delegatorName: 'Vikramaditya Sen',
-      delegatorRole: 'QA Director',
-      delegateeName: 'Ramesh Powar',
-      delegateeRole: 'Senior QA Specialist',
-      validFrom: '2026-10-05',
-      validUntil: '2026-10-12',
-      domainScope: 'Quality MRB & ECO Sign-offs',
-      reason: 'IATF 16949 Lead Auditor Certification Training',
-      status: 'Scheduled',
-    },
-  ]);
-
-  // Break-Glass Overrides State
-  const [breakGlassLogs, setBreakGlassLogs] = useState<BreakGlassLog[]>([
-    {
-      id: 'BG-2026-089',
-      documentRef: 'PO-2026-00654',
-      domain: 'Procurement',
-      originalApprover: 'Financial Controller (Vacant Seat)',
-      overriddenBy: 'Charu (Super Admin)',
-      authorizedBySecondAdmin: 'Rajesh Nair (SecOps Lead)',
-      justification: 'Critical polymer resin feedstock depleted; line stoppage penalty ₹4.5 Lakhs/day on Maruti Swift bumper line.',
-      reasonCode: 'EMERGENCY_LINE_STOP',
-      timestamp: '2026-09-22 14:32 IST',
-      status: 'APPLIED_COMPLIANT',
-    },
-  ]);
+  const [delegations, setDelegations] = useState<ApprovalDelegation[]>(loadStoredDelegations);
+  const [breakGlassLogs, setBreakGlassLogs] = useState<BreakGlassLog[]>(loadStoredBreakGlassLogs);
 
   // SoD Policies State
   const [sodConfig, setSodConfig] = useState({
@@ -198,16 +210,32 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
 
   // Toggle Rule Status
   const handleToggleActive = (id: string) => {
-    setWorkflows((prev) =>
-      prev.map((w) => {
-        if (w.id === id) {
-          const next = !w.isActive;
-          showToast(`Workflow "${w.name}" is now ${next ? 'Active' : 'Draft / Disabled'}.`);
-          return { ...w, isActive: next };
-        }
-        return w;
-      })
-    );
+    const updated = workflows.map((w) => {
+      if (w.id === id) {
+        const next = !w.isActive;
+        return { ...w, isActive: next };
+      }
+      return w;
+    });
+    setWorkflows(updated);
+    try {
+      localStorage.setItem(WORKFLOW_RULES_STORAGE_KEY, JSON.stringify(updated));
+    } catch {}
+
+    const target = updated.find((w) => w.id === id);
+    if (target) {
+      masterDataGovernanceService.recordAudit({
+        entityType: 'WORKFLOW_CONFIG',
+        entityCode: target.id,
+        entityName: target.name,
+        action: 'UPDATE',
+        changedBy: currentUser?.fullName || 'Administrator',
+        userRole: 'admin',
+        changeSummary: `Toggled status of Workflow Rule "${target.name}" to ${target.isActive ? 'ACTIVE' : 'DISABLED'}.`,
+      });
+      adminEventBus.emit('WORKFLOW_CONFIG_SAVED', target);
+      showToast(`Workflow "${target.name}" is now ${target.isActive ? 'Active' : 'Draft / Disabled'}.`);
+    }
   };
 
   // Open Add Rule Modal
@@ -261,10 +289,26 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
       ],
     };
 
-    setWorkflows([newWorkflow, ...workflows]);
+    const updated = [newWorkflow, ...workflows];
+    setWorkflows(updated);
+    try {
+      localStorage.setItem(WORKFLOW_RULES_STORAGE_KEY, JSON.stringify(updated));
+    } catch {}
+
+    masterDataGovernanceService.recordAudit({
+      entityType: 'WORKFLOW_CONFIG',
+      entityCode: newWorkflow.id,
+      entityName: newWorkflow.name,
+      action: 'CREATE',
+      changedBy: currentUser?.fullName || 'Administrator',
+      userRole: 'admin',
+      changeSummary: `Created new Multi-Tier Approval Workflow Rule "${newWorkflow.name}" for module ${newWorkflow.module}.`,
+    });
+    adminEventBus.emit('WORKFLOW_CONFIG_SAVED', newWorkflow);
+
     setSelectedWorkflowId(newWorkflow.id);
     setIsAddRuleModalOpen(false);
-    showToast(`Workflow Rule "${newWorkflow.name}" created successfully.`);
+    showToast(`✓ Workflow Rule "${newWorkflow.name}" created and saved to DB.`);
   };
 
   // Open Append Stage Modal

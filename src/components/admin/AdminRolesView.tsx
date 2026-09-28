@@ -43,6 +43,7 @@ import {
   SimulationVerdict,
   SodConflictRule,
   SodViolation,
+  AdminUser,
 } from '../../types/admin';
 import {
   mockAdminRoles,
@@ -56,6 +57,36 @@ import {
 } from '../../data/mockAdminExtendedData';
 import { WorkspaceModuleRbacView } from './WorkspaceModuleRbacView';
 import { useWorkspaceRbac } from '../../hooks/useWorkspaceRbac';
+import { adminService, adminEventBus } from '../../services/adminService';
+import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
+import { useAuthContext } from '../../shared/components/RequireAuth';
+
+const RBAC_ROLES_STORAGE_KEY = 'reboot_erp_rbac_roles_v2';
+
+function loadStoredRoles(): AdminRole[] {
+  try {
+    const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(RBAC_ROLES_STORAGE_KEY) : null;
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load stored roles', e);
+  }
+  return [...mockAdminRoles];
+}
+
+function saveStoredRoles(roles: AdminRole[]) {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(RBAC_ROLES_STORAGE_KEY, JSON.stringify(roles));
+    }
+  } catch (e) {
+    console.warn('Failed to save roles', e);
+  }
+}
 
 interface AdminRolesViewProps {
   showToast?: (msg: string) => void;
@@ -68,13 +99,23 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
   initialTab = 'matrix',
   onNavigate,
 }) => {
+  const { currentUser } = useAuthContext();
   const { pendingCount } = useWorkspaceRbac();
   // Navigation / View State
   const [activeTab, setActiveTab] = useState<'matrix' | 'simulator' | 'sod' | 'hierarchy' | 'workspace_access'>(initialTab);
-  const [roles, setRoles] = useState<AdminRole[]>(mockAdminRoles);
+  const [roles, setRoles] = useState<AdminRole[]>(loadStoredRoles);
+  const [liveUsers, setLiveUsers] = useState<AdminUser[]>(adminService.getCachedUsers);
   const [selectedRoleId, setSelectedRoleId] = useState<string>(roles[0]?.id || '');
   const [moduleCategoryFilter, setModuleCategoryFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    adminService.getUsers().then((u) => {
+      if (u && u.length > 0) {
+        setLiveUsers(u);
+      }
+    });
+  }, []);
 
   // Modals / Actions
   const [isCreatingRole, setIsCreatingRole] = useState(false);
@@ -90,9 +131,9 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
   // Simulator Sandbox State
   // -------------------------------------------------------------
   const [simSubjectType, setSimSubjectType] = useState<'user' | 'role' | 'multi_role'>('user');
-  const [simSelectedUserId, setSimSelectedUserId] = useState<string>(mockAdminUsers[0]?.id || '');
-  const [simSelectedRoleId, setSimSelectedRoleId] = useState<string>(mockAdminRoles[1]?.id || '');
-  const [simMultiRoleIds, setSimMultiRoleIds] = useState<string[]>([mockAdminRoles[1]?.id, mockAdminRoles[2]?.id]);
+  const [simSelectedUserId, setSimSelectedUserId] = useState<string>(liveUsers[0]?.id || mockAdminUsers[0]?.id || '');
+  const [simSelectedRoleId, setSimSelectedRoleId] = useState<string>(roles[1]?.id || roles[0]?.id || '');
+  const [simMultiRoleIds, setSimMultiRoleIds] = useState<string[]>([roles[1]?.id, roles[2]?.id].filter(Boolean));
   const [simSelectedPlant, setSimSelectedPlant] = useState<string>('PLANT_CHE_01');
   const [simSelectedShift, setSimSelectedShift] = useState<string>('Shift A (06:00 - 14:00)');
   const [simIpAddress, setSimIpAddress] = useState<string>('192.168.10.45');
@@ -329,21 +370,24 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
       });
     }
 
-    const newRole: AdminRole = {
-      id: `ROLE-${Date.now().toString().slice(-4)}`,
-      name: newRoleData.name.trim(),
-      code: (newRoleData.code || '').trim().toUpperCase() || `ROLE_${(newRoleData.name || '').replace(/\s+/g, '_').toUpperCase()}`,
-      description: newRoleData.description.trim() || 'Custom plant operational profile',
-      isSystemRole: false,
-      userCount: 0,
-      createdDate: new Date().toISOString().split('T')[0],
-      permissions: basePerms,
-    };
-
-    setRoles([...roles, newRole]);
+    const updatedRoles = [...roles, newRole];
+    setRoles(updatedRoles);
+    saveStoredRoles(updatedRoles);
     setSelectedRoleId(newRole.id);
     setIsCreatingRole(false);
     setNewRoleData({ name: '', code: '', description: '', template: 'Blank' });
+
+    masterDataGovernanceService.recordAudit({
+      entityType: 'ROLE',
+      entityCode: newRole.code,
+      entityName: newRole.name,
+      action: 'CREATE',
+      changedBy: currentUser?.fullName || 'Administrator',
+      userRole: 'admin',
+      changeSummary: `Created new RBAC role "${newRole.name}" (${newRole.code}) with template "${newRoleData.template}".`,
+    });
+    adminEventBus.emit('ROLE_CREATED', newRole);
+
     showToast(`Custom role "${newRole.name}" created with template "${newRoleData.template}".`);
   };
 
@@ -358,9 +402,41 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
       createdDate: new Date().toISOString().split('T')[0],
       permissions: JSON.parse(JSON.stringify(selectedRole.permissions)),
     };
-    setRoles([...roles, clonedRole]);
+    const updatedRoles = [...roles, clonedRole];
+    setRoles(updatedRoles);
+    saveStoredRoles(updatedRoles);
     setSelectedRoleId(clonedRole.id);
+
+    masterDataGovernanceService.recordAudit({
+      entityType: 'ROLE',
+      entityCode: clonedRole.code,
+      entityName: clonedRole.name,
+      action: 'CREATE',
+      changedBy: currentUser?.fullName || 'Administrator',
+      userRole: 'admin',
+      changeSummary: `Cloned role profile "${selectedRole.name}" into "${clonedRole.name}".`,
+    });
+    adminEventBus.emit('ROLE_CREATED', clonedRole);
+
     showToast(`Cloned role "${selectedRole.name}" into "${clonedRole.name}".`);
+  };
+
+  const handleSaveRoleChanges = () => {
+    saveStoredRoles(roles);
+    adminService.updateRole(selectedRole.id, selectedRole);
+    adminEventBus.emit('ROLE_UPDATED', selectedRole);
+
+    masterDataGovernanceService.recordAudit({
+      entityType: 'ROLE',
+      entityCode: selectedRole.code,
+      entityName: selectedRole.name,
+      action: 'PERMISSION_CHANGE',
+      changedBy: currentUser?.fullName || 'Administrator',
+      userRole: 'admin',
+      changeSummary: `Committed & deployed updated RBAC permission matrix for role "${selectedRole.name}".`,
+    });
+
+    showToast(`✓ Synchronized and committed permissions for role: ${selectedRole.name}. Policy deployed.`);
   };
 
   const handleExportMatrixJson = () => {
@@ -384,7 +460,7 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
       let subjectName = '';
 
       if (simSubjectType === 'user') {
-        const user = mockAdminUsers.find((u) => u.id === simSelectedUserId) || mockAdminUsers[0];
+        const user = liveUsers.find((u) => u.id === simSelectedUserId) || liveUsers[0] || mockAdminUsers[0];
         subjectName = `${user.fullName} (${user.designation})`;
         const matchingRole = roles.find((r) => r.id === user.roleId) || roles[0];
         targetRoles = [matchingRole];
@@ -560,8 +636,8 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
             Export Matrix
           </button>
           <button
-            onClick={() => showToast(`Synchronized and committed permissions for role: ${selectedRole.name}. Policy deployed.`)}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#0F8B8D] hover:bg-[#0c7274] rounded-lg shadow-sm transition-colors"
+            onClick={handleSaveRoleChanges}
+            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#0F8B8D] hover:bg-[#0c7274] rounded-lg shadow-sm transition-colors cursor-pointer"
           >
             <Save className="w-4 h-4" />
             Save Changes
@@ -1144,11 +1220,11 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
                     <select
                       value={simSelectedUserId}
                       onChange={(e) => setSimSelectedUserId(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
                     >
-                      {mockAdminUsers.map((u) => (
+                      {liveUsers.map((u) => (
                         <option key={u.id} value={u.id}>
-                          {u.fullName} — {u.roleName} ({u.department})
+                          {u.fullName} — {u.roleName || u.roleId} ({u.department})
                         </option>
                       ))}
                     </select>

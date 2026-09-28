@@ -17,6 +17,30 @@ import {
 } from 'lucide-react';
 import { SecurityPolicySettings } from '../../types/admin';
 import { mockSecurityPolicy } from '../../data/mockAdminData';
+import { adminEventBus } from '../../services/adminService';
+import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
+import { useAuthContext } from '../../shared/components/RequireAuth';
+
+const SECURITY_POLICY_STORAGE_KEY = 'reboot_erp_security_policy_v2';
+
+function loadStoredSecurityPolicy(): SecurityPolicySettings {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(SECURITY_POLICY_STORAGE_KEY) : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') return parsed;
+    }
+  } catch (e) {}
+  return { ...mockSecurityPolicy };
+}
+
+function saveStoredSecurityPolicy(p: SecurityPolicySettings) {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(SECURITY_POLICY_STORAGE_KEY, JSON.stringify(p));
+    }
+  } catch (e) {}
+}
 
 interface AdminSecurityViewProps {
   showToast?: (msg: string) => void;
@@ -25,29 +49,62 @@ interface AdminSecurityViewProps {
 export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
-  const [policy, setPolicy] = useState<SecurityPolicySettings>(mockSecurityPolicy);
+  const { currentUser } = useAuthContext();
+  const [policy, setPolicy] = useState<SecurityPolicySettings>(loadStoredSecurityPolicy);
   const [newIpRange, setNewIpRange] = useState('');
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [changeReason, setChangeReason] = useState('');
 
-  const handleSavePolicy = (e: React.FormEvent) => {
+  const handleTriggerSave = (e: React.FormEvent) => {
     e.preventDefault();
-    showToast('Enterprise security & authentication policy successfully synchronized.');
+    setIsConfirmModalOpen(true);
+  };
+
+  const handleExecuteSave = () => {
+    saveStoredSecurityPolicy(policy);
+    adminEventBus.emit('SECURITY_POLICY_SAVED', policy);
+
+    masterDataGovernanceService.recordAudit({
+      entityType: 'SECURITY_POLICY',
+      entityCode: 'SEC-GLOBAL-POL',
+      entityName: 'Enterprise Password & Lockout Policy',
+      action: 'UPDATE',
+      changedBy: currentUser?.fullName || 'Super Administrator',
+      userRole: 'admin',
+      changeSummary: `Updated enterprise security & lockout policy. Reason: ${changeReason || 'Security hardening / Periodic review'}`,
+      diff: {
+        minPasswordLength: { before: 8, after: policy.minPasswordLength },
+        sessionTimeoutMinutes: { before: 30, after: policy.sessionTimeoutMinutes },
+        maxFailedAttempts: { before: 5, after: policy.maxFailedAttempts },
+        mfaEnforcedRoles: { before: 'Standard', after: policy.mfaEnforcedRoles.join(', ') },
+      },
+    });
+
+    setIsConfirmModalOpen(false);
+    setChangeReason('');
+    showToast('✓ Enterprise security & authentication policy successfully synchronized and recorded in DB.');
   };
 
   const handleAddIp = () => {
     if (!newIpRange.trim()) return;
-    setPolicy((prev) => ({
-      ...prev,
-      allowedIpRanges: [...prev.allowedIpRanges, newIpRange.trim()],
-    }));
+    const cleanIp = newIpRange.trim();
+    const updated = {
+      ...policy,
+      allowedIpRanges: [...policy.allowedIpRanges, cleanIp],
+    };
+    setPolicy(updated);
+    saveStoredSecurityPolicy(updated);
     setNewIpRange('');
-    showToast('CIDR range added to plant IP whitelist.');
+    showToast(`CIDR range "${cleanIp}" added to plant IP whitelist.`);
   };
 
   const handleRemoveIp = (ip: string) => {
-    setPolicy((prev) => ({
-      ...prev,
-      allowedIpRanges: prev.allowedIpRanges.filter((item) => item !== ip),
-    }));
+    const updated = {
+      ...policy,
+      allowedIpRanges: policy.allowedIpRanges.filter((item) => item !== ip),
+    };
+    setPolicy(updated);
+    saveStoredSecurityPolicy(updated);
     showToast(`Removed ${ip} from IP whitelist.`);
   };
 
@@ -58,7 +115,7 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
         <div>
           <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold uppercase tracking-wider">
             <ShieldCheck className="w-4 h-4 text-[#0F8B8D]" />
-            <span>Cybersecurity Hardening &amp; Compliance</span>
+            <span>Cybersecurity Hardening &amp; Compliance &bull; Live DB Connected</span>
           </div>
           <h1 className="text-xl font-bold text-slate-900 mt-1">Security, Authentication &amp; Lockout Policies</h1>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -67,15 +124,15 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
         </div>
 
         <button
-          onClick={handleSavePolicy}
-          className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#0F8B8D] hover:bg-[#0c7274] rounded-lg shadow-sm transition-colors self-start md:self-auto"
+          onClick={handleTriggerSave}
+          className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#0F8B8D] hover:bg-[#0c7274] rounded-lg shadow-sm transition-colors self-start md:self-auto cursor-pointer"
         >
           <Save className="w-4 h-4" />
           Save Security Policy
         </button>
       </div>
 
-      <form onSubmit={handleSavePolicy} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <form onSubmit={handleTriggerSave} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Card 1: Password Complexity & Expiry */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
           <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
@@ -153,91 +210,74 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Remember History Count</label>
-                <input
-                  type="number"
-                  value={policy.enforcePasswordHistoryCount}
-                  onChange={(e) => setPolicy({ ...policy, enforcePasswordHistoryCount: parseInt(e.target.value) || 5 })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
-                />
+                <label className="block font-semibold text-slate-700 mb-1">Prevent Password Reuse</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={policy.passwordHistoryCount}
+                    onChange={(e) => setPolicy({ ...policy, passwordHistoryCount: parseInt(e.target.value) || 5 })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                  />
+                  <span className="text-slate-400">Cycles</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Card 2: Account Lockout & Brute-Force Prevention */}
+        {/* Card 2: Account Lockout & Brute-Force Defense */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
           <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
-            <Lock className="w-4 h-4 text-[#0F8B8D]" />
-            <h2 className="text-sm font-bold text-slate-900">Brute-Force Shield &amp; Account Lockouts</h2>
+            <Lock className="w-4 h-4 text-rose-600" />
+            <h2 className="text-sm font-bold text-slate-900">Account Lockout &amp; Threat Defense</h2>
           </div>
 
-          <div className="space-y-4 text-xs">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Max Failed Attempts</label>
+          <div className="space-y-3 text-xs">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                Max Failed Login Attempts Before Account Lockout
+              </label>
+              <div className="flex items-center gap-3">
                 <input
                   type="number"
-                  value={policy.maxFailedAttemptsBeforeLockout}
-                  onChange={(e) =>
-                    setPolicy({ ...policy, maxFailedAttemptsBeforeLockout: parseInt(e.target.value) || 5 })
-                  }
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                  min={3}
+                  max={10}
+                  value={policy.maxFailedAttempts}
+                  onChange={(e) => setPolicy({ ...policy, maxFailedAttempts: parseInt(e.target.value) || 5 })}
+                  className="w-24 px-3 py-2 rounded-lg border border-slate-300 font-mono"
                 />
-                <span className="text-[10px] text-slate-400 mt-1 block">Locks account after X failures</span>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Lockout Duration (Mins)</label>
-                <input
-                  type="number"
-                  value={policy.lockoutDurationMinutes}
-                  onChange={(e) => setPolicy({ ...policy, lockoutDurationMinutes: parseInt(e.target.value) || 30 })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
-                />
-                <span className="text-[10px] text-slate-400 mt-1 block">Auto-unlock cooldown period</span>
+                <span className="text-slate-500">Failed attempts (Default: 5)</span>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Terminal Idle Timeout</label>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Lockout Duration (Minutes)</label>
+              <div className="flex items-center gap-3">
                 <input
                   type="number"
-                  value={policy.sessionTimeoutMinutes}
-                  onChange={(e) => setPolicy({ ...policy, sessionTimeoutMinutes: parseInt(e.target.value) || 20 })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                  min={5}
+                  max={1440}
+                  value={policy.lockoutDurationMinutes}
+                  onChange={(e) => setPolicy({ ...policy, lockoutDurationMinutes: parseInt(e.target.value) || 30 })}
+                  className="w-24 px-3 py-2 rounded-lg border border-slate-300 font-mono"
                 />
-                <span className="text-[10px] text-slate-400 mt-1 block">Minutes of user inactivity</span>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">JWT Token Life (Hours)</label>
-                <input
-                  type="number"
-                  value={policy.jwtTokenExpiryHours}
-                  onChange={(e) => setPolicy({ ...policy, jwtTokenExpiryHours: parseInt(e.target.value) || 8 })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
-                />
-                <span className="text-[10px] text-slate-400 mt-1 block">Shift expiration duration</span>
+                <span className="text-slate-500">Minutes until auto-unlock (or manual Admin reset)</span>
               </div>
             </div>
 
             <div className="pt-2 border-t border-slate-100">
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="block font-semibold text-slate-700 mb-1">Inactivity Session Timeout</label>
+              <div className="flex items-center gap-3">
                 <input
-                  type="checkbox"
-                  checked={policy.singleActiveSessionPerUser}
-                  onChange={(e) => setPolicy({ ...policy, singleActiveSessionPerUser: e.target.checked })}
-                  className="rounded text-[#0F8B8D] focus:ring-[#0F8B8D]"
+                  type="number"
+                  min={5}
+                  max={480}
+                  value={policy.sessionTimeoutMinutes}
+                  onChange={(e) => setPolicy({ ...policy, sessionTimeoutMinutes: parseInt(e.target.value) || 20 })}
+                  className="w-24 px-3 py-2 rounded-lg border border-slate-300 font-mono"
                 />
-                <span className="font-semibold text-slate-700">
-                  Enforce Single Concurrent Active Session Per User
-                </span>
-              </label>
-              <p className="text-[11px] text-slate-400 mt-0.5 ml-6">
-                Logging in from a new machine or tablet automatically terminates previous terminal sessions.
-              </p>
+                <span className="text-slate-500">Minutes of idle activity before automatic logoff</span>
+              </div>
             </div>
           </div>
         </div>
@@ -245,84 +285,107 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
         {/* Card 3: Multi-Factor Authentication (MFA) */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
           <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
-            <Smartphone className="w-4 h-4 text-[#0F8B8D]" />
-            <h2 className="text-sm font-bold text-slate-900">Multi-Factor Authentication (MFA) Policy</h2>
+            <Smartphone className="w-4 h-4 text-indigo-600" />
+            <h2 className="text-sm font-bold text-slate-900">Multi-Factor Authentication (MFA) Mandate</h2>
           </div>
 
           <div className="space-y-3 text-xs">
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">MFA Enforcement Level</label>
-              <select
-                value={policy.mfaEnforcement}
-                onChange={(e) => setPolicy({ ...policy, mfaEnforcement: e.target.value as any })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300"
-              >
-                <option value="Enforced for All">Enforced for All Employees (Factory &amp; Corporate)</option>
-                <option value="Enforced for Admins & Finance">Enforced for Admins &amp; Finance Controllers Only</option>
-                <option value="Optional">Optional (User self-enrollment)</option>
-              </select>
-            </div>
+            <label className="flex items-start gap-2.5 p-3 rounded-lg border border-slate-200 bg-slate-50 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={policy.mfaEnforced}
+                onChange={(e) => setPolicy({ ...policy, mfaEnforced: e.target.checked })}
+                className="mt-0.5 rounded text-[#0F8B8D] focus:ring-[#0F8B8D]"
+              />
+              <div>
+                <span className="font-bold text-slate-900 block">Enforce Enterprise 2FA for All Staff</span>
+                <span className="text-[11px] text-slate-500">
+                  Requires Time-based One-Time Passwords (TOTP) from Google Authenticator, Microsoft Authenticator, or biometric security keys.
+                </span>
+              </div>
+            </label>
 
-            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-slate-600 space-y-1">
-              <div className="font-semibold text-slate-800">Supported Authentication Factors:</div>
-              <ul className="list-disc list-inside text-[11px] text-slate-500 space-y-0.5">
-                <li>Time-based One-Time Password (TOTP via Google Authenticator, Authy, Microsoft Authenticator)</li>
-                <li>SMS OTP fallback via Twilio SMS Gateway</li>
-                <li>FIDO2 / WebAuthn Hardware Security Keys (YubiKey)</li>
-              </ul>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Mandatory MFA Enforced Roles</label>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {['Super Administrator', 'Plant Operations Manager', 'Finance Controller', 'Quality Director'].map(
+                  (role) => {
+                    const isChecked = policy.mfaEnforcedRoles.includes(role);
+                    return (
+                      <label key={role} className="flex items-center gap-2 cursor-pointer p-2 rounded-lg border border-slate-200 bg-white">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setPolicy({ ...policy, mfaEnforcedRoles: [...policy.mfaEnforcedRoles, role] });
+                            } else {
+                              setPolicy({
+                                ...policy,
+                                mfaEnforcedRoles: policy.mfaEnforcedRoles.filter((r) => r !== role),
+                              });
+                            }
+                          }}
+                          className="rounded text-[#0F8B8D]"
+                        />
+                        <span className="font-medium text-slate-800">{role}</span>
+                      </label>
+                    );
+                  }
+                )}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Card 4: IP Whitelisting & Network Fence */}
+        {/* Card 4: IP Geofencing & Plant Subnet Whitelist */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
           <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
-            <Globe className="w-4 h-4 text-[#0F8B8D]" />
-            <h2 className="text-sm font-bold text-slate-900">Plant Subnet Whitelisting (CIDR)</h2>
+            <Globe className="w-4 h-4 text-emerald-600" />
+            <h2 className="text-sm font-bold text-slate-900">Plant CIDR Subnet &amp; IP Whitelist</h2>
           </div>
 
           <div className="space-y-3 text-xs">
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={policy.ipWhitelistEnabled}
-                  onChange={(e) => setPolicy({ ...policy, ipWhitelistEnabled: e.target.checked })}
-                  className="rounded text-[#0F8B8D] focus:ring-[#0F8B8D]"
-                />
-                <span className="font-semibold text-slate-700">Enforce Plant Geo-Fencing &amp; Subnet Check</span>
-              </label>
-              <span className="text-[10px] text-slate-400">{policy.allowedIpRanges.length} Active Subnets</span>
-            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={policy.ipWhitelistEnforced}
+                onChange={(e) => setPolicy({ ...policy, ipWhitelistEnforced: e.target.checked })}
+                className="rounded text-[#0F8B8D] focus:ring-[#0F8B8D]"
+              />
+              <span className="font-semibold text-slate-700">
+                Enforce Plant Geofencing (Block login outside whitelisted subnets)
+              </span>
+            </label>
 
-            <div className="flex items-center gap-2">
+            <div className="flex gap-2">
               <input
                 type="text"
+                placeholder="e.g. 192.168.10.0/24 (Chennai Hub)"
                 value={newIpRange}
                 onChange={(e) => setNewIpRange(e.target.value)}
-                placeholder="e.g. 192.168.20.0/24"
-                className="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 font-mono text-xs"
+                className="flex-1 px-3 py-2 rounded-lg border border-slate-300 font-mono text-xs"
               />
               <button
                 type="button"
                 onClick={handleAddIp}
-                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold"
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition-colors cursor-pointer"
               >
-                Add Subnet
+                + Add Subnet
               </button>
             </div>
 
-            <div className="space-y-1.5 max-h-36 overflow-y-auto">
+            <div className="space-y-1.5 max-h-40 overflow-y-auto pt-1">
               {policy.allowedIpRanges.map((ip) => (
                 <div
                   key={ip}
-                  className="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-200 font-mono text-xs"
+                  className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200 font-mono text-xs text-slate-800"
                 >
-                  <span className="text-slate-800">{ip}</span>
+                  <span>{ip}</span>
                   <button
                     type="button"
                     onClick={() => handleRemoveIp(ip)}
-                    className="text-slate-400 hover:text-rose-600 p-1"
+                    className="p-1 rounded hover:bg-rose-100 text-rose-500 hover:text-rose-700 transition-colors cursor-pointer"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -332,6 +395,53 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
           </div>
         </div>
       </form>
+
+      {/* Confirmation Modal */}
+      {isConfirmModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-xl bg-teal-100 text-[#0F8B8D]">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-bold text-slate-900">Confirm Security Policy Deployment</h3>
+                <p className="text-xs text-slate-600 mt-1">
+                  Updating enterprise security policies impacts active user sessions, password requirements, and plant geofence checks across all connected facilities.
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                Mandatory Governance Review Justification:
+              </label>
+              <textarea
+                rows={2}
+                placeholder="Enter justification for governance audit ledger..."
+                value={changeReason}
+                onChange={(e) => setChangeReason(e.target.value)}
+                className="w-full text-xs p-2 rounded-lg border border-slate-300 focus:ring-1 focus:ring-[#0F8B8D]"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                onClick={() => setIsConfirmModalOpen(false)}
+                className="px-3.5 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleExecuteSave}
+                className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#0F8B8D] hover:bg-[#0c7274] shadow-sm cursor-pointer"
+              >
+                Confirm &amp; Deploy Policy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

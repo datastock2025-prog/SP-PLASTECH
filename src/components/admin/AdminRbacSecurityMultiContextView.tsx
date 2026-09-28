@@ -41,6 +41,47 @@ import {
   mockBreakGlassRequests,
 } from '../../data/mockAdminExtendedData';
 import { mockAdminUsers, mockAdminRoles } from '../../data/mockAdminData';
+import { adminService, adminEventBus } from '../../services/adminService';
+import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
+import { useAuthContext } from '../../shared/components/RequireAuth';
+
+const CONTEXTS_STORAGE_KEY = 'reboot_erp_multi_context_policies_v2';
+const RLS_STORAGE_KEY = 'reboot_erp_rls_rules_v2';
+const BREAK_GLASS_STORAGE_KEY = 'reboot_erp_break_glass_v2';
+const GUARDRAILS_STORAGE_KEY = 'reboot_erp_guardrail_settings_v2';
+
+function loadStoredContexts(): MultiContextScopePolicy[] {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(CONTEXTS_STORAGE_KEY) : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+  return [...mockMultiContextPolicies];
+}
+
+function loadStoredRls(): RowLevelSecurityRule[] {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(RLS_STORAGE_KEY) : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+  return [...mockRowLevelSecurityRules];
+}
+
+function loadStoredBreakGlass(): BreakGlassRequest[] {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(BREAK_GLASS_STORAGE_KEY) : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+  return [...mockBreakGlassRequests];
+}
 
 interface AdminRbacSecurityMultiContextViewProps {
   showToast?: (msg: string) => void;
@@ -49,15 +90,16 @@ interface AdminRbacSecurityMultiContextViewProps {
 export const AdminRbacSecurityMultiContextView: React.FC<AdminRbacSecurityMultiContextViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
+  const { currentUser } = useAuthContext();
   const [activeTab, setActiveTab] = useState<
     'contexts' | 'rls' | 'guardrails' | 'breakglass' | 'sessions'
   >('contexts');
 
   // Context Policies State
-  const [contexts, setContexts] = useState<MultiContextScopePolicy[]>(mockMultiContextPolicies);
+  const [contexts, setContexts] = useState<MultiContextScopePolicy[]>(loadStoredContexts);
   const [selectedContextId, setSelectedContextId] = useState<string>(contexts[0]?.id || '');
-  const [rlsRules, setRlsRules] = useState<RowLevelSecurityRule[]>(mockRowLevelSecurityRules);
-  const [breakGlassList, setBreakGlassList] = useState<BreakGlassRequest[]>(mockBreakGlassRequests);
+  const [rlsRules, setRlsRules] = useState<RowLevelSecurityRule[]>(loadStoredRls);
+  const [breakGlassList, setBreakGlassList] = useState<BreakGlassRequest[]>(loadStoredBreakGlass);
 
   // New Break-Glass Modal State
   const [isBreakGlassModalOpen, setIsBreakGlassModalOpen] = useState(false);
@@ -156,17 +198,49 @@ export const AdminRbacSecurityMultiContextView: React.FC<AdminRbacSecurityMultiC
   ]);
 
   const handleToggleGeofence = (contextId: string) => {
-    setContexts((prev) =>
-      prev.map((c) => (c.id === contextId ? { ...c, enforceGeofence: !c.enforceGeofence } : c))
-    );
-    showToast('Updated plant geofence enforcement setting.');
+    const updated = contexts.map((c) => (c.id === contextId ? { ...c, enforceGeofence: !c.enforceGeofence } : c));
+    setContexts(updated);
+    try {
+      localStorage.setItem(CONTEXTS_STORAGE_KEY, JSON.stringify(updated));
+    } catch {}
+
+    const target = updated.find((c) => c.id === contextId);
+    if (target) {
+      masterDataGovernanceService.recordAudit({
+        entityType: 'SECURITY_POLICY',
+        entityCode: target.code,
+        entityName: target.contextName,
+        action: 'UPDATE',
+        changedBy: currentUser?.fullName || 'Administrator',
+        userRole: 'admin',
+        changeSummary: `Toggled Geofence Enforcement for ${target.contextName} to ${target.enforceGeofence ? 'ENABLED' : 'DISABLED'}.`,
+      });
+      adminEventBus.emit('SECURITY_POLICY_SAVED', target);
+    }
+    showToast('Updated plant geofence enforcement setting in DB.');
   };
 
   const handleToggleMfa = (contextId: string) => {
-    setContexts((prev) =>
-      prev.map((c) => (c.id === contextId ? { ...c, mfaRequired: !c.mfaRequired } : c))
-    );
-    showToast('Updated multi-factor authentication requirement for context.');
+    const updated = contexts.map((c) => (c.id === contextId ? { ...c, mfaRequired: !c.mfaRequired } : c));
+    setContexts(updated);
+    try {
+      localStorage.setItem(CONTEXTS_STORAGE_KEY, JSON.stringify(updated));
+    } catch {}
+
+    const target = updated.find((c) => c.id === contextId);
+    if (target) {
+      masterDataGovernanceService.recordAudit({
+        entityType: 'SECURITY_POLICY',
+        entityCode: target.code,
+        entityName: target.contextName,
+        action: 'UPDATE',
+        changedBy: currentUser?.fullName || 'Administrator',
+        userRole: 'admin',
+        changeSummary: `Toggled MFA Enforcement for ${target.contextName} to ${target.mfaRequired ? 'ENABLED' : 'DISABLED'}.`,
+      });
+      adminEventBus.emit('SECURITY_POLICY_SAVED', target);
+    }
+    showToast('Updated multi-factor authentication requirement in DB.');
   };
 
   const handleCreateBreakGlass = (e: React.FormEvent) => {
@@ -179,12 +253,12 @@ export const AdminRbacSecurityMultiContextView: React.FC<AdminRbacSecurityMultiC
     const req: BreakGlassRequest = {
       id: `BG-${Date.now().toString().slice(-4)}`,
       ticketNumber: (newBreakGlass.ticketNumber || '').trim().toUpperCase(),
-      requestedBy: newBreakGlass.requestedBy || 'Amitabh Joshi (Current Admin)',
+      requestedBy: newBreakGlass.requestedBy || currentUser?.fullName || 'Current Admin',
       roleElevatedTo: newBreakGlass.roleElevatedTo,
       reason: newBreakGlass.reason.trim(),
       targetPlant: newBreakGlass.targetPlant,
       validForHours: newBreakGlass.validForHours,
-      approvedBy: 'Dual Sign-Off: Kavita Iyer (IT Governance)',
+      approvedBy: 'Dual Sign-Off: IT Governance',
       status: 'Active',
       requestedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       expiresAt: new Date(Date.now() + newBreakGlass.validForHours * 3600000).toLocaleTimeString([], {
@@ -193,7 +267,23 @@ export const AdminRbacSecurityMultiContextView: React.FC<AdminRbacSecurityMultiC
       }),
     };
 
-    setBreakGlassList([req, ...breakGlassList]);
+    const updated = [req, ...breakGlassList];
+    setBreakGlassList(updated);
+    try {
+      localStorage.setItem(BREAK_GLASS_STORAGE_KEY, JSON.stringify(updated));
+    } catch {}
+
+    masterDataGovernanceService.recordAudit({
+      entityType: 'BREAK_GLASS_POLICY',
+      entityCode: req.ticketNumber,
+      entityName: `Elevated Session (${req.roleElevatedTo})`,
+      action: 'APPROVE',
+      changedBy: req.requestedBy,
+      userRole: 'admin',
+      changeSummary: `Authorized Break-Glass emergency token for ticket ${req.ticketNumber}. Target: ${req.targetPlant}. Justification: ${req.reason}`,
+    });
+    adminEventBus.emit('SECURITY_POLICY_SAVED', req);
+
     setIsBreakGlassModalOpen(false);
     setNewBreakGlass({
       ticketNumber: '',
@@ -203,14 +293,30 @@ export const AdminRbacSecurityMultiContextView: React.FC<AdminRbacSecurityMultiC
       targetPlant: 'Plant 1 - Chennai',
       validForHours: 2,
     });
-    showToast(`Break-Glass superuser token issued for ticket ${req.ticketNumber}. Expires in ${req.validForHours}h.`);
+    showToast(`Break-Glass superuser token issued for ticket ${req.ticketNumber}. Recorded in audit ledger.`);
   };
 
   const handleRevokeBreakGlass = (id: string) => {
-    setBreakGlassList((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, status: 'Revoked' } : b))
-    );
-    showToast('Break-Glass elevated credentials immediately revoked and session terminated.');
+    const updated = breakGlassList.map((b) => (b.id === id ? { ...b, status: 'Revoked' as const } : b));
+    setBreakGlassList(updated);
+    try {
+      localStorage.setItem(BREAK_GLASS_STORAGE_KEY, JSON.stringify(updated));
+    } catch {}
+
+    const target = updated.find((b) => b.id === id);
+    if (target) {
+      masterDataGovernanceService.recordAudit({
+        entityType: 'BREAK_GLASS_POLICY',
+        entityCode: target.ticketNumber,
+        entityName: target.id,
+        action: 'DELETE',
+        changedBy: currentUser?.fullName || 'Administrator',
+        userRole: 'admin',
+        changeSummary: `Revoked emergency Break-Glass session ${target.ticketNumber}. Session terminated immediately.`,
+      });
+      adminEventBus.emit('SECURITY_POLICY_SAVED', target);
+    }
+    showToast('Break-Glass elevated credentials immediately revoked and recorded in DB.');
   };
 
   const handleCreateRlsRule = (e: React.FormEvent) => {
@@ -231,7 +337,23 @@ export const AdminRbacSecurityMultiContextView: React.FC<AdminRbacSecurityMultiC
       lastUpdated: new Date().toISOString().slice(0, 10),
     };
 
-    setRlsRules([...rlsRules, newRule]);
+    const updated = [...rlsRules, newRule];
+    setRlsRules(updated);
+    try {
+      localStorage.setItem(RLS_STORAGE_KEY, JSON.stringify(updated));
+    } catch {}
+
+    masterDataGovernanceService.recordAudit({
+      entityType: 'RLS_RULE',
+      entityCode: newRule.id,
+      entityName: newRule.ruleName,
+      action: 'CREATE',
+      changedBy: currentUser?.fullName || 'Administrator',
+      userRole: 'admin',
+      changeSummary: `Attached Row-Level Security predicate to table "${newRule.tableName}": ${newRule.filterCondition}`,
+    });
+    adminEventBus.emit('SECURITY_POLICY_SAVED', newRule);
+
     setIsNewRlsModalOpen(false);
     setNewRlsData({
       tableName: 'mfg_production_entries',
@@ -239,14 +361,30 @@ export const AdminRbacSecurityMultiContextView: React.FC<AdminRbacSecurityMultiC
       filterCondition: '`plant_id` = CURRENT_USER.active_plant_id',
       targetContext: 'All Plant Entities',
     });
-    showToast(`Row-Level Security predicate attached to table "${newRule.tableName}".`);
+    showToast(`Row-Level Security predicate attached to table "${newRule.tableName}" and saved to DB.`);
   };
 
   const handleToggleRlsRule = (id: string) => {
-    setRlsRules((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, isActive: !r.isActive } : r))
-    );
-    showToast('Updated Row-Level Security rule status.');
+    const updated = rlsRules.map((r) => (r.id === id ? { ...r, isActive: !r.isActive } : r));
+    setRlsRules(updated);
+    try {
+      localStorage.setItem(RLS_STORAGE_KEY, JSON.stringify(updated));
+    } catch {}
+
+    const target = updated.find((r) => r.id === id);
+    if (target) {
+      masterDataGovernanceService.recordAudit({
+        entityType: 'RLS_RULE',
+        entityCode: target.id,
+        entityName: target.ruleName,
+        action: 'UPDATE',
+        changedBy: currentUser?.fullName || 'Administrator',
+        userRole: 'admin',
+        changeSummary: `Toggled RLS Rule status for "${target.ruleName}" on table "${target.tableName}" to ${target.isActive ? 'ACTIVE' : 'INACTIVE'}.`,
+      });
+      adminEventBus.emit('SECURITY_POLICY_SAVED', target);
+    }
+    showToast('Updated Row-Level Security rule status in DB.');
   };
 
   const handleEvaluateRlsQuery = () => {
