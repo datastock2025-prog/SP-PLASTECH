@@ -3,6 +3,7 @@ import { INITIAL_INVENTORY_STOCK, INITIAL_STOCK_MOVEMENT_LEDGER } from '../data/
 import { GrnPutawayTask } from '../types/grnTypes';
 import { WorkOrder, BomMaster, ItemMaster } from '../types';
 import { liveDataStore } from '../services/liveDataStore';
+import { DOCUMENT_ITEM_MASTER_CATALOG } from '../data/masterItemsCatalog';
 
 const STOCK_STORAGE_KEY = 'reboot_warehouse_stock';
 const LEDGER_STORAGE_KEY = 'reboot_stock_movement_ledger';
@@ -13,18 +14,59 @@ export function getWarehouseStock(): InventoryStockItem[] {
     if (stored) {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        // Filter out legacy static dummy items so live testing is 100% clean
+        // Filter out legacy static dummy mock items so live testing is 100% clean
         const cleaned = parsed.filter(
           (item) =>
-            !['ASM-BEZEL-SUBASSY-01', 'DFL-CAP-MOLDED-01', 'FG-AUTO-BEZEL-01', 'WIP-AUTO-HOUSING-01', 'WIP-SWITCH-BEZEL-02'].includes(item.sku)
+            !['ASM-BEZEL-SUBASSY-01', 'DFL-CAP-MOLDED-01', 'FG-AUTO-BEZEL-01', 'WIP-AUTO-HOUSING-01', 'WIP-SWITCH-BEZEL-02', 'RM-PP-NAT-001', 'RM-HDPE-INJ-002', 'MB-BLK-001', 'RG-PP-NAT-001', 'RM-NYLON-66-GF30', 'CON-MOLD-RELEASE-01', 'CON-PURGE-COMP-01', 'PCK-CORR-BOX-01', 'PCK-ANTI-BAG-02', 'BOP-BRASS-M4-01', 'BOP-RUBBER-GROMMET-02'].includes(item.sku)
         );
-        return cleaned;
+        if (cleaned.length > 0) return cleaned;
       }
     }
   } catch (e) {
     console.warn('Failed to parse warehouse stock from storage', e);
   }
-  return [...INITIAL_INVENTORY_STOCK];
+
+  // Live real data: Initialize warehouse stock exclusively from DOCUMENT_ITEM_MASTER_CATALOG
+  const liveStock: InventoryStockItem[] = DOCUMENT_ITEM_MASTER_CATALOG.map((m, idx) => {
+    const stockVal = parseFloat(String(m.stock || '0').replace(/[^0-9.]/g, '')) || 0;
+    const availVal = parseFloat(String(m.avail || '0').replace(/[^0-9.]/g, '')) || stockVal;
+    const uom = m.baseUOM || (m.type === 'Raw Material' || m.type === 'Regrind' ? 'KG' : m.type === 'Masterbatch' ? 'KG' : m.type === 'Packaging Material' ? 'BOX' : 'PCS');
+    const storeType = m.type === 'Raw Material' || m.type === 'Regrind' ? 'RM' :
+                      m.type === 'Masterbatch' ? 'MB' :
+                      m.type === 'Spare Part' ? 'SP' :
+                      m.type === 'Packaging Material' ? 'PCK' :
+                      (m.isWip || m.routingDestination === 'WIP') ? 'WIP' : 'FG';
+
+    return {
+      id: `STK-${String(idx + 1).padStart(4, '0')}`,
+      sku: m.code,
+      name: m.name,
+      category: m.type,
+      storeType,
+      subCategory: m.cat || m.itemGroup || 'General Material',
+      primaryWarehouse: m.wh || (storeType === 'RM' ? 'WH-RM-01' : storeType === 'WIP' ? 'WIP-WH-01' : 'FG-WH-01'),
+      primaryBin: (m.wh || 'WH-01') + '-BAY-01',
+      totalOnHand: stockVal,
+      allocatedToProduction: 0,
+      reservedForOrders: 0,
+      availableToPromise: availVal,
+      inTransitFromVendors: 0,
+      uom,
+      unitCostInr: 0,
+      totalValuationInr: 0,
+      reorderPointKg: 0,
+      safetyStockKg: 0,
+      maximumStockKg: 100000,
+      economicOrderQtyKg: 0,
+      status: stockVal > 0 ? 'in_stock' : 'in_stock',
+      leadTimeDays: 5,
+      abcClassification: 'A',
+      lastMovementDate: m.createdOn || '2026-09-28',
+      lots: [],
+    };
+  });
+
+  return liveStock;
 }
 
 export function getStockMovementLedger(): StockMovementLedgerEntry[] {

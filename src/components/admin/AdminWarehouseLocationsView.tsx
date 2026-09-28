@@ -17,6 +17,9 @@ import {
   Layers,
 } from 'lucide-react';
 import { WarehouseLocationConfig, mockWarehouseLocations } from '../../data/mockAdminExtendedData';
+import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
+import { SupabaseDataService } from '../../services/supabaseService';
+import { adminEventBus } from '../../services/adminService';
 
 interface AdminWarehouseLocationsViewProps {
   showToast?: (msg: string) => void;
@@ -29,6 +32,21 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
   const [search, setSearch] = useState('');
   const [selectedZone, setSelectedZone] = useState('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isParentModalOpen, setIsParentModalOpen] = useState(false);
+
+  // Form state for new Parent Warehouse
+  const [parentForm, setParentForm] = useState({
+    code: '',
+    name: '',
+    plantScope: 'Plant 01 — Pune Hub',
+    storeType: 'Finished Goods (FG)',
+    zone: 'Zone A - High Bay Central',
+    capacityKg: 50000,
+    temperatureControlled: false,
+    targetTemp: 22,
+    address: 'Building B, Industrial Bay 4',
+    description: '',
+  });
 
   const zones = [
     'ALL',
@@ -88,6 +106,86 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
     showToast(`Registered new storage location: ${newLoc.binCode}.`);
   };
 
+  const handleCreateParentWarehouse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!parentForm.code.trim() || !parentForm.name.trim()) {
+      showToast('Please enter Warehouse Code and Name.');
+      return;
+    }
+
+    const whCode = parentForm.code.trim().toUpperCase();
+    const whName = parentForm.name.trim();
+
+    // 1. Save to master data governance service (stores in local storage & emits event)
+    masterDataGovernanceService.saveWarehouse({
+      code: whCode,
+      name: whName,
+      zone: parentForm.zone,
+      plantScope: parentForm.plantScope,
+    });
+
+    // 2. Persist to Supabase Database
+    try {
+      await SupabaseDataService.upsertWarehouse({
+        code: whCode,
+        name: whName,
+        plant_scope: parentForm.plantScope,
+        store_type: parentForm.storeType,
+        zone: parentForm.zone,
+        capacity_kg: parentForm.capacityKg,
+        temperature_controlled: parentForm.temperatureControlled,
+        target_temp: parentForm.targetTemp,
+        address: parentForm.address,
+        description: parentForm.description,
+      });
+    } catch (err) {
+      console.warn('Could not sync warehouse to Supabase', err);
+    }
+
+    // 3. Add default location bin for the new Parent Warehouse
+    const newDefaultBin: WarehouseLocationConfig = {
+      id: `LOC-${Date.now().toString().slice(-4)}`,
+      warehouseCode: whCode,
+      warehouseName: whName,
+      plantId: 'PLANT-01',
+      plantName: parentForm.plantScope,
+      zoneCode: 'Z-01',
+      zoneName: parentForm.zone,
+      zoneType: parentForm.storeType.includes('Raw')
+        ? 'Raw Polymer Silos'
+        : parentForm.storeType.includes('Masterbatch')
+        ? 'Masterbatch Temperature Controlled'
+        : 'Finished Goods High-Bay',
+      aisle: 'A1',
+      rack: 'R01',
+      shelf: '01',
+      binCode: `${whCode}-BAY-01`,
+      maxCapacityKg: parentForm.capacityKg,
+      currentOccupancyKg: 0,
+      temperatureControlled: parentForm.temperatureControlled,
+      targetTempCelsius: parentForm.temperatureControlled ? parentForm.targetTemp : undefined,
+      isBlocked: false,
+      barcodeScannable: true,
+    };
+
+    setLocations([newDefaultBin, ...locations]);
+    setIsParentModalOpen(false);
+    setParentForm({
+      code: '',
+      name: '',
+      plantScope: 'Plant 01 — Pune Hub',
+      storeType: 'Finished Goods (FG)',
+      zone: 'Zone A - High Bay Central',
+      capacityKg: 50000,
+      temperatureControlled: false,
+      targetTemp: 22,
+      address: 'Building B, Industrial Bay 4',
+      description: '',
+    });
+
+    showToast(`✓ Parent Warehouse "${whCode} - ${whName}" created and connected across ERP!`);
+  };
+
   return (
     <div className="space-y-6 pb-12">
       {/* Header */}
@@ -103,13 +201,23 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
           </p>
         </div>
 
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-[#0F8B8D] hover:bg-[#0c7274] rounded-lg shadow-sm transition-colors self-start md:self-auto"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Add Location Bin
-        </button>
+        <div className="flex items-center gap-2 flex-wrap self-start md:self-auto">
+          <button
+            onClick={() => setIsParentModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg shadow-sm transition-colors"
+          >
+            <Warehouse className="w-3.5 h-3.5 text-amber-400" />
+            + Create Parent Warehouse
+          </button>
+
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-[#0F8B8D] hover:bg-[#0c7274] rounded-lg shadow-sm transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Location Bin
+          </button>
+        </div>
       </div>
 
       {/* Filter / Search Bar */}
@@ -289,6 +397,165 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
                   className="px-4 py-2 rounded-lg bg-[#0F8B8D] hover:bg-[#0c7274] text-white font-semibold shadow-sm"
                 >
                   Save Bin Location
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Task 6: Modal for creating Parent Warehouse */}
+      {isParentModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center gap-2.5 mb-1 text-slate-900 font-bold text-base">
+              <div className="w-8 h-8 rounded-lg bg-slate-900 text-amber-400 flex items-center justify-center">
+                <Warehouse className="w-4 h-4" />
+              </div>
+              <span>Create Parent Warehouse Store</span>
+            </div>
+            <p className="text-xs text-slate-500 mb-4">
+              Register a new top-level parent warehouse and connect it across the entire ERP ecosystem (Item Master, GRN, Production, BOM, Routing).
+            </p>
+
+            <form onSubmit={handleCreateParentWarehouse} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Warehouse Code <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. WH-FG-02, WH-WIP-02"
+                    value={parentForm.code}
+                    onChange={(e) => setParentForm({ ...parentForm, code: e.target.value.toUpperCase() })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono font-bold focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Warehouse Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Sanand Finished Goods Hub"
+                    value={parentForm.name}
+                    onChange={(e) => setParentForm({ ...parentForm, name: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Plant Association</label>
+                  <select
+                    value={parentForm.plantScope}
+                    onChange={(e) => setParentForm({ ...parentForm, plantScope: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                  >
+                    <option value="Plant 01 — Pune Hub">Plant 01 — Pune Hub</option>
+                    <option value="Plant 02 — Sanand Precision">Plant 02 — Sanand Precision</option>
+                    <option value="Plant 03 — Chennai Molding">Plant 03 — Chennai Molding</option>
+                    <option value="All Plants">All Plants (Universal Enterprise)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Store Category / Type</label>
+                  <select
+                    value={parentForm.storeType}
+                    onChange={(e) => setParentForm({ ...parentForm, storeType: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                  >
+                    <option value="Finished Goods (FG)">Finished Goods (FG)</option>
+                    <option value="Work In Progress (WIP)">Work In Progress (WIP)</option>
+                    <option value="Raw Materials (RM)">Raw Materials (RM)</option>
+                    <option value="Masterbatch & Additives (MB)">Masterbatch &amp; Additives (MB)</option>
+                    <option value="Assembly Store (ASM)">Assembly Store (ASM)</option>
+                    <option value="De-Flash Store (DFL)">De-Flash Store (DFL)</option>
+                    <option value="Spare Parts & Tooling (SP)">Spare Parts &amp; Tooling (SP)</option>
+                    <option value="Packaging Materials (PCK)">Packaging Materials (PCK)</option>
+                    <option value="Consumables & Oils (CON)">Consumables &amp; Oils (CON)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Primary Zone Title</label>
+                  <input
+                    type="text"
+                    value={parentForm.zone}
+                    onChange={(e) => setParentForm({ ...parentForm, zone: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Max Capacity (KG / Units)</label>
+                  <input
+                    type="number"
+                    value={parentForm.capacityKg}
+                    onChange={(e) => setParentForm({ ...parentForm, capacityKg: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Building Location &amp; Address</label>
+                <input
+                  type="text"
+                  value={parentForm.address}
+                  onChange={(e) => setParentForm({ ...parentForm, address: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                />
+              </div>
+
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-800">
+                  <input
+                    type="checkbox"
+                    checked={parentForm.temperatureControlled}
+                    onChange={(e) => setParentForm({ ...parentForm, temperatureControlled: e.target.checked })}
+                    className="rounded text-[#0F8B8D]"
+                  />
+                  <span>Climate / Temperature Controlled Warehouse</span>
+                </label>
+
+                {parentForm.temperatureControlled && (
+                  <div className="flex items-center gap-3 pt-1">
+                    <div>
+                      <label className="block text-[11px] text-slate-600 mb-0.5">Target Temp (°C)</label>
+                      <input
+                        type="number"
+                        value={parentForm.targetTemp}
+                        onChange={(e) => setParentForm({ ...parentForm, targetTemp: Number(e.target.value) })}
+                        className="w-24 px-2 py-1 rounded border border-slate-300 font-mono text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setIsParentModalOpen(false)}
+                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold shadow-sm flex items-center gap-2"
+                >
+                  <Warehouse className="w-3.5 h-3.5 text-amber-400" />
+                  Save &amp; Connect Warehouse
                 </button>
               </div>
             </form>

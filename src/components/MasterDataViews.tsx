@@ -97,14 +97,14 @@ interface MasterDataProps {
   showToast: (msg: string) => void;
 }
 
-// Task 1: Realistic & dynamic On-Hand and Available stock calculations for all SKUs
+// Task 2: Real live On-Hand and Available stock calculations from DB records (0 if unstocked)
 export const getItemStockData = (item: ItemMaster) => {
   const rawStock = parseFloat(String(item.stock || '').replace(/[^0-9.]/g, ''));
   const rawAvail = parseFloat(String(item.avail || '').replace(/[^0-9.]/g, ''));
   const uom = item.baseUOM || (item.type === 'Raw Material' || item.type === 'Regrind' ? 'KG' : item.type === 'Masterbatch' ? 'KG' : item.type === 'Packaging Material' ? 'BOX' : 'PCS');
 
   if (!isNaN(rawStock) && rawStock > 0) {
-    const availVal = (!isNaN(rawAvail) && rawAvail > 0) ? rawAvail : Math.round(rawStock * 0.88);
+    const availVal = (!isNaN(rawAvail) && rawAvail >= 0) ? rawAvail : rawStock;
     return {
       onHand: `${rawStock.toLocaleString('en-IN')} ${uom}`,
       available: `${availVal.toLocaleString('en-IN')} ${uom}`,
@@ -114,77 +114,61 @@ export const getItemStockData = (item: ItemMaster) => {
     };
   }
 
-  // Consistent deterministic stock generator from code hash
-  const code = item.code || 'SKU-001';
-  let hash = 0;
-  for (let i = 0; i < code.length; i++) {
-    hash = ((hash << 5) - hash) + code.charCodeAt(i);
-    hash |= 0;
-  }
-  const seed = Math.abs(hash);
-  const type = (item.type || '').toLowerCase();
-
-  let baseOnHand = 1200;
-  if (type.includes('finished') || type.includes('semi')) {
-    baseOnHand = 350 + (seed % 4200); // 350 - 4550 PCS
-  } else if (type.includes('raw') || type.includes('regrind')) {
-    baseOnHand = 2500 + ((seed * 11) % 22000); // 2,500 - 24,500 KG
-  } else if (type.includes('masterbatch') || type.includes('colorant') || type.includes('additive')) {
-    baseOnHand = 150 + ((seed * 7) % 950); // 150 - 1100 KG
-  } else if (type.includes('spare') || type.includes('asset') || type.includes('tooling')) {
-    baseOnHand = 5 + (seed % 45); // 5 - 50 PCS
-  } else if (type.includes('packaging')) {
-    baseOnHand = 250 + ((seed * 5) % 2800); // 250 - 3050 BOX
-  } else {
-    baseOnHand = 120 + (seed % 650);
-  }
-
-  const reservedPct = 0.08 + ((seed % 15) / 100); // 8% - 23% reserved
-  const baseAvail = Math.max(0, Math.round(baseOnHand * (1 - reservedPct)));
-
+  // Live real data: If stock is 0 or not yet received, show 0 (no synthetic random numbers)
   return {
-    onHand: `${baseOnHand.toLocaleString('en-IN')} ${uom}`,
-    available: `${baseAvail.toLocaleString('en-IN')} ${uom}`,
-    onHandNum: baseOnHand,
-    availNum: baseAvail,
+    onHand: `0 ${uom}`,
+    available: `0 ${uom}`,
+    onHandNum: 0,
+    availNum: 0,
     uom,
   };
 };
 
-// Task 3: Precise Destination & Process Routing Badges (DOL -> FG, DOL -> WIP, etc.)
+// Task 3: Precise Destination & Process Routing Badges (WIP, DOL -> FG, ASSEMBLY, DEFLASH, etc.)
 export const renderRoutingBadge = (item: ItemMaster) => {
   const t = (item.type || '').toLowerCase();
   const c = (item.cat || '').toLowerCase();
   const r = (item.routingDestination || '').toUpperCase();
+  const wh = (item.wh || '').toUpperCase();
+  const dest = (item.destinationStore || '').toUpperCase();
 
-  if (t === 'finished good' || c === 'fg' || r === 'DOL' || r === 'FG') {
+  // Priority 1: WIP routing (Check WIP first even if type is Finished Good)
+  if (r === 'WIP' || item.isWip || dest.includes('WIP') || wh.includes('WIP') || t === 'semi-finished good' || c === 'wip') {
+    return (
+      <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-50 text-blue-700 border border-blue-300 shadow-2xs">
+        WIP
+      </span>
+    );
+  }
+
+  // Priority 2: ASSEMBLY routing
+  if (r === 'ASSEMBLY' || item.isAssembly || c === 'assembly' || dest.includes('ASSEMBLY') || wh.includes('ASM')) {
+    return (
+      <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-purple-50 text-purple-700 border border-purple-300 shadow-2xs">
+        ASSEMBLY
+      </span>
+    );
+  }
+
+  // Priority 3: DEFLASH routing
+  if (r === 'DEFLASH' || item.isDeflash || c === 'deflash' || dest.includes('DEFLASH') || wh.includes('DFL')) {
+    return (
+      <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs">
+        DEFLASH
+      </span>
+    );
+  }
+
+  // Priority 4: DOL -> FG routing
+  if (r === 'DOL' || item.isDol || r === 'FG' || t === 'finished good' || c === 'fg') {
     return (
       <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-2xs">
         DOL &rarr; FG
       </span>
     );
   }
-  if (t === 'semi-finished good' || c === 'wip' || r === 'WIP' || item.isWip) {
-    return (
-      <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-300 shadow-2xs">
-        DOL &rarr; WIP
-      </span>
-    );
-  }
-  if (item.isAssembly || r === 'ASSEMBLY' || c === 'assembly') {
-    return (
-      <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-purple-50 text-purple-700 border border-purple-300 shadow-2xs">
-        DOL &rarr; ASSEMBLY
-      </span>
-    );
-  }
-  if (item.isDeflash || r === 'DEFLASH' || c === 'deflash') {
-    return (
-      <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs">
-        DOL &rarr; DEFLASH
-      </span>
-    );
-  }
+
+  // Priority 5: Raw Material
   if (t === 'raw material' || t === 'regrind' || c === 'rm') {
     return (
       <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
@@ -192,6 +176,8 @@ export const renderRoutingBadge = (item: ItemMaster) => {
       </span>
     );
   }
+
+  // Priority 6: Masterbatch
   if (t === 'masterbatch' || t === 'colorant' || t === 'additive' || c === 'mb') {
     return (
       <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-50 text-violet-700 border border-violet-200">
@@ -199,6 +185,8 @@ export const renderRoutingBadge = (item: ItemMaster) => {
       </span>
     );
   }
+
+  // Priority 7: Spare Part
   if (t === 'spare part' || c === 'asset') {
     return (
       <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-700 border border-slate-300">
@@ -206,6 +194,8 @@ export const renderRoutingBadge = (item: ItemMaster) => {
       </span>
     );
   }
+
+  // Priority 8: Packaging
   if (t === 'packaging material' || c === 'packaging') {
     return (
       <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
@@ -213,6 +203,7 @@ export const renderRoutingBadge = (item: ItemMaster) => {
       </span>
     );
   }
+
   return (
     <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-100 text-gray-700 border border-gray-200">
       {item.routingDestination || 'STORE'}

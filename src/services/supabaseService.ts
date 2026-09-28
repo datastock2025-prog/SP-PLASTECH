@@ -206,7 +206,73 @@ export const SupabaseDataService = {
     }
   },
 
-  // 7. AUDIT LOGGING (APPEND-ONLY)
+  // 7. USER MANAGEMENT (LIVE DB DIRECTORY)
+  async getUsers(): Promise<DbResult<any[]>> {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return { data, error: null };
+    } catch (err: any) {
+      return { data: null, error: err.message };
+    }
+  },
+
+  async upsertUser(user: Record<string, any>): Promise<DbResult<any>> {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .upsert(user, { onConflict: 'id' })
+        .select()
+        .single();
+      if (error) throw error;
+      return { data, error: null };
+    } catch (err: any) {
+      return { data: null, error: err.message };
+    }
+  },
+
+  async deleteUser(userId: string): Promise<DbResult<boolean>> {
+    try {
+      const { error } = await supabase.from('users').delete().eq('id', userId);
+      if (error) throw error;
+      return { data: true, error: null };
+    } catch (err: any) {
+      return { data: false, error: err.message };
+    }
+  },
+
+  // 8. PARENT WAREHOUSES & LOCATIONS
+  async getWarehouses(): Promise<DbResult<any[]>> {
+    try {
+      const { data, error } = await supabase
+        .from('warehouses')
+        .select('*')
+        .order('code', { ascending: true });
+      if (error) throw error;
+      return { data, error: null };
+    } catch (err: any) {
+      return { data: null, error: err.message };
+    }
+  },
+
+  async upsertWarehouse(wh: Record<string, any>): Promise<DbResult<any>> {
+    try {
+      const { data, error } = await supabase
+        .from('warehouses')
+        .upsert(wh, { onConflict: 'id' })
+        .select()
+        .single();
+      if (error) throw error;
+      return { data, error: null };
+    } catch (err: any) {
+      return { data: null, error: err.message };
+    }
+  },
+
+  // 9. AUDIT LOGGING (APPEND-ONLY)
   async recordAuditLog(log: {
     actionType: string;
     entityName: string;
@@ -231,7 +297,7 @@ export const SupabaseDataService = {
     }
   },
 
-  // 8. REALTIME SUBSCRIPTION HELPER
+  // 10. REALTIME SUBSCRIPTION HELPER
   subscribeToTable(table: string, onUpdate: (payload: any) => void) {
     return supabase
       .channel(`public:${table}`)

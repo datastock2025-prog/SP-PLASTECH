@@ -65,8 +65,30 @@ class AdminEventBus {
 
 export const adminEventBus = new AdminEventBus();
 
-// In-memory fallback caches if offline
-let cachedUsers: AdminUser[] = [...mockAdminUsers];
+import { SupabaseDataService } from './supabaseService';
+
+const LIVE_USERS_KEY = 'reboot_erp_live_users_v2';
+function getInitialLiveUsers(): AdminUser[] {
+  try {
+    const raw = localStorage.getItem(LIVE_USERS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Purge legacy dummy mock staff records
+        const cleaned = parsed.filter(
+          (u) => !['USR-002', 'USR-003', 'USR-004', 'USR-005', 'USR-006', 'USR-007', 'USR-008'].includes(u.id)
+        );
+        return cleaned.length > 0 ? cleaned : [...mockAdminUsers];
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to parse live users from localStorage', e);
+  }
+  return [...mockAdminUsers];
+}
+
+// In-memory live store synced with DB
+let cachedUsers: AdminUser[] = getInitialLiveUsers();
 let cachedRoles: AdminRole[] = [...mockAdminRoles];
 let cachedPlants: PlantDetails[] = [...mockCompanyProfile.plants];
 let cachedSequences: NumberingSequence[] = [...mockNumberingSequences];
@@ -147,37 +169,52 @@ function mapDbSequenceToNumbering(dbSeq: any): NumberingSequence {
 
 export const adminService = {
   // ============================================================================
-  // USERS
+  // USERS (LIVE DB DIRECTORY)
   // ============================================================================
   async getUsers(): Promise<AdminUser[]> {
     try {
+      // 1. Try Supabase Live DB
+      const { data: supaUsers } = await SupabaseDataService.getUsers();
+      if (Array.isArray(supaUsers) && supaUsers.length > 0) {
+        const users = supaUsers.map(mapDbUserToAdminUser);
+        cachedUsers = users;
+        try {
+          localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(users));
+        } catch {}
+        return users;
+      }
+
+      // 2. Try API client
       const res = await apiClient.get('/admin/users');
       if (res.data?.success && Array.isArray(res.data.users)) {
         const users = res.data.users.map(mapDbUserToAdminUser);
         cachedUsers = users;
+        try {
+          localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(users));
+        } catch {}
         return users;
       }
     } catch {
-      // Fallback
+      // Fallback to cached
     }
     return cachedUsers;
   },
 
   async createUser(user: Partial<AdminUser> & { password?: string; pin?: string }): Promise<AdminUser> {
     const payload = {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      fullName: user.fullName,
-      phone: user.phone,
-      designation: user.designation,
+      id: user.id || `USR-${Date.now().toString().slice(-6)}`,
+      email: user.email || 'user@reboot-erp.com',
+      username: user.username || user.email?.split('@')[0] || 'user',
+      fullName: user.fullName || 'New User',
+      phone: user.phone || '',
+      designation: user.designation || 'Specialist',
       department: user.department || 'Operations',
       roleId: user.roleId || 'ROLE-PLANT-MANAGER',
       tenantId: 'TENANT-ALPHA-IND',
       plantIds: user.plantIds || ['PLANT-01'],
-      assignedShift: user.assignedShift,
-      avatarColor: user.avatarColor,
-      initials: user.initials,
+      assignedShift: user.assignedShift || 'General Shift (09:00 – 18:00)',
+      avatarColor: user.avatarColor || 'from-[#0F8B8D] to-[#E8622C]',
+      initials: user.initials || (user.fullName ? user.fullName.slice(0, 2).toUpperCase() : 'NU'),
       password: user.password || 'Reboot2026!#',
       pin: user.pin || '1234',
       status: user.status || 'Active',
@@ -185,10 +222,31 @@ export const adminService = {
     };
 
     try {
+      // 1. Save to Supabase
+      await SupabaseDataService.upsertUser({
+        id: payload.id,
+        email: payload.email,
+        username: payload.username,
+        full_name: payload.fullName,
+        phone: payload.phone,
+        designation: payload.designation,
+        department: payload.department,
+        role_id: payload.roleId,
+        plant_ids: payload.plantIds,
+        assigned_shift: payload.assignedShift,
+        status: payload.status,
+        mfa_enabled: payload.mfaEnabled,
+        avatar_color: payload.avatarColor,
+        initials: payload.initials,
+      });
+
       const res = await apiClient.post('/admin/users', payload);
       if (res.data?.success && res.data.user) {
         const created = mapDbUserToAdminUser(res.data.user);
-        cachedUsers.unshift(created);
+        cachedUsers = [created, ...cachedUsers.filter((u) => u.id !== created.id)];
+        try {
+          localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+        } catch {}
         adminEventBus.emit('USER_CREATED', created);
         return created;
       }
@@ -197,39 +255,60 @@ export const adminService = {
     }
 
     const fallbackUser: AdminUser = {
-      id: payload.id || `USR-${Date.now().toString().slice(-6)}`,
-      username: payload.username || payload.email?.split('@')[0] || 'user',
-      fullName: payload.fullName || 'New User',
-      email: payload.email || 'user@reboot-erp.com',
+      id: payload.id,
+      username: payload.username,
+      fullName: payload.fullName,
+      email: payload.email,
       phone: payload.phone || '+91 98765 00000',
-      designation: payload.designation || 'Staff',
+      designation: payload.designation,
       department: payload.department,
       roleId: payload.roleId,
       roleName: cachedRoles.find((r) => r.id === payload.roleId)?.name || payload.roleId,
       plantIds: payload.plantIds,
       plantNames: payload.plantIds.map((pid) => cachedPlants.find((p) => p.id === pid)?.plantName || pid),
-      assignedShift: payload.assignedShift || 'General Shift (09:00 – 18:00)',
+      assignedShift: payload.assignedShift,
       status: payload.status as any,
       mfaEnabled: payload.mfaEnabled,
       lastLoginDate: 'Never',
       lastLoginIp: '127.0.0.1',
       createdDate: new Date().toISOString().split('T')[0],
-      avatarColor: payload.avatarColor || 'from-[#0F8B8D] to-[#E8622C]',
-      initials: payload.initials || 'NU',
+      avatarColor: payload.avatarColor,
+      initials: payload.initials,
       failedLoginAttempts: 0,
     };
 
-    cachedUsers.unshift(fallbackUser);
+    cachedUsers = [fallbackUser, ...cachedUsers.filter((u) => u.id !== fallbackUser.id)];
+    try {
+      localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+    } catch {}
     adminEventBus.emit('USER_CREATED', fallbackUser);
     return fallbackUser;
   },
 
   async updateUser(userId: string, updates: Partial<AdminUser>): Promise<AdminUser> {
     try {
+      await SupabaseDataService.upsertUser({
+        id: userId,
+        full_name: updates.fullName,
+        email: updates.email,
+        username: updates.username,
+        phone: updates.phone,
+        designation: updates.designation,
+        department: updates.department,
+        role_id: updates.roleId,
+        plant_ids: updates.plantIds,
+        assigned_shift: updates.assignedShift,
+        status: updates.status,
+        mfa_enabled: updates.mfaEnabled,
+      });
+
       const res = await apiClient.put(`/admin/users/${userId}`, updates);
       if (res.data?.success && res.data.user) {
         const updated = mapDbUserToAdminUser(res.data.user);
         cachedUsers = cachedUsers.map((u) => (u.id === userId ? { ...u, ...updated } : u));
+        try {
+          localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+        } catch {}
         adminEventBus.emit('USER_UPDATED', updated);
         return updated;
       }
@@ -239,17 +318,24 @@ export const adminService = {
 
     cachedUsers = cachedUsers.map((u) => (u.id === userId ? { ...u, ...updates } : u));
     const updated = cachedUsers.find((u) => u.id === userId)!;
+    try {
+      localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+    } catch {}
     adminEventBus.emit('USER_UPDATED', updated);
     return updated;
   },
 
   async deleteUser(userId: string): Promise<boolean> {
     try {
+      await SupabaseDataService.deleteUser(userId);
       await apiClient.delete(`/admin/users/${userId}`);
     } catch {
       // Fallback
     }
     cachedUsers = cachedUsers.filter((u) => u.id !== userId);
+    try {
+      localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+    } catch {}
     adminEventBus.emit('USER_DELETED', { userId });
     return true;
   },
