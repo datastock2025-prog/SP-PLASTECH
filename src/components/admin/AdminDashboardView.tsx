@@ -18,8 +18,9 @@ import {
   Terminal,
 } from 'lucide-react';
 import { AdminSystemHealth } from '../../types/admin';
-import { mockSystemHealth, mockCompanyProfile, mockAuditLogs } from '../../data/mockAdminData';
-import { adminService } from '../../services/adminService';
+import { mockSystemHealth, mockCompanyProfile } from '../../data/mockAdminData';
+import { adminService, adminEventBus } from '../../services/adminService';
+import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 
 interface AdminDashboardViewProps {
   onNavigate?: (view: string, param?: any) => void;
@@ -34,6 +35,26 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'nodes' | 'jobs'>('overview');
 
+  // Task 3: 100% Live reactive audit pulse
+  const [liveAuditLogs, setLiveAuditLogs] = useState<any[]>(() => {
+    try {
+      return masterDataGovernanceService.getAuditHistory().slice(0, 5);
+    } catch {
+      return [];
+    }
+  });
+
+  const formatAuditTime = (isoString?: string) => {
+    if (!isoString) return 'Just now';
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return isoString;
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    } catch {
+      return isoString;
+    }
+  };
+
   const loadHealth = async () => {
     try {
       const data = await adminService.getSystemHealth();
@@ -45,6 +66,29 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
 
   useEffect(() => {
     loadHealth();
+
+    const updateLogs = () => {
+      try {
+        const history = masterDataGovernanceService.getAuditHistory();
+        setLiveAuditLogs(history.slice(0, 5));
+      } catch {}
+    };
+
+    updateLogs();
+
+    const unsubscribeAudit = adminEventBus.on('AUDIT_RECORD_SAVED', updateLogs);
+    const unsubscribeUser = adminEventBus.on('USER_SAVED', updateLogs);
+    const unsubscribeWh = adminEventBus.on('WAREHOUSE_MASTER_SAVED', updateLogs);
+    const unsubscribeBin = adminEventBus.on('BIN_MASTER_SAVED', updateLogs);
+    const unsubscribeCompany = adminEventBus.on('COMPANY_PROFILE_SAVED', updateLogs);
+
+    return () => {
+      unsubscribeAudit();
+      unsubscribeUser();
+      unsubscribeWh();
+      unsubscribeBin();
+      unsubscribeCompany();
+    };
   }, []);
 
   const handleRefreshMetrics = async () => {
@@ -341,37 +385,58 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
             </div>
           </div>
 
-          {/* Security & Audit Pulse */}
+          {/* Security & Audit Pulse (Task 3: 100% Live Telemetry) */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-600" />
                 <h2 className="text-sm font-bold text-slate-900">Recent Audit Pulse</h2>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Live stream active" />
               </div>
               <button
                 onClick={() => onNavigate && onNavigate('adminAuditLogs')}
-                className="text-xs font-medium text-[#0F8B8D] hover:underline"
+                className="text-xs font-medium text-[#0F8B8D] hover:underline cursor-pointer"
               >
                 View All
               </button>
             </div>
 
             <div className="space-y-3">
-              {mockAuditLogs.slice(0, 4).map((log) => (
-                <div key={log.id} className="text-xs pb-2.5 border-b border-slate-100 last:border-b-0">
-                  <div className="flex items-center justify-between font-medium">
-                    <span className="text-slate-900">{log.userName}</span>
-                    <span className="text-[10px] text-slate-400 font-mono">{log.timestamp.split(' ')[1]}</span>
-                  </div>
-                  <p className="text-slate-500 text-[11px] mt-0.5 line-clamp-1">{log.description}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded text-[9px] font-mono">
-                      {log.action}
-                    </span>
-                    <span className="text-[10px] text-slate-400">{log.module}</span>
-                  </div>
+              {liveAuditLogs.length === 0 ? (
+                <div className="text-center py-6 text-slate-400 text-xs">
+                  <ShieldCheck className="w-6 h-6 mx-auto mb-1 text-slate-300" />
+                  <p>No recent security triggers recorded.</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Live events will appear automatically.</p>
                 </div>
-              ))}
+              ) : (
+                liveAuditLogs.slice(0, 5).map((log) => (
+                  <div key={log.id} className="text-xs pb-2.5 border-b border-slate-100 last:border-b-0">
+                    <div className="flex items-center justify-between font-medium">
+                      <span className="text-slate-900 font-semibold">{log.changedBy || log.userName || 'Admin'}</span>
+                      <span className="text-[10px] text-slate-400 font-mono">{formatAuditTime(log.timestamp)}</span>
+                    </div>
+                    <p className="text-slate-600 text-[11px] mt-0.5 line-clamp-2">
+                      {log.changeSummary || log.description || `Modified ${log.entityType || 'record'} ${log.entityCode || ''}`}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold ${
+                        log.action === 'APPROVE' ? 'bg-emerald-100 text-emerald-800' :
+                        log.action === 'CREATE' ? 'bg-blue-100 text-blue-800' :
+                        log.action === 'DELETE' || log.action === 'REJECT' ? 'bg-rose-100 text-rose-800' :
+                        'bg-slate-100 text-slate-700'
+                      }`}>
+                        {log.action || 'UPDATE'}
+                      </span>
+                      <span className="text-[10px] text-slate-400">{log.entityType || log.module || 'Master Data'}</span>
+                      {log.entityCode && (
+                        <span className="text-[10px] font-mono text-slate-500 bg-slate-50 px-1 rounded border border-slate-200">
+                          {log.entityCode}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

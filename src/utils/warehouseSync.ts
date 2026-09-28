@@ -9,6 +9,92 @@ const STOCK_STORAGE_KEY = 'reboot_warehouse_stock';
 const LEDGER_STORAGE_KEY = 'reboot_stock_movement_ledger';
 
 /**
+ * Checks if the current authenticated user has administrative privileges.
+ */
+export function isUserAdmin(user?: any): boolean {
+  if (!user) {
+    try {
+      const session = localStorage.getItem('reboot_auth_session') || localStorage.getItem('reboot_current_user');
+      if (session) {
+        const u = JSON.parse(session);
+        if (u && (u.roleType === 'admin' || (u.role && u.role.toLowerCase().includes('admin')) || u.role === 'Super Administrator')) {
+          return true;
+        }
+      }
+    } catch {}
+    return true; // Default fallback in admin settings
+  }
+  const role = String(user.role || '').toLowerCase();
+  const roleType = String(user.roleType || '').toLowerCase();
+  return (
+    roleType === 'admin' ||
+    role.includes('admin') ||
+    role.includes('super administrator') ||
+    role.includes('director')
+  );
+}
+
+/**
+ * Task-1 & Task-4: Check if a store / warehouse / bin code is actively used in any activity
+ * (has stock > 0, attached lot records, or transactions in stock movement ledger).
+ * If in use, updates and modifications must be strictly locked to preserve audit integrity.
+ */
+export function isStoreInUse(storeOrBinCode?: string): { inUse: boolean; reason?: string } {
+  if (!storeOrBinCode || !storeOrBinCode.trim()) {
+    return { inUse: false };
+  }
+  const clean = storeOrBinCode.trim().toLowerCase();
+
+  // 1. Check current inventory stock
+  try {
+    const stockList = getWarehouseStock();
+    for (const item of stockList) {
+      if (!item) continue;
+      const whMatch = (item.primaryWarehouse || '').toLowerCase().trim() === clean;
+      const binMatch = (item.primaryBin || '').toLowerCase().trim() === clean;
+      const storeTypeMatch = (item.storeType || '').toLowerCase().trim() === clean;
+      const lotMatch = item.lots?.some(
+        (lot) =>
+          (lot.storageBin || '').toLowerCase().trim() === clean ||
+          (lot.inwardOriginLocation || '').toLowerCase().trim() === clean
+      );
+
+      if ((whMatch || binMatch || storeTypeMatch || lotMatch) && (item.totalOnHand > 0 || (item.lots && item.lots.length > 0))) {
+        return {
+          inUse: true,
+          reason: `Active stock balance (${item.totalOnHand.toLocaleString()} ${item.uom}) found for SKU ${item.sku} in this store location.`,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('Error checking stock usage for store:', storeOrBinCode, err);
+  }
+
+  // 2. Check stock movement ledger
+  try {
+    const ledger = getStockMovementLedger();
+    for (const entry of ledger) {
+      if (!entry) continue;
+      const locMatch = (entry.location || '').toLowerCase().trim() === clean;
+      const destMatch = (entry.destinationStore || '').toLowerCase().trim() === clean;
+      const srcMatch = (entry.sourceLocation || '').toLowerCase().trim() === clean;
+
+      if (locMatch || destMatch || srcMatch) {
+        return {
+          inUse: true,
+          reason: `Referenced in inventory movement transaction ${entry.id} (${entry.docNumber || entry.docType || 'Movement Ledger'}).`,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('Error checking ledger usage for store:', storeOrBinCode, err);
+  }
+
+  return { inUse: false };
+}
+
+
+/**
  * Robust, error-resilient retrieval of all Warehouse Inventory Stock
  */
 export function getWarehouseStock(): InventoryStockItem[] {

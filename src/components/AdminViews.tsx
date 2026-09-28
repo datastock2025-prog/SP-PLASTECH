@@ -133,12 +133,12 @@ export const AdminViews: React.FC<AdminViewsProps> = ({
       // 6. Company / Organization Settings Screen
       case 'adminCompanySettings':
       case 'adminOrganizationSettings':
-        return <AdminCompanySettingsView showToast={showToast} />;
+        return <AdminCompanySettingsView onNavigate={onNavigate} showToast={showToast} />;
 
       // 7. Plant / Branch Settings Screen
       case 'adminPlantSettings':
       case 'adminBranchSettings':
-        return <AdminPlantBranchSettingsView showToast={showToast} />;
+        return <AdminPlantBranchSettingsView onNavigate={onNavigate} showToast={showToast} />;
 
       // 8. Warehouse and Location Code Settings Screen
       case 'adminWarehouseLocations':

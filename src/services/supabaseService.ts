@@ -272,6 +272,62 @@ export const SupabaseDataService = {
     }
   },
 
+  async getLocationBins(): Promise<DbResult<any[]>> {
+    try {
+      const { data, error } = await supabase
+        .from('warehouse_bins')
+        .select('*')
+        .order('bin_code', { ascending: true });
+      if (error) throw error;
+      return { data, error: null };
+    } catch (err: any) {
+      return { data: null, error: err.message };
+    }
+  },
+
+  async upsertLocationBin(bin: Record<string, any>): Promise<DbResult<any>> {
+    try {
+      const { data, error } = await supabase
+        .from('warehouse_bins')
+        .upsert(bin, { onConflict: 'id' })
+        .select()
+        .single();
+      if (error) throw error;
+      return { data, error: null };
+    } catch (err: any) {
+      return { data: null, error: err.message };
+    }
+  },
+
+  // 8b. COMPANY ORGANIZATION SETTINGS
+  async getCompanySettings(): Promise<DbResult<any>> {
+    try {
+      const { data, error } = await supabase
+        .from('company_settings')
+        .select('*')
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return { data, error: null };
+    } catch (err: any) {
+      return { data: null, error: err.message };
+    }
+  },
+
+  async upsertCompanySettings(settings: Record<string, any>): Promise<DbResult<any>> {
+    try {
+      const { data, error } = await supabase
+        .from('company_settings')
+        .upsert({ id: 'COMP-DEFAULT-01', ...settings, updated_at: new Date().toISOString() })
+        .select()
+        .single();
+      if (error) throw error;
+      return { data, error: null };
+    } catch (err: any) {
+      return { data: null, error: err.message };
+    }
+  },
+
   // 9. AUDIT LOGGING (APPEND-ONLY)
   async recordAuditLog(log: {
     actionType: string;

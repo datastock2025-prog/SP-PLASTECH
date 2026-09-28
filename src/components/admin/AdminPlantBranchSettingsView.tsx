@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Building,
   Plus,
@@ -13,7 +13,11 @@ import {
   Mail,
   Edit2,
   Sliders,
+  Save,
+  Check,
 } from 'lucide-react';
+import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
+import { adminEventBus } from '../../services/adminService';
 
 interface PlantBranch {
   id: string;
@@ -103,16 +107,45 @@ const mockPlantsList: PlantBranch[] = [
   },
 ];
 
+const STORAGE_KEY = 'reboot_erp_master_plants_list';
+
 interface AdminPlantBranchSettingsViewProps {
+  onNavigate?: (view: string, param?: any) => void;
   showToast?: (msg: string) => void;
 }
 
 export const AdminPlantBranchSettingsView: React.FC<AdminPlantBranchSettingsViewProps> = ({
+  onNavigate,
   showToast = (_msg: string) => {},
 }) => {
-  const [plants, setPlants] = useState<PlantBranch[]>(mockPlantsList);
-  const [selectedPlant, setSelectedPlant] = useState<PlantBranch>(plants[0]);
+  const [plants, setPlants] = useState<PlantBranch[]>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return mockPlantsList;
+  });
+
+  const [selectedPlant, setSelectedPlant] = useState<PlantBranch>(plants[0] || mockPlantsList[0]);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState<PlantBranch>(selectedPlant);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  useEffect(() => {
+    setEditForm(selectedPlant);
+    setIsEditing(false);
+  }, [selectedPlant]);
+
+  const savePlantsList = (list: PlantBranch[]) => {
+    setPlants(list);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+    } catch {}
+  };
+
   const [newPlant, setNewPlant] = useState({
     name: '',
     code: '',
@@ -150,10 +183,47 @@ export const AdminPlantBranchSettingsView: React.FC<AdminPlantBranchSettingsView
       ehsOfficer: 'EHS Executive',
       status: 'Operational',
     };
-    setPlants([...plants, created]);
+
+    const updated = [...plants, created];
+    savePlantsList(updated);
     setSelectedPlant(created);
     setIsModalOpen(false);
-    showToast(`Registered new facility: "${created.name}".`);
+
+    masterDataGovernanceService.savePlant({
+      code: created.code,
+      name: created.name,
+      location: `${created.city}, ${created.state}`,
+      type: created.type,
+    });
+
+    showToast(`✓ Registered new facility: "${created.name}" in DB.`);
+  };
+
+  const handleSavePlantUpdates = (e: React.FormEvent) => {
+    e.preventDefault();
+    const updatedList = plants.map((p) => (p.id === editForm.id ? editForm : p));
+    savePlantsList(updatedList);
+    setSelectedPlant(editForm);
+    setIsEditing(false);
+
+    masterDataGovernanceService.savePlant({
+      code: editForm.code,
+      name: editForm.name,
+      location: `${editForm.city}, ${editForm.state}`,
+      type: editForm.type,
+    });
+
+    masterDataGovernanceService.recordAudit({
+      entityType: 'PLANT',
+      entityCode: editForm.code,
+      entityName: editForm.name,
+      action: 'UPDATE',
+      changedBy: 'Super Administrator',
+      userRole: 'admin',
+      changeSummary: `Updated plant parameters, power grid kVA, and statutory profile for ${editForm.name}.`,
+    });
+
+    showToast(`✓ Updated configuration for ${editForm.name} in DB.`);
   };
 
   return (
@@ -173,7 +243,7 @@ export const AdminPlantBranchSettingsView: React.FC<AdminPlantBranchSettingsView
 
         <button
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-[#0F8B8D] hover:bg-[#0c7274] rounded-lg shadow-sm transition-colors self-start md:self-auto"
+          className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-[#0F8B8D] hover:bg-[#0c7274] rounded-lg shadow-sm transition-colors self-start md:self-auto cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" />
           Add Manufacturing Plant
@@ -227,7 +297,7 @@ export const AdminPlantBranchSettingsView: React.FC<AdminPlantBranchSettingsView
           })}
         </div>
 
-        {/* Selected Plant Detail Spec (Right Side) */}
+        {/* Selected Plant Detail Spec & Update Form (Right Side) */}
         {selectedPlant && (
           <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200">
@@ -239,93 +309,245 @@ export const AdminPlantBranchSettingsView: React.FC<AdminPlantBranchSettingsView
                 <p className="text-xs text-slate-500">{selectedPlant.address}</p>
               </div>
 
-              <button
-                onClick={() => showToast(`Saved configuration for ${selectedPlant.name}.`)}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#0F8B8D] text-white hover:bg-[#0c7274] transition-colors"
-              >
-                Save Plant Parameters
-              </button>
-            </div>
-
-            {/* Statutory Licenses */}
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
-                Statutory Regulatory &amp; Environmental Consents
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                  <span className="text-[10px] uppercase font-semibold text-slate-400 block">Factory License No.</span>
-                  <span className="font-mono font-bold text-slate-800">{selectedPlant.factoryLicenseNo}</span>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                  <span className="text-[10px] uppercase font-semibold text-slate-400 block">State PCB Consent (CTO)</span>
-                  <span className="font-mono font-bold text-slate-800">{selectedPlant.pollutionConsentNo}</span>
-                  <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">
-                    Valid till: {selectedPlant.consentExpiryDate}
-                  </span>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                  <span className="text-[10px] uppercase font-semibold text-slate-400 block">State GSTIN ID</span>
-                  <span className="font-mono font-bold text-slate-800">{selectedPlant.gstin}</span>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                  <span className="text-[10px] uppercase font-semibold text-slate-400 block">Facility Classification</span>
-                  <span className="font-semibold text-slate-800">{selectedPlant.type}</span>
-                </div>
+              <div className="flex items-center gap-2">
+                {isEditing ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        setEditForm(selectedPlant);
+                        setIsEditing(false);
+                      }}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSavePlantUpdates}
+                      className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-lg bg-[#0F8B8D] text-white hover:bg-[#0c7274] transition-colors shadow-sm cursor-pointer"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      Save Plant Updates
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    <Edit2 className="w-3.5 h-3.5 text-[#0F8B8D]" />
+                    Edit Plant Details
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Power & Substation Infrastructure */}
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5 text-yellow-500" />
-                Electrical Power Grid &amp; Generator Backup (Plastics Continuous Load)
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div className="p-3 bg-teal-50/50 rounded-lg border border-teal-200">
-                  <span className="text-[10px] uppercase font-semibold text-teal-700 block">Connected Grid Load</span>
-                  <span className="font-mono text-base font-bold text-teal-900">
-                    {selectedPlant.connectedPowerKva} kVA
-                  </span>
-                  <span className="text-[10px] text-teal-600 block mt-0.5">HT Substation 11kV / 433V Step-down</span>
+            {isEditing ? (
+              <form onSubmit={handleSavePlantUpdates} className="space-y-4 text-xs">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Plant Name</label>
+                    <input
+                      type="text"
+                      value={editForm.name}
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Plant Code</label>
+                    <input
+                      type="text"
+                      value={editForm.code}
+                      onChange={(e) => setEditForm({ ...editForm, code: e.target.value.toUpperCase() })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono font-bold"
+                    />
+                  </div>
                 </div>
-                <div className="p-3 bg-amber-50/50 rounded-lg border border-amber-200">
-                  <span className="text-[10px] uppercase font-semibold text-amber-700 block">Captive DG Set Backup</span>
-                  <span className="font-mono text-base font-bold text-amber-900">
-                    {selectedPlant.dgSetBackupKva} kVA
-                  </span>
-                  <span className="text-[10px] text-amber-700 block mt-0.5">Auto Mains Failure (AMF) in 15 sec</span>
-                </div>
-              </div>
-            </div>
 
-            {/* Key Personnel */}
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <UserCheck className="w-3.5 h-3.5 text-[#0F8B8D]" />
-                Designated Plant Leadership
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                  <span className="text-[10px] uppercase font-semibold text-slate-400 block">Plant Operations Head</span>
-                  <span className="font-bold text-slate-800">{selectedPlant.plantHead}</span>
-                  <span className="text-[11px] text-slate-500 block">{selectedPlant.plantHeadPhone}</span>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Physical Address</label>
+                  <input
+                    type="text"
+                    value={editForm.address}
+                    onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                  />
                 </div>
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                  <span className="text-[10px] uppercase font-semibold text-slate-400 block">EHS &amp; Safety Officer</span>
-                  <span className="font-bold text-slate-800">{selectedPlant.ehsOfficer}</span>
-                  <span className="text-[11px] text-emerald-600 block">Certified Safety Auditor</span>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">City</label>
+                    <input
+                      type="text"
+                      value={editForm.city}
+                      onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">State</label>
+                    <input
+                      type="text"
+                      value={editForm.state}
+                      onChange={(e) => setEditForm({ ...editForm, state: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">GSTIN</label>
+                    <input
+                      type="text"
+                      value={editForm.gstin}
+                      onChange={(e) => setEditForm({ ...editForm, gstin: e.target.value.toUpperCase() })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                    />
+                  </div>
                 </div>
-              </div>
-            </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Connected Load (kVA)</label>
+                    <input
+                      type="number"
+                      value={editForm.connectedPowerKva}
+                      onChange={(e) => setEditForm({ ...editForm, connectedPowerKva: Number(e.target.value) })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">DG Backup (kVA)</label>
+                    <input
+                      type="number"
+                      value={editForm.dgSetBackupKva}
+                      onChange={(e) => setEditForm({ ...editForm, dgSetBackupKva: Number(e.target.value) })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Machine Bays</label>
+                    <input
+                      type="number"
+                      value={editForm.totalMachineBays}
+                      onChange={(e) => setEditForm({ ...editForm, totalMachineBays: Number(e.target.value) })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Plant Head Name</label>
+                    <input
+                      type="text"
+                      value={editForm.plantHead}
+                      onChange={(e) => setEditForm({ ...editForm, plantHead: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Plant Head Phone</label>
+                    <input
+                      type="text"
+                      value={editForm.plantHeadPhone}
+                      onChange={(e) => setEditForm({ ...editForm, plantHeadPhone: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="submit"
+                    className="flex items-center gap-1.5 px-4 py-2 bg-[#0F8B8D] text-white font-semibold rounded-lg shadow-sm cursor-pointer"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    Save &amp; Update in DB
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <>
+                {/* Statutory Licenses */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
+                    Statutory Regulatory &amp; Environmental Consents
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                      <span className="text-[10px] uppercase font-semibold text-slate-400 block">Factory License No.</span>
+                      <span className="font-mono font-bold text-slate-800">{selectedPlant.factoryLicenseNo}</span>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                      <span className="text-[10px] uppercase font-semibold text-slate-400 block">State PCB Consent (CTO)</span>
+                      <span className="font-mono font-bold text-slate-800">{selectedPlant.pollutionConsentNo}</span>
+                      <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">
+                        Valid till: {selectedPlant.consentExpiryDate}
+                      </span>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                      <span className="text-[10px] uppercase font-semibold text-slate-400 block">State GSTIN ID</span>
+                      <span className="font-mono font-bold text-slate-800">{selectedPlant.gstin}</span>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                      <span className="text-[10px] uppercase font-semibold text-slate-400 block">Facility Classification</span>
+                      <span className="font-semibold text-slate-800">{selectedPlant.type}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Power & Substation Infrastructure */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-yellow-500" />
+                    Electrical Power Grid &amp; Generator Backup (Plastics Continuous Load)
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="p-3 bg-teal-50/50 rounded-lg border border-teal-200">
+                      <span className="text-[10px] uppercase font-semibold text-teal-700 block">Connected Grid Load</span>
+                      <span className="font-mono text-base font-bold text-teal-900">
+                        {selectedPlant.connectedPowerKva} kVA
+                      </span>
+                      <span className="text-[10px] text-teal-600 block mt-0.5">HT Substation 11kV / 433V Step-down</span>
+                    </div>
+                    <div className="p-3 bg-amber-50/50 rounded-lg border border-amber-200">
+                      <span className="text-[10px] uppercase font-semibold text-amber-700 block">Captive DG Set Backup</span>
+                      <span className="font-mono text-base font-bold text-amber-900">
+                        {selectedPlant.dgSetBackupKva} kVA
+                      </span>
+                      <span className="text-[10px] text-amber-700 block mt-0.5">Auto Mains Failure (AMF) in 15 sec</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Key Personnel */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <UserCheck className="w-3.5 h-3.5 text-[#0F8B8D]" />
+                    Designated Plant Leadership
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                      <span className="text-[10px] uppercase font-semibold text-slate-400 block">Plant Operations Head</span>
+                      <span className="font-bold text-slate-800">{selectedPlant.plantHead}</span>
+                      <span className="text-[11px] text-slate-500 block">{selectedPlant.plantHeadPhone}</span>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                      <span className="text-[10px] uppercase font-semibold text-slate-400 block">EHS &amp; Safety Officer</span>
+                      <span className="font-bold text-slate-800">{selectedPlant.ehsOfficer}</span>
+                      <span className="text-[11px] text-emerald-600 block">Certified Safety Auditor</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
 
       {/* Modal: New Plant */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fade-in">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6">
             <h3 className="font-bold text-slate-900 text-base mb-1">Add New Plant / Branch Facility</h3>
             <p className="text-xs text-slate-500 mb-4">
@@ -407,13 +629,13 @@ export const AdminPlantBranchSettingsView: React.FC<AdminPlantBranchSettingsView
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium"
+                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-lg bg-[#0F8B8D] hover:bg-[#0c7274] text-white font-semibold shadow-sm"
+                  className="px-4 py-2 rounded-lg bg-[#0F8B8D] hover:bg-[#0c7274] text-white font-semibold shadow-sm cursor-pointer"
                 >
                   Save Facility
                 </button>
