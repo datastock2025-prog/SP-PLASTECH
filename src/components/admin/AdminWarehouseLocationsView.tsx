@@ -19,6 +19,7 @@ import {
   Info,
   Check,
   X,
+  RefreshCw,
 } from 'lucide-react';
 import { WarehouseLocationConfig, mockWarehouseLocations } from '../../data/mockAdminExtendedData';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
@@ -28,6 +29,79 @@ import { isStoreInUse, isUserAdmin } from '../../utils/warehouseSync';
 import { useAuthContext } from '../../shared/components/RequireAuth';
 
 const WAREHOUSE_LOCATIONS_STORAGE_KEY = 'reboot_warehouse_locations';
+
+/**
+ * Task-3: Fully unified loader that merges:
+ * 1. Saved location bins from localStorage
+ * 2. All registered Parent Warehouses from masterDataGovernanceService / Supabase
+ * 3. Default seed mock locations
+ */
+function loadAllUnifiedLocations(): WarehouseLocationConfig[] {
+  let list: WarehouseLocationConfig[] = [];
+  try {
+    const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(WAREHOUSE_LOCATIONS_STORAGE_KEY) : null;
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        list = parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to parse warehouse locations from storage', e);
+  }
+
+  if (list.length === 0) {
+    list = [...mockWarehouseLocations];
+  }
+
+  // Auto-merge ALL registered Parent Warehouses from masterDataGovernanceService
+  try {
+    const masterWarehouses = masterDataGovernanceService.getWarehouses();
+    for (const wh of masterWarehouses) {
+      const exists = list.some(
+        (l) => l.warehouseCode.toUpperCase() === wh.code.toUpperCase() || l.binCode.startsWith(wh.code.toUpperCase())
+      );
+      if (!exists) {
+        const storeBin: WarehouseLocationConfig = {
+          id: `LOC-WH-${wh.code}-${Date.now().toString().slice(-3)}`,
+          warehouseCode: wh.code.toUpperCase(),
+          warehouseName: wh.name,
+          plantId: 'PLANT-01',
+          plantName: wh.plantScope || 'All Plants',
+          zoneCode: 'Z-01',
+          zoneName: wh.zone || 'Primary Storage Bay',
+          zoneType: wh.code.includes('RM') || wh.name.toLowerCase().includes('raw')
+            ? 'Raw Polymer Silos'
+            : wh.code.includes('MB') || wh.name.toLowerCase().includes('masterbatch')
+            ? 'Masterbatch Temperature Controlled'
+            : wh.code.includes('RG') || wh.name.toLowerCase().includes('regrind')
+            ? 'Regrind / Scrap Staging'
+            : wh.code.includes('SP') || wh.name.toLowerCase().includes('tool')
+            ? 'Tool & Die Staging'
+            : 'Finished Goods High-Bay',
+          aisle: 'A1',
+          rack: 'R01',
+          shelf: '01',
+          binCode: `${wh.code.toUpperCase()}-BAY-01`,
+          maxCapacityKg: 50000,
+          currentOccupancyKg: 0,
+          temperatureControlled:
+            wh.code.includes('MB') ||
+            wh.name.toLowerCase().includes('climate') ||
+            wh.name.toLowerCase().includes('temp'),
+          targetTempCelsius: 22,
+          isBlocked: false,
+          barcodeScannable: true,
+        };
+        list.unshift(storeBin);
+      }
+    }
+  } catch (err) {
+    console.warn('Error merging master warehouses into locations:', err);
+  }
+
+  return list;
+}
 
 interface AdminWarehouseLocationsViewProps {
   showToast?: (msg: string) => void;
@@ -39,27 +113,41 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
   const { currentUser } = useAuthContext();
   const isAdmin = isUserAdmin(currentUser);
 
-  // Initialize locations from local storage or fallback to mock
-  const [locations, setLocations] = useState<WarehouseLocationConfig[]>(() => {
-    try {
-      const stored = localStorage.getItem(WAREHOUSE_LOCATIONS_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to load warehouse locations from storage', e);
-    }
-    return mockWarehouseLocations;
-  });
-
+  // Initialize locations from unified multi-source loader
+  const [locations, setLocations] = useState<WarehouseLocationConfig[]>(loadAllUnifiedLocations);
   const [search, setSearch] = useState('');
   const [selectedZone, setSelectedZone] = useState('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isParentModalOpen, setIsParentModalOpen] = useState(false);
   const [editingLoc, setEditingLoc] = useState<WarehouseLocationConfig | null>(null);
+
+  // Dynamic live listener for instant store synchronization across front-end
+  useEffect(() => {
+    const refreshUnifiedList = () => {
+      const refreshed = loadAllUnifiedLocations();
+      setLocations(refreshed);
+    };
+
+    refreshUnifiedList();
+
+    const unsubWh = adminEventBus.on('WAREHOUSE_MASTER_SAVED', refreshUnifiedList);
+    const unsubBin = adminEventBus.on('BIN_MASTER_SAVED', refreshUnifiedList);
+
+    const handleCustomEvent = () => refreshUnifiedList();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('warehouse_locations_updated', handleCustomEvent);
+      window.addEventListener('warehouse_stock_updated', handleCustomEvent);
+    }
+
+    return () => {
+      unsubWh();
+      unsubBin();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('warehouse_locations_updated', handleCustomEvent);
+        window.removeEventListener('warehouse_stock_updated', handleCustomEvent);
+      }
+    };
+  }, []);
 
   // Save locations to persistent storage whenever they change
   const saveLocations = (newLocs: WarehouseLocationConfig[]) => {
@@ -85,10 +173,13 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
     description: '',
   });
 
+  // Available dynamic parent warehouses for Bin creation dropdown
+  const availableParentWarehouses = masterDataGovernanceService.getWarehouses();
+
   // Form state for new Bin
   const [binForm, setBinForm] = useState({
-    warehouseCode: 'WH-PUN-01',
-    warehouseName: 'Chakan Central Polymer & Goods Hub',
+    warehouseCode: availableParentWarehouses[0]?.code || 'WH-PUN-01',
+    warehouseName: availableParentWarehouses[0]?.name || 'Chakan Central Polymer & Goods Hub',
     plantScope: 'Plant 01 — Pune Hub',
     zoneType: 'Raw Polymer Silos' as WarehouseLocationConfig['zoneType'],
     zoneName: 'Main Storage Silo Yard',
@@ -130,10 +221,8 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
     const targetLoc = locations.find((l) => l.id === id);
     if (!targetLoc) return;
 
-    // Check if store is in active usage
     const usageCheck = isStoreInUse(targetLoc.binCode);
     if (usageCheck.inUse && !targetLoc.isBlocked) {
-      // If store is in use, block setting modification without admin override
       showToast(`⚠️ Location ${targetLoc.binCode} is actively used in inventory. Locking putaway.`);
     }
 
@@ -159,7 +248,7 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
 
     const newLoc: WarehouseLocationConfig = {
       id: `LOC-${Date.now().toString().slice(-5)}`,
-      warehouseCode: binForm.warehouseCode,
+      warehouseCode: binForm.warehouseCode.toUpperCase(),
       warehouseName: binForm.warehouseName,
       plantId: 'PLANT-01',
       plantName: binForm.plantScope,
@@ -184,7 +273,7 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
     // 1. Save to Master Data Governance
     masterDataGovernanceService.saveBin({
       code: binCode,
-      warehouseCode: binForm.warehouseCode,
+      warehouseCode: binForm.warehouseCode.toUpperCase(),
       zone: binForm.zoneName,
     });
 
@@ -193,7 +282,7 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
       await SupabaseDataService.upsertLocationBin({
         id: newLoc.id,
         bin_code: binCode,
-        warehouse_code: binForm.warehouseCode,
+        warehouse_code: binForm.warehouseCode.toUpperCase(),
         zone_type: binForm.zoneType,
         aisle: binForm.aisle,
         rack: binForm.rack,
@@ -317,7 +406,6 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
     showToast(`✓ Parent Warehouse "${whCode} - ${whName}" saved in DB & connected globally!`);
   };
 
-  // Task-1: Handle Edit Store/Bin (Admin only, blocked if used in activity)
   const handleInitiateEdit = (loc: WarehouseLocationConfig) => {
     if (!isAdmin) {
       showToast('⚠️ Only Administrators have permission to edit warehouse/store configuration.');
@@ -345,7 +433,6 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
       return;
     }
 
-    // Double check immutability lock
     const usage = isStoreInUse(editingLoc.binCode);
     if (usage.inUse) {
       showToast(`🔒 Cannot update "${editingLoc.binCode}": Store is actively in use in inventory.`);
@@ -356,7 +443,6 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
     const updated = locations.map((l) => (l.id === editingLoc.id ? editingLoc : l));
     saveLocations(updated);
 
-    // Persist to Master Data Governance and Supabase
     masterDataGovernanceService.saveBin({
       code: editingLoc.binCode,
       warehouseCode: editingLoc.warehouseCode,
@@ -462,7 +548,7 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
           <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Search bins by code (e.g. SILO-PP-01, MB-BLK-04C)..."
+            placeholder="Search bins or stores by code (e.g. SILO-PP-01, WH-FG-01)..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
@@ -475,7 +561,7 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
             <button
               key={z}
               onClick={() => setSelectedZone(z)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
                 selectedZone === z
                   ? 'bg-[#0F8B8D] text-white'
                   : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
@@ -487,7 +573,7 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
         </div>
       </div>
 
-      {/* Grid of Locations */}
+      {/* Grid of Locations and Warehouses (Task-3: Shows all newly created stores) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredLocations.map((loc) => {
           const occupancyPct = Math.round((loc.currentOccupancyKg / loc.maxCapacityKg) * 100);
@@ -523,13 +609,13 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
                         </span>
                       )}
                     </div>
-                    <span className="text-[10px] text-slate-500 font-mono block mt-1">
-                      {loc.warehouseCode} &middot; {loc.plantName}
+                    <span className="text-[10px] text-slate-500 font-mono block mt-1 font-semibold">
+                      {loc.warehouseCode} &middot; {loc.plantName || 'Plant 01'}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-1">
-                    {/* Task-1: Edit Button */}
+                    {/* Task-1: Edit Button (Only Admin & Only if Unused) */}
                     <button
                       onClick={() => handleInitiateEdit(loc)}
                       disabled={!isAdmin || isUsedInActivity}
@@ -552,7 +638,7 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
                     {/* Lock/Unlock Putaway Toggle */}
                     <button
                       onClick={() => handleToggleLock(loc.id)}
-                      className={`p-1.5 rounded-lg text-xs transition-colors ${
+                      className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
                         loc.isBlocked
                           ? 'bg-rose-100 text-rose-700 hover:bg-rose-200'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -566,7 +652,7 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
                     {isAdmin && !isUsedInActivity && (
                       <button
                         onClick={() => handleDeleteLocation(loc)}
-                        className="p-1.5 rounded-lg text-xs text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                        className="p-1.5 rounded-lg text-xs text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                         title="Delete unused storage location"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -576,7 +662,7 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
                 </div>
 
                 <div className="mt-3">
-                  <h4 className="font-bold text-xs text-slate-800">{loc.zoneName}</h4>
+                  <h4 className="font-bold text-xs text-slate-800">{loc.warehouseName || loc.zoneName}</h4>
                   <span className="text-[11px] text-[#0F8B8D] font-medium">{loc.zoneType}</span>
                 </div>
 
@@ -592,7 +678,7 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
                   <div className="mt-2 flex items-center gap-1.5 text-[11px] text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-lg w-fit font-medium">
                     <Thermometer className="w-3 h-3" />
                     <span>
-                      Temp: {loc.targetTempCelsius}°C &middot; Climate Controlled
+                      Temp: {loc.targetTempCelsius || 22}°C &middot; Climate Controlled
                     </span>
                   </div>
                 )}
@@ -643,16 +729,20 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
                   value={binForm.warehouseCode}
                   onChange={(e) => {
                     const code = e.target.value;
-                    const whName = code === 'WH-PUN-01' ? 'Chakan Central Polymer Hub' : code === 'RM-WH-01' ? 'Raw Material Silo Yard' : 'Finished Goods Warehouse';
-                    setBinForm({ ...binForm, warehouseCode: code, warehouseName: whName });
+                    const whObj = availableParentWarehouses.find((w) => w.code === code);
+                    setBinForm({
+                      ...binForm,
+                      warehouseCode: code,
+                      warehouseName: whObj?.name || 'Warehouse Storage Store',
+                    });
                   }}
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 font-medium"
                 >
-                  <option value="WH-PUN-01">WH-PUN-01 (Chakan Central Polymer & Goods Hub)</option>
-                  <option value="RM-WH-01">RM-WH-01 (Raw Material Polymer Silos)</option>
-                  <option value="FG-WH-01">FG-WH-01 (Finished Goods High-Bay Warehouse)</option>
-                  <option value="MB-STORE-01">MB-STORE-01 (Masterbatch Vault)</option>
-                  <option value="WIP-WH-01">WIP-WH-01 (Work In Progress Staging)</option>
+                  {availableParentWarehouses.map((wh) => (
+                    <option key={wh.code} value={wh.code}>
+                      {wh.code} — {wh.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
