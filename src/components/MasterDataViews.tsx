@@ -97,32 +97,10 @@ interface MasterDataProps {
   showToast: (msg: string) => void;
 }
 
-// Task 2: Real live On-Hand and Available stock calculations from DB records (0 if unstocked)
-export const getItemStockData = (item: ItemMaster) => {
-  const rawStock = parseFloat(String(item.stock || '').replace(/[^0-9.]/g, ''));
-  const rawAvail = parseFloat(String(item.avail || '').replace(/[^0-9.]/g, ''));
-  const uom = item.baseUOM || (item.type === 'Raw Material' || item.type === 'Regrind' ? 'KG' : item.type === 'Masterbatch' ? 'KG' : item.type === 'Packaging Material' ? 'BOX' : 'PCS');
+import { getItemStockData, getWarehouseStockItem, syncItemsWithWarehouseStock } from '../utils/warehouseSync';
 
-  if (!isNaN(rawStock) && rawStock > 0) {
-    const availVal = (!isNaN(rawAvail) && rawAvail >= 0) ? rawAvail : rawStock;
-    return {
-      onHand: `${rawStock.toLocaleString('en-IN')} ${uom}`,
-      available: `${availVal.toLocaleString('en-IN')} ${uom}`,
-      onHandNum: rawStock,
-      availNum: availVal,
-      uom,
-    };
-  }
-
-  // Live real data: If stock is 0 or not yet received, show 0 (no synthetic random numbers)
-  return {
-    onHand: `0 ${uom}`,
-    available: `0 ${uom}`,
-    onHandNum: 0,
-    availNum: 0,
-    uom,
-  };
-};
+// Re-export getItemStockData so all child and external consumers resolve real warehouse stock
+export { getItemStockData };
 
 // Task 3: Precise Destination & Process Routing Badges (WIP, DOL -> FG, ASSEMBLY, DEFLASH, etc.)
 export const renderRoutingBadge = (item: ItemMaster) => {
@@ -1153,12 +1131,22 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
       }
     });
 
+    // Reactive Stock Sync: Update table when warehouse stock changes anywhere in ERP
+    const handleWarehouseUpdate = () => {
+      // Force refresh of stock view calculations
+      setPendingCrqCount(masterDataGovernanceService.getChangeRequests('pending').length);
+    };
+    window.addEventListener('warehouse_stock_updated', handleWarehouseUpdate);
+    window.addEventListener('storage', handleWarehouseUpdate);
+
     return () => {
       unsubGov();
       unsub1();
       unsub2();
       unsub3();
       unsub4();
+      window.removeEventListener('warehouse_stock_updated', handleWarehouseUpdate);
+      window.removeEventListener('storage', handleWarehouseUpdate);
     };
   }, []);
 

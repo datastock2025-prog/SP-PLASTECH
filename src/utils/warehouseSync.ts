@@ -8,65 +8,269 @@ import { DOCUMENT_ITEM_MASTER_CATALOG } from '../data/masterItemsCatalog';
 const STOCK_STORAGE_KEY = 'reboot_warehouse_stock';
 const LEDGER_STORAGE_KEY = 'reboot_stock_movement_ledger';
 
+/**
+ * Robust, error-resilient retrieval of all Warehouse Inventory Stock
+ */
 export function getWarehouseStock(): InventoryStockItem[] {
   try {
-    const stored = localStorage.getItem(STOCK_STORAGE_KEY);
+    const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(STOCK_STORAGE_KEY) : null;
     if (stored) {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed) && parsed.length > 0) {
         // Filter out legacy static dummy mock items so live testing is 100% clean
         const cleaned = parsed.filter(
           (item) =>
+            item &&
+            item.sku &&
             !['ASM-BEZEL-SUBASSY-01', 'DFL-CAP-MOLDED-01', 'FG-AUTO-BEZEL-01', 'WIP-AUTO-HOUSING-01', 'WIP-SWITCH-BEZEL-02', 'RM-PP-NAT-001', 'RM-HDPE-INJ-002', 'MB-BLK-001', 'RG-PP-NAT-001', 'RM-NYLON-66-GF30', 'CON-MOLD-RELEASE-01', 'CON-PURGE-COMP-01', 'PCK-CORR-BOX-01', 'PCK-ANTI-BAG-02', 'BOP-BRASS-M4-01', 'BOP-RUBBER-GROMMET-02'].includes(item.sku)
         );
         if (cleaned.length > 0) return cleaned;
       }
     }
   } catch (e) {
-    console.warn('Failed to parse warehouse stock from storage', e);
+    console.error('Error parsing warehouse stock from localStorage:', e);
   }
 
-  // Live real data: Initialize warehouse stock exclusively from DOCUMENT_ITEM_MASTER_CATALOG
-  const liveStock: InventoryStockItem[] = DOCUMENT_ITEM_MASTER_CATALOG.map((m, idx) => {
-    const stockVal = parseFloat(String(m.stock || '0').replace(/[^0-9.]/g, '')) || 0;
-    const availVal = parseFloat(String(m.avail || '0').replace(/[^0-9.]/g, '')) || stockVal;
-    const uom = m.baseUOM || (m.type === 'Raw Material' || m.type === 'Regrind' ? 'KG' : m.type === 'Masterbatch' ? 'KG' : m.type === 'Packaging Material' ? 'BOX' : 'PCS');
-    const storeType = m.type === 'Raw Material' || m.type === 'Regrind' ? 'RM' :
-                      m.type === 'Masterbatch' ? 'MB' :
-                      m.type === 'Spare Part' ? 'SP' :
-                      m.type === 'Packaging Material' ? 'PCK' :
-                      (m.isWip || m.routingDestination === 'WIP') ? 'WIP' : 'FG';
+  // Live real data fallback: Initialize warehouse stock exclusively from DOCUMENT_ITEM_MASTER_CATALOG
+  try {
+    const liveStock: InventoryStockItem[] = DOCUMENT_ITEM_MASTER_CATALOG.map((m, idx) => {
+      const stockVal = parseFloat(String(m.stock || '0').replace(/[^0-9.]/g, '')) || 0;
+      const availVal = parseFloat(String(m.avail || '0').replace(/[^0-9.]/g, '')) || stockVal;
+      const uom = m.baseUOM || (m.type === 'Raw Material' || m.type === 'Regrind' ? 'KG' : m.type === 'Masterbatch' ? 'KG' : m.type === 'Packaging Material' ? 'BOX' : 'PCS');
+      const storeType = m.type === 'Raw Material' || m.type === 'Regrind' ? 'RM' :
+                        m.type === 'Masterbatch' ? 'MB' :
+                        m.type === 'Spare Part' ? 'SP' :
+                        m.type === 'Packaging Material' ? 'PCK' :
+                        (m.isWip || m.routingDestination === 'WIP') ? 'WIP' : 'FG';
 
+      return {
+        id: `STK-${String(idx + 1).padStart(4, '0')}`,
+        sku: m.code,
+        name: m.name,
+        category: m.type,
+        storeType,
+        subCategory: m.cat || m.itemGroup || 'General Material',
+        primaryWarehouse: m.wh || (storeType === 'RM' ? 'WH-RM-01' : storeType === 'WIP' ? 'WIP-WH-01' : 'FG-WH-01'),
+        primaryBin: (m.wh || 'WH-01') + '-BAY-01',
+        totalOnHand: stockVal,
+        allocatedToProduction: 0,
+        reservedForOrders: 0,
+        availableToPromise: availVal,
+        inTransitFromVendors: 0,
+        uom,
+        unitCostInr: 0,
+        totalValuationInr: 0,
+        reorderPointKg: 0,
+        safetyStockKg: 0,
+        maximumStockKg: 100000,
+        economicOrderQtyKg: 0,
+        status: stockVal > 0 ? 'in_stock' : 'in_stock',
+        leadTimeDays: 5,
+        abcClassification: 'A',
+        lastMovementDate: m.createdOn || '2026-09-28',
+        lots: [],
+      };
+    });
+
+    return liveStock;
+  } catch (err) {
+    console.error('Fatal error generating default warehouse stock catalog:', err);
+    return [];
+  }
+}
+
+/**
+ * Normalized lookup map for instant O(1) stock checks by item code or SKU
+ */
+export function getWarehouseStockMap(): Map<string, InventoryStockItem> {
+  const map = new Map<string, InventoryStockItem>();
+  try {
+    const stockList = getWarehouseStock();
+    for (const item of stockList) {
+      if (item && item.sku) {
+        const rawCode = String(item.sku).trim().toUpperCase();
+        map.set(rawCode, item);
+        // Also index normalized alphanumeric string (removes hyphens/spaces/dots)
+        const cleanCode = rawCode.replace(/[^A-Z0-9]/g, '');
+        if (cleanCode && cleanCode !== rawCode) {
+          map.set(cleanCode, item);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error generating warehouse stock map:', err);
+  }
+  return map;
+}
+
+/**
+ * Single-Item warehouse stock finder with multi-level fallback and alias resolution
+ */
+export function getWarehouseStockItem(codeOrSku?: string): InventoryStockItem | undefined {
+  if (!codeOrSku) return undefined;
+  try {
+    const stockMap = getWarehouseStockMap();
+    const query = String(codeOrSku).trim().toUpperCase();
+    
+    // Direct exact match
+    if (stockMap.has(query)) {
+      return stockMap.get(query);
+    }
+
+    // Cleaned alphanumeric match
+    const clean = query.replace(/[^A-Z0-9]/g, '');
+    if (stockMap.has(clean)) {
+      return stockMap.get(clean);
+    }
+
+    // Substring or prefix match
+    for (const [key, val] of stockMap.entries()) {
+      if (key.includes(query) || query.includes(key)) {
+        return val;
+      }
+    }
+  } catch (err) {
+    console.error('Error resolving warehouse stock item for code:', codeOrSku, err);
+  }
+  return undefined;
+}
+
+export interface NormalizedStockData {
+  onHand: string;
+  available: string;
+  allocated: string;
+  onHandNum: number;
+  availNum: number;
+  allocatedNum: number;
+  uom: string;
+  primaryBin?: string;
+  warehouse?: string;
+  hasStock: boolean;
+}
+
+/**
+ * UNIFIED SOURCE OF TRUTH: getItemStockData
+ * Every screen (Item Master, Warehouse, Planning, BOM, Manufacturing, Dispatch)
+ * resolves real live quantities through this single function.
+ */
+export function getItemStockData(item?: ItemMaster | { code?: string; type?: string; baseUOM?: string; stock?: string | number; avail?: string | number } | null): NormalizedStockData {
+  if (!item) {
     return {
-      id: `STK-${String(idx + 1).padStart(4, '0')}`,
-      sku: m.code,
-      name: m.name,
-      category: m.type,
-      storeType,
-      subCategory: m.cat || m.itemGroup || 'General Material',
-      primaryWarehouse: m.wh || (storeType === 'RM' ? 'WH-RM-01' : storeType === 'WIP' ? 'WIP-WH-01' : 'FG-WH-01'),
-      primaryBin: (m.wh || 'WH-01') + '-BAY-01',
-      totalOnHand: stockVal,
-      allocatedToProduction: 0,
-      reservedForOrders: 0,
-      availableToPromise: availVal,
-      inTransitFromVendors: 0,
-      uom,
-      unitCostInr: 0,
-      totalValuationInr: 0,
-      reorderPointKg: 0,
-      safetyStockKg: 0,
-      maximumStockKg: 100000,
-      economicOrderQtyKg: 0,
-      status: stockVal > 0 ? 'in_stock' : 'in_stock',
-      leadTimeDays: 5,
-      abcClassification: 'A',
-      lastMovementDate: m.createdOn || '2026-09-28',
-      lots: [],
+      onHand: '0 PCS',
+      available: '0 PCS',
+      allocated: '0 PCS',
+      onHandNum: 0,
+      availNum: 0,
+      allocatedNum: 0,
+      uom: 'PCS',
+      hasStock: false,
     };
-  });
+  }
 
-  return liveStock;
+  try {
+    const code = (item.code || '').trim();
+    const uom = item.baseUOM || (item.type === 'Raw Material' || item.type === 'Regrind' ? 'KG' : item.type === 'Masterbatch' ? 'KG' : item.type === 'Packaging Material' ? 'BOX' : 'PCS');
+
+    // 1. Check Warehouse Stock Single Source of Truth
+    const whItem = getWarehouseStockItem(code);
+    if (whItem) {
+      const onHandNum = typeof whItem.totalOnHand === 'number' && !isNaN(whItem.totalOnHand)
+        ? whItem.totalOnHand
+        : parseFloat(String(whItem.totalOnHand || '0').replace(/[^0-9.]/g, '')) || 0;
+
+      const allocatedNum = typeof whItem.allocatedToProduction === 'number' && !isNaN(whItem.allocatedToProduction)
+        ? whItem.allocatedToProduction
+        : parseFloat(String(whItem.allocatedToProduction || '0').replace(/[^0-9.]/g, '')) || 0;
+
+      const availNum = typeof whItem.availableToPromise === 'number' && !isNaN(whItem.availableToPromise)
+        ? whItem.availableToPromise
+        : Math.max(0, onHandNum - allocatedNum);
+
+      const resolvedUom = whItem.uom || uom;
+
+      return {
+        onHand: `${onHandNum.toLocaleString('en-IN')} ${resolvedUom}`,
+        available: `${availNum.toLocaleString('en-IN')} ${resolvedUom}`,
+        allocated: `${allocatedNum.toLocaleString('en-IN')} ${resolvedUom}`,
+        onHandNum,
+        availNum,
+        allocatedNum,
+        uom: resolvedUom,
+        primaryBin: whItem.primaryBin,
+        warehouse: whItem.primaryWarehouse,
+        hasStock: onHandNum > 0,
+      };
+    }
+
+    // 2. Direct Item Master record fallback (if stock explicitly stored in item object)
+    const rawStock = parseFloat(String(item.stock || '').replace(/[^0-9.]/g, ''));
+    const rawAvail = parseFloat(String(item.avail || '').replace(/[^0-9.]/g, ''));
+
+    if (!isNaN(rawStock) && rawStock > 0) {
+      const availVal = (!isNaN(rawAvail) && rawAvail >= 0) ? rawAvail : rawStock;
+      return {
+        onHand: `${rawStock.toLocaleString('en-IN')} ${uom}`,
+        available: `${availVal.toLocaleString('en-IN')} ${uom}`,
+        allocated: `0 ${uom}`,
+        onHandNum: rawStock,
+        availNum: availVal,
+        allocatedNum: 0,
+        uom,
+        hasStock: true,
+      };
+    }
+
+    // 3. Clean zero stock state
+    return {
+      onHand: `0 ${uom}`,
+      available: `0 ${uom}`,
+      allocated: `0 ${uom}`,
+      onHandNum: 0,
+      availNum: 0,
+      allocatedNum: 0,
+      uom,
+      hasStock: false,
+    };
+  } catch (err) {
+    console.error('Error calculating item stock data for item:', item, err);
+    return {
+      onHand: '0 PCS',
+      available: '0 PCS',
+      allocated: '0 PCS',
+      onHandNum: 0,
+      availNum: 0,
+      allocatedNum: 0,
+      uom: 'PCS',
+      hasStock: false,
+    };
+  }
+}
+
+/**
+ * Synchronize an array of ItemMaster objects so their .stock and .avail properties
+ * match the live warehouse inventory accurately.
+ */
+export function syncItemsWithWarehouseStock(items: ItemMaster[]): ItemMaster[] {
+  if (!Array.isArray(items)) return [];
+  const stockMap = getWarehouseStockMap();
+
+  return items.map((item) => {
+    if (!item) return item;
+    const query = String(item.code || '').trim().toUpperCase();
+    const wh = stockMap.get(query) || stockMap.get(query.replace(/[^A-Z0-9]/g, ''));
+
+    if (wh) {
+      const onHand = typeof wh.totalOnHand === 'number' ? wh.totalOnHand : parseFloat(String(wh.totalOnHand || '0')) || 0;
+      const avail = typeof wh.availableToPromise === 'number' ? wh.availableToPromise : onHand;
+      return {
+        ...item,
+        stock: String(onHand),
+        avail: String(avail),
+        wh: wh.primaryWarehouse || item.wh,
+      };
+    }
+    return item;
+  });
 }
 
 export function getStockMovementLedger(): StockMovementLedgerEntry[] {
