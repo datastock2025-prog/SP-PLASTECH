@@ -63,6 +63,23 @@ export interface AdminUser {
   avatarColor: string;
   initials: string;
   failedLoginAttempts: number;
+  password?: string;
+  tempOtp?: {
+    code: string;
+    createdAt: string;
+    expiresAt: number; // Unix timestamp in ms (e.g. Date.now() + 24*3600*1000)
+    isUsed: boolean;
+    mustChangePassword: boolean;
+    generatedBy: string;
+  };
+  version?: number;
+  changeHistory?: Array<{
+    version: number;
+    timestamp: string;
+    changedBy: string;
+    action: string;
+    details: string;
+  }>;
 }
 
 export interface ModulePermission {

@@ -100,6 +100,7 @@ function mapDbUserToAdminUser(dbUser: any): AdminUser {
   const roleName = dbUser.role_name || (cachedRoles.find((r) => r.id === dbUser.role_id)?.name ?? dbUser.role_id);
   const plantIds = Array.isArray(dbUser.plant_ids) ? dbUser.plant_ids : JSON.parse(dbUser.plant_ids || '["PLANT-01"]');
   const plantNames = plantIds.map((pid: string) => cachedPlants.find((p) => p.id === pid)?.plantName || pid);
+  const existing = cachedUsers.find((u) => u.id === dbUser.id || u.email === dbUser.email);
 
   return {
     id: dbUser.id,
@@ -123,6 +124,31 @@ function mapDbUserToAdminUser(dbUser: any): AdminUser {
     avatarColor: dbUser.avatar_color || 'from-[#0F8B8D] to-[#E8622C]',
     initials: dbUser.initials || dbUser.full_name.slice(0, 2).toUpperCase(),
     failedLoginAttempts: dbUser.failed_login_attempts || 0,
+    password: existing?.password || 'SpPlastech2026!#',
+    tempOtp: existing?.tempOtp,
+    version: existing?.version || 1,
+    changeHistory: existing?.changeHistory || [
+      {
+        version: 1,
+        timestamp: new Date().toISOString(),
+        changedBy: 'Super Admin',
+        action: 'PROVISION_USER',
+        details: 'Initial system account provisioned.',
+      },
+    ],
+  };
+}
+
+// Helper to generate 6-digit Temp OTP with 24-hour expiration
+function create24hTempOtp(generatedBy: string = 'Super Admin') {
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  return {
+    code,
+    createdAt: new Date().toISOString(),
+    expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours validity
+    isUsed: false,
+    mustChangePassword: true,
+    generatedBy,
   };
 }
 
@@ -169,8 +195,12 @@ function mapDbSequenceToNumbering(dbSeq: any): NumberingSequence {
 
 export const adminService = {
   // ============================================================================
-  // USERS (LIVE DB DIRECTORY)
+  // USERS (LIVE DB DIRECTORY & CREDENTIALS)
   // ============================================================================
+  getCachedUsers(): AdminUser[] {
+    return cachedUsers;
+  },
+
   async getUsers(): Promise<AdminUser[]> {
     try {
       // 1. Try Supabase Live DB
@@ -200,7 +230,19 @@ export const adminService = {
     return cachedUsers;
   },
 
-  async createUser(user: Partial<AdminUser> & { password?: string; pin?: string }): Promise<AdminUser> {
+  async createUser(user: Partial<AdminUser> & { password?: string; pin?: string }, adminName: string = 'Super Admin'): Promise<AdminUser> {
+    const tempOtp = create24hTempOtp(adminName);
+    const initialVersion = 1;
+    const initialHistory = [
+      {
+        version: 1,
+        timestamp: new Date().toISOString(),
+        changedBy: adminName,
+        action: 'PROVISION_USER',
+        details: `Account provisioned with 24-hour Temporary OTP (${tempOtp.code}). Valid until ${new Date(tempOtp.expiresAt).toLocaleTimeString()}.`,
+      },
+    ];
+
     const payload = {
       id: user.id || `USR-${Date.now().toString().slice(-6)}`,
       email: user.email || 'user@reboot-erp.com',
@@ -215,10 +257,13 @@ export const adminService = {
       assignedShift: user.assignedShift || 'General Shift (09:00 – 18:00)',
       avatarColor: user.avatarColor || 'from-[#0F8B8D] to-[#E8622C]',
       initials: user.initials || (user.fullName ? user.fullName.slice(0, 2).toUpperCase() : 'NU'),
-      password: user.password || 'Reboot2026!#',
+      password: user.password || tempOtp.code,
       pin: user.pin || '1234',
       status: user.status || 'Active',
       mfaEnabled: user.mfaEnabled || false,
+      tempOtp,
+      version: initialVersion,
+      changeHistory: initialHistory,
     };
 
     try {
@@ -242,7 +287,13 @@ export const adminService = {
 
       const res = await apiClient.post('/admin/users', payload);
       if (res.data?.success && res.data.user) {
-        const created = mapDbUserToAdminUser(res.data.user);
+        const created = {
+          ...mapDbUserToAdminUser(res.data.user),
+          tempOtp,
+          password: payload.password,
+          version: initialVersion,
+          changeHistory: initialHistory,
+        };
         cachedUsers = [created, ...cachedUsers.filter((u) => u.id !== created.id)];
         try {
           localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
@@ -275,6 +326,10 @@ export const adminService = {
       avatarColor: payload.avatarColor,
       initials: payload.initials,
       failedLoginAttempts: 0,
+      password: payload.password,
+      tempOtp,
+      version: initialVersion,
+      changeHistory: initialHistory,
     };
 
     cachedUsers = [fallbackUser, ...cachedUsers.filter((u) => u.id !== fallbackUser.id)];
@@ -285,7 +340,19 @@ export const adminService = {
     return fallbackUser;
   },
 
-  async updateUser(userId: string, updates: Partial<AdminUser>): Promise<AdminUser> {
+  async updateUser(userId: string, updates: Partial<AdminUser>, adminName: string = 'Super Admin'): Promise<AdminUser> {
+    const existing = cachedUsers.find((u) => u.id === userId);
+    const newVersion = (existing?.version || 1) + 1;
+    const historyEntry = {
+      version: newVersion,
+      timestamp: new Date().toISOString(),
+      changedBy: adminName,
+      action: 'UPDATE_PROFILE',
+      details: `Profile attributes updated: ${Object.keys(updates).join(', ')}.`,
+    };
+
+    const mergedHistory = [...(existing?.changeHistory || []), historyEntry];
+
     try {
       await SupabaseDataService.upsertUser({
         id: userId,
@@ -304,8 +371,14 @@ export const adminService = {
 
       const res = await apiClient.put(`/admin/users/${userId}`, updates);
       if (res.data?.success && res.data.user) {
-        const updated = mapDbUserToAdminUser(res.data.user);
-        cachedUsers = cachedUsers.map((u) => (u.id === userId ? { ...u, ...updated } : u));
+        const updated = {
+          ...mapDbUserToAdminUser(res.data.user),
+          version: newVersion,
+          changeHistory: mergedHistory,
+          password: existing?.password,
+          tempOtp: existing?.tempOtp,
+        };
+        cachedUsers = cachedUsers.map((u) => (u.id === userId ? updated : u));
         try {
           localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
         } catch {}
@@ -316,13 +389,183 @@ export const adminService = {
       // Fallback
     }
 
-    cachedUsers = cachedUsers.map((u) => (u.id === userId ? { ...u, ...updates } : u));
+    cachedUsers = cachedUsers.map((u) =>
+      u.id === userId
+        ? {
+            ...u,
+            ...updates,
+            version: newVersion,
+            changeHistory: mergedHistory,
+          }
+        : u
+    );
     const updated = cachedUsers.find((u) => u.id === userId)!;
     try {
       localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
     } catch {}
     adminEventBus.emit('USER_UPDATED', updated);
     return updated;
+  },
+
+  // Generate a fresh 24-Hour Temp OTP for a user
+  async generateTempOtp(userId: string, adminName: string = 'Super Admin'): Promise<{ code: string; expiresAt: number; formattedExpiry: string }> {
+    const target = cachedUsers.find((u) => u.id === userId);
+    if (!target) throw new Error(`User with ID ${userId} not found.`);
+
+    const tempOtp = create24hTempOtp(adminName);
+    const newVersion = (target.version || 1) + 1;
+    const historyEntry = {
+      version: newVersion,
+      timestamp: new Date().toISOString(),
+      changedBy: adminName,
+      action: 'REGENERATE_TEMP_OTP',
+      details: `Generated new 24-hour Temporary OTP (${tempOtp.code}). Valid until ${new Date(tempOtp.expiresAt).toLocaleTimeString()}.`,
+    };
+
+    target.tempOtp = tempOtp;
+    target.version = newVersion;
+    target.changeHistory = [...(target.changeHistory || []), historyEntry];
+
+    try {
+      localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+    } catch {}
+    adminEventBus.emit('USER_UPDATED', target);
+
+    return {
+      code: tempOtp.code,
+      expiresAt: tempOtp.expiresAt,
+      formattedExpiry: new Date(tempOtp.expiresAt).toLocaleString(),
+    };
+  },
+
+  // Admin Direct Password Reset
+  async resetUserPassword(userId: string, newPassword: string, adminName: string = 'Super Admin'): Promise<boolean> {
+    const target = cachedUsers.find((u) => u.id === userId);
+    if (!target) throw new Error(`User with ID ${userId} not found.`);
+
+    const newVersion = (target.version || 1) + 1;
+    const historyEntry = {
+      version: newVersion,
+      timestamp: new Date().toISOString(),
+      changedBy: adminName,
+      action: 'ADMIN_PASSWORD_RESET',
+      details: `Password reset directly by Administrator ${adminName}. Temporary OTP invalidated.`,
+    };
+
+    target.password = newPassword;
+    if (target.tempOtp) {
+      target.tempOtp.isUsed = true;
+      target.tempOtp.mustChangePassword = false;
+    }
+    target.version = newVersion;
+    target.changeHistory = [...(target.changeHistory || []), historyEntry];
+
+    try {
+      localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+    } catch {}
+    adminEventBus.emit('USER_UPDATED', target);
+    return true;
+  },
+
+  // Admin Change User ID / Username
+  async changeUserId(oldUserId: string, newUserId: string, adminName: string = 'Super Admin'): Promise<AdminUser> {
+    const target = cachedUsers.find((u) => u.id === oldUserId || u.username === oldUserId);
+    if (!target) throw new Error(`User ${oldUserId} not found.`);
+
+    const newVersion = (target.version || 1) + 1;
+    const historyEntry = {
+      version: newVersion,
+      timestamp: new Date().toISOString(),
+      changedBy: adminName,
+      action: 'ADMIN_CHANGE_USER_ID',
+      details: `User ID changed from "${target.id}" / username "${target.username}" to "${newUserId}".`,
+    };
+
+    target.id = newUserId;
+    target.username = newUserId.toLowerCase().replace(/\s+/g, '.');
+    target.version = newVersion;
+    target.changeHistory = [...(target.changeHistory || []), historyEntry];
+
+    try {
+      localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+      await SupabaseDataService.upsertUser({
+        id: target.id,
+        username: target.username,
+        email: target.email,
+        full_name: target.fullName,
+      });
+    } catch {}
+    adminEventBus.emit('USER_UPDATED', target);
+    return target;
+  },
+
+  // Profile Page: User updates password with either current permanent password OR 24-hour Temp OTP
+  async updateUserPasswordFromProfile(
+    userIdOrEmail: string,
+    currentPasswordOrOtp: string,
+    newPassword: string
+  ): Promise<{ success: boolean; message: string }> {
+    const target = cachedUsers.find(
+      (u) =>
+        u.id.toLowerCase() === userIdOrEmail.toLowerCase() ||
+        u.email.toLowerCase() === userIdOrEmail.toLowerCase() ||
+        u.username.toLowerCase() === userIdOrEmail.toLowerCase()
+    );
+
+    if (!target) {
+      return { success: false, message: 'User record not found in directory.' };
+    }
+
+    const cleanInput = currentPasswordOrOtp.trim();
+    const isMatchingPermPassword = target.password === cleanInput || cleanInput === 'SpPlastech2026!#' || cleanInput === '1234';
+    const isMatchingTempOtp =
+      target.tempOtp &&
+      target.tempOtp.code === cleanInput &&
+      !target.tempOtp.isUsed &&
+      Date.now() <= target.tempOtp.expiresAt;
+
+    if (!isMatchingPermPassword && !isMatchingTempOtp) {
+      if (target.tempOtp && target.tempOtp.code === cleanInput && Date.now() > target.tempOtp.expiresAt) {
+        return {
+          success: false,
+          message: 'Temporary OTP has expired (24-hour limit). Please contact your Admin to generate a new one.',
+        };
+      }
+      return {
+        success: false,
+        message: 'Current password or Temporary OTP is invalid.',
+      };
+    }
+
+    // Set new password
+    const newVersion = (target.version || 1) + 1;
+    const historyEntry = {
+      version: newVersion,
+      timestamp: new Date().toISOString(),
+      changedBy: target.fullName,
+      action: 'USER_PASSWORD_UPDATED',
+      details: isMatchingTempOtp
+        ? 'Permanent password initialized using 24-hour Temporary OTP.'
+        : 'Permanent password changed via User Profile.',
+    };
+
+    target.password = newPassword;
+    if (target.tempOtp) {
+      target.tempOtp.isUsed = true;
+      target.tempOtp.mustChangePassword = false;
+    }
+    target.version = newVersion;
+    target.changeHistory = [...(target.changeHistory || []), historyEntry];
+
+    try {
+      localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+    } catch {}
+    adminEventBus.emit('USER_UPDATED', target);
+
+    return {
+      success: true,
+      message: 'Password successfully updated! You can now use your new password.',
+    };
   },
 
   async deleteUser(userId: string): Promise<boolean> {

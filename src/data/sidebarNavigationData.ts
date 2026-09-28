@@ -326,6 +326,7 @@ export const NAVIGATION_GROUPS: NavGroupDef[] = [
       { id: 'nav-adm-reasons', label: 'Reason Codes Setup', view: 'adminReasonCodes', icon: 'AlertTriangle' },
       { id: 'nav-adm-num-seq', label: 'Number Sequences & Masking', view: 'adminNumberSequences', icon: 'Sliders' },
       { id: 'nav-adm-notify', label: 'Notification Rule Engine', view: 'adminNotificationRules', icon: 'Bell' },
+      { id: 'nav-adm-item-catalog', label: 'Item Master Catalog (1,719 SKUs)', view: 'itemList', icon: 'Package', tooltip: 'Global Polymer & Automotive SKU Master Catalog' },
       { id: 'nav-adm-master-data', label: 'Master Data Governance', view: 'adminMasterData', icon: 'FolderTree' },
       { id: 'nav-adm-docs', label: 'Document Management', view: 'adminDocumentSettings', icon: 'FileText' },
       { id: 'nav-adm-audit', label: 'Login & Security Audit', view: 'adminLoginSecurityAudit', icon: 'ShieldCheck' },
