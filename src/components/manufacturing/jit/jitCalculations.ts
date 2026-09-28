@@ -888,26 +888,58 @@ export function generateUniqueWorkOrderId(
 }
 
 /**
- * Task 3: Generates a strictly unique Schedule Number (e.g. SCH-20260821-01, 02).
+ * Task 4: Generates a strictly unique and continuously incrementing Schedule Number
+ * across all dates/schedules (e.g. SCH-20260926-02, SCH-20260927-03, SCH-20260928-04, etc.)
  */
 export function generateUniqueScheduleNumber(
   existingJobs: PlannedMachineJob[] = [],
   planDate: string
 ): string {
   const cleanDate = (planDate || '2026-08-21').replace(/-/g, '');
-  const existingNumbers = new Set(
-    existingJobs
-      .map((j) => (j.scheduleNumber || `SCH-${(j.planDate || '').replace(/-/g, '')}-01`).trim().toUpperCase())
+  
+  // 1. Check if jobs for this date already have an assigned schedule number
+  const existingJobForDate = existingJobs.find(
+    (j) => (j.planDate || planDate) === planDate && j.scheduleNumber
   );
-
-  let seq = 1;
-  while (true) {
-    const candidate = `SCH-${cleanDate}-${String(seq).padStart(2, '0')}`;
-    if (!existingNumbers.has(candidate.toUpperCase())) {
-      return candidate;
-    }
-    seq++;
+  if (existingJobForDate?.scheduleNumber) {
+    return existingJobForDate.scheduleNumber;
   }
+
+  // 2. Gather all schedule numbers from memory & localStorage
+  const allScheduleNumbers: string[] = [];
+  existingJobs.forEach((j) => {
+    if (j.scheduleNumber) allScheduleNumbers.push(j.scheduleNumber);
+  });
+
+  try {
+    const saved = localStorage.getItem('sp_jit_production_jobs');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((p: PlannedMachineJob) => {
+          if (p.scheduleNumber) allScheduleNumbers.push(p.scheduleNumber);
+        });
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // 3. Find the maximum sequence suffix across all existing schedules
+  let maxSeq = 0;
+  allScheduleNumbers.forEach((sch) => {
+    const match = sch.match(/SCH-\d+-(\d+)/i) || sch.match(/-(\d+)$/);
+    if (match && match[1]) {
+      const num = parseInt(match[1], 10);
+      if (!isNaN(num) && num > maxSeq) {
+        maxSeq = num;
+      }
+    }
+  });
+
+  // If no schedules exist yet, default starting sequence is 1
+  const nextSeq = maxSeq > 0 ? maxSeq + 1 : 1;
+  return `SCH-${cleanDate}-${String(nextSeq).padStart(2, '0')}`;
 }
 
 /**

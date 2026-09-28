@@ -603,26 +603,9 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
                 <Download className="w-4 h-4 text-slate-300" />
               </button>
 
-              {/* Task 2: Common Save / Confirm Schedule Button */}
-              {dateJobs.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => onConfirmSchedule && onConfirmSchedule(selectedDate, scheduleNumber)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer border ${
-                    isScheduleConfirmed
-                      ? 'bg-teal-600/90 hover:bg-teal-600 text-white border-teal-500'
-                      : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 hover:shadow'
-                  }`}
-                  title="Confirm and persist all machine jobs in this schedule to database"
-                >
-                  <CheckCircle className="w-3.5 h-3.5 text-white" />
-                  <span>{isScheduleConfirmed ? '✓ Confirmed (Saved)' : 'Save / Confirm Schedule'}</span>
-                </button>
-              )}
-
               {/* Task 1: Checkbox for "Only WO" (default unchecked / empty) */}
               <label
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-white/10 hover:bg-white/15 rounded-lg text-xs font-semibold text-slate-200 cursor-pointer border border-white/10 transition-colors select-none"
+                className="inline-flex items-center gap-1.5 px-2.5 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-xs font-semibold text-slate-200 cursor-pointer border border-white/10 transition-colors select-none"
                 title="When checked, generates active work orders ONLY in the Work Order screen (omits from Daily Production entry until floor dispatch)"
               >
                 <input
@@ -634,18 +617,46 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
                 <span className="text-[11px] font-bold text-white">Only WO</span>
               </label>
 
+              {/* Task 5: Single Combined Confirm and Release to Shop Floor Button */}
               <button
                 type="button"
-                onClick={() => onReleaseSchedule(selectedDate, scheduleNumber, isOnlyWoChecked)}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer ${
+                onClick={() => {
+                  if (!isScheduleReleased) {
+                    if (onConfirmSchedule) {
+                      onConfirmSchedule(selectedDate, scheduleNumber);
+                    }
+                    onReleaseSchedule(selectedDate, scheduleNumber, isOnlyWoChecked);
+                  }
+                }}
+                disabled={dateJobs.length === 0}
+                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer border ${
                   isScheduleReleased
-                    ? 'bg-emerald-600 text-white opacity-90 cursor-default'
-                    : 'bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white hover:shadow'
+                    ? 'bg-emerald-600 text-white border-emerald-500 opacity-95 cursor-default'
+                    : dateJobs.length === 0
+                    ? 'bg-slate-700 text-slate-400 border-slate-600 cursor-not-allowed'
+                    : 'bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white border-emerald-500 hover:shadow'
                 }`}
-                title={`Release all machine jobs under ${scheduleNumber} as Work Orders (${isOnlyWoChecked ? 'Work Orders Only' : 'Both Work Orders & Daily Production'})`}
+                title={
+                  isScheduleReleased
+                    ? `Schedule ${scheduleNumber} is confirmed & released to shop floor`
+                    : `Confirm schedule and release all ${dateJobs.length} machine jobs to shop floor (${isOnlyWoChecked ? 'Work Orders Only' : 'Both Work Orders & Daily Production'})`
+                }
               >
-                <Send className="w-3.5 h-3.5" />
-                <span>{isScheduleReleased ? 'Released to Floor' : isOnlyWoChecked ? 'Release to WO Only' : 'Release Schedule WOs'}</span>
+                {isScheduleReleased ? (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                    <span>Confirmed &amp; Released to Floor</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-3.5 h-3.5 text-white" />
+                    <span>
+                      {isOnlyWoChecked
+                        ? 'Confirm & Release to WO Only'
+                        : 'Confirm & Release to Shop Floor'}
+                    </span>
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -788,7 +799,7 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto min-h-[260px]">
+            <div className="overflow-x-auto min-h-[320px] pb-24">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-100/90 text-slate-700 border-b border-slate-200 font-bold uppercase tracking-wider text-[10px]">
@@ -1231,7 +1242,7 @@ export const JitSingleScheduleGrid: React.FC<Props> = ({
                                       />
                                       <div
                                         className={`absolute right-0 w-56 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 py-1.5 text-xs text-left ${
-                                          idx >= Math.max(0, dateJobs.length - 2)
+                                          dateJobs.length > 3 && idx >= dateJobs.length - 2
                                             ? 'bottom-full mb-1.5'
                                             : 'top-full mt-1.5'
                                         }`}

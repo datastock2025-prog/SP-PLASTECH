@@ -191,6 +191,60 @@ export const JitCommonComposer: React.FC<Props> = ({
     }
   }
 
+  // Task 3: Bi-directional handlers for Total Qty and Planned Hours
+  const handleTotalQtyChange = (qty: number) => {
+    const safeQty = Math.max(0, qty);
+    setTargetPcsInput(safeQty);
+    setCalcMode('pcs_to_hours');
+
+    if (cavities > 0 && cycleTimeSec > 0 && safeQty > 0) {
+      const calculatedHours = calculateHoursFromPcs(safeQty, cycleTimeSec, cavities, efficiencyPct);
+      setPlannedHours(calculatedHours);
+      const finish = calculateExpectedFinish(planDate, calculatedHours, shift);
+      setCustomFinishDate(finish.expectedFinishDate);
+      setCustomFinishTime(finish.expectedFinishTime);
+      setIsCustomFinish(false);
+    } else if (safeQty === 0) {
+      setPlannedHours(0);
+    }
+  };
+
+  const handlePlannedHoursChange = (hours: number) => {
+    const safeHours = Math.max(0, Math.min(24, hours));
+    setPlannedHours(safeHours);
+    setCalcMode('hours_to_pcs');
+
+    if (cavities > 0 && cycleTimeSec > 0 && safeHours > 0) {
+      const calculatedPieces = calculatePcsFromHours(safeHours, cycleTimeSec, cavities, efficiencyPct);
+      setTargetPcsInput(calculatedPieces);
+      const finish = calculateExpectedFinish(planDate, safeHours, shift);
+      setCustomFinishDate(finish.expectedFinishDate);
+      setCustomFinishTime(finish.expectedFinishTime);
+      setIsCustomFinish(false);
+    } else if (safeHours === 0) {
+      setTargetPcsInput(0);
+    }
+  };
+
+  const handleShiftChange = (newShift: JitShift) => {
+    setShift(newShift);
+    let hours = plannedHours;
+    if (newShift === 'Full Day 24H') hours = 24.0;
+    else if (newShift.includes('Shift')) hours = 8.0;
+
+    setPlannedHours(hours);
+    setCalcMode('hours_to_pcs');
+
+    if (cavities > 0 && cycleTimeSec > 0 && hours > 0) {
+      const calculatedPieces = calculatePcsFromHours(hours, cycleTimeSec, cavities, efficiencyPct);
+      setTargetPcsInput(calculatedPieces);
+      const finish = calculateExpectedFinish(planDate, hours, newShift);
+      setCustomFinishDate(finish.expectedFinishDate);
+      setCustomFinishTime(finish.expectedFinishTime);
+      setIsCustomFinish(false);
+    }
+  };
+
   // Task 1: Handle Item Select from Autocomplete - Autofills BOM, Mold, Machine & Runtime
   const handleItemSelect = (newItem: ItemMaster, suggestedMold?: MoldMaster) => {
     setSelectedItemCode(newItem.code);
@@ -211,11 +265,13 @@ export const JitCommonComposer: React.FC<Props> = ({
       molds.find((m) => m.name.toLowerCase().includes(newItem.name.toLowerCase().split(' ')[0])) ||
       molds[0];
 
+    const moldCavities = matchedMold?.cavities || 4;
+    const ct = newItem.standardCycleTime || matchedMold?.averageCycleTimeSec || 12.0;
+
     if (matchedMold) {
       setSelectedMoldId(matchedMold.id);
-      setCavities(matchedMold.cavities || 4);
+      setCavities(moldCavities);
       setIsCustomCavity(false);
-      const ct = newItem.standardCycleTime || matchedMold.averageCycleTimeSec || 12.0;
       setCycleTimeSec(ct);
       setIsCustomCycleTime(false);
     }
@@ -232,9 +288,14 @@ export const JitCommonComposer: React.FC<Props> = ({
     }
 
     // Default planned runtime if currently 0
-    if (plannedHours === 0) {
-      setPlannedHours(shift === 'Full Day 24H' ? 16.0 : 8.0);
-    }
+    const initialHours = plannedHours > 0 ? plannedHours : shift === 'Full Day 24H' ? 16.0 : 8.0;
+    setPlannedHours(initialHours);
+    const initialPcs = calculatePcsFromHours(initialHours, ct, moldCavities, efficiencyPct);
+    setTargetPcsInput(initialPcs);
+    const finish = calculateExpectedFinish(planDate, initialHours, shift);
+    setCustomFinishDate(finish.expectedFinishDate);
+    setCustomFinishTime(finish.expectedFinishTime);
+    setIsCustomFinish(false);
   };
 
   // Handle Mold Select
@@ -242,11 +303,22 @@ export const JitCommonComposer: React.FC<Props> = ({
     setSelectedMoldId(moldId);
     const m = molds.find((x) => x.id === moldId);
     if (m) {
-      setCavities(m.cavities || 2);
+      const newCav = m.cavities || 2;
+      const newCt = m.averageCycleTimeSec || cycleTimeSec || 12.0;
+      setCavities(newCav);
       setIsCustomCavity(false);
-      if (m.averageCycleTimeSec) {
-        setCycleTimeSec(m.averageCycleTimeSec);
-        setIsCustomCycleTime(false);
+      setCycleTimeSec(newCt);
+      setIsCustomCycleTime(false);
+
+      if (calcMode === 'pcs_to_hours' && targetPcsInput > 0) {
+        const calculatedHours = calculateHoursFromPcs(targetPcsInput, newCt, newCav, efficiencyPct);
+        setPlannedHours(calculatedHours);
+        const finish = calculateExpectedFinish(planDate, calculatedHours, shift);
+        setCustomFinishDate(finish.expectedFinishDate);
+        setCustomFinishTime(finish.expectedFinishTime);
+      } else if (plannedHours > 0) {
+        const calculatedPieces = calculatePcsFromHours(plannedHours, newCt, newCav, efficiencyPct);
+        setTargetPcsInput(calculatedPieces);
       }
     }
   };
@@ -255,12 +327,34 @@ export const JitCommonComposer: React.FC<Props> = ({
   const handleCavityChange = (newCav: number) => {
     setCavities(newCav);
     setIsCustomCavity(true);
+
+    if (calcMode === 'pcs_to_hours' && targetPcsInput > 0 && cycleTimeSec > 0 && newCav > 0) {
+      const calculatedHours = calculateHoursFromPcs(targetPcsInput, cycleTimeSec, newCav, efficiencyPct);
+      setPlannedHours(calculatedHours);
+      const finish = calculateExpectedFinish(planDate, calculatedHours, shift);
+      setCustomFinishDate(finish.expectedFinishDate);
+      setCustomFinishTime(finish.expectedFinishTime);
+    } else if (plannedHours > 0 && cycleTimeSec > 0 && newCav > 0) {
+      const calculatedPieces = calculatePcsFromHours(plannedHours, cycleTimeSec, newCav, efficiencyPct);
+      setTargetPcsInput(calculatedPieces);
+    }
   };
 
   // Handle Cycle time edit with tracking
   const handleCycleTimeChange = (newCt: number) => {
     setCycleTimeSec(newCt);
     setIsCustomCycleTime(true);
+
+    if (calcMode === 'pcs_to_hours' && targetPcsInput > 0 && newCt > 0 && cavities > 0) {
+      const calculatedHours = calculateHoursFromPcs(targetPcsInput, newCt, cavities, efficiencyPct);
+      setPlannedHours(calculatedHours);
+      const finish = calculateExpectedFinish(planDate, calculatedHours, shift);
+      setCustomFinishDate(finish.expectedFinishDate);
+      setCustomFinishTime(finish.expectedFinishTime);
+    } else if (plannedHours > 0 && newCt > 0 && cavities > 0) {
+      const calculatedPieces = calculatePcsFromHours(plannedHours, newCt, cavities, efficiencyPct);
+      setTargetPcsInput(calculatedPieces);
+    }
   };
 
   // Selected Plant details
@@ -663,7 +757,7 @@ export const JitCommonComposer: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* 3. SHIFT & HOURS (md:col-span-2) */}
+        {/* 3. SHIFT, HOURS & TARGET QTY (md:col-span-2) */}
         <div className="md:col-span-2 space-y-2.5">
           <label className="block text-[11px] font-black uppercase tracking-wider text-slate-700">
             3. SHIFT &amp; HOURS
@@ -672,13 +766,8 @@ export const JitCommonComposer: React.FC<Props> = ({
           {/* Shift selection */}
           <select
             value={shift}
-            onChange={(e) => {
-              const val = e.target.value as JitShift;
-              setShift(val);
-              if (val === 'Full Day 24H') setPlannedHours(24.0);
-              else if (val.includes('Shift')) setPlannedHours(8.0);
-            }}
-            className="w-full font-medium text-slate-800 bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            onChange={(e) => handleShiftChange(e.target.value as JitShift)}
+            className="w-full font-medium text-slate-800 bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
           >
             <option value="Full Day 24H">Full Day (24.0h)</option>
             <option value="Shift A (06:00 - 14:00)">Shift A (8.0h)</option>
@@ -687,36 +776,60 @@ export const JitCommonComposer: React.FC<Props> = ({
             <option value="Custom Hours">Custom Hours</option>
           </select>
 
-          {/* Planned Hours Input */}
-          <div>
-            <div className="flex items-center justify-between text-[11px] mb-1">
-              <span className="text-slate-500">Planned Hours:</span>
-              <span className="font-bold text-indigo-700">{plannedHours}h / 24h</span>
+          {/* Bi-directional Planned Hours and Total Qty Inputs */}
+          <div className="space-y-2">
+            <div>
+              <div className="flex items-center justify-between text-[11px] mb-1">
+                <span className="text-slate-500 font-medium">Planned Hours:</span>
+                <span className="font-bold text-indigo-700 font-mono text-[10px]">{plannedHours.toFixed(1)}h / 24h</span>
+              </div>
+              <div className="relative flex items-center">
+                <Clock className="absolute left-2.5 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                <input
+                  type="number"
+                  min="0"
+                  max="24"
+                  step="0.5"
+                  placeholder="0"
+                  value={plannedHours > 0 ? plannedHours : ''}
+                  onChange={(e) => handlePlannedHoursChange(parseFloat(e.target.value) || 0)}
+                  className="w-full pl-8 pr-9 py-1.5 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+                <span className="absolute right-2.5 text-xs font-semibold text-slate-400 pointer-events-none">hrs</span>
+              </div>
             </div>
-            <div className="relative flex items-center">
-              <input
-                type="number"
-                min="0"
-                max="24"
-                step="0.5"
-                placeholder="0"
-                value={plannedHours > 0 ? plannedHours : ''}
-                onChange={(e) => setPlannedHours(Math.min(24, Math.max(0, parseFloat(e.target.value) || 0)))}
-                className="w-full px-3 py-1.5 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none pr-9"
-              />
-              <span className="absolute right-3 text-xs font-semibold text-slate-400 pointer-events-none">hrs</span>
+
+            <div>
+              <div className="flex items-center justify-between text-[11px] mb-1">
+                <span className="text-slate-500 font-medium">Total Target Qty:</span>
+                <span className="font-bold text-emerald-700 font-mono text-[10px]">
+                  {calculatedPcs > 0 ? `${calculatedPcs.toLocaleString()} PCS` : '—'}
+                </span>
+              </div>
+              <div className="relative flex items-center">
+                <input
+                  type="number"
+                  min="0"
+                  step="10"
+                  placeholder="e.g. 5000"
+                  value={targetPcsInput > 0 ? targetPcsInput : calculatedPcs > 0 ? calculatedPcs : ''}
+                  onChange={(e) => handleTotalQtyChange(parseInt(e.target.value, 10) || 0)}
+                  className="w-full pl-3 pr-9 py-1.5 text-xs font-bold text-emerald-900 bg-emerald-50/40 border border-emerald-300 focus:border-emerald-500 rounded-lg focus:ring-2 focus:ring-emerald-400 focus:outline-none font-mono"
+                />
+                <span className="absolute right-2.5 text-[10px] font-bold text-emerald-700 pointer-events-none">PCS</span>
+              </div>
             </div>
           </div>
 
           {/* Progress bar */}
-          <div className="pt-1">
-            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+          <div className="pt-0.5">
+            <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
               <div
-                className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+                className="bg-indigo-600 h-1.5 rounded-full transition-all duration-300"
                 style={{ width: `${dayLoadPct}%` }}
               />
             </div>
-            <span className="text-[10px] text-slate-500 font-medium block text-right mt-1">
+            <span className="text-[10px] text-slate-500 font-medium block text-right mt-0.5">
               {dayLoadPct}% Day Load
             </span>
           </div>

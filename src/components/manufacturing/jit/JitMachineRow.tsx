@@ -361,61 +361,67 @@ export const JitMachineRow: React.FC<Props> = ({
             </button>
 
             {isMenuOpen && (
-              <div
-                className="absolute right-0 top-full mt-1 w-52 bg-white border border-slate-200 rounded-xl shadow-lg z-30 py-1 text-xs"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                {onOpenTraveler && (
+              <>
+                <div
+                  className="fixed inset-0 z-20 bg-transparent"
+                  onClick={() => setIsMenuOpen(false)}
+                />
+                <div
+                  className="absolute right-0 top-full mt-1 w-52 bg-white border border-slate-200 rounded-xl shadow-lg z-30 py-1 text-xs"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  {onOpenTraveler && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenTraveler(job)}
+                      className="w-full text-left px-3 py-2 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 flex items-center gap-2 font-medium"
+                    >
+                      <Barcode className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Work Order Traveler</span>
+                    </button>
+                  )}
+
                   <button
                     type="button"
-                    onClick={() => onOpenTraveler(job)}
-                    className="w-full text-left px-3 py-2 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 flex items-center gap-2 font-medium"
+                    onClick={() => exportSingleJobToExcel(job, boms, items)}
+                    className="w-full text-left px-3 py-2 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 flex items-center gap-2 font-medium"
                   >
-                    <Barcode className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Work Order Traveler</span>
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Export to Excel (.xlsx)</span>
                   </button>
-                )}
 
-                <button
-                  type="button"
-                  onClick={() => exportSingleJobToExcel(job, boms, items)}
-                  className="w-full text-left px-3 py-2 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 flex items-center gap-2 font-medium"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Export to Excel (.xlsx)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => exportSingleJobToCsv(job, boms, items)}
-                  className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2 font-medium"
-                >
-                  <Download className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Export to CSV (.csv)</span>
-                </button>
-
-                <div className="border-t border-slate-100 my-1" />
-
-                <button
-                  type="button"
-                  onClick={() => onDuplicate(job)}
-                  className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2 font-medium"
-                >
-                  <Copy className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Duplicate Job</span>
-                </button>
-
-                {!isOnlyOne && (
                   <button
                     type="button"
-                    onClick={() => onDelete(job.id)}
-                    className="w-full text-left px-3 py-2 hover:bg-rose-50 text-rose-600 flex items-center gap-2 font-medium"
+                    onClick={() => exportSingleJobToCsv(job, boms, items)}
+                    className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2 font-medium"
                   >
-                    <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                    <span>Remove Machine</span>
+                    <Download className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Export to CSV (.csv)</span>
                   </button>
-                )}
-              </div>
+
+                  <div className="border-t border-slate-100 my-1" />
+
+                  <button
+                    type="button"
+                    onClick={() => onDuplicate(job)}
+                    className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 hover:text-slate-900 flex items-center gap-2 font-medium"
+                  >
+                    <Copy className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Duplicate Job</span>
+                  </button>
+
+                  {!isOnlyOne && (
+                    <button
+                      type="button"
+                      onClick={() => onDelete(job.id)}
+                      className="w-full text-left px-3 py-2 hover:bg-rose-50 text-rose-600 flex items-center gap-2 font-medium"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                      <span>Remove Machine</span>
+                    </button>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>

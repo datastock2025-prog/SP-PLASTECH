@@ -619,37 +619,43 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
             </button>
 
             {isTopMenuOpen && (
-              <div
-                className="absolute right-0 mt-1.5 w-56 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-50 text-xs divide-y divide-slate-100"
-                onClick={() => setIsTopMenuOpen(false)}
-              >
-                <button
-                  type="button"
-                  onClick={handleExportExcel}
-                  className="w-full text-left px-3.5 py-2 hover:bg-emerald-50 text-emerald-800 font-semibold flex items-center gap-2 transition-colors"
+              <>
+                <div
+                  className="fixed inset-0 z-40 bg-transparent"
+                  onClick={() => setIsTopMenuOpen(false)}
+                />
+                <div
+                  className="absolute right-0 mt-1.5 w-56 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 z-50 text-xs divide-y divide-slate-100"
+                  onClick={() => setIsTopMenuOpen(false)}
                 >
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                  <span>Export Excel (.xlsx)</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleExportExcel}
+                    className="w-full text-left px-3.5 py-2 hover:bg-emerald-50 text-emerald-800 font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                    <span>Export Excel (.xlsx)</span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={handleExportCsv}
-                  className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-800 font-semibold flex items-center gap-2 transition-colors"
-                >
-                  <Download className="w-4 h-4 text-slate-600" />
-                  <span>Export CSV</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleExportCsv}
+                    className="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-800 font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 text-slate-600" />
+                    <span>Export CSV</span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={handlePrintPlan}
-                  className="w-full text-left px-3.5 py-2 hover:bg-indigo-50 text-indigo-800 font-semibold flex items-center gap-2 transition-colors"
-                >
-                  <Printer className="w-4 h-4 text-indigo-600" />
-                  <span>Print Traveler Sheet</span>
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    onClick={handlePrintPlan}
+                    className="w-full text-left px-3.5 py-2 hover:bg-indigo-50 text-indigo-800 font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <Printer className="w-4 h-4 text-indigo-600" />
+                    <span>Print Traveler Sheet</span>
+                  </button>
+                </div>
+              </>
             )}
           </div>
         </div>

@@ -52,11 +52,22 @@ export const JitItemAutocomplete: React.FC<Props> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [currentItem, selectedCode]);
 
-  // Filter items: prioritize Finished Goods and Semi-Finished Goods, but allow all items matching query
+  // Task 2: Filter items to STRICTLY only show Finished Goods (FG) part items
   const filteredItems = items
     .filter((item) => {
+      // Must be a Finished Good (exclude RM, Packaging, Masterbatch, Consumables, etc.)
+      const isFg =
+        item.type === 'Finished Good' ||
+        item.type?.toLowerCase() === 'finished goods' ||
+        item.type?.toLowerCase() === 'fg' ||
+        item.itemGroup === 'Finished Goods' ||
+        (item.cat && (item.cat.toLowerCase().includes('finished') || item.cat.toLowerCase() === 'fg')) ||
+        (item.wh && item.wh.startsWith('FG'));
+
+      if (!isFg) return false;
+
       const q = query.toLowerCase().trim();
-      if (!q) return item.type === 'Finished Good' || item.type === 'Semi-Finished Good';
+      if (!q) return true;
       return (
         item.code.toLowerCase().includes(q) ||
         item.name.toLowerCase().includes(q) ||
@@ -64,7 +75,7 @@ export const JitItemAutocomplete: React.FC<Props> = ({
         (item.cat && item.cat.toLowerCase().includes(q))
       );
     })
-    .slice(0, 10);
+    .slice(0, 15);
 
   const handleSelect = (item: ItemMaster) => {
     // Find compatible mold
@@ -112,14 +123,14 @@ export const JitItemAutocomplete: React.FC<Props> = ({
       {isOpen && (
         <div className="absolute z-50 mt-1 w-full max-h-72 overflow-y-auto bg-white rounded-lg shadow-xl border border-slate-200 py-1 text-xs divide-y divide-slate-100">
           <div className="px-3 py-1.5 bg-slate-50 text-slate-500 font-semibold flex items-center justify-between text-[11px]">
-            <span>Item Master Selection ({filteredItems.length} found)</span>
-            <span className="text-[10px] text-slate-400">Finished Goods & SFG</span>
+            <span>Finished Goods (FG) Parts ({filteredItems.length} available)</span>
+            <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">Only FG Parts</span>
           </div>
 
           {filteredItems.length === 0 ? (
             <div className="p-4 text-center text-slate-500">
               <AlertCircle className="w-5 h-5 text-amber-500 mx-auto mb-1" />
-              No matching manufactured items found for &ldquo;{query}&rdquo;.
+              No matching Finished Goods (FG) parts found for &ldquo;{query}&rdquo;.
             </div>
           ) : (
             filteredItems.map((item) => {

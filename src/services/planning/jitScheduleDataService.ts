@@ -129,10 +129,41 @@ class JitScheduleDataService {
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
     const result: ConsolidatedScheduleSummary[] = [];
+    const sortedDates = Array.from(dateGroups.keys()).sort();
 
-    dateGroups.forEach((dateJobs, planDate) => {
-      const cleanDate = planDate.replace(/-/g, '');
-      const scheduleNumber = dateJobs[0]?.scheduleNumber || `SCH-${cleanDate}-01`;
+    // Map to preserve or assign incrementing schedule numbers
+    let runningSeq = 1;
+    const assignedSchMap = new Map<string, string>();
+
+    // First pass: register already assigned schedule numbers
+    sortedDates.forEach((planDate) => {
+      const dateJobs = dateGroups.get(planDate) || [];
+      const existing = dateJobs.find((j) => j.scheduleNumber)?.scheduleNumber;
+      if (existing) {
+        assignedSchMap.set(planDate, existing);
+        const match = existing.match(/SCH-\d+-(\d+)/i) || existing.match(/-(\d+)$/);
+        if (match && match[1]) {
+          const num = parseInt(match[1], 10);
+          if (!isNaN(num) && num >= runningSeq) {
+            runningSeq = num + 1;
+          }
+        }
+      }
+    });
+
+    // Second pass: assign continuous incrementing schedule numbers for dates without one
+    sortedDates.forEach((planDate) => {
+      if (!assignedSchMap.has(planDate)) {
+        const cleanDate = planDate.replace(/-/g, '');
+        const sch = `SCH-${cleanDate}-${String(runningSeq).padStart(2, '0')}`;
+        assignedSchMap.set(planDate, sch);
+        runningSeq++;
+      }
+    });
+
+    sortedDates.forEach((planDate) => {
+      const dateJobs = dateGroups.get(planDate) || [];
+      const scheduleNumber = assignedSchMap.get(planDate) || `SCH-${planDate.replace(/-/g, '')}-01`;
 
       const machineIdSet = new Set<string>();
       const itemCodeSet = new Set<string>();
