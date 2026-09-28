@@ -104,7 +104,7 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
       u.designation.toLowerCase().includes(search.toLowerCase());
 
     const matchesRole = selectedRole === 'ALL' || u.roleId === selectedRole;
-    const matchesPlant = selectedPlant === 'ALL' || u.plantIds.some((p) => p === selectedPlant);
+    const matchesPlant = selectedPlant === 'ALL' || (u.plantIds || []).some((p) => p === selectedPlant);
     const matchesStatus = selectedStatus === 'ALL' || u.status === selectedStatus;
 
     return matchesSearch && matchesRole && matchesPlant && matchesStatus;
@@ -132,17 +132,17 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
     setModalMode('edit');
     setEditingUserId(user.id);
     setFormData({
-      fullName: user.fullName,
-      username: user.username,
-      email: user.email,
-      phone: user.phone,
-      designation: user.designation,
-      department: user.department,
-      roleId: user.roleId,
-      plantIds: user.plantIds,
-      assignedShift: user.assignedShift,
-      status: user.status,
-      mfaEnabled: user.mfaEnabled,
+      fullName: user.fullName || '',
+      username: user.username || '',
+      email: user.email || '',
+      phone: user.phone || '',
+      designation: user.designation || '',
+      department: user.department || 'Manufacturing Execution',
+      roleId: user.roleId || 'ROLE-PLANT-MANAGER',
+      plantIds: Array.isArray(user.plantIds) ? user.plantIds : [plants[0]?.id || 'PLANT-01'],
+      assignedShift: user.assignedShift || 'Shift A — Morning (06:00 – 14:00)',
+      status: user.status || 'Active',
+      mfaEnabled: user.mfaEnabled ?? true,
     });
     setIsModalOpen(true);
   };
@@ -644,7 +644,8 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
                 <label className="block font-semibold text-slate-700 mb-1.5">Authorized Plant Facilities</label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {mockCompanyProfile.plants.map((p) => {
-                    const isChecked = formData.plantIds.includes(p.id);
+                    const currentPlantIds = formData.plantIds || [];
+                    const isChecked = currentPlantIds.includes(p.id);
                     return (
                       <label
                         key={p.id}
@@ -657,12 +658,12 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
                           checked={isChecked}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              setFormData({ ...formData, plantIds: [...formData.plantIds, p.id] });
+                              setFormData({ ...formData, plantIds: [...currentPlantIds, p.id] });
                             } else {
-                              if (formData.plantIds.length > 1) {
+                              if (currentPlantIds.length > 1) {
                                 setFormData({
                                   ...formData,
-                                  plantIds: formData.plantIds.filter((id) => id !== p.id),
+                                  plantIds: currentPlantIds.filter((id) => id !== p.id),
                                 });
                               }
                             }

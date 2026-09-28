@@ -23,23 +23,74 @@ import { useAuthContext } from '../../shared/components/RequireAuth';
 
 const SECURITY_POLICY_STORAGE_KEY = 'reboot_erp_security_policy_v2';
 
-function loadStoredSecurityPolicy(): SecurityPolicySettings {
+export interface ExtendedSecurityPolicySettings extends SecurityPolicySettings {
+  mfaEnforced?: boolean;
+  mfaEnforcedRoles?: string[];
+  ipWhitelistEnforced?: boolean;
+}
+
+const DEFAULT_SECURITY_POLICY: ExtendedSecurityPolicySettings = {
+  minPasswordLength: 10,
+  requireUppercase: true,
+  requireLowercase: true,
+  requireNumbers: true,
+  requireSpecialChars: true,
+  passwordExpiryDays: 90,
+  enforcePasswordHistoryCount: 5,
+  maxFailedAttemptsBeforeLockout: 5,
+  lockoutDurationMinutes: 30,
+  sessionTimeoutMinutes: 20,
+  singleActiveSessionPerUser: true,
+  mfaEnforcement: 'Enforced for Admins & Finance',
+  mfaEnforced: true,
+  mfaEnforcedRoles: [
+    'Super Administrator',
+    'Plant Operations Manager',
+    'Finance Controller',
+    'Quality Director',
+  ],
+  ipWhitelistEnabled: true,
+  ipWhitelistEnforced: true,
+  allowedIpRanges: ['192.168.10.0/24', '192.168.20.0/24', '10.0.0.0/16', '103.22.45.0/24'],
+  corsAllowedOrigins: ['https://reboot-erp.internal', 'https://*.reboot-polymers.com'],
+  jwtTokenExpiryHours: 8,
+  auditLogRetentionDays: 2555,
+  soc2ComplianceLogging: true,
+};
+
+function loadStoredSecurityPolicy(): ExtendedSecurityPolicySettings {
   try {
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(SECURITY_POLICY_STORAGE_KEY) : null;
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') return parsed;
+      if (parsed && typeof parsed === 'object') {
+        return {
+          ...DEFAULT_SECURITY_POLICY,
+          ...mockSecurityPolicy,
+          ...parsed,
+          mfaEnforcedRoles: Array.isArray(parsed.mfaEnforcedRoles) && parsed.mfaEnforcedRoles.length > 0
+            ? parsed.mfaEnforcedRoles
+            : DEFAULT_SECURITY_POLICY.mfaEnforcedRoles,
+          allowedIpRanges: Array.isArray(parsed.allowedIpRanges) && parsed.allowedIpRanges.length > 0
+            ? parsed.allowedIpRanges
+            : DEFAULT_SECURITY_POLICY.allowedIpRanges,
+        };
+      }
     }
-  } catch (e) {}
-  return { ...mockSecurityPolicy };
+  } catch (e) {
+    console.warn('Failed to load security policy', e);
+  }
+  return { ...DEFAULT_SECURITY_POLICY };
 }
 
-function saveStoredSecurityPolicy(p: SecurityPolicySettings) {
+function saveStoredSecurityPolicy(p: ExtendedSecurityPolicySettings) {
   try {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(SECURITY_POLICY_STORAGE_KEY, JSON.stringify(p));
     }
-  } catch (e) {}
+  } catch (e) {
+    console.warn('Failed to save security policy', e);
+  }
 }
 
 interface AdminSecurityViewProps {
@@ -50,7 +101,7 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
   const { currentUser } = useAuthContext();
-  const [policy, setPolicy] = useState<SecurityPolicySettings>(loadStoredSecurityPolicy);
+  const [policy, setPolicy] = useState<ExtendedSecurityPolicySettings>(loadStoredSecurityPolicy);
   const [newIpRange, setNewIpRange] = useState('');
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [changeReason, setChangeReason] = useState('');
@@ -75,8 +126,8 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
       diff: {
         minPasswordLength: { before: 8, after: policy.minPasswordLength },
         sessionTimeoutMinutes: { before: 30, after: policy.sessionTimeoutMinutes },
-        maxFailedAttempts: { before: 5, after: policy.maxFailedAttempts },
-        mfaEnforcedRoles: { before: 'Standard', after: policy.mfaEnforcedRoles.join(', ') },
+        maxFailedAttemptsBeforeLockout: { before: 5, after: policy.maxFailedAttemptsBeforeLockout },
+        mfaEnforcedRoles: { before: 'Standard', after: (policy.mfaEnforcedRoles || []).join(', ') },
       },
     });
 
@@ -88,9 +139,10 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
   const handleAddIp = () => {
     if (!newIpRange.trim()) return;
     const cleanIp = newIpRange.trim();
+    const currentList = Array.isArray(policy.allowedIpRanges) ? policy.allowedIpRanges : [];
     const updated = {
       ...policy,
-      allowedIpRanges: [...policy.allowedIpRanges, cleanIp],
+      allowedIpRanges: [...currentList, cleanIp],
     };
     setPolicy(updated);
     saveStoredSecurityPolicy(updated);
@@ -99,14 +151,18 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
   };
 
   const handleRemoveIp = (ip: string) => {
+    const currentList = Array.isArray(policy.allowedIpRanges) ? policy.allowedIpRanges : [];
     const updated = {
       ...policy,
-      allowedIpRanges: policy.allowedIpRanges.filter((item) => item !== ip),
+      allowedIpRanges: currentList.filter((item) => item !== ip),
     };
     setPolicy(updated);
     saveStoredSecurityPolicy(updated);
     showToast(`Removed ${ip} from IP whitelist.`);
   };
+
+  const mfaRoles = Array.isArray(policy.mfaEnforcedRoles) ? policy.mfaEnforcedRoles : DEFAULT_SECURITY_POLICY.mfaEnforcedRoles || [];
+  const ipRanges = Array.isArray(policy.allowedIpRanges) ? policy.allowedIpRanges : DEFAULT_SECURITY_POLICY.allowedIpRanges || [];
 
   return (
     <div className="space-y-6 pb-12">
@@ -148,7 +204,7 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
                   type="number"
                   min={8}
                   max={32}
-                  value={policy.minPasswordLength}
+                  value={policy.minPasswordLength || 8}
                   onChange={(e) => setPolicy({ ...policy, minPasswordLength: parseInt(e.target.value) || 8 })}
                   className="w-24 px-3 py-2 rounded-lg border border-slate-300 font-mono"
                 />
@@ -160,7 +216,7 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={policy.requireUppercase}
+                  checked={!!policy.requireUppercase}
                   onChange={(e) => setPolicy({ ...policy, requireUppercase: e.target.checked })}
                   className="rounded text-[#0F8B8D] focus:ring-[#0F8B8D]"
                 />
@@ -170,7 +226,7 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={policy.requireLowercase}
+                  checked={!!policy.requireLowercase}
                   onChange={(e) => setPolicy({ ...policy, requireLowercase: e.target.checked })}
                   className="rounded text-[#0F8B8D] focus:ring-[#0F8B8D]"
                 />
@@ -180,7 +236,7 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={policy.requireNumbers}
+                  checked={!!policy.requireNumbers}
                   onChange={(e) => setPolicy({ ...policy, requireNumbers: e.target.checked })}
                   className="rounded text-[#0F8B8D] focus:ring-[#0F8B8D]"
                 />
@@ -190,7 +246,7 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={policy.requireSpecialChars}
+                  checked={!!policy.requireSpecialChars}
                   onChange={(e) => setPolicy({ ...policy, requireSpecialChars: e.target.checked })}
                   className="rounded text-[#0F8B8D] focus:ring-[#0F8B8D]"
                 />
@@ -203,7 +259,7 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
                 <label className="block font-semibold text-slate-700 mb-1">Mandatory Expiry (Days)</label>
                 <input
                   type="number"
-                  value={policy.passwordExpiryDays}
+                  value={policy.passwordExpiryDays || 90}
                   onChange={(e) => setPolicy({ ...policy, passwordExpiryDays: parseInt(e.target.value) || 90 })}
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
                 />
@@ -214,8 +270,8 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
-                    value={policy.passwordHistoryCount}
-                    onChange={(e) => setPolicy({ ...policy, passwordHistoryCount: parseInt(e.target.value) || 5 })}
+                    value={policy.enforcePasswordHistoryCount || 5}
+                    onChange={(e) => setPolicy({ ...policy, enforcePasswordHistoryCount: parseInt(e.target.value) || 5 })}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
                   />
                   <span className="text-slate-400">Cycles</span>
@@ -242,8 +298,8 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
                   type="number"
                   min={3}
                   max={10}
-                  value={policy.maxFailedAttempts}
-                  onChange={(e) => setPolicy({ ...policy, maxFailedAttempts: parseInt(e.target.value) || 5 })}
+                  value={policy.maxFailedAttemptsBeforeLockout || 5}
+                  onChange={(e) => setPolicy({ ...policy, maxFailedAttemptsBeforeLockout: parseInt(e.target.value) || 5 })}
                   className="w-24 px-3 py-2 rounded-lg border border-slate-300 font-mono"
                 />
                 <span className="text-slate-500">Failed attempts (Default: 5)</span>
@@ -257,7 +313,7 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
                   type="number"
                   min={5}
                   max={1440}
-                  value={policy.lockoutDurationMinutes}
+                  value={policy.lockoutDurationMinutes || 30}
                   onChange={(e) => setPolicy({ ...policy, lockoutDurationMinutes: parseInt(e.target.value) || 30 })}
                   className="w-24 px-3 py-2 rounded-lg border border-slate-300 font-mono"
                 />
@@ -272,7 +328,7 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
                   type="number"
                   min={5}
                   max={480}
-                  value={policy.sessionTimeoutMinutes}
+                  value={policy.sessionTimeoutMinutes || 20}
                   onChange={(e) => setPolicy({ ...policy, sessionTimeoutMinutes: parseInt(e.target.value) || 20 })}
                   className="w-24 px-3 py-2 rounded-lg border border-slate-300 font-mono"
                 />
@@ -293,7 +349,7 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
             <label className="flex items-start gap-2.5 p-3 rounded-lg border border-slate-200 bg-slate-50 cursor-pointer">
               <input
                 type="checkbox"
-                checked={policy.mfaEnforced}
+                checked={policy.mfaEnforced !== false}
                 onChange={(e) => setPolicy({ ...policy, mfaEnforced: e.target.checked })}
                 className="mt-0.5 rounded text-[#0F8B8D] focus:ring-[#0F8B8D]"
               />
@@ -310,7 +366,7 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
               <div className="grid grid-cols-2 gap-2 text-xs">
                 {['Super Administrator', 'Plant Operations Manager', 'Finance Controller', 'Quality Director'].map(
                   (role) => {
-                    const isChecked = policy.mfaEnforcedRoles.includes(role);
+                    const isChecked = mfaRoles.includes(role);
                     return (
                       <label key={role} className="flex items-center gap-2 cursor-pointer p-2 rounded-lg border border-slate-200 bg-white">
                         <input
@@ -318,11 +374,11 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
                           checked={isChecked}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              setPolicy({ ...policy, mfaEnforcedRoles: [...policy.mfaEnforcedRoles, role] });
+                              setPolicy({ ...policy, mfaEnforcedRoles: [...mfaRoles, role] });
                             } else {
                               setPolicy({
                                 ...policy,
-                                mfaEnforcedRoles: policy.mfaEnforcedRoles.filter((r) => r !== role),
+                                mfaEnforcedRoles: mfaRoles.filter((r) => r !== role),
                               });
                             }
                           }}
@@ -349,7 +405,7 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
-                checked={policy.ipWhitelistEnforced}
+                checked={policy.ipWhitelistEnforced !== false}
                 onChange={(e) => setPolicy({ ...policy, ipWhitelistEnforced: e.target.checked })}
                 className="rounded text-[#0F8B8D] focus:ring-[#0F8B8D]"
               />
@@ -376,7 +432,7 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
             </div>
 
             <div className="space-y-1.5 max-h-40 overflow-y-auto pt-1">
-              {policy.allowedIpRanges.map((ip) => (
+              {ipRanges.map((ip) => (
                 <div
                   key={ip}
                   className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200 font-mono text-xs text-slate-800"
