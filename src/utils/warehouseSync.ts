@@ -86,13 +86,21 @@ export function getWarehouseStockMap(): Map<string, InventoryStockItem> {
   const map = new Map<string, InventoryStockItem>();
   try {
     const stockList = getWarehouseStock();
+    // 1. Raw exact index
     for (const item of stockList) {
       if (item && item.sku) {
         const rawCode = String(item.sku).trim().toUpperCase();
-        map.set(rawCode, item);
-        // Also index normalized alphanumeric string (removes hyphens/spaces/dots)
+        if (rawCode) {
+          map.set(rawCode, item);
+        }
+      }
+    }
+    // 2. Normalized alphanumeric index (ONLY for codes with length >= 4 to avoid 1, 2, 10, 30 collisions)
+    for (const item of stockList) {
+      if (item && item.sku) {
+        const rawCode = String(item.sku).trim().toUpperCase();
         const cleanCode = rawCode.replace(/[^A-Z0-9]/g, '');
-        if (cleanCode && cleanCode !== rawCode) {
+        if (cleanCode.length >= 4 && cleanCode !== rawCode && !map.has(cleanCode)) {
           map.set(cleanCode, item);
         }
       }
@@ -104,30 +112,25 @@ export function getWarehouseStockMap(): Map<string, InventoryStockItem> {
 }
 
 /**
- * Single-Item warehouse stock finder with multi-level fallback and alias resolution
+ * Single-Item warehouse stock finder with STRICT EXACT MATCHING.
+ * Eliminates false positive substring matching for short item codes like 1, 2, 10, 30.
  */
 export function getWarehouseStockItem(codeOrSku?: string): InventoryStockItem | undefined {
   if (!codeOrSku) return undefined;
   try {
     const stockMap = getWarehouseStockMap();
     const query = String(codeOrSku).trim().toUpperCase();
+    if (!query) return undefined;
     
-    // Direct exact match
+    // 1. Strict exact match
     if (stockMap.has(query)) {
       return stockMap.get(query);
     }
 
-    // Cleaned alphanumeric match
+    // 2. Cleaned alphanumeric match (ONLY for queries with length >= 4)
     const clean = query.replace(/[^A-Z0-9]/g, '');
-    if (stockMap.has(clean)) {
+    if (clean.length >= 4 && stockMap.has(clean)) {
       return stockMap.get(clean);
-    }
-
-    // Substring or prefix match
-    for (const [key, val] of stockMap.entries()) {
-      if (key.includes(query) || query.includes(key)) {
-        return val;
-      }
     }
   } catch (err) {
     console.error('Error resolving warehouse stock item for code:', codeOrSku, err);
@@ -150,8 +153,8 @@ export interface NormalizedStockData {
 
 /**
  * UNIFIED SOURCE OF TRUTH: getItemStockData
- * Every screen (Item Master, Warehouse, Planning, BOM, Manufacturing, Dispatch)
- * resolves real live quantities through this single function.
+ * Strictly validates against warehouse stock. If an item has 0 stock or is not present,
+ * it returns exactly 0 without false positive matches.
  */
 export function getItemStockData(item?: ItemMaster | { code?: string; type?: string; baseUOM?: string; stock?: string | number; avail?: string | number } | null): NormalizedStockData {
   if (!item) {
@@ -171,7 +174,20 @@ export function getItemStockData(item?: ItemMaster | { code?: string; type?: str
     const code = (item.code || '').trim();
     const uom = item.baseUOM || (item.type === 'Raw Material' || item.type === 'Regrind' ? 'KG' : item.type === 'Masterbatch' ? 'KG' : item.type === 'Packaging Material' ? 'BOX' : 'PCS');
 
-    // 1. Check Warehouse Stock Single Source of Truth
+    if (!code) {
+      return {
+        onHand: `0 ${uom}`,
+        available: `0 ${uom}`,
+        allocated: `0 ${uom}`,
+        onHandNum: 0,
+        availNum: 0,
+        allocatedNum: 0,
+        uom,
+        hasStock: false,
+      };
+    }
+
+    // 1. Check Warehouse Stock Single Source of Truth with STRICT exact matching
     const whItem = getWarehouseStockItem(code);
     if (whItem) {
       const onHandNum = typeof whItem.totalOnHand === 'number' && !isNaN(whItem.totalOnHand)
@@ -202,25 +218,7 @@ export function getItemStockData(item?: ItemMaster | { code?: string; type?: str
       };
     }
 
-    // 2. Direct Item Master record fallback (if stock explicitly stored in item object)
-    const rawStock = parseFloat(String(item.stock || '').replace(/[^0-9.]/g, ''));
-    const rawAvail = parseFloat(String(item.avail || '').replace(/[^0-9.]/g, ''));
-
-    if (!isNaN(rawStock) && rawStock > 0) {
-      const availVal = (!isNaN(rawAvail) && rawAvail >= 0) ? rawAvail : rawStock;
-      return {
-        onHand: `${rawStock.toLocaleString('en-IN')} ${uom}`,
-        available: `${availVal.toLocaleString('en-IN')} ${uom}`,
-        allocated: `0 ${uom}`,
-        onHandNum: rawStock,
-        availNum: availVal,
-        allocatedNum: 0,
-        uom,
-        hasStock: true,
-      };
-    }
-
-    // 3. Clean zero stock state
+    // 2. Strict zero stock when item has no warehouse record
     return {
       onHand: `0 ${uom}`,
       available: `0 ${uom}`,
@@ -248,16 +246,14 @@ export function getItemStockData(item?: ItemMaster | { code?: string; type?: str
 
 /**
  * Synchronize an array of ItemMaster objects so their .stock and .avail properties
- * match the live warehouse inventory accurately.
+ * match the live warehouse inventory accurately with strict SKU matching.
  */
 export function syncItemsWithWarehouseStock(items: ItemMaster[]): ItemMaster[] {
   if (!Array.isArray(items)) return [];
-  const stockMap = getWarehouseStockMap();
 
   return items.map((item) => {
     if (!item) return item;
-    const query = String(item.code || '').trim().toUpperCase();
-    const wh = stockMap.get(query) || stockMap.get(query.replace(/[^A-Z0-9]/g, ''));
+    const wh = getWarehouseStockItem(item.code);
 
     if (wh) {
       const onHand = typeof wh.totalOnHand === 'number' ? wh.totalOnHand : parseFloat(String(wh.totalOnHand || '0')) || 0;
@@ -269,7 +265,11 @@ export function syncItemsWithWarehouseStock(items: ItemMaster[]): ItemMaster[] {
         wh: wh.primaryWarehouse || item.wh,
       };
     }
-    return item;
+    return {
+      ...item,
+      stock: '0',
+      avail: '0',
+    };
   });
 }
 
