@@ -897,95 +897,6 @@ class MasterDataGovernanceService {
   }
 
   // ==========================================
-  // Task 3: Secure Change History & Audit Logs
-  // ==========================================
-  public getAuditHistory(entityType?: string, entityCode?: string): MasterDataChangeRecord[] {
-    const defaultLogs: MasterDataChangeRecord[] = [
-      {
-        id: 'AUD-001',
-        entityType: 'ITEM_MASTER',
-        entityCode: 'FG-BMP-NEXON-F',
-        entityName: 'Front Bumper Cladding - Nexon EV (High Gloss Black)',
-        action: 'APPROVE',
-        timestamp: new Date(Date.now() - 3600000 * 24).toISOString(),
-        changedBy: 'Priya Rao (Super Admin)',
-        userRole: 'super_admin',
-        changeSummary: 'Final QA approval granted for high-speed automated robotic take-out cycle.',
-        diff: {
-          approval: { before: 'pending', after: 'approved' },
-          status: { before: 'inactive', after: 'active' },
-        },
-      },
-      {
-        id: 'AUD-002',
-        entityType: 'BOM_MASTER',
-        entityCode: 'BOM-FG-BMP-NEXON-F-V1.0',
-        entityName: 'BOM v1.0 - Front Bumper Cladding',
-        action: 'CREATE',
-        timestamp: new Date(Date.now() - 3600000 * 48).toISOString(),
-        changedBy: 'Arun Kumar (Engineering Lead)',
-        userRole: 'engineering_lead',
-        changeSummary: 'Initial engineering bill of materials release with 4-cavity tooling.',
-      },
-    ];
-
-    try {
-      const raw = localStorage.getItem('reboot_erp_master_audit_history');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          let list = parsed;
-          if (entityType) {
-            list = list.filter((l) => l.entityType === entityType);
-          }
-          if (entityCode) {
-            list = list.filter((l) => l.entityCode === entityCode);
-          }
-          return list;
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to load audit history', e);
-    }
-
-    let list = defaultLogs;
-    if (entityType) list = list.filter((l) => l.entityType === entityType);
-    if (entityCode) list = list.filter((l) => l.entityCode === entityCode);
-    return list;
-  }
-
-  public recordAudit(entry: {
-    entityType: 'ITEM_MASTER' | 'BOM_MASTER' | 'PLANT' | 'ROUTING' | 'MACHINE_MASTER' | string;
-
-    entityCode: string;
-    entityName?: string;
-    action: 'CREATE' | 'UPDATE' | 'APPROVE' | 'REJECT' | 'DELETE' | 'VERSION_RELEASE';
-    changedBy?: string;
-    userRole?: string;
-    changeSummary: string;
-    diff?: Record<string, { before: any; after: any }>;
-  }): MasterDataChangeRecord {
-    const history = this.getAuditHistory();
-    const record: MasterDataChangeRecord = {
-      id: `AUD-${Date.now().toString().slice(-6)}`,
-      timestamp: new Date().toISOString(),
-      changedBy: entry.changedBy || 'Admin User',
-      userRole: entry.userRole || 'admin',
-      ...entry,
-    };
-
-    history.unshift(record);
-    try {
-      localStorage.setItem('reboot_erp_master_audit_history', JSON.stringify(history));
-    } catch (e) {
-      console.warn('Failed to save audit history', e);
-    }
-
-    adminEventBus.emit('AUDIT_RECORD_SAVED', record);
-    return record;
-  }
-
-  // ==========================================
   // Task 1: Autocomplete & Admin Master Catalog Options
   // ==========================================
   private getStoredList(key: string, defaults: string[]): string[] {
@@ -1508,6 +1419,155 @@ class MasterDataGovernanceService {
     adminEventBus.emit('CHANGE_REQUEST_REJECTED', target);
     return { success: true, request: target };
   }
+
+  // ==========================================
+  // Task 3: Comprehensive Audit Trail & Change Ledger
+  // ==========================================
+  public getAuditHistory(targetFilter?: { type?: string; code?: string }): MasterDataChangeRecord[] {
+    try {
+      const raw = localStorage.getItem('reboot_erp_master_data_audit_records');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          if (targetFilter?.code) {
+            const c = targetFilter.code.toLowerCase().trim();
+            return parsed.filter((r) => (r.entityCode || '').toLowerCase().trim() === c);
+          }
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load audit history', e);
+    }
+    const initial = this.getInitialAuditLogs();
+    if (targetFilter?.code) {
+      const c = targetFilter.code.toLowerCase().trim();
+      return initial.filter((r) => (r.entityCode || '').toLowerCase().trim() === c);
+    }
+    return initial;
+  }
+
+  public recordAudit(record: {
+    entityType: 'ITEM_MASTER' | 'BOM_MASTER' | 'PLANT' | 'ROUTING' | 'MACHINE_MASTER' | string;
+    entityCode: string;
+    entityName?: string;
+    action: 'CREATE' | 'UPDATE' | 'APPROVE' | 'REJECT' | 'DELETE' | 'VERSION_RELEASE';
+    changedBy: string;
+    userRole?: string;
+    changeSummary: string;
+    raisedBy?: string;
+    approvedBy?: string;
+    diff?: Record<string, { before: any; after: any }>;
+  }): MasterDataChangeRecord {
+    const list = this.getAuditHistory();
+    const newRecord: MasterDataChangeRecord = {
+      id: `AUD-${Date.now().toString().slice(-6)}`,
+      entityType: record.entityType,
+      entityCode: record.entityCode,
+      entityName: record.entityName,
+      action: record.action,
+      timestamp: new Date().toISOString(),
+      changedBy: record.changedBy || 'System User',
+      userRole: record.userRole || 'admin',
+      changeSummary: record.changeSummary,
+      raisedBy: record.raisedBy || record.changedBy,
+      approvedBy: record.approvedBy || (record.action === 'APPROVE' ? record.changedBy : undefined),
+      diff: record.diff,
+    };
+
+    list.unshift(newRecord);
+    try {
+      localStorage.setItem('reboot_erp_master_data_audit_records', JSON.stringify(list));
+    } catch (e) {
+      console.warn('Failed to save audit record', e);
+    }
+
+    adminEventBus.emit('AUDIT_RECORD_SAVED', newRecord);
+    return newRecord;
+  }
+
+  private getInitialAuditLogs(): MasterDataChangeRecord[] {
+    const now = new Date();
+    const isoDate = (minutesAgo: number) => new Date(now.getTime() - minutesAgo * 60000).toISOString();
+
+    return [
+      {
+        id: 'AUD-991042',
+        entityType: 'ITEM_MASTER',
+        entityCode: '702088018012',
+        entityName: 'PLASTIC INSERT - 50MM A/R PAD (HFRL) old',
+        action: 'APPROVE',
+        timestamp: isoDate(15),
+        changedBy: 'Priya Rao (Admin Lead)',
+        userRole: 'admin',
+        changeSummary: 'Approved and released SKU 702088018012 with tooling MOLD-001 (1 Cavity) to live shopfloor.',
+        raisedBy: 'Manoj Verma (Tooling Eng)',
+        approvedBy: 'Priya Rao (Admin Lead)',
+        diff: {
+          approval: { before: 'pending', after: 'approved' },
+          status: { before: 'pending', after: 'active' },
+        },
+      },
+      {
+        id: 'AUD-991041',
+        entityType: 'ITEM_MASTER',
+        entityCode: '702088018012',
+        entityName: 'PLASTIC INSERT - 50MM A/R PAD (HFRL) old',
+        action: 'UPDATE',
+        timestamp: isoDate(45),
+        changedBy: 'Manoj Verma (Tooling Eng)',
+        userRole: 'engineer',
+        changeSummary: 'Modified standard cycle time to 30.0s and part weight to 25.0g (Submitted for Approval Gate).',
+        raisedBy: 'Manoj Verma (Tooling Eng)',
+        diff: {
+          cycleTime: { before: 28.0, after: 30.0 },
+          shotWeightGrams: { before: 23.5, after: 25.0 },
+        },
+      },
+      {
+        id: 'AUD-991038',
+        entityType: 'ITEM_MASTER',
+        entityCode: '708027010001',
+        entityName: 'ARMPAD INSERT - 50MM(HFRL)',
+        action: 'APPROVE',
+        timestamp: isoDate(120),
+        changedBy: 'Priya Rao (Admin Lead)',
+        userRole: 'admin',
+        changeSummary: 'Approved new Finished Good SKU 708027010001 under UNO MINDA P-II routing.',
+        raisedBy: 'Sunil Joshi (Production Planner)',
+        approvedBy: 'Priya Rao (Admin Lead)',
+        diff: {
+          approval: { before: 'pending', after: 'approved' },
+        },
+      },
+      {
+        id: 'AUD-991035',
+        entityType: 'ITEM_MASTER',
+        entityCode: 'BOP-0018',
+        entityName: 'XDCR,RECTILINEAR 150MM - 10378S15',
+        action: 'CREATE',
+        timestamp: isoDate(360),
+        changedBy: 'Vikram Mehta (Plant Asset Lead)',
+        userRole: 'maintenance',
+        changeSummary: 'Registered plant asset spare part BOP-0018 with 7-day lead time.',
+        raisedBy: 'Vikram Mehta (Plant Asset Lead)',
+        approvedBy: 'Priya Rao (Admin Lead)',
+      },
+      {
+        id: 'AUD-991029',
+        entityType: 'ITEM_MASTER',
+        entityCode: 'CON-125',
+        entityName: '50mmx 25mm 1ups Avery Chromo Avery',
+        action: 'APPROVE',
+        timestamp: isoDate(720),
+        changedBy: 'Priya Rao (Admin Lead)',
+        userRole: 'admin',
+        changeSummary: 'Approved consumable labeling item CON-125 for production packaging.',
+        raisedBy: 'Ramesh Patel (Stores Manager)',
+        approvedBy: 'Priya Rao (Admin Lead)',
+      },
+    ];
+  }
 }
 
 export interface MasterDataChangeRequest {
@@ -1531,7 +1591,6 @@ export interface MasterDataChangeRequest {
 export interface MasterDataChangeRecord {
   id: string;
   entityType: 'ITEM_MASTER' | 'BOM_MASTER' | 'PLANT' | 'ROUTING' | 'MACHINE_MASTER' | string;
-
   entityCode: string;
   entityName?: string;
   action: 'CREATE' | 'UPDATE' | 'APPROVE' | 'REJECT' | 'DELETE' | 'VERSION_RELEASE';
@@ -1539,6 +1598,8 @@ export interface MasterDataChangeRecord {
   changedBy: string;
   userRole: string;
   changeSummary: string;
+  raisedBy?: string;
+  approvedBy?: string;
   diff?: Record<string, { before: any; after: any }>;
 }
 
@@ -1554,4 +1615,5 @@ export interface MasterDataGovernancePermissions {
 }
 
 export const masterDataGovernanceService = new MasterDataGovernanceService();
+
 

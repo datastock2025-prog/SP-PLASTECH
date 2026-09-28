@@ -97,6 +97,129 @@ interface MasterDataProps {
   showToast: (msg: string) => void;
 }
 
+// Task 1: Realistic & dynamic On-Hand and Available stock calculations for all SKUs
+export const getItemStockData = (item: ItemMaster) => {
+  const rawStock = parseFloat(String(item.stock || '').replace(/[^0-9.]/g, ''));
+  const rawAvail = parseFloat(String(item.avail || '').replace(/[^0-9.]/g, ''));
+  const uom = item.baseUOM || (item.type === 'Raw Material' || item.type === 'Regrind' ? 'KG' : item.type === 'Masterbatch' ? 'KG' : item.type === 'Packaging Material' ? 'BOX' : 'PCS');
+
+  if (!isNaN(rawStock) && rawStock > 0) {
+    const availVal = (!isNaN(rawAvail) && rawAvail > 0) ? rawAvail : Math.round(rawStock * 0.88);
+    return {
+      onHand: `${rawStock.toLocaleString('en-IN')} ${uom}`,
+      available: `${availVal.toLocaleString('en-IN')} ${uom}`,
+      onHandNum: rawStock,
+      availNum: availVal,
+      uom,
+    };
+  }
+
+  // Consistent deterministic stock generator from code hash
+  const code = item.code || 'SKU-001';
+  let hash = 0;
+  for (let i = 0; i < code.length; i++) {
+    hash = ((hash << 5) - hash) + code.charCodeAt(i);
+    hash |= 0;
+  }
+  const seed = Math.abs(hash);
+  const type = (item.type || '').toLowerCase();
+
+  let baseOnHand = 1200;
+  if (type.includes('finished') || type.includes('semi')) {
+    baseOnHand = 350 + (seed % 4200); // 350 - 4550 PCS
+  } else if (type.includes('raw') || type.includes('regrind')) {
+    baseOnHand = 2500 + ((seed * 11) % 22000); // 2,500 - 24,500 KG
+  } else if (type.includes('masterbatch') || type.includes('colorant') || type.includes('additive')) {
+    baseOnHand = 150 + ((seed * 7) % 950); // 150 - 1100 KG
+  } else if (type.includes('spare') || type.includes('asset') || type.includes('tooling')) {
+    baseOnHand = 5 + (seed % 45); // 5 - 50 PCS
+  } else if (type.includes('packaging')) {
+    baseOnHand = 250 + ((seed * 5) % 2800); // 250 - 3050 BOX
+  } else {
+    baseOnHand = 120 + (seed % 650);
+  }
+
+  const reservedPct = 0.08 + ((seed % 15) / 100); // 8% - 23% reserved
+  const baseAvail = Math.max(0, Math.round(baseOnHand * (1 - reservedPct)));
+
+  return {
+    onHand: `${baseOnHand.toLocaleString('en-IN')} ${uom}`,
+    available: `${baseAvail.toLocaleString('en-IN')} ${uom}`,
+    onHandNum: baseOnHand,
+    availNum: baseAvail,
+    uom,
+  };
+};
+
+// Task 3: Precise Destination & Process Routing Badges (DOL -> FG, DOL -> WIP, etc.)
+export const renderRoutingBadge = (item: ItemMaster) => {
+  const t = (item.type || '').toLowerCase();
+  const c = (item.cat || '').toLowerCase();
+  const r = (item.routingDestination || '').toUpperCase();
+
+  if (t === 'finished good' || c === 'fg' || r === 'DOL' || r === 'FG') {
+    return (
+      <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-2xs">
+        DOL &rarr; FG
+      </span>
+    );
+  }
+  if (t === 'semi-finished good' || c === 'wip' || r === 'WIP' || item.isWip) {
+    return (
+      <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-300 shadow-2xs">
+        DOL &rarr; WIP
+      </span>
+    );
+  }
+  if (item.isAssembly || r === 'ASSEMBLY' || c === 'assembly') {
+    return (
+      <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-purple-50 text-purple-700 border border-purple-300 shadow-2xs">
+        DOL &rarr; ASSEMBLY
+      </span>
+    );
+  }
+  if (item.isDeflash || r === 'DEFLASH' || c === 'deflash') {
+    return (
+      <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs">
+        DOL &rarr; DEFLASH
+      </span>
+    );
+  }
+  if (t === 'raw material' || t === 'regrind' || c === 'rm') {
+    return (
+      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
+        RM &rarr; STORE
+      </span>
+    );
+  }
+  if (t === 'masterbatch' || t === 'colorant' || t === 'additive' || c === 'mb') {
+    return (
+      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-50 text-violet-700 border border-violet-200">
+        MB &rarr; STORE
+      </span>
+    );
+  }
+  if (t === 'spare part' || c === 'asset') {
+    return (
+      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-700 border border-slate-300">
+        SPARE &rarr; ASSET
+      </span>
+    );
+  }
+  if (t === 'packaging material' || c === 'packaging') {
+    return (
+      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+        STORE &rarr; PACK
+      </span>
+    );
+  }
+  return (
+    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-100 text-gray-700 border border-gray-200">
+      {item.routingDestination || 'STORE'}
+    </span>
+  );
+};
+
 interface QuickModifyItemModalProps {
   item: ItemMaster | null;
   allItems: ItemMaster[];
@@ -1098,59 +1221,56 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
 
   const handleSaveWizardItem = (savedItem: ItemMaster) => {
     const exists = items.some((i) => i.code === savedItem.code);
+    const prevItem = items.find((i) => i.code === savedItem.code);
 
-    if (!isSuperAdmin && !canCreateItem) {
-      // Non-admin user: Raise CRUD Change Request to Admin
-      const enriched = { ...savedItem, approval: 'pending' as const };
-      itemService.saveItem(enriched);
-      if (exists) {
-        onUpdateItem(enriched);
-      } else {
-        onCreateItem(enriched);
-      }
-      masterDataGovernanceService.submitChangeRequest({
-        requestType: exists ? 'UPDATE' : 'CREATE',
-        itemCode: savedItem.code,
-        itemName: savedItem.name,
-        requestedBy: currentUser?.name || 'Shopfloor User',
-        userRole: currentUser?.role || 'operator',
-        reason: exists ? 'User requested item specification updates' : 'New item registration request for catalog',
-        payload: enriched,
-      });
-      showToast(`✓ Submitted ${exists ? 'modification' : 'creation'} request for SKU ${savedItem.code} to Admin for approval.`);
-      setIsItemWizardOpen(false);
-      setWizardEditItem(null);
-      return;
-    }
+    // Task 2: All Item Master modifications/creations require approval hereafter
+    const pendingItem: ItemMaster = {
+      ...savedItem,
+      approval: 'pending' as const,
+      status: 'active' as const,
+    };
 
-    // Admin direct save & release
-    const approvedItem = { ...savedItem, approval: 'approved' as const, status: savedItem.status || 'active' as const };
-    itemService.saveItem(approvedItem);
+    itemService.saveItem(pendingItem);
     if (exists) {
-      onUpdateItem(approvedItem);
-      masterDataGovernanceService.recordAudit({
-        entityType: 'ITEM_MASTER',
-        entityCode: approvedItem.code,
-        entityName: approvedItem.name,
-        action: 'UPDATE',
-        changedBy: currentUser?.name || 'Admin',
-        userRole: currentUser?.role || 'admin',
-        changeSummary: `Updated Item Master SKU ${approvedItem.code} attributes and tooling specifications.`,
-      });
-      showToast(`✓ Updated & Approved Item ${approvedItem.code} in Master Data.`);
+      onUpdateItem(pendingItem);
     } else {
-      onCreateItem(approvedItem);
-      masterDataGovernanceService.recordAudit({
-        entityType: 'ITEM_MASTER',
-        entityCode: approvedItem.code,
-        entityName: approvedItem.name,
-        action: 'CREATE',
-        changedBy: currentUser?.name || 'Admin',
-        userRole: currentUser?.role || 'admin',
-        changeSummary: `Created & Approved new Item Master SKU ${approvedItem.code}.`,
-      });
-      showToast(`✓ Created & Approved Item ${approvedItem.code} in Master Data.`);
+      onCreateItem(pendingItem);
     }
+
+    // Submit CRUD Change Request to Admin queue
+    masterDataGovernanceService.submitChangeRequest({
+      requestType: exists ? 'UPDATE' : 'CREATE',
+      itemCode: savedItem.code,
+      itemName: savedItem.name,
+      requestedBy: currentUser?.name || 'Production Engineer',
+      userRole: currentUser?.role || 'engineer',
+      reason: exists ? 'Item master tooling specifications & attribute update' : 'New SKU registration in live catalog',
+      payload: pendingItem,
+      currentSnapshot: prevItem,
+    });
+
+    // Record immutable audit ledger entry
+    masterDataGovernanceService.recordAudit({
+      entityType: 'ITEM_MASTER',
+      entityCode: pendingItem.code,
+      entityName: pendingItem.name,
+      action: exists ? 'UPDATE' : 'CREATE',
+      changedBy: currentUser?.name || 'Production Engineer',
+      raisedBy: currentUser?.name || 'Production Engineer',
+      userRole: currentUser?.role || 'engineer',
+      changeSummary: `${exists ? 'Updated' : 'Registered'} SKU ${pendingItem.code} (${pendingItem.name}). Queued for approval gate before live release.`,
+      diff: prevItem
+        ? {
+            name: { before: prevItem.name, after: pendingItem.name },
+            type: { before: prevItem.type, after: pendingItem.type },
+            cycleTime: { before: prevItem.cycleTime, after: pendingItem.cycleTime },
+            shotWeightGrams: { before: prevItem.shotWeightGrams, after: pendingItem.shotWeightGrams },
+            approval: { before: prevItem.approval, after: 'pending' },
+          }
+        : undefined,
+    });
+
+    showToast(`✓ SKU ${savedItem.code} saved! Status set to Pending Approval for review.`);
     setIsItemWizardOpen(false);
     setWizardEditItem(null);
   };
@@ -1168,7 +1288,9 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
       entityCode: item.code,
       entityName: item.name,
       action: 'APPROVE',
-      changedBy: currentUser?.name || 'Priya Rao (Admin)',
+      changedBy: currentUser?.name || 'Priya Rao (Admin Lead)',
+      raisedBy: 'Production Team',
+      approvedBy: currentUser?.name || 'Priya Rao (Admin Lead)',
       userRole: currentUser?.role || 'admin',
       changeSummary: `Approved Item ${item.code} (${item.name}) - Released to live operational modules.`,
       diff: { approval: { before: item.approval, after: 'approved' } },
@@ -1189,7 +1311,9 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
       entityCode: item.code,
       entityName: item.name,
       action: 'REJECT',
-      changedBy: currentUser?.name || 'Priya Rao (Admin)',
+      changedBy: currentUser?.name || 'Priya Rao (Admin Lead)',
+      raisedBy: 'Production Team',
+      approvedBy: currentUser?.name || 'Priya Rao (Admin Lead)',
       userRole: currentUser?.role || 'admin',
       changeSummary: `Rejected Item ${item.code} (${item.name}). Quarantined and hidden from all operational modules.`,
       diff: { approval: { before: item.approval, after: 'rejected' } },
@@ -1223,7 +1347,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
     return <span className={`badge ${res.cls}`}>{res.label}</span>;
   };
 
-  const renderApprovalBadge = (approval: ApprovalStatus) => {
+  const renderApprovalBadge = (approval: ApprovalStatus, itm?: ItemMaster) => {
     const map: Record<string, { cls: string; label: string }> = {
       draft: { cls: 'gray', label: 'Draft' },
       pending: { cls: 'amber', label: 'Pending approval' },
@@ -1234,7 +1358,23 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
       obsolete: { cls: 'gray', label: 'Obsolete' },
     };
     const res = map[approval] || { cls: 'gray', label: approval };
-    return <span className={`badge ${res.cls}`}>{res.label}</span>;
+    return (
+      <div className="flex items-center justify-center gap-1.5 flex-wrap">
+        <span className={`badge ${res.cls}`}>{res.label}</span>
+        {approval === 'pending' && itm && (canApproveItem || isSuperAdmin) && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleApproveItem(itm);
+            }}
+            className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs inline-flex items-center gap-1 transition-all cursor-pointer"
+            title="Approve SKU & Release to Shopfloor"
+          >
+            <Check className="w-2.5 h-2.5" /> Approve
+          </button>
+        )}
+      </div>
+    );
   };
 
   /* ----------------------------------------------------
@@ -1275,8 +1415,11 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
         let bVal: any = b[itemSortField as keyof ItemMaster] ?? '';
 
         if (itemSortField === 'stock') {
-          aVal = parseFloat(a.stock) || 0;
-          bVal = parseFloat(b.stock) || 0;
+          aVal = getItemStockData(a).onHandNum;
+          bVal = getItemStockData(b).onHandNum;
+        } else if (itemSortField === 'avail') {
+          aVal = getItemStockData(a).availNum;
+          bVal = getItemStockData(b).availNum;
         } else if (itemSortField === 'cycleTime') {
           aVal = Number(a.standardCycleTime || a.cycleTime || 0);
           bVal = Number(b.standardCycleTime || b.cycleTime || 0);
@@ -1719,11 +1862,16 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                         <ArrowUpDown className="w-3 h-3 text-gray-400" />
                       </div>
                     </th>
-                    <th className="p-3 text-right">Available</th>
+                    <th className="p-3 text-right cursor-pointer hover:bg-amber-50/50" onClick={() => handleItemSort('avail')}>
+                      <div className="flex items-center justify-end gap-1">
+                        Available
+                        <ArrowUpDown className="w-3 h-3 text-gray-400" />
+                      </div>
+                    </th>
                     <th className="p-3">Warehouse</th>
                     <th className="p-3 text-center">Status</th>
                     <th className="p-3 text-center">Approval</th>
-                    <th className="p-3 text-right w-28">Actions</th>
+                    <th className="p-3 text-right w-32">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E4E0D6]">
@@ -1737,6 +1885,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                       const runnerWt = Number(item.runnerWeightGrams || 0);
                       const shotWt = item.shotWeightGrams || Number((partWt + runnerWt).toFixed(2));
                       const hourlyOutput = cycle > 0 ? Math.round((3600 / cycle) * cavities) : 0;
+                      const stockData = getItemStockData(item);
 
                       return (
                         <tr
@@ -1783,21 +1932,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                                   {item.resinType}
                                 </span>
                               )}
-                              {(item.isDol || item.routingDestination === 'DOL') && (
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                  DOL &rarr; FG
-                                </span>
-                              )}
-                              {(item.isAssembly || item.routingDestination === 'ASSEMBLY') && (
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                                  ASSEMPLY &rarr; Assembly
-                                </span>
-                              )}
-                              {(item.isDeflash || item.routingDestination === 'DEFLASH') && (
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                                  DEFLASH &rarr; Deflash
-                                </span>
-                              )}
+                              {renderRoutingBadge(item)}
                             </div>
                           </td>
 
@@ -1912,15 +2047,27 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                           </td>
 
                           <td className="p-3 text-right font-semibold text-[#14213D] font-mono">
-                            {item.stock}
+                            {stockData.onHand}
                           </td>
-                          <td className="p-3 text-right font-mono text-[#4B5563]">{item.avail}</td>
+                          <td className="p-3 text-right font-mono font-semibold text-emerald-700">
+                            {stockData.available}
+                          </td>
                           <td className="p-3 font-mono text-xs text-[#6B7280]">{item.wh}</td>
                           <td className="p-3 text-center">{renderStatusBadge(item.status)}</td>
-                          <td className="p-3 text-center">{renderApprovalBadge(item.approval)}</td>
+                          <td className="p-3 text-center">{renderApprovalBadge(item.approval, item)}</td>
 
                           <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-1">
+                              <button
+                                className="p-1 text-[#6B7280] hover:text-[#0F8B8D] hover:bg-teal-50 rounded transition-colors"
+                                title="View Item Change & Approval Ledger (When, Who Raised, Who Approved)"
+                                onClick={() => {
+                                  setAuditTarget({ type: 'ITEM_MASTER', code: item.code, name: item.name });
+                                  setIsAuditModalOpen(true);
+                                }}
+                              >
+                                <History className="w-3.5 h-3.5 text-[#0F8B8D]" />
+                              </button>
                               <button
                                 className="p-1 text-[#6B7280] hover:text-[#E8622C] hover:bg-orange-50 rounded transition-colors"
                                 title="Quick Modify SKU & Tooling"
@@ -1948,13 +2095,22 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                                     ...item,
                                     code: copyCode,
                                     name: copyName,
-                                    approval: 'draft',
+                                    approval: 'pending',
                                     status: 'inactive',
                                     createdOn: 'Today',
                                   };
                                   onCreateItem(clone);
                                   itemService.saveItem(clone);
-                                  showToast(`✓ Cloned ${item.code} to new SKU ${copyCode}`);
+                                  masterDataGovernanceService.submitChangeRequest({
+                                    requestType: 'CREATE',
+                                    itemCode: clone.code,
+                                    itemName: clone.name,
+                                    requestedBy: currentUser?.name || 'Shopfloor User',
+                                    userRole: currentUser?.role || 'operator',
+                                    reason: `Cloned from parent SKU ${item.code}`,
+                                    payload: clone,
+                                  });
+                                  showToast(`✓ Cloned ${item.code} to new SKU ${copyCode} (Pending Approval)`);
                                 }}
                               >
                                 <Copy className="w-3.5 h-3.5" />
@@ -2207,10 +2363,11 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
             <div className="dh-left">
               <div className="item-thumb">{item.icon}</div>
               <div>
-                <div className="dh-title">
+                <div className="dh-title flex items-center gap-2 flex-wrap">
                   <h2>{item.name}</h2>
                   {renderStatusBadge(item.status)}
-                  {renderApprovalBadge(item.approval)}
+                  {renderApprovalBadge(item.approval, item)}
+                  {renderRoutingBadge(item)}
                 </div>
                 <div className="dh-meta">
                   <div className="m">
@@ -2268,9 +2425,9 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   setAuditTarget({ type: 'ITEM_MASTER', code: item.code, name: item.name });
                   setIsAuditModalOpen(true);
                 }}
-                title="View change history for this item in PostgreSQL vault"
+                title="View change & approval ledger for this item"
               >
-                <History className="w-3.5 h-3.5 text-[#0F8B8D]" /> Audit History
+                <History className="w-3.5 h-3.5 text-[#0F8B8D]" /> Change Ledger
               </button>
               <button
                 className="btn btn-sm btn-ghost"
@@ -2288,10 +2445,10 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               )}
               {item.approval !== 'approved' && (
                 <button
-                  className="btn btn-sm btn-ghost border-[#E4E0D6] text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+                  className="btn btn-sm btn-ghost border-[#E4E0D6] text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-bold"
                   onClick={() => handleApproveItem(item)}
                 >
-                  Approve &amp; Release
+                  <Check className="w-3.5 h-3.5" /> Approve &amp; Release
                 </button>
               )}
             </div>
@@ -2299,14 +2456,21 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
 
           {/* KPIs */}
           <div className="kpi-row">
-            <div className="kpi-card">
-              <div className="lbl">On Hand Stock</div>
-              <div className="val text-lg">{item.stock}</div>
-            </div>
-            <div className="kpi-card">
-              <div className="lbl">Available Stock</div>
-              <div className="val text-lg">{item.avail}</div>
-            </div>
+            {(() => {
+              const detailStock = getItemStockData(item);
+              return (
+                <>
+                  <div className="kpi-card">
+                    <div className="lbl">On Hand Stock</div>
+                    <div className="val text-lg">{detailStock.onHand}</div>
+                  </div>
+                  <div className="kpi-card">
+                    <div className="lbl">Available Stock</div>
+                    <div className="val text-lg text-emerald-700">{detailStock.available}</div>
+                  </div>
+                </>
+              );
+            })()}
             {isFg ? (
               <>
                 <div className="kpi-card">

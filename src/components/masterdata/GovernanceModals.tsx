@@ -124,7 +124,7 @@ export const AuditHistoryModal: React.FC<AuditHistoryModalProps> = ({
   };
 
   const handleExportCsv = () => {
-    const headers = ['Audit ID,Timestamp,Entity Type,Entity Code,Entity Name,Action,Changed By,Role,Summary'];
+    const headers = ['Audit ID,Timestamp,Entity Type,Entity Code,Entity Name,Action,Changed / Raised By,Approved By,Role,Summary'];
     const rows = filteredLogs.map((l) =>
       [
         `"${l.id}"`,
@@ -133,7 +133,8 @@ export const AuditHistoryModal: React.FC<AuditHistoryModalProps> = ({
         `"${l.entityCode}"`,
         `"${(l.entityName || '').replace(/"/g, '""')}"`,
         `"${l.action}"`,
-        `"${l.changedBy}"`,
+        `"${(l.raisedBy || l.changedBy || '').replace(/"/g, '""')}"`,
+        `"${(l.approvedBy || (l.action === 'APPROVE' ? l.changedBy : 'Pending / None')).replace(/"/g, '""')}"`,
         `"${l.userRole}"`,
         `"${(l.changeSummary || '').replace(/"/g, '""')}"`,
       ].join(',')
@@ -142,7 +143,7 @@ export const AuditHistoryModal: React.FC<AuditHistoryModalProps> = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `postgresql_master_data_audit_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `item_master_audit_ledger_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -159,14 +160,14 @@ export const AuditHistoryModal: React.FC<AuditHistoryModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-[#14213D]">
-                  PostgreSQL Master Data Audit &amp; Change History
+                  Item Master &amp; Catalog Change Ledger
                 </h2>
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <Lock className="w-3 h-3" /> SECURE AUDIT LOG
+                  <Lock className="w-3 h-3" /> IMMUTABLE AUDIT TRAIL
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Immutable chronological log of all Item Master, BOM formulations, approvals and engineering changes.
+                Full chronological ledger tracking <b>When</b> changes occurred, <b>Who Raised / Changed</b>, and <b>Who Approved</b> every SKU attribute.
               </p>
             </div>
           </div>
@@ -176,7 +177,7 @@ export const AuditHistoryModal: React.FC<AuditHistoryModalProps> = ({
               className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition-colors"
               title="Export filtered audit trail to CSV"
             >
-              <Download className="w-3.5 h-3.5" /> Export Log
+              <Download className="w-3.5 h-3.5" /> Export Ledger CSV
             </button>
             <button
               onClick={onClose}
@@ -217,7 +218,7 @@ export const AuditHistoryModal: React.FC<AuditHistoryModalProps> = ({
             <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
             <input
               type="text"
-              placeholder="Search code, user, or summary..."
+              placeholder="Search SKU code, who raised, who approved..."
               value={searchQ}
               onChange={(e) => setSearchQ(e.target.value)}
               className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-[#0F8B8D]"
@@ -226,7 +227,7 @@ export const AuditHistoryModal: React.FC<AuditHistoryModalProps> = ({
         </div>
 
         {/* Audit Log Table */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
           {filteredLogs.length > 0 ? (
             filteredLogs.map((log) => {
               const isExpanded = expandedRecordId === log.id;
@@ -239,12 +240,15 @@ export const AuditHistoryModal: React.FC<AuditHistoryModalProps> = ({
                 second: '2-digit',
               });
 
+              const raisedByName = log.raisedBy || log.changedBy || 'System';
+              const approverName = log.approvedBy || (log.action === 'APPROVE' ? log.changedBy : null);
+
               return (
                 <div
                   key={log.id}
-                  className="rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-all p-3.5 shadow-2xs"
+                  className="rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-all p-4 shadow-2xs space-y-2.5"
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
                     <div className="flex items-center gap-2.5">
                       <span className="font-mono text-[11px] font-bold text-slate-400">{log.id}</span>
                       {getActionBadge(log.action)}
@@ -257,20 +261,42 @@ export const AuditHistoryModal: React.FC<AuditHistoryModalProps> = ({
                       )}
                     </div>
 
-                    <div className="flex items-center gap-3 text-xs text-slate-500">
-                      <span className="flex items-center gap-1 font-medium">
-                        <b>{log.changedBy}</b> ({log.userRole})
-                      </span>
-                      <span className="font-mono text-[11px] text-slate-400">{formattedDate}</span>
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-mono">
+                      <span className="font-semibold text-slate-700">{formattedDate}</span>
                     </div>
                   </div>
 
-                  <div className="mt-2 text-xs text-slate-700 font-normal pl-1">
+                  {/* Who Changed / Raised vs Who Approved Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-50/70 p-2.5 rounded-lg border border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500 font-medium">Raised / Changed By:</span>
+                      <span className="font-bold text-slate-800 flex items-center gap-1">
+                        {raisedByName}
+                        <span className="text-[10px] font-normal text-slate-500">({log.userRole})</span>
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500 font-medium">Approved By:</span>
+                      {approverName ? (
+                        <span className="inline-flex items-center gap-1 font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[11px]">
+                          <Check className="w-3 h-3 text-emerald-600" />
+                          {approverName}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-[10px] font-bold">
+                          Pending Review
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-slate-700 font-normal pl-1">
                     {log.changeSummary}
                   </div>
 
                   {log.diff && Object.keys(log.diff).length > 0 && (
-                    <div className="mt-2.5 pt-2 border-t border-slate-100">
+                    <div className="pt-2 border-t border-slate-100">
                       <button
                         onClick={() => setExpandedRecordId(isExpanded ? null : log.id)}
                         className="text-[11px] font-bold text-[#0F8B8D] hover:underline flex items-center gap-1"
@@ -280,7 +306,7 @@ export const AuditHistoryModal: React.FC<AuditHistoryModalProps> = ({
                       {isExpanded && (
                         <div className="mt-2 bg-slate-50 rounded-lg p-2.5 border border-slate-200 font-mono text-[11px] space-y-1">
                           {Object.entries(log.diff).map(([key, val]) => (
-                            <div key={key} className="flex items-center gap-2">
+                            <div key={key} className="flex items-center gap-2 flex-wrap">
                               <span className="font-bold text-slate-600">{key}:</span>
                               <span className="px-1.5 py-0.2 bg-rose-50 text-rose-700 rounded border border-rose-200">
                                 {JSON.stringify(val.before)}
