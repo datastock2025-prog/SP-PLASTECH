@@ -18,7 +18,8 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: { persistSession: false }
+  auth: { persistSession: false },
+  realtime: { createWebSocket: () => null }
 });
 
 async function main() {
