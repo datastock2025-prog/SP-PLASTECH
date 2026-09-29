@@ -63,11 +63,28 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
   const existingPr = prs.find((p) => p.id === prId || p.prNumber === prId);
   const isEditing = Boolean(existingPr);
 
-  // Live items state
+  // Live items state - itemService as single source of truth
   const [itemsList, setItemsList] = useState<ItemMaster[]>(() => {
+    const list = itemService.getItemsSync();
+    if (list && list.length > 0) return list;
     if (propItems && propItems.length > 0) return propItems;
-    return itemService.getItemsSync();
+    return [];
   });
+
+  // Listen for real-time Item Master events across ERP
+  useEffect(() => {
+    const handleUpdate = () => {
+      setItemsList(itemService.getItemsSync());
+    };
+    adminEventBus.on('ITEM_SAVED', handleUpdate);
+    adminEventBus.on('ITEM_DELETED', handleUpdate);
+    adminEventBus.on('CATALOG_RELOADED', handleUpdate);
+    return () => {
+      adminEventBus.off('ITEM_SAVED', handleUpdate);
+      adminEventBus.off('ITEM_DELETED', handleUpdate);
+      adminEventBus.off('CATALOG_RELOADED', handleUpdate);
+    };
+  }, []);
 
   // Admin PR sequence generator
   const [prNumber, setPrNumber] = useState<string>(() => {
@@ -144,12 +161,12 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isCreateItemModalOpen, setIsCreateItemModalOpen] = useState<boolean>(false);
   const [activeCreatingItemLineIdx, setActiveCreatingItemLineIdx] = useState<number>(0);
-  const searchDropdownRef = useRef<HTMLDivElement | null>(null);
+  const searchContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Close search dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (searchDropdownRef.current && !searchDropdownRef.current.contains(e.target as Node)) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
         setActiveSearchIdx(null);
       }
     };
@@ -157,20 +174,23 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Filter items matching search
+  // Filter items matching search from Item Master single source of truth
   const filteredItems = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    if (!q) return itemsList.slice(0, 8);
+    if (!q) return itemsList.slice(0, 12);
     return itemsList
       .filter(
         (i) =>
-          i.code.toLowerCase().includes(q) ||
-          i.name.toLowerCase().includes(q) ||
+          (i.code && i.code.toLowerCase().includes(q)) ||
+          (i.name && i.name.toLowerCase().includes(q)) ||
           ((i as any).category && (i as any).category.toLowerCase().includes(q)) ||
           (i.type && i.type.toLowerCase().includes(q)) ||
+          ((i as any).grade && (i as any).grade.toLowerCase().includes(q)) ||
+          ((i as any).hsn && (i as any).hsn.toLowerCase().includes(q)) ||
+          (i.desc && i.desc.toLowerCase().includes(q)) ||
           ((i as any).description && (i as any).description.toLowerCase().includes(q))
       )
-      .slice(0, 10);
+      .slice(0, 15);
   }, [itemsList, searchQuery]);
 
   // Live calculation of Estimated Total
@@ -613,8 +633,11 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
 
                         {/* Item / Description with Searchable Autocomplete & + Create New Item */}
                         <td className="py-2 px-3 relative">
-                          <div className="relative">
-                            <div className="flex items-center">
+                          <div
+                            ref={isSearchingThisLine ? searchContainerRef : undefined}
+                            className="relative"
+                          >
+                            <div className="flex items-center relative">
                               <input
                                 type="text"
                                 placeholder="Search live item name or SKU..."
@@ -623,18 +646,40 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
                                   setActiveSearchIdx(idx);
                                   setSearchQuery(line.itemName || '');
                                 }}
+                                onClick={() => {
+                                  setActiveSearchIdx(idx);
+                                  setSearchQuery(line.itemName || '');
+                                }}
                                 onChange={(e) => {
                                   handleUpdateLine(idx, 'itemName', e.target.value);
                                   setSearchQuery(e.target.value);
                                   setActiveSearchIdx(idx);
                                 }}
-                                className="w-full px-2.5 py-1.5 border rounded-lg text-xs font-semibold text-[#14213D] focus:ring-1 focus:ring-[#0F8B8D] focus:outline-none"
+                                className="w-full pl-2.5 pr-20 py-1.5 border rounded-lg text-xs font-semibold text-[#14213D] focus:ring-1 focus:ring-[#0F8B8D] focus:outline-none bg-white"
                               />
-                              {line.itemCode && (
-                                <span className="absolute right-2 px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 text-[9px] font-mono font-bold border border-teal-200">
-                                  {line.itemCode}
-                                </span>
-                              )}
+                              <div className="absolute right-1.5 flex items-center gap-1">
+                                {line.itemCode && (
+                                  <span className="px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 text-[9px] font-mono font-bold border border-teal-200">
+                                    {line.itemCode}
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (activeSearchIdx === idx) {
+                                      setActiveSearchIdx(null);
+                                    } else {
+                                      setActiveSearchIdx(idx);
+                                      setSearchQuery(line.itemName || '');
+                                    }
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                                  title="Browse item catalog"
+                                >
+                                  <ChevronDown className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
 
                             <input
@@ -648,20 +693,22 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
                             {/* Live Autocomplete Popover */}
                             {isSearchingThisLine && (
                               <div
-                                ref={searchDropdownRef}
-                                className="absolute left-0 top-full mt-1 w-[380px] bg-white rounded-xl shadow-2xl border border-slate-200 z-50 overflow-hidden animate-fade-in"
+                                className="absolute left-0 top-full mt-1 w-[420px] bg-white rounded-xl shadow-2xl border border-slate-200 z-50 overflow-hidden animate-fade-in"
                               >
                                 <div className="p-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
-                                  <span className="flex items-center gap-1">
-                                    <Search className="w-3 h-3 text-[#0F8B8D]" /> Master Items Catalog
+                                  <span className="flex items-center gap-1 font-semibold text-slate-700">
+                                    <Search className="w-3 h-3 text-[#0F8B8D]" /> Item Master Single Source ({itemsList.length} Total)
                                   </span>
-                                  <span>{filteredItems.length} found</span>
+                                  <span className="text-[10px] bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full font-mono font-bold">
+                                    {filteredItems.length} matching
+                                  </span>
                                 </div>
 
-                                <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 text-xs">
+                                <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 text-xs">
                                   {filteredItems.length === 0 ? (
-                                    <div className="p-3 text-center text-slate-400 text-xs">
-                                      No matching items found in catalog.
+                                    <div className="p-4 text-center text-slate-400 text-xs space-y-1">
+                                      <p>No matching item found in Item Master catalog.</p>
+                                      <p className="text-[10px] text-slate-400">Click below to create this new item directly into Item Master.</p>
                                     </div>
                                   ) : (
                                     filteredItems.map((item) => (
@@ -670,22 +717,24 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
                                         onClick={() => handleSelectItem(idx, item)}
                                         className="p-2.5 hover:bg-teal-50/70 cursor-pointer transition flex items-start justify-between gap-2"
                                       >
-                                        <div>
-                                          <div className="font-bold text-[#14213D] flex items-center gap-1.5">
-                                            {item.name}
-                                            <span className="text-[10px] font-mono text-teal-700 bg-teal-100/70 px-1.5 py-0.2 rounded">
+                                        <div className="min-w-0 flex-1">
+                                          <div className="font-bold text-[#14213D] flex items-center gap-1.5 flex-wrap">
+                                            <span>{item.name}</span>
+                                            <span className="text-[10px] font-mono text-teal-700 bg-teal-100/70 px-1.5 py-0.2 rounded font-bold">
                                               {item.code}
+                                            </span>
+                                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-medium">
+                                              {item.type || (item as any).category || 'Resin'}
                                             </span>
                                           </div>
                                           <div className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">
-                                            {item.desc || (item as any).description || (item as any).grade || 'Standard Item'} •{' '}
-                                            <span className="font-semibold text-slate-600">{item.type || (item as any).category || 'Resin'}</span>
+                                            {item.desc || (item as any).description || (item as any).grade || 'Standard Item Specification'}
                                           </div>
                                         </div>
 
-                                        <div className="text-right shrink-0">
-                                          <div className="font-bold text-[#0F8B8D] text-xs">
-                                            ₹{(item as any).standardCost || (item as any).lastPurchasePrice || 0}
+                                        <div className="text-right shrink-0 pl-2">
+                                          <div className="font-bold text-[#0F8B8D] text-xs font-mono">
+                                            ₹{(item as any).standardCost || (item as any).lastPurchasePrice || (item as any).valuation || 0}
                                           </div>
                                           <div className="text-[10px] text-slate-400 font-mono">
                                             / {item.baseUOM || (item as any).uom || 'KG'}
@@ -709,7 +758,7 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
                                   >
                                     <Sparkles className="w-3.5 h-3.5" />
                                     <span>
-                                      + Create New Item{' '}
+                                      + Create New Item in Master Data{' '}
                                       {searchQuery.trim() ? `"${searchQuery.trim()}"` : ''}
                                     </span>
                                   </button>

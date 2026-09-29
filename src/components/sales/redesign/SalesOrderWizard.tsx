@@ -31,10 +31,11 @@ import {
   SalesOrderLineItem,
   MonthlyPlanOrder,
 } from '../../../types/salesOrderDeliveryTypes';
-import { Customer } from '../../../types';
+import { Customer, ItemMaster } from '../../../types';
 import { LIVE_CUSTOMERS_CATALOG, CustomerMasterRecord } from '../../../data/liveCustomersCatalog';
 import { adminService, adminEventBus } from '../../../services/adminService';
 import { transportMasterService, TransporterRecord } from '../../../services/transportMasterService';
+import { itemService } from '../../../services/itemService';
 
 interface SalesOrderWizardProps {
   initialOrder?: Partial<PlasticSalesOrder>;
@@ -226,6 +227,102 @@ export const SalesOrderWizard: React.FC<SalesOrderWizardProps> = ({
         ]
   );
 
+  // Master Items single source of truth
+  const [masterItemsList, setMasterItemsList] = useState<ItemMaster[]>(() =>
+    itemService.getItemsSync()
+  );
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setMasterItemsList(itemService.getItemsSync());
+    };
+    adminEventBus.on('ITEM_SAVED', handleUpdate);
+    adminEventBus.on('ITEM_DELETED', handleUpdate);
+    adminEventBus.on('CATALOG_RELOADED', handleUpdate);
+    return () => {
+      adminEventBus.off('ITEM_SAVED', handleUpdate);
+      adminEventBus.off('ITEM_DELETED', handleUpdate);
+      adminEventBus.off('CATALOG_RELOADED', handleUpdate);
+    };
+  }, []);
+
+  const [activeItemSearchIdx, setActiveItemSearchIdx] = useState<number | null>(null);
+  const [itemSearchQuery, setItemSearchQuery] = useState<string>('');
+  const itemSearchContainerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleOutside = (e: MouseEvent) => {
+      if (
+        itemSearchContainerRef.current &&
+        !itemSearchContainerRef.current.contains(e.target as Node)
+      ) {
+        setActiveItemSearchIdx(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, []);
+
+  const filteredMasterItems = useMemo(() => {
+    const q = itemSearchQuery.toLowerCase().trim();
+    if (!q) return masterItemsList.slice(0, 10);
+    return masterItemsList
+      .filter(
+        (item) =>
+          (item.code && item.code.toLowerCase().includes(q)) ||
+          (item.name && item.name.toLowerCase().includes(q)) ||
+          (item.type && item.type.toLowerCase().includes(q)) ||
+          ((item as any).category && (item as any).category.toLowerCase().includes(q)) ||
+          ((item as any).grade && (item as any).grade.toLowerCase().includes(q)) ||
+          ((item as any).hsn && (item as any).hsn.toLowerCase().includes(q)) ||
+          (item.desc && item.desc.toLowerCase().includes(q)) ||
+          ((item as any).description && (item as any).description.toLowerCase().includes(q))
+      )
+      .slice(0, 12);
+  }, [masterItemsList, itemSearchQuery]);
+
+  const handleSelectMasterItem = (idx: number, item: ItemMaster) => {
+    const updated = [...lines];
+    const unitPrice =
+      (item as any).sellingPrice ||
+      (item as any).unitPrice ||
+      (item as any).standardCost ||
+      (item as any).valuation ||
+      55;
+    const qty = updated[idx].orderedQty || 1000;
+    const taxable = qty * unitPrice * (1 - updated[idx].discountPct / 100);
+    const cgst = isInterState ? 0 : taxable * 0.09;
+    const sgst = isInterState ? 0 : taxable * 0.09;
+    const igst = isInterState ? taxable * 0.18 : 0;
+    const available = (item as any).currentStock || (item as any).stock || 5000;
+    const shortage = Math.max(0, qty - available);
+
+    updated[idx] = {
+      ...updated[idx],
+      itemCode: item.code,
+      itemName: item.name,
+      customerItemCode: (item as any).customerPartNumber || `${customerCode || 'CUST'}-${item.code}`,
+      hsn: (item as any).hsn || '39269099',
+      uom: item.baseUOM || (item as any).uom || 'PCS',
+      polymerGrade: (item as any).grade || (item as any).material || (item as any).polymerType || 'LG Chem ABS-121H',
+      mouldCode: (item as any).moldCode || (item as any).mouldCode || (item as any).toolingCode || 'M-104-ABS-2C',
+      unitPrice: Number(unitPrice),
+      taxableValue: taxable,
+      cgstAmount: cgst,
+      sgstAmount: sgst,
+      igstAmount: igst,
+      totalValue: taxable + cgst + sgst + igst,
+      availableStock: available,
+      shortageQty: shortage,
+      status: shortage > 0 ? 'Shortage' : 'In Stock',
+    };
+
+    setLines(updated);
+    setActiveItemSearchIdx(null);
+    setItemSearchQuery('');
+    showToast(`✓ Selected Product: ${item.code} (${item.name})`);
+  };
+
   // Step 3: Pricing & Commercials
   const [priceList, setPriceList] = useState(
     initialOrder?.priceList || 'Tier-1 Automotive OEM Matrix 2026'
@@ -385,12 +482,22 @@ export const SalesOrderWizard: React.FC<SalesOrderWizardProps> = ({
 
   // Line item manipulation
   const handleAddLine = () => {
+    const candidateItem =
+      masterItemsList.find((i) => i.code.startsWith('FG-') && !lines.some((l) => l.itemCode === i.code)) ||
+      masterItemsList[0];
+
+    const unitPrice =
+      (candidateItem as any)?.sellingPrice ||
+      (candidateItem as any)?.unitPrice ||
+      (candidateItem as any)?.standardCost ||
+      55.0;
+
     const nextLine: SalesOrderLineItem = {
       lineNumber: lines.length + 1,
-      itemCode: 'FG-AUTO-045',
-      itemName: 'PP Air Duct Housing - Front Left',
-      customerItemCode: 'TATA-4412-ADH',
-      hsn: '39269099',
+      itemCode: candidateItem?.code || `FG-ITEM-${lines.length + 1}`,
+      itemName: candidateItem?.name || 'Molded Component',
+      customerItemCode: (candidateItem as any)?.customerPartNumber || `${customerCode || 'CUST'}-${candidateItem?.code || lines.length + 1}`,
+      hsn: (candidateItem as any)?.hsn || '39269099',
       orderedQty: 1000,
       allocatedQty: 1000,
       pickedQty: 0,
@@ -398,28 +505,30 @@ export const SalesOrderWizard: React.FC<SalesOrderWizardProps> = ({
       deliveredQty: 0,
       invoicedQty: 0,
       remainingQty: 1000,
-      uom: 'PCS',
+      uom: candidateItem?.baseUOM || 'PCS',
       plant,
       fgStore,
       batchPreference: 'FIFO Standard',
-      requestedDeliveryDate: '2026-09-15',
-      availableStock: 4600,
+      requestedDeliveryDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+      availableStock: (candidateItem as any)?.currentStock || 5000,
       reservedStock: 1000,
       shortageQty: 0,
       status: 'In Stock',
-      unitPrice: 42.0,
+      unitPrice: Number(unitPrice),
       discountPct: 0,
-      taxableValue: 42000,
+      taxableValue: 1000 * Number(unitPrice),
       gstRatePct: 18,
-      cgstAmount: isInterState ? 0 : 3780,
-      sgstAmount: isInterState ? 0 : 3780,
-      igstAmount: isInterState ? 7560 : 0,
+      cgstAmount: isInterState ? 0 : 1000 * Number(unitPrice) * 0.09,
+      sgstAmount: isInterState ? 0 : 1000 * Number(unitPrice) * 0.09,
+      igstAmount: isInterState ? 1000 * Number(unitPrice) * 0.18 : 0,
       cessAmount: 0,
-      totalValue: 49560,
-      polymerGrade: 'Reliance Repol H110MA',
-      mouldCode: 'M-088-PP-1C',
+      totalValue: 1000 * Number(unitPrice) * (isInterState ? 1.18 : 1.18),
+      polymerGrade: (candidateItem as any)?.grade || 'Engineering Polymer Grade',
+      mouldCode: (candidateItem as any)?.moldCode || 'M-TOOL-01',
     };
     setLines([...lines, nextLine]);
+    setActiveItemSearchIdx(lines.length);
+    setItemSearchQuery('');
   };
 
   const handleUpdateLineQty = (index: number, newQty: number) => {
@@ -884,34 +993,144 @@ export const SalesOrderWizard: React.FC<SalesOrderWizardProps> = ({
           </div>
 
           <div className="space-y-3">
-            {lines.map((line, idx) => (
-              <div
-                key={idx}
-                className="border border-gray-200 rounded-xl p-4 bg-white space-y-3 shadow-xs"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-bold text-sm text-gray-900 flex items-center gap-2">
-                      <span>#{line.lineNumber}</span>
-                      <span>{line.itemName}</span>
-                      <span className="text-xs font-mono bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
-                        {line.itemCode}
-                      </span>
-                    </div>
-                    <div className="text-xs text-gray-500 mt-0.5">
-                      Customer Part: <strong>{line.customerItemCode}</strong> • HSN:{' '}
-                      <strong>{line.hsn}</strong> • Polymer: <strong>{line.polymerGrade}</strong>
-                    </div>
-                  </div>
+            {lines.map((line, idx) => {
+              const isSearchingThisItem = activeItemSearchIdx === idx;
+              return (
+                <div
+                  key={idx}
+                  className="border border-gray-200 rounded-xl p-4 bg-white space-y-3 shadow-xs relative"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="font-bold text-xs bg-[#0F8B8D]/10 text-[#0F8B8D] px-2 py-0.5 rounded-full font-mono">
+                          Line #{line.lineNumber}
+                        </span>
+                        <span className="text-[11px] text-gray-500 font-medium">
+                          Select from Item Master Single Source
+                        </span>
+                      </div>
 
-                  <button
-                    onClick={() => handleRemoveLine(idx)}
-                    className="text-gray-400 hover:text-red-500 p-1 cursor-pointer"
-                    title="Remove Line"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                      {/* Searchable Item Master Autocomplete Input */}
+                      <div
+                        ref={isSearchingThisItem ? itemSearchContainerRef : undefined}
+                        className="relative"
+                      >
+                        <div className="flex items-center relative">
+                          <input
+                            type="text"
+                            placeholder="Search Item Master by Name, Code, Grade, or HSN..."
+                            value={isSearchingThisItem ? itemSearchQuery : `${line.itemName} (${line.itemCode})`}
+                            onFocus={() => {
+                              setActiveItemSearchIdx(idx);
+                              setItemSearchQuery(line.itemName || '');
+                            }}
+                            onClick={() => {
+                              setActiveItemSearchIdx(idx);
+                              setItemSearchQuery(line.itemName || '');
+                            }}
+                            onChange={(e) => {
+                              setItemSearchQuery(e.target.value);
+                              setActiveItemSearchIdx(idx);
+                            }}
+                            className="w-full pl-3 pr-24 py-2 border rounded-lg text-xs font-bold text-gray-900 focus:ring-1 focus:ring-[#0F8B8D] focus:outline-none bg-slate-50/40 hover:bg-white"
+                          />
+                          <div className="absolute right-2 flex items-center gap-1.5">
+                            <span className="px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 text-[10px] font-mono font-bold border border-teal-200">
+                              {line.itemCode}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (activeItemSearchIdx === idx) {
+                                  setActiveItemSearchIdx(null);
+                                } else {
+                                  setActiveItemSearchIdx(idx);
+                                  setItemSearchQuery(line.itemName || '');
+                                }
+                              }}
+                              className="p-1 text-gray-400 hover:text-gray-700 cursor-pointer"
+                              title="Browse Item Master catalog"
+                            >
+                              <Search className="w-3.5 h-3.5 text-[#0F8B8D]" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Autocomplete Dropdown Popover */}
+                        {isSearchingThisItem && (
+                          <div className="absolute left-0 top-full mt-1 w-full max-w-xl bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden animate-fade-in">
+                            <div className="p-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between text-xs text-gray-600 font-medium">
+                              <span className="flex items-center gap-1.5 font-semibold text-gray-800">
+                                <Search className="w-3.5 h-3.5 text-[#0F8B8D]" /> Item Master Single Source ({masterItemsList.length} Items)
+                              </span>
+                              <span className="text-[10px] bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full font-mono font-bold">
+                                {filteredMasterItems.length} found
+                              </span>
+                            </div>
+
+                            <div className="max-h-64 overflow-y-auto divide-y divide-gray-100 text-xs">
+                              {filteredMasterItems.length === 0 ? (
+                                <div className="p-4 text-center text-gray-400 text-xs">
+                                  No matching items found in Item Master catalog.
+                                </div>
+                              ) : (
+                                filteredMasterItems.map((item) => (
+                                  <div
+                                    key={item.code}
+                                    onClick={() => handleSelectMasterItem(idx, item)}
+                                    className="p-3 hover:bg-teal-50/70 cursor-pointer transition flex items-start justify-between gap-3"
+                                  >
+                                    <div className="min-w-0 flex-1">
+                                      <div className="font-bold text-gray-900 flex items-center gap-2 flex-wrap">
+                                        <span>{item.name}</span>
+                                        <span className="text-[10px] font-mono text-teal-700 bg-teal-100/70 px-1.5 py-0.2 rounded font-bold">
+                                          {item.code}
+                                        </span>
+                                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-gray-100 text-gray-600 font-medium">
+                                          {item.type || (item as any).category || 'Finished Good'}
+                                        </span>
+                                      </div>
+                                      <div className="text-[11px] text-gray-500 mt-0.5 line-clamp-1">
+                                        HSN: <strong>{(item as any).hsn || '39269099'}</strong> • Polymer:{' '}
+                                        <strong>{(item as any).grade || (item as any).material || 'ABS/PP'}</strong> • Tooling:{' '}
+                                        <strong>{(item as any).moldCode || 'M-TOOL-01'}</strong>
+                                      </div>
+                                    </div>
+
+                                    <div className="text-right shrink-0">
+                                      <div className="font-bold text-[#0F8B8D] text-xs font-mono">
+                                        ₹{(item as any).sellingPrice || (item as any).unitPrice || (item as any).standardCost || 55}
+                                      </div>
+                                      <div className="text-[10px] text-gray-400 font-mono">
+                                        / {item.baseUOM || (item as any).uom || 'PCS'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="text-xs text-gray-500 mt-1.5 flex items-center gap-3 flex-wrap">
+                        <span>Customer Part: <strong className="text-gray-700">{line.customerItemCode}</strong></span>
+                        <span>HSN: <strong className="text-gray-700">{line.hsn}</strong></span>
+                        <span>Polymer: <strong className="text-gray-700">{line.polymerGrade}</strong></span>
+                        <span>Mould: <strong className="text-gray-700">{line.mouldCode}</strong></span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleRemoveLine(idx)}
+                      className="text-gray-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 cursor-pointer self-end sm:self-start"
+                      title="Remove Line"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <div>
@@ -989,7 +1208,8 @@ export const SalesOrderWizard: React.FC<SalesOrderWizardProps> = ({
                   )}
                 </div>
               </div>
-            ))}
+            );
+          })}
           </div>
         </div>
       )}
