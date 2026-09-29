@@ -258,7 +258,7 @@ export const ProcurementViews: React.FC<Props> = ({
     case 'supplierView':
       return (
         <SupplierDetailView
-          supplierId={activeParam?.id || suppliers[0]?.id || 'SUP-S0128'}
+          supplierId={typeof activeParam === 'string' ? activeParam : (activeParam?.id || suppliers[0]?.id || 'SUP-S0128')}
           suppliers={suppliers}
           pos={pos}
           grns={grns}
@@ -289,17 +289,21 @@ export const ProcurementViews: React.FC<Props> = ({
     case 'prDetail':
     case 'prCreate':
     case 'newPR':
-    case 'purchaseRequisitionForm':
+    case 'purchaseRequisitionForm': {
+      const resolvedPrId = (activeView === 'prCreate' || activeView === 'newPR')
+        ? undefined
+        : (typeof activeParam === 'string' ? activeParam : (activeParam?.id || activeParam?.prId || activeParam?.prNumber));
+
       return (
         <PurchaseRequisitionFormView
-          prId={activeParam?.id}
+          prId={resolvedPrId}
           prs={prs}
           suppliers={suppliers}
           items={items}
           currentUser={currentUser}
           onNavigate={onNavigate}
           onSavePR={(savedPR) => {
-            const exists = prs.some((p) => p.id === savedPR.id);
+            const exists = prs.some((p) => p?.id === savedPR?.id || p?.prNumber === savedPR?.prNumber);
             if (exists) {
               handleUpdatePR(savedPR);
             } else {
@@ -309,6 +313,7 @@ export const ProcurementViews: React.FC<Props> = ({
           showToast={showToast}
         />
       );
+    }
 
     case 'rfqList':
     case 'rfqs':

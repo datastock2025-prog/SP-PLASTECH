@@ -31,6 +31,7 @@ import {
 import { ItemMaster, AuthUser } from '../../types';
 import { ProcurementStatusBadge } from './ProcurementStatusBadge';
 import { itemService } from '../../services/itemService';
+import { supplierService } from '../../services/procurement/supplierService';
 import { adminService, adminEventBus } from '../../services/adminService';
 import { CreateItemWizardModal } from '../masterdata/CreateItemWizardModal';
 import { addPurchaseRequisition, INITIAL_PROCUREMENT_SUPPLIERS } from '../../data/procurementData';
@@ -66,8 +67,32 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
     plantId: 'RM-WH-01',
   };
 
-  const activeSuppliers = suppliers && suppliers.length > 0 ? suppliers : INITIAL_PROCUREMENT_SUPPLIERS;
-  const existingPr = prs.find((p) => p.id === prId || p.prNumber === prId);
+  // Live suppliers state - supplierService as single source of truth
+  const [suppliersList, setSuppliersList] = useState<SupplierMaster[]>(() => {
+    const list = supplierService.getSuppliersSync();
+    if (list && list.length > 0) return list;
+    if (suppliers && suppliers.length > 0) return suppliers;
+    return INITIAL_PROCUREMENT_SUPPLIERS;
+  });
+
+  useEffect(() => {
+    const handleSuppliersUpdate = () => {
+      const refreshed = supplierService.getSuppliersSync();
+      if (refreshed && refreshed.length > 0) {
+        setSuppliersList(refreshed);
+      }
+    };
+    adminEventBus.on('SUPPLIER_SAVED', handleSuppliersUpdate);
+    adminEventBus.on('SUPPLIER_DELETED', handleSuppliersUpdate);
+    adminEventBus.on('CATALOG_RELOADED', handleSuppliersUpdate);
+    return () => {
+      adminEventBus.off('SUPPLIER_SAVED', handleSuppliersUpdate);
+      adminEventBus.off('SUPPLIER_DELETED', handleSuppliersUpdate);
+      adminEventBus.off('CATALOG_RELOADED', handleSuppliersUpdate);
+    };
+  }, []);
+
+  const existingPr = prs.find((p) => p && (p.id === prId || p.prNumber === prId));
   const isEditing = Boolean(existingPr);
 
   // Live items state - itemService as single source of truth
@@ -135,6 +160,36 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
   const [justification, setJustification] = useState(existingPr?.justification || '');
   const [notes, setNotes] = useState(existingPr?.notes || '');
   const [status, setStatus] = useState(existingPr?.status || 'draft');
+
+  // Sync state if existingPr changes
+  useEffect(() => {
+    if (existingPr) {
+      setPrNumber(existingPr.prNumber || prId || '');
+      setRequestedBy(existingPr.requestedBy || defaultRequester);
+      setDepartment(existingPr.department || defaultDept);
+      setPlantWarehouse(existingPr.plantWarehouse || defaultPlant);
+      setRequestDate(existingPr.requestDate || new Date().toISOString().slice(0, 10));
+      setRequiredDate(existingPr.requiredDate || new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10));
+      setPriority(existingPr.priority || 'High');
+      setSource(existingPr.source || 'Manual');
+      setJustification(existingPr.justification || '');
+      setNotes(existingPr.notes || '');
+      setStatus(existingPr.status || 'draft');
+      setLines(existingPr.lines && existingPr.lines.length > 0 ? existingPr.lines : []);
+    } else if (!prId) {
+      setRequestedBy(defaultRequester);
+      setDepartment(defaultDept);
+      setPlantWarehouse(defaultPlant);
+      setRequestDate(new Date().toISOString().slice(0, 10));
+      setRequiredDate(new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10));
+      setPriority('High');
+      setSource('Manual');
+      setJustification('');
+      setNotes('');
+      setStatus('draft');
+      setLines([]);
+    }
+  }, [existingPr, prId]);
 
   // Budget Allocation
   const [budgetAllocated] = useState<number>(existingPr?.budgetAllocated || 1500000);
@@ -242,6 +297,14 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
       parseFloat((item as any).valuation || '0') ||
       0;
 
+    const preferredSupplier = suppliersList.find(
+      (s) =>
+        (item as any).preferredSupplier === s.id ||
+        (item as any).preferredSupplier === s.code ||
+        (item as any).preferredSupplier === s.name ||
+        (item as any).supplierName === s.name
+    ) || suppliersList[0];
+
     const newLine: PurchaseRequisitionLine = {
       id: `PRL-${Date.now()}-${lines.length + 1}`,
       lineNo: lines.length + 1,
@@ -252,8 +315,8 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
       quantity: 1,
       uom: item.baseUOM || (item as any).uom || 'KG',
       requiredDate: requiredDate,
-      suggestedSupplierId: activeSuppliers[0]?.id || '',
-      suggestedSupplierName: activeSuppliers[0]?.name || '',
+      suggestedSupplierId: preferredSupplier?.id || preferredSupplier?.code || '',
+      suggestedSupplierName: preferredSupplier?.name || (preferredSupplier as any)?.companyName || '',
       estimatedUnitPrice: unitPrice,
       estimatedTotal: 1 * unitPrice,
       workOrderRef: '',
@@ -328,6 +391,14 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
       parseFloat((item as any).valuation || '0') ||
       0;
 
+    const preferredSupplier = suppliersList.find(
+      (s) =>
+        (item as any).preferredSupplier === s.id ||
+        (item as any).preferredSupplier === s.code ||
+        (item as any).preferredSupplier === s.name ||
+        (item as any).supplierName === s.name
+    );
+
     const updated = [...lines];
     const qty = Number(updated[idx]?.quantity) || 1;
     updated[idx] = {
@@ -339,6 +410,10 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
       uom: item.baseUOM || (item as any).uom || 'KG',
       estimatedUnitPrice: unitPrice,
       estimatedTotal: qty * unitPrice,
+      ...(preferredSupplier ? {
+        suggestedSupplierId: preferredSupplier.id || preferredSupplier.code,
+        suggestedSupplierName: preferredSupplier.name || (preferredSupplier as any).companyName,
+      } : {}),
     };
     setLines(updated);
     setActiveSearchIdx(null);
@@ -418,7 +493,7 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
         ? `✓ Purchase Requisition ${prNumber} submitted for approval & recorded in DB!`
         : `✓ Purchase Requisition ${prNumber} saved as draft in DB`
     );
-    onNavigate('prList');
+    onNavigate('purchaseReqList');
   };
 
   return (
@@ -426,7 +501,7 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
       {/* Top Action Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <button
-          onClick={() => onNavigate('prList')}
+          onClick={() => onNavigate('purchaseReqList')}
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-[#14213D] transition cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" /> Back to PR List
@@ -446,7 +521,7 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
                   onSavePR(updated);
                   adminEventBus.emit('PR_SAVED', updated);
                   showToast(`PR ${prNumber} Rejected`);
-                  onNavigate('prList');
+                  onNavigate('purchaseReqList');
                 }}
                 className="px-3.5 py-2 border border-red-300 text-red-600 hover:bg-red-50 rounded-lg text-xs font-semibold cursor-pointer"
               >
@@ -464,7 +539,7 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
                   onSavePR(updated);
                   adminEventBus.emit('PR_SAVED', updated);
                   showToast(`PR ${prNumber} Approved for PO creation`);
-                  onNavigate('prList');
+                  onNavigate('purchaseReqList');
                 }}
                 className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-sm cursor-pointer"
               >
@@ -1054,21 +1129,47 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
                           {/* Suggested Vendor */}
                           <td className="py-2 px-3">
                             <select
-                              value={line.suggestedSupplierName || ''}
+                              value={
+                                line.suggestedSupplierId ||
+                                suppliersList.find(
+                                  (sup) =>
+                                    sup.name === line.suggestedSupplierName ||
+                                    (sup as any).companyName === line.suggestedSupplierName ||
+                                    (sup as any).supplierName === line.suggestedSupplierName
+                                )?.id ||
+                                line.suggestedSupplierName ||
+                                ''
+                              }
                               onChange={(e) => {
                                 const val = e.target.value;
-                                const s = suppliers.find((sup) => sup.name === val);
-                                handleUpdateLine(idx, 'suggestedSupplierName', val);
-                                handleUpdateLine(idx, 'suggestedSupplierId', s ? s.id : '');
+                                const s = suppliersList.find(
+                                  (sup) =>
+                                    sup.id === val ||
+                                    sup.code === val ||
+                                    sup.name === val ||
+                                    (sup as any).supplierName === val ||
+                                    (sup as any).companyName === val
+                                );
+                                handleUpdateLine(idx, 'suggestedSupplierId', s ? (s.id || s.code) : val);
+                                handleUpdateLine(
+                                  idx,
+                                  'suggestedSupplierName',
+                                  s ? (s.name || (s as any).companyName || (s as any).supplierName) : val
+                                );
                               }}
-                              className="w-full px-2 py-1.5 border rounded-lg text-xs bg-white text-slate-800 focus:ring-1 focus:ring-[#0F8B8D] focus:outline-none"
+                              className="w-full px-2 py-1.5 border border-slate-200 hover:border-slate-300 rounded-lg text-xs bg-white text-slate-800 focus:ring-1 focus:ring-[#0F8B8D] focus:outline-none transition shadow-2xs font-medium"
                             >
                               <option value="">-- Select Vendor --</option>
-                              {suppliers.map((s) => (
-                                <option key={s.id} value={s.name}>
-                                  {s.name}
-                                </option>
-                              ))}
+                              {suppliersList.map((s) => {
+                                const sId = s.id || s.code || s.name;
+                                const sName = s.name || (s as any).companyName || (s as any).supplierName || sId;
+                                const sCode = s.code || s.id || '';
+                                return (
+                                  <option key={sId} value={sId}>
+                                    {sName} {sCode && sCode !== sName ? `(${sCode})` : ''}
+                                  </option>
+                                );
+                              })}
                             </select>
                           </td>
 
