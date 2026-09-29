@@ -3,7 +3,9 @@ import { McpServerService } from '../mcp/mcp-server.service';
 
 export interface ChatResponse {
   answer: string;
+  text?: string;
   generatedSql?: string;
+  sql?: string;
   data?: any[];
 }
 
@@ -64,7 +66,9 @@ Rules:
 
     return {
       answer: `Retrieved ${data.length} records from SP-PLASTECH ERP database for "${message}".`,
+      text: `Retrieved ${data.length} records from SP-PLASTECH ERP database for "${message}".`,
       generatedSql,
+      sql: generatedSql,
       data,
     };
   }
