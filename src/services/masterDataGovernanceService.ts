@@ -677,6 +677,7 @@ class MasterDataGovernanceService {
     }
 
     adminEventBus.emit('WORKCENTER_MASTER_SAVED', newRecord);
+    adminEventBus.emit('WORK_CENTER_MASTER_SAVED', newRecord);
     return newRecord;
   }
 
@@ -894,6 +895,187 @@ class MasterDataGovernanceService {
 
     adminEventBus.emit('PURGE_LUMPS_SAVED', newRecord);
     return newRecord;
+  }
+
+  // ==========================================
+  // Task 4: Warehouse Stock Adjustment Reasons Governance
+  // ==========================================
+  public getAdjustmentReasons(includeInactive: boolean = false): Array<{
+    id: string;
+    code: string;
+    title: string;
+    description: string;
+    department: string;
+    subCategory: string;
+    severity: 'Low' | 'Medium' | 'High' | 'Critical';
+    isActive: boolean;
+    defaultAction: string;
+  }> {
+    const defaultReasons: Array<{
+      id: string;
+      code: string;
+      title: string;
+      description: string;
+      department: string;
+      subCategory: string;
+      severity: 'Low' | 'Medium' | 'High' | 'Critical';
+      isActive: boolean;
+      defaultAction: string;
+    }> = [
+      {
+        id: 'RSN-ADJ-01',
+        code: 'ADJ-CYCLE-VAR',
+        title: 'Physical Count Cycle Variance',
+        description: 'Routine monthly physical cycle count variance reconciliation',
+        department: 'Warehouse',
+        subCategory: 'Stock Adjustment',
+        severity: 'Medium',
+        isActive: true,
+        defaultAction: 'Post Ledger Variance',
+      },
+      {
+        id: 'RSN-ADJ-02',
+        code: 'ADJ-SPILLAGE',
+        title: 'Hopper / Conveying Spillage Write-off',
+        description: 'Pneumatic conveying line leak or vacuum receiver overflow',
+        department: 'Production',
+        subCategory: 'Stock Adjustment',
+        severity: 'Low',
+        isActive: true,
+        defaultAction: 'Write-off to Regrind Bay',
+      },
+      {
+        id: 'RSN-ADJ-03',
+        code: 'ADJ-LAB-SAMPLE',
+        title: 'Lab Moisture & MFI Sample Consumption',
+        description: 'Polymer QA lab testing and Karl Fischer moisture titration',
+        department: 'Quality',
+        subCategory: 'Stock Adjustment',
+        severity: 'Low',
+        isActive: true,
+        defaultAction: 'Charge to Quality Testing Expense',
+      },
+      {
+        id: 'RSN-ADJ-04',
+        code: 'ADJ-GRN-CORR',
+        title: 'Manual GRN Correction',
+        description: 'Receiving dock scale tare weight adjustment or invoice mismatch',
+        department: 'Warehouse',
+        subCategory: 'Stock Adjustment',
+        severity: 'Medium',
+        isActive: true,
+        defaultAction: 'Correct Dock Inward Ledger',
+      },
+      {
+        id: 'RSN-ADJ-05',
+        code: 'ADJ-SCRAP-CONV',
+        title: 'Purge Cake Shredder Conversion',
+        description: 'Heavy purge patties transferred to heavy regrind granulator',
+        department: 'Production',
+        subCategory: 'Stock Adjustment',
+        severity: 'Low',
+        isActive: true,
+        defaultAction: 'Credit Regrind Stock',
+      },
+      {
+        id: 'RSN-ADJ-06',
+        code: 'ADJ-DAMAGED-BAG',
+        title: 'Forklift Puncture / Damaged Bag Disposal',
+        description: 'Damaged resin pallet bag during high-bay warehouse movement',
+        department: 'Warehouse',
+        subCategory: 'Stock Adjustment',
+        severity: 'High',
+        isActive: true,
+        defaultAction: 'Quarantine & Salvage',
+      },
+    ];
+
+    try {
+      const raw = localStorage.getItem('reboot_erp_master_reason_codes');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Merge with defaults
+          const existingCodes = new Set(parsed.map((p: any) => (p.title || p.code || '').toLowerCase()));
+          const combined = [...parsed];
+          for (const d of defaultReasons) {
+            if (!existingCodes.has(d.title.toLowerCase()) && !existingCodes.has(d.code.toLowerCase())) {
+              combined.push(d);
+            }
+          }
+          if (includeInactive) return combined;
+          return combined.filter((r: any) => r.isActive !== false);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load adjustment reason codes', e);
+    }
+
+    if (includeInactive) return defaultReasons;
+    return defaultReasons.filter((r) => r.isActive !== false);
+  }
+
+  public saveAdjustmentReason(reason: {
+    id?: string;
+    code?: string;
+    title: string;
+    description?: string;
+    department?: string;
+    subCategory?: string;
+    severity?: 'Low' | 'Medium' | 'High' | 'Critical';
+    isActive?: boolean;
+    defaultAction?: string;
+  }) {
+    const list = this.getAdjustmentReasons(true);
+    const cleanTitle = reason.title.trim();
+    const cleanCode = reason.code?.trim().toUpperCase() || `ADJ-${cleanTitle.toUpperCase().replace(/[^A-Z0-9]/g, '-').slice(0, 12)}`;
+    
+    const newRecord = {
+      id: reason.id || `RSN-${Date.now().toString().slice(-5)}`,
+      code: cleanCode,
+      title: cleanTitle,
+      description: reason.description || 'Warehouse inventory adjustment reason code',
+      department: reason.department || 'Warehouse',
+      subCategory: reason.subCategory || 'Stock Adjustment',
+      severity: reason.severity || 'Medium',
+      isActive: reason.isActive ?? true,
+      defaultAction: reason.defaultAction || 'Post Ledger Adjustment',
+    };
+
+    const idx = list.findIndex(
+      (r) => r.id === newRecord.id || r.code.toLowerCase() === newRecord.code.toLowerCase() || r.title.toLowerCase() === newRecord.title.toLowerCase()
+    );
+
+    if (idx >= 0) {
+      list[idx] = { ...list[idx], ...newRecord };
+    } else {
+      list.unshift(newRecord);
+    }
+
+    try {
+      localStorage.setItem('reboot_erp_master_reason_codes', JSON.stringify(list));
+    } catch (e) {
+      console.warn('Failed to save adjustment reason code', e);
+    }
+
+    adminEventBus.emit('REASON_CODES_UPDATED', list);
+    return newRecord;
+  }
+
+  public toggleAdjustmentReasonActive(id: string, isActive: boolean) {
+    const list = this.getAdjustmentReasons(true);
+    const idx = list.findIndex((r) => r.id === id || r.code === id);
+    if (idx >= 0) {
+      list[idx].isActive = isActive;
+      try {
+        localStorage.setItem('reboot_erp_master_reason_codes', JSON.stringify(list));
+      } catch (e) {
+        console.warn('Failed to save toggled reason code', e);
+      }
+      adminEventBus.emit('REASON_CODES_UPDATED', list);
+      return list[idx];
+    }
+    return null;
   }
 
   // ==========================================

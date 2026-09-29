@@ -46,6 +46,8 @@ import { getStockMovementLedger, getWarehouseStock } from '../../utils/warehouse
 import { WarehouseStatusBadge } from './WarehouseStatusBadge';
 import { PaginationBar } from '../common/PaginationBar';
 import { ItemLotLedgerModal } from './ItemLotLedgerModal';
+import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
+import { LocationAutocompleteInput } from '../engineering/bomWizard/LocationAutocompleteInput';
 
 interface Props {
   stockItems?: InventoryStockItem[];
@@ -285,120 +287,17 @@ export const StockLedgerListView: React.FC<Props> = ({
     return filteredOutwardEntries.slice(start, start + pageSize);
   }, [filteredOutwardEntries, currentPage, pageSize]);
 
-  // Open Quick Stock Adjustment Drawer
+  // Open Quick Stock Adjustment Drawer (Task 4: Dynamic Admin Reasons + Bin Autocomplete + Title fix)
   const openStockAdjustmentDrawer = (item: InventoryStockItem) => {
-    let adjustmentQty = 0;
-    let reason = 'Physical Count Cycle Variance';
-    let targetBin = item.primaryBin;
-
     openDrawer(
-      `Quick Stock Adjustment &mdash; ${item.sku}`,
-      <div className="space-y-4 text-xs">
-        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-          <div className="font-bold text-slate-800 text-sm">{item.name}</div>
-          <div className="text-slate-500 font-mono">
-            Current On Hand: <span className="font-bold text-[#14213D]">{item.totalOnHand.toLocaleString()} {item.uom}</span>
-          </div>
-          <div className="text-slate-500">
-            Warehouse: {item.primaryWarehouse} &bull; Bin: {item.primaryBin}
-          </div>
-        </div>
-
-        <div className="space-y-1">
-          <label className="font-semibold text-slate-700">Adjustment Quantity (+ for inward, - for writeoff)</label>
-          <input
-            type="number"
-            defaultValue={adjustmentQty}
-            onChange={(e) => (adjustmentQty = parseFloat(e.target.value) || 0)}
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-[#0F8B8D] outline-none"
-            placeholder="e.g. +500 or -25"
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="font-semibold text-slate-700">Adjustment Reason</label>
-          <select
-            defaultValue={reason}
-            onChange={(e) => (reason = e.target.value)}
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-[#0F8B8D] outline-none"
-          >
-            <option value="Physical Count Cycle Variance">Physical Count Cycle Variance</option>
-            <option value="Hopper / Conveying Spillage Write-off">Hopper / Conveying Spillage Write-off</option>
-            <option value="Lab Moisture Sample Consumption">Lab Moisture Sample Consumption</option>
-            <option value="Manual GRN Correction">Manual GRN Correction</option>
-          </select>
-        </div>
-
-        <div className="space-y-1">
-          <label className="font-semibold text-slate-700">Storage Location Bin</label>
-          <input
-            type="text"
-            defaultValue={targetBin}
-            onChange={(e) => (targetBin = e.target.value)}
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-[#0F8B8D] outline-none"
-          />
-        </div>
-      </div>,
-      <div className="flex items-center justify-end gap-2 w-full">
-        <button
-          onClick={closeDrawer}
-          className="px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={() => {
-            const updatedOnHand = Math.max(0, item.totalOnHand + adjustmentQty);
-            const updatedItem: InventoryStockItem = {
-              ...item,
-              totalOnHand: updatedOnHand,
-              availableToPromise: Math.max(0, updatedOnHand - item.allocatedToProduction - item.reservedForOrders),
-              totalValuationInr: updatedOnHand * item.unitCostInr,
-              primaryBin: targetBin,
-            };
-            if (onUpdateItem) onUpdateItem(updatedItem);
-
-            // Record to movement ledger
-            const newMovement: StockMovementLedgerEntry = {
-              id: `MOV-${Date.now()}`,
-              timestamp: new Date().toISOString().replace('T', ' ').slice(0, 16),
-              ledgerDate: new Date().toLocaleDateString('en-GB'),
-              docType: adjustmentQty >= 0 ? 'RECEIPTS' : 'ISSUES',
-              docNumber: `ADJ26-${Date.now().toString().slice(-4)}`,
-              location: targetBin,
-              locationType: 'WAREHOUSE',
-              supplier: adjustmentQty >= 0 ? 'Physical Audit Correction' : '',
-              customer: '',
-              sku: item.sku,
-              itemName: item.name,
-              lotNumber: item.lots?.[0]?.lotNumber || 'BULK-STOCK',
-              unitPrice: item.unitCostInr,
-              movementType: adjustmentQty >= 0 ? 'IN' : 'OUT',
-              quantity: Math.abs(adjustmentQty),
-              qtyIn: adjustmentQty >= 0 ? adjustmentQty : 0,
-              qtyOut: adjustmentQty < 0 ? Math.abs(adjustmentQty) : 0,
-              uom: item.uom,
-              status: 'CLOSED',
-              sourceOrigin: adjustmentQty >= 0 ? `Physical Inventory Adjustment (+${adjustmentQty})` : item.primaryBin,
-              sourceReference: `ADJ-${Date.now().toString().slice(-6)}`,
-              sourceLocation: targetBin,
-              purposeDescription: `Adjustment: ${reason}`,
-              destinationStore: adjustmentQty >= 0 ? targetBin : 'SCRAP-VARIANCE-LOG',
-              outwardReference: `ADJ-${Date.now().toString().slice(-6)}`,
-              authorizedBy: 'Warehouse Manager (Audit)',
-              runningBalance: updatedOnHand,
-              notes: `Adjustment posted on ${new Date().toLocaleDateString()}: ${reason}`,
-            };
-            setMovementLedger((prev) => [newMovement, ...prev]);
-
-            closeDrawer();
-            showToast(`Adjusted ${item.sku} by ${adjustmentQty > 0 ? '+' : ''}${adjustmentQty} ${item.uom}`);
-          }}
-          className="px-4 py-2 bg-[#14213D] hover:bg-[#1f325c] text-white rounded-lg text-xs font-semibold"
-        >
-          Post Inventory Adjustment
-        </button>
-      </div>
+      `Quick Stock Adjustment — ${item.sku}`,
+      <StockAdjustmentDrawerForm
+        item={item}
+        onClose={closeDrawer}
+        onUpdateItem={onUpdateItem}
+        onMovementPosted={(newMovement) => setMovementLedger((prev) => [newMovement, ...prev])}
+        showToast={showToast}
+      />
     );
   };
 
@@ -1465,3 +1364,182 @@ export const StockLedgerListView: React.FC<Props> = ({
     </div>
   );
 };
+
+// ==========================================
+// TASK 4: Stock Adjustment Drawer with Bin Autocomplete and Admin Adjustment Reasons
+// ==========================================
+interface StockAdjustmentDrawerFormProps {
+  item: InventoryStockItem;
+  onClose: () => void;
+  onUpdateItem?: (updated: InventoryStockItem) => void;
+  onMovementPosted: (entry: StockMovementLedgerEntry) => void;
+  showToast?: (msg: string) => void;
+}
+
+const StockAdjustmentDrawerForm: React.FC<StockAdjustmentDrawerFormProps> = ({
+  item,
+  onClose,
+  onUpdateItem,
+  onMovementPosted,
+  showToast = () => {},
+}) => {
+  const [adjustmentQty, setAdjustmentQty] = useState<number>(0);
+  const [activeReasons, setActiveReasons] = useState(() => masterDataGovernanceService.getAdjustmentReasons(false));
+  const [reason, setReason] = useState<string>(() => {
+    const list = masterDataGovernanceService.getAdjustmentReasons(false);
+    return list[0]?.title || 'Physical Count Cycle Variance';
+  });
+  const [targetBin, setTargetBin] = useState<string>(item.primaryBin || 'RM-WH-01');
+
+  // Listen to Admin Reason Codes updates in real-time
+  useEffect(() => {
+    const list = masterDataGovernanceService.getAdjustmentReasons(false);
+    setActiveReasons(list);
+    if (list.length > 0 && !list.some((r) => r.title === reason)) {
+      setReason(list[0].title);
+    }
+  }, []);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (adjustmentQty === 0) {
+      showToast('⚠️ Please enter a non-zero adjustment quantity (+ for addition, - for write-off).');
+      return;
+    }
+
+    const updatedOnHand = Math.max(0, item.totalOnHand + adjustmentQty);
+    const updatedItem: InventoryStockItem = {
+      ...item,
+      totalOnHand: updatedOnHand,
+      availableToPromise: Math.max(0, updatedOnHand - item.allocatedToProduction - item.reservedForOrders),
+      totalValuationInr: updatedOnHand * item.unitCostInr,
+      primaryBin: targetBin,
+    };
+
+    if (onUpdateItem) onUpdateItem(updatedItem);
+
+    // Record to movement ledger
+    const newMovement: StockMovementLedgerEntry = {
+      id: `MOV-${Date.now()}`,
+      timestamp: new Date().toISOString().replace('T', ' ').slice(0, 16),
+      ledgerDate: new Date().toLocaleDateString('en-GB'),
+      docType: adjustmentQty >= 0 ? 'RECEIPTS' : 'ISSUES',
+      docNumber: `ADJ26-${Date.now().toString().slice(-4)}`,
+      location: targetBin,
+      locationType: 'WAREHOUSE',
+      supplier: adjustmentQty >= 0 ? 'Physical Audit Correction' : '',
+      customer: '',
+      sku: item.sku,
+      itemName: item.name,
+      lotNumber: item.lots?.[0]?.lotNumber || 'BULK-STOCK',
+      unitPrice: item.unitCostInr,
+      movementType: adjustmentQty >= 0 ? 'IN' : 'OUT',
+      quantity: Math.abs(adjustmentQty),
+      qtyIn: adjustmentQty >= 0 ? adjustmentQty : 0,
+      qtyOut: adjustmentQty < 0 ? Math.abs(adjustmentQty) : 0,
+      uom: item.uom,
+      status: 'CLOSED',
+      sourceOrigin: adjustmentQty >= 0 ? `Physical Inventory Adjustment (+${adjustmentQty})` : item.primaryBin,
+      sourceReference: `ADJ-${Date.now().toString().slice(-6)}`,
+      sourceLocation: targetBin,
+      purposeDescription: `Adjustment: ${reason}`,
+      destinationStore: adjustmentQty >= 0 ? targetBin : 'SCRAP-VARIANCE-LOG',
+      outwardReference: `ADJ-${Date.now().toString().slice(-6)}`,
+      authorizedBy: 'Warehouse Manager (Audit)',
+      runningBalance: updatedOnHand,
+      notes: `Adjustment posted on ${new Date().toLocaleDateString()}: ${reason}`,
+    };
+
+    onMovementPosted(newMovement);
+    onClose();
+    showToast(`✓ Adjusted ${item.sku} by ${adjustmentQty > 0 ? '+' : ''}${adjustmentQty} ${item.uom}`);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+      {/* Item Summary Card */}
+      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+        <div className="font-bold text-slate-800 text-sm">{item.name}</div>
+        <div className="text-slate-500 font-mono">
+          Current On Hand: <span className="font-bold text-[#14213D]">{item.totalOnHand.toLocaleString()} {item.uom}</span>
+        </div>
+        <div className="text-slate-500">
+          Warehouse: <strong className="text-slate-700">{item.primaryWarehouse}</strong> &bull; Bin: <strong className="text-slate-700">{item.primaryBin}</strong>
+        </div>
+      </div>
+
+      {/* Adjustment Quantity Input */}
+      <div className="space-y-1">
+        <label className="font-semibold text-slate-700 block">
+          Adjustment Quantity (+ for inward, - for writeoff) <span className="text-rose-600">*</span>
+        </label>
+        <input
+          type="number"
+          step="any"
+          required
+          value={adjustmentQty === 0 ? '' : adjustmentQty}
+          onChange={(e) => setAdjustmentQty(parseFloat(e.target.value) || 0)}
+          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono font-bold focus:ring-1 focus:ring-[#0F8B8D] outline-none bg-white"
+          placeholder="e.g. +500 or -25"
+        />
+        <p className="text-[10px] text-slate-500">
+          New on-hand balance will be: <strong className="text-slate-800">{Math.max(0, item.totalOnHand + adjustmentQty).toLocaleString()} {item.uom}</strong>
+        </p>
+      </div>
+
+      {/* Adjustment Reason Dropdown (Only Active Reasons from Admin) */}
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <label className="font-semibold text-slate-700 block">Adjustment Reason</label>
+          <span className="text-[10px] text-emerald-700 font-medium font-mono">
+            {activeReasons.length} active in Admin
+          </span>
+        </div>
+        <select
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:ring-1 focus:ring-[#0F8B8D] outline-none bg-white"
+        >
+          {activeReasons.map((r) => (
+            <option key={r.id || r.code} value={r.title}>
+              {r.title} ({r.department})
+            </option>
+          ))}
+          {activeReasons.length === 0 && (
+            <option value="Physical Count Cycle Variance">Physical Count Cycle Variance</option>
+          )}
+        </select>
+      </div>
+
+      {/* Storage Location Bin Autocomplete Dropdown (Task 4) */}
+      <div className="space-y-1">
+        <LocationAutocompleteInput
+          label="Storage Location Bin"
+          value={targetBin}
+          onChange={(loc) => setTargetBin(loc)}
+          placeholder="Select or enter storage bin location..."
+          filterType="all"
+        />
+      </div>
+
+      {/* Drawer Action Buttons */}
+      <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="px-4 py-2 bg-[#14213D] hover:bg-[#1f325c] text-white rounded-lg text-xs font-semibold cursor-pointer shadow-xs transition-colors"
+        >
+          Post Inventory Adjustment
+        </button>
+      </div>
+    </form>
+  );
+};
+

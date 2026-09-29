@@ -75,6 +75,7 @@ export interface LocationAutocompleteInputProps {
   filterType?: 'all' | 'raw_materials' | 'staging_wip' | 'finished_goods';
   className?: string;
   size?: 'sm' | 'md';
+  align?: 'left' | 'right' | 'auto';
 }
 
 export const LocationAutocompleteInput: React.FC<LocationAutocompleteInputProps> = ({
@@ -86,6 +87,7 @@ export const LocationAutocompleteInput: React.FC<LocationAutocompleteInputProps>
   filterType = 'all',
   className = '',
   size = 'md',
+  align = 'auto',
 }) => {
   const [query, setQuery] = useState<string>(value || '');
   const [isOpen, setIsOpen] = useState<boolean>(false);
@@ -308,7 +310,17 @@ export const LocationAutocompleteInput: React.FC<LocationAutocompleteInputProps>
 
       {/* Autocomplete Dropdown Menu */}
       {isOpen && (
-        <div className="absolute z-50 left-0 right-0 mt-1 bg-white rounded-xl shadow-xl border border-[#E4E0D6] max-h-64 overflow-y-auto divide-y divide-gray-100 text-xs animate-in fade-in zoom-in-95 duration-100">
+        <div
+          className={`absolute z-[100] mt-1 bg-white rounded-xl shadow-2xl border border-[#E4E0D6] max-h-64 overflow-y-auto divide-y divide-gray-100 text-xs animate-in fade-in zoom-in-95 duration-100 ${
+            align === 'right'
+              ? 'right-0 min-w-[300px]'
+              : align === 'left'
+              ? 'left-0 min-w-[300px]'
+              : isSmall
+              ? 'right-0 min-w-[280px] sm:min-w-[320px]'
+              : 'left-0 right-0 min-w-[280px]'
+          }`}
+        >
           <div className="p-2 bg-gray-50/80 border-b border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
             <span className="font-semibold flex items-center gap-1 text-[#14213D]">
               <Building className="w-3 h-3 text-[#0F8B8D]" />
@@ -331,7 +343,10 @@ export const LocationAutocompleteInput: React.FC<LocationAutocompleteInputProps>
                 <button
                   key={`${loc.code}-${idx}`}
                   type="button"
-                  onClick={() => handleSelect(loc)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSelect(loc);
+                  }}
                   onMouseEnter={() => setHighlightedIndex(idx)}
                   className={`w-full text-left p-2.5 flex items-start justify-between gap-2 transition-colors cursor-pointer ${
                     isSelected

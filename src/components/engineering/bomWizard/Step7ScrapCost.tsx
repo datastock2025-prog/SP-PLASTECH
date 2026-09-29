@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ManufacturingBomWizardState } from './types';
 import { masterDataGovernanceService } from '../../../services/masterDataGovernanceService';
 import { adminEventBus } from '../../../services/adminService';
+import { systemSettingsService } from '../../../services/systemSettingsService';
 import {
   DollarSign,
   TrendingDown,
@@ -720,7 +721,7 @@ export const Step7ScrapCost: React.FC<Step7Props> = ({ state, onChange, showToas
               Estimated Cost Per Unit
             </span>
             <div className="text-2xl sm:text-3xl font-mono font-bold text-white mt-1">
-              ${costRollup.costPerUnit.toFixed(2)}
+              {systemSettingsService.getCurrencySymbol()}{costRollup.costPerUnit.toFixed(2)}
             </div>
             <span className="text-[11px] text-emerald-400 mt-1 block">
               Includes resin, machine overhead, mold &amp; scrap
@@ -732,7 +733,7 @@ export const Step7ScrapCost: React.FC<Step7Props> = ({ state, onChange, showToas
               Total Standard Batch Cost
             </span>
             <div className="text-2xl sm:text-3xl font-mono font-bold text-amber-300 mt-1">
-              ${costRollup.costPerBatch.toLocaleString()}
+              {systemSettingsService.getCurrencySymbol()}{costRollup.costPerBatch.toLocaleString()}
             </div>
             <span className="text-[11px] text-slate-300 mt-1 block">
               Per {batchSize.toLocaleString()} {state.batchUOM} batch size
@@ -744,7 +745,9 @@ export const Step7ScrapCost: React.FC<Step7Props> = ({ state, onChange, showToas
               Net Regrind Recovery Saving
             </span>
             <div className="text-2xl sm:text-3xl font-mono font-bold text-emerald-400 mt-1">
-              {costRollup.regrindCredit < 0 ? `-$${Math.abs(costRollup.regrindCredit).toFixed(2)}` : '$0.00'}
+              {costRollup.regrindCredit < 0
+                ? `-${systemSettingsService.getCurrencySymbol()}${Math.abs(costRollup.regrindCredit).toFixed(2)}`
+                : `${systemSettingsService.getCurrencySymbol()}0.00`}
             </div>
             <span className="text-[11px] text-slate-300 mt-1 block">
               Deducted per unit via closed-loop runner reuse
@@ -756,35 +759,35 @@ export const Step7ScrapCost: React.FC<Step7Props> = ({ state, onChange, showToas
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-xs">
           <div className="bg-white/5 p-2.5 rounded-lg border border-white/10">
             <span className="text-slate-400 text-[10px] block">Raw Resin</span>
-            <span className="font-mono font-bold text-white">${costRollup.materialCost}</span>
+            <span className="font-mono font-bold text-white">{systemSettingsService.getCurrencySymbol()}{costRollup.materialCost}</span>
           </div>
           <div className="bg-white/5 p-2.5 rounded-lg border border-white/10">
             <span className="text-slate-400 text-[10px] block">Packaging</span>
-            <span className="font-mono font-bold text-white">${costRollup.packagingCost}</span>
+            <span className="font-mono font-bold text-white">{systemSettingsService.getCurrencySymbol()}{costRollup.packagingCost}</span>
           </div>
           <div className="bg-white/5 p-2.5 rounded-lg border border-white/10">
             <span className="text-slate-400 text-[10px] block">Secondary Op</span>
-            <span className="font-mono font-bold text-white">${costRollup.secondaryOpCost}</span>
+            <span className="font-mono font-bold text-white">{systemSettingsService.getCurrencySymbol()}{costRollup.secondaryOpCost}</span>
           </div>
           <div className="bg-white/5 p-2.5 rounded-lg border border-white/10">
             <span className="text-slate-400 text-[10px] block">Direct Labor</span>
-            <span className="font-mono font-bold text-white">${costRollup.laborCost}</span>
+            <span className="font-mono font-bold text-white">{systemSettingsService.getCurrencySymbol()}{costRollup.laborCost}</span>
           </div>
           <div className="bg-white/5 p-2.5 rounded-lg border border-white/10">
             <span className="text-slate-400 text-[10px] block">Machine Rate</span>
-            <span className="font-mono font-bold text-white">${costRollup.machineCost}</span>
+            <span className="font-mono font-bold text-white">{systemSettingsService.getCurrencySymbol()}{costRollup.machineCost}</span>
           </div>
           <div className="bg-white/5 p-2.5 rounded-lg border border-white/10">
             <span className="text-slate-400 text-[10px] block">Mold Amort</span>
-            <span className="font-mono font-bold text-white">${costRollup.moldAmortization}</span>
+            <span className="font-mono font-bold text-white">{systemSettingsService.getCurrencySymbol()}{costRollup.moldAmortization}</span>
           </div>
           <div className="bg-white/5 p-2.5 rounded-lg border border-white/10">
             <span className="text-slate-400 text-[10px] block">Power / Energy</span>
-            <span className="font-mono font-bold text-white">${costRollup.energyCost}</span>
+            <span className="font-mono font-bold text-white">{systemSettingsService.getCurrencySymbol()}{costRollup.energyCost}</span>
           </div>
           <div className="bg-white/5 p-2.5 rounded-lg border border-white/10">
             <span className="text-slate-400 text-[10px] block">Scrap Loss</span>
-            <span className="font-mono font-bold text-rose-300">${costRollup.scrapCost}</span>
+            <span className="font-mono font-bold text-rose-300">{systemSettingsService.getCurrencySymbol()}{costRollup.scrapCost}</span>
           </div>
         </div>
 

@@ -4,6 +4,7 @@ import { ItemMaster, BomLine } from '../../../types';
 import { ItemAutocompleteInput } from './ItemAutocompleteInput';
 import { LocationAutocompleteInput } from './LocationAutocompleteInput';
 import { masterDataGovernanceService } from '../../../services/masterDataGovernanceService';
+import { systemSettingsService } from '../../../services/systemSettingsService';
 import {
   Plus,
   Trash2,
@@ -568,7 +569,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
               <span>Selected: <strong className="text-[#14213D]">{quickItem.code}</strong> &mdash; {quickItem.name}</span>
             </div>
             <span className="text-gray-500 font-mono text-[10px]">
-              Cat: <strong className="text-gray-700">{quickItem.cat}</strong> | Wh: <strong className="text-gray-700">{quickLocation || quickItem.wh || 'RM-WH-01'}</strong> | Cost: <strong className="text-[#0F8B8D]">${(quickItem.standardCost || quickItem.cost || 32.5).toFixed(2)}/{quickItem.baseUOM || 'KG'}</strong>
+              Cat: <strong className="text-gray-700">{quickItem.cat}</strong> | Wh: <strong className="text-gray-700">{quickLocation || quickItem.wh || 'RM-WH-01'}</strong> | Cost: <strong className="text-[#0F8B8D]">{systemSettingsService.getCurrencySymbol()}{(quickItem.standardCost || quickItem.cost || 32.5).toFixed(2)}/{quickItem.baseUOM || 'KG'}</strong>
             </span>
           </div>
         )}
@@ -628,12 +629,12 @@ export const Step4Materials: React.FC<Step4Props> = ({
           </button>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-[#E4E0D6] shadow-xs overflow-hidden">
-          <div className="overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-            <table className="w-full text-left text-xs border-collapse">
+        <div className="bg-white rounded-xl border border-[#E4E0D6] shadow-xs overflow-visible">
+          <div className="w-full">
+            <table className="w-full text-left text-xs border-collapse table-auto">
               <thead>
                 <tr className="bg-[#F6F4EF] text-[#14213D] border-b border-[#E4E0D6] font-semibold text-[11px] uppercase tracking-wider">
-                  <th className="py-2.5 px-3 w-8 text-center">
+                  <th className="py-2.5 px-2 w-7 text-center">
                     <input
                       type="checkbox"
                       checked={selectedRowIds.length === components.length && components.length > 0}
@@ -642,18 +643,18 @@ export const Step4Materials: React.FC<Step4Props> = ({
                       title="Select all"
                     />
                   </th>
-                  <th className="py-2.5 px-2 w-10 text-center">Seq</th>
-                  <th className="py-2.5 px-3">Component Code</th>
-                  <th className="py-2.5 px-3">Description</th>
-                  <th className="py-2.5 px-3">Category</th>
-                  <th className="py-2.5 px-3 text-right">Qty</th>
-                  <th className="py-2.5 px-3 text-center">UOM</th>
-                  <th className="py-2.5 px-3 text-right">Qty/Batch</th>
-                  <th className="py-2.5 px-3 text-right">Scrap %</th>
-                  <th className="py-2.5 px-3 text-right">Regrind %</th>
-                  <th className="py-2.5 px-3">Issue Method</th>
-                  <th className="py-2.5 px-3 min-w-[150px]">Location (Source)</th>
-                  <th className="py-2.5 px-3 text-center w-28">Actions</th>
+                  <th className="py-2.5 px-1.5 w-8 text-center">Seq</th>
+                  <th className="py-2.5 px-2 w-28">Component Code</th>
+                  <th className="py-2.5 px-2 min-w-[130px]">Description</th>
+                  <th className="py-2.5 px-1.5 w-24">Category</th>
+                  <th className="py-2.5 px-1.5 text-right w-16">Qty</th>
+                  <th className="py-2.5 px-1 text-center w-10">UOM</th>
+                  <th className="py-2.5 px-1.5 text-right w-18">Qty/Batch</th>
+                  <th className="py-2.5 px-1.5 text-right w-16">Scrap %</th>
+                  <th className="py-2.5 px-1 text-right w-14">Regrind</th>
+                  <th className="py-2.5 px-1.5 w-24">Issue Method</th>
+                  <th className="py-2.5 px-2 w-36">Location</th>
+                  <th className="py-2.5 px-1 text-center w-24">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -670,7 +671,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
                       }`}
                     >
                       {/* Checkbox */}
-                      <td className="py-2 px-3 text-center">
+                      <td className="py-2 px-2 text-center">
                         <input
                           type="checkbox"
                           checked={isChecked}
@@ -680,16 +681,16 @@ export const Step4Materials: React.FC<Step4Props> = ({
                       </td>
 
                       {/* Sequence */}
-                      <td className="py-2 px-2 text-center font-mono text-gray-500 font-semibold">
+                      <td className="py-2 px-1.5 text-center font-mono text-gray-500 font-semibold text-[11px]">
                         {line.sequence || (idx + 1) * 10}
                       </td>
 
                       {/* Code */}
-                      <td className="py-2 px-3 font-mono font-bold text-[#0F8B8D]">
+                      <td className="py-2 px-2 font-mono font-bold text-[#0F8B8D]">
                         <button
                           type="button"
                           onClick={() => handleOpenEditModal(idx)}
-                          className="hover:underline text-left cursor-pointer"
+                          className="hover:underline text-left cursor-pointer truncate max-w-[110px] block"
                           title="Click to edit component"
                         >
                           {line.item}
@@ -697,21 +698,21 @@ export const Step4Materials: React.FC<Step4Props> = ({
                       </td>
 
                       {/* Name */}
-                      <td className="py-2 px-3 font-semibold text-[#14213D] max-w-[180px] truncate">
+                      <td className="py-2 px-2 font-semibold text-[#14213D] max-w-[160px] truncate text-[11px]">
                         {line.name}
                         {line.substituteGroup && (
-                          <span className="ml-1 text-[10px] text-blue-600 bg-blue-50 px-1 rounded font-normal">
-                            Sub allowed
+                          <span className="ml-1 text-[9px] text-blue-600 bg-blue-50 px-1 rounded font-normal">
+                            Sub
                           </span>
                         )}
                       </td>
 
                       {/* Category (Interactive Select) */}
-                      <td className="py-2 px-3">
+                      <td className="py-2 px-1.5">
                         <select
                           value={line.category || 'Virgin Resin'}
                           onChange={(e) => handleInlineChange(idx, 'category', e.target.value)}
-                          className="text-[10px] font-semibold bg-gray-100 hover:bg-gray-200 border-none rounded py-0.5 px-1.5 text-gray-700 cursor-pointer focus:ring-1 focus:ring-[#0F8B8D]"
+                          className="text-[10px] font-semibold bg-gray-100 hover:bg-gray-200 border-none rounded py-0.5 px-1 text-gray-700 cursor-pointer focus:ring-1 focus:ring-[#0F8B8D] w-full"
                         >
                           {COMPONENT_CATEGORIES.map((c) => (
                             <option key={c} value={c}>
@@ -722,39 +723,39 @@ export const Step4Materials: React.FC<Step4Props> = ({
                       </td>
 
                       {/* Qty (Inline editable) */}
-                      <td className="py-2 px-3 text-right">
+                      <td className="py-2 px-1.5 text-right">
                         <input
                           type="number"
                           step="0.001"
                           value={line.qty}
                           onChange={(e) => handleInlineChange(idx, 'qty', parseFloat(e.target.value) || 0)}
-                          className="w-20 text-right font-mono font-bold text-xs py-1 px-1.5 border border-[#E4E0D6] focus:border-[#E8622C] rounded bg-white"
+                          className="w-16 text-right font-mono font-bold text-xs py-0.5 px-1 border border-[#E4E0D6] focus:border-[#E8622C] rounded bg-white"
                         />
                       </td>
 
                       {/* UOM */}
-                      <td className="py-2 px-3 text-center font-mono font-semibold text-gray-600">
+                      <td className="py-2 px-1 text-center font-mono font-semibold text-gray-600 text-[11px]">
                         {line.uom}
                       </td>
 
                       {/* Quantity per batch */}
-                      <td className="py-2 px-3 text-right font-mono text-gray-700 font-semibold">
+                      <td className="py-2 px-1.5 text-right font-mono text-gray-700 font-semibold text-[11px]">
                         {qtyPerBatch}
                       </td>
 
                       {/* Scrap % (Inline editable) */}
-                      <td className="py-2 px-3 text-right">
+                      <td className="py-2 px-1.5 text-right">
                         <input
                           type="number"
                           step="0.1"
                           value={line.scrap}
                           onChange={(e) => handleInlineChange(idx, 'scrap', parseFloat(e.target.value) || 0)}
-                          className="w-14 text-right font-mono text-xs py-1 px-1 border border-[#E4E0D6] focus:border-[#E8622C] rounded bg-white text-rose-700 font-bold"
+                          className="w-12 text-right font-mono text-xs py-0.5 px-1 border border-[#E4E0D6] focus:border-[#E8622C] rounded bg-white text-rose-700 font-bold"
                         />
                       </td>
 
                       {/* Regrind % */}
-                      <td className="py-2 px-3 text-right font-mono">
+                      <td className="py-2 px-1 text-right font-mono text-[11px]">
                         {line.regrindPct ? (
                           <span className="text-emerald-700 font-semibold">{line.regrindPct}%</span>
                         ) : (
@@ -763,11 +764,11 @@ export const Step4Materials: React.FC<Step4Props> = ({
                       </td>
 
                       {/* Issue Method (Inline Select) */}
-                      <td className="py-2 px-3">
+                      <td className="py-2 px-1.5">
                         <select
                           value={line.issueMethod || 'Auto Backflush'}
                           onChange={(e) => handleInlineChange(idx, 'issueMethod', e.target.value)}
-                          className="text-[11px] py-1 px-1.5 border border-[#E4E0D6] rounded bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
+                          className="text-[10px] py-0.5 px-1 border border-[#E4E0D6] rounded bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#0F8B8D] w-full"
                         >
                           <option value="Auto Backflush">Auto Backflush</option>
                           <option value="Manual Issue">Manual Issue</option>
@@ -776,19 +777,20 @@ export const Step4Materials: React.FC<Step4Props> = ({
                       </td>
 
                       {/* Location Code (Searchable Autocomplete Dropdown) */}
-                      <td className="py-2 px-3">
+                      <td className="py-2 px-2 relative">
                         <LocationAutocompleteInput
                           size="sm"
+                          align="right"
                           value={line.position || 'RM-WH-01'}
                           onChange={(loc) => handleInlineChange(idx, 'position', loc)}
-                          placeholder="Location..."
+                          placeholder="Loc..."
                           filterType="raw_materials"
                         />
                       </td>
 
                       {/* Row Actions */}
-                      <td className="py-2 px-3 text-center">
-                        <div className="flex items-center justify-center gap-1">
+                      <td className="py-2 px-1 text-center">
+                        <div className="flex items-center justify-center gap-0.5">
                           <button
                             type="button"
                             onClick={() => handleMove(idx, 'up')}
@@ -796,7 +798,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
                             className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-20 cursor-pointer"
                             title="Move Up"
                           >
-                            <ArrowUp className="w-3.5 h-3.5" />
+                            <ArrowUp className="w-3 h-3" />
                           </button>
                           <button
                             type="button"
@@ -805,7 +807,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
                             className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-20 cursor-pointer"
                             title="Move Down"
                           >
-                            <ArrowDown className="w-3.5 h-3.5" />
+                            <ArrowDown className="w-3 h-3" />
                           </button>
                           <button
                             type="button"
@@ -813,7 +815,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
                             className="p-1 text-gray-500 hover:text-[#0F8B8D] cursor-pointer"
                             title="Edit Details"
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
+                            <Edit2 className="w-3 h-3" />
                           </button>
                           <button
                             type="button"
@@ -821,7 +823,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
                             className="p-1 text-gray-500 hover:text-[#0F8B8D] cursor-pointer"
                             title="Duplicate Line"
                           >
-                            <Copy className="w-3.5 h-3.5" />
+                            <Copy className="w-3 h-3" />
                           </button>
                           <button
                             type="button"
@@ -829,7 +831,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
                             className="p-1 text-gray-400 hover:text-rose-600 cursor-pointer"
                             title="Remove Line"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-3 h-3" />
                           </button>
                         </div>
                       </td>
@@ -961,7 +963,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
                     </div>
                   </div>
                   <div className="text-[11px] text-gray-500 font-mono">
-                    Cat: <span className="font-semibold text-gray-700">{modalItem.cat}</span> &bull; Stock: <span className="font-semibold text-gray-700">{modalItem.stock} {modalItem.baseUOM}</span> &bull; Cost: <span className="font-semibold text-[#0F8B8D]">${(modalItem.standardCost || modalItem.cost || 32.5).toFixed(2)}</span>
+                    Cat: <span className="font-semibold text-gray-700">{modalItem.cat}</span> &bull; Stock: <span className="font-semibold text-gray-700">{modalItem.stock} {modalItem.baseUOM}</span> &bull; Cost: <span className="font-semibold text-[#0F8B8D]">{systemSettingsService.getCurrencySymbol()}{(modalItem.standardCost || modalItem.cost || 32.5).toFixed(2)}</span>
                   </div>
                 </div>
               )}

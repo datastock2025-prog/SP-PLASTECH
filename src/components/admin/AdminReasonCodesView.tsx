@@ -79,6 +79,7 @@ export const AdminReasonCodesView: React.FC<AdminReasonCodesViewProps> = ({
     } catch (e) {
       console.warn('Failed to save reason codes to storage', e);
     }
+    adminEventBus.emit('REASON_CODES_UPDATED', list);
   };
 
   const [newReason, setNewReason] = useState({

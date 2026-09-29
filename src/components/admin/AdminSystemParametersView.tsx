@@ -1,4 +1,3 @@
-import React, { useState, useEffect } from 'react';
 import {
   Sliders,
   Save,
@@ -11,10 +10,14 @@ import {
   Trash2,
   ToggleLeft,
   ToggleRight,
+  Clock,
+  Coins,
+  Globe,
 } from 'lucide-react';
 import { SystemParameter } from '../../types/admin';
 import { systemParameters, mockSystemParameters } from '../../data/adminData';
 import { adminService } from '../../services/adminService';
+import { systemSettingsService, CURRENCY_OPTIONS, SystemSettingsConfig } from '../../services/systemSettingsService';
 
 interface AdminSystemParametersViewProps {
   showToast?: (msg: string) => void;
@@ -26,9 +29,30 @@ export const AdminSystemParametersView: React.FC<AdminSystemParametersViewProps>
   const [parameters, setParameters] = useState<SystemParameter[]>(mockSystemParameters);
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
 
+  // Enterprise Localization State (Currency, Time Format 12h/24h)
+  const [settings, setSettings] = useState<SystemSettingsConfig>(systemSettingsService.getSettings());
+
   useEffect(() => {
     adminService.getParameters().then(setParameters);
   }, []);
+
+  const handleUpdateCurrency = (currCode: string) => {
+    const updated = systemSettingsService.updateSettings({ baseCurrency: currCode });
+    setSettings(updated);
+    showToast(`✓ Base Currency updated to ${updated.currencyName} across ERP.`);
+  };
+
+  const handleUpdateTimeFormat = (fmt: '12h' | '24h') => {
+    const updated = systemSettingsService.updateSettings({ timeFormat: fmt });
+    setSettings(updated);
+    showToast(`✓ System Time Format updated to ${fmt === '24h' ? '24-Hour (14:30)' : '12-Hour AM/PM (02:30 PM)'}.`);
+  };
+
+  const handleUpdateNumberFormat = (fmt: 'indian' | 'international') => {
+    const updated = systemSettingsService.updateSettings({ numberFormat: fmt });
+    setSettings(updated);
+    showToast(`✓ Number Formatting updated to ${fmt === 'indian' ? 'Indian (Lakhs / Crores)' : 'International (Millions)'}.`);
+  };
 
   // Custom User Defined Fields (UDFs) State
   const [customFields, setCustomFields] = useState([
@@ -129,6 +153,127 @@ export const AdminSystemParametersView: React.FC<AdminSystemParametersViewProps>
           <Save className="w-4 h-4" />
           Save System Parameters
         </button>
+      </div>
+
+      {/* TASK 3: Enterprise Currency & Time Format Configuration Card */}
+      <div className="bg-gradient-to-r from-[#14213D] via-[#1E293B] to-[#0F172A] text-white p-5 rounded-2xl shadow-md border border-slate-700/50 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#E8622C] flex items-center justify-center text-white font-bold text-sm">
+              ₹
+            </div>
+            <div>
+              <h2 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
+                Enterprise Currency &amp; Time Display Settings
+                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                  Live System Scope
+                </span>
+              </h2>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                Configure primary financial currency (defaults to Indian Rupee ₹) and standard 24h/12h timestamp presentation across all modules.
+              </p>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="text-xs font-mono font-bold text-amber-300 bg-white/10 px-2.5 py-1 rounded-lg border border-white/10">
+              Active: {settings.baseCurrency} ({settings.currencySymbol}) &bull; {settings.timeFormat.toUpperCase()}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          {/* Base Currency Selection */}
+          <div className="bg-white/5 border border-white/10 p-3 rounded-xl space-y-2">
+            <label className="text-slate-300 font-bold block flex items-center gap-1.5">
+              <Coins className="w-3.5 h-3.5 text-[#E8622C]" />
+              Base System Currency (Money)
+            </label>
+            <select
+              value={settings.baseCurrency}
+              onChange={(e) => handleUpdateCurrency(e.target.value)}
+              className="w-full bg-slate-900/90 text-white border border-slate-700 rounded-lg px-2.5 py-2 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
+            >
+              {CURRENCY_OPTIONS.map((c) => (
+                <option key={c.code} value={c.code} className="bg-slate-900 text-white">
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-[10px] text-slate-400">
+              Default is <strong>INR (₹)</strong>. Applied to BOM cost rollups, inventory valuation, and orders.
+            </p>
+          </div>
+
+          {/* Time Display Format (24h vs 12h) */}
+          <div className="bg-white/5 border border-white/10 p-3 rounded-xl space-y-2">
+            <label className="text-slate-300 font-bold block flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-blue-400" />
+              Time Format (24 Hours vs 12 Hours)
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleUpdateTimeFormat('24h')}
+                className={`py-2 px-3 rounded-lg text-xs font-bold transition-colors cursor-pointer border ${
+                  settings.timeFormat === '24h'
+                    ? 'bg-[#0F8B8D] text-white border-[#0F8B8D] shadow-xs'
+                    : 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10'
+                }`}
+              >
+                24-Hour (14:30)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleUpdateTimeFormat('12h')}
+                className={`py-2 px-3 rounded-lg text-xs font-bold transition-colors cursor-pointer border ${
+                  settings.timeFormat === '12h'
+                    ? 'bg-[#0F8B8D] text-white border-[#0F8B8D] shadow-xs'
+                    : 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10'
+                }`}
+              >
+                12-Hour (02:30 PM)
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-400">
+              Sample: <span className="font-mono text-white">{systemSettingsService.formatTime(new Date())}</span>
+            </p>
+          </div>
+
+          {/* Number System Format */}
+          <div className="bg-white/5 border border-white/10 p-3 rounded-xl space-y-2">
+            <label className="text-slate-300 font-bold block flex items-center gap-1.5">
+              <Globe className="w-3.5 h-3.5 text-emerald-400" />
+              Number Valuation Formatting
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleUpdateNumberFormat('indian')}
+                className={`py-2 px-2 rounded-lg text-xs font-bold transition-colors cursor-pointer border ${
+                  settings.numberFormat === 'indian'
+                    ? 'bg-emerald-700 text-white border-emerald-600 shadow-xs'
+                    : 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10'
+                }`}
+              >
+                Indian (Lakhs/Cr)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleUpdateNumberFormat('international')}
+                className={`py-2 px-2 rounded-lg text-xs font-bold transition-colors cursor-pointer border ${
+                  settings.numberFormat === 'international'
+                    ? 'bg-emerald-700 text-white border-emerald-600 shadow-xs'
+                    : 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10'
+                }`}
+              >
+                International (Mil)
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-400">
+              Sample: <span className="font-mono text-white">{systemSettingsService.formatMoney(1250000)}</span>
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Category Pills */}

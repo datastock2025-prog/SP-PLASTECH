@@ -3,6 +3,7 @@ import { ManufacturingBomWizardState } from './types';
 import { RoutingResourceDetail } from '../../../types';
 import { masterDataGovernanceService } from '../../../services/masterDataGovernanceService';
 import { adminEventBus } from '../../../services/adminService';
+import { systemSettingsService } from '../../../services/systemSettingsService';
 import {
   Factory,
   Plus,
@@ -52,6 +53,9 @@ export const Step6RoutingResources: React.FC<Step6Props> = ({ state, onChange, s
     const unsubWc = adminEventBus.on('WORK_CENTER_MASTER_SAVED', () => {
       setWorkCentersList(masterDataGovernanceService.getWorkCenters());
     });
+    const unsubWc2 = adminEventBus.on('WORKCENTER_MASTER_SAVED', () => {
+      setWorkCentersList(masterDataGovernanceService.getWorkCenters());
+    });
     const unsubMch = adminEventBus.on('MACHINE_MASTER_SAVED', () => {
       setMachinesList(masterDataGovernanceService.getMachines());
     });
@@ -61,6 +65,7 @@ export const Step6RoutingResources: React.FC<Step6Props> = ({ state, onChange, s
     return () => {
       unsubOp();
       unsubWc();
+      unsubWc2();
       unsubMch();
       unsubMold();
     };
@@ -687,7 +692,7 @@ export const Step6RoutingResources: React.FC<Step6Props> = ({ state, onChange, s
                         >
                           <div>
                             <div className="font-semibold text-gray-900">{wc.name}</div>
-                            <div className="text-[10px] text-gray-500">{wc.plant} &bull; ${wc.ratePerHour}/hr</div>
+                            <div className="text-[10px] text-gray-500">{wc.plant} &bull; {systemSettingsService.getCurrencySymbol()}{wc.ratePerHour || 65}/hr</div>
                           </div>
                         </div>
                       ))}
