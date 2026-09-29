@@ -139,43 +139,33 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
   // Budget Allocation
   const [budgetAllocated] = useState<number>(existingPr?.budgetAllocated || 1500000);
 
-  // Line items state - Clean initial row for new PRs
+  // Line items state - Starts empty for a fresh PR to receive new items cleanly
   const [lines, setLines] = useState<PurchaseRequisitionLine[]>(() => {
     if (existingPr?.lines && existingPr.lines.length > 0) {
       return existingPr.lines;
     }
-    // Clean, live initial line without dummy mock values
-    return [
-      {
-        id: `PRL-${Date.now()}-1`,
-        lineNo: 1,
-        itemCode: '',
-        itemName: '',
-        itemCategory: '',
-        description: '',
-        quantity: 1,
-        uom: 'KG',
-        requiredDate: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
-        suggestedSupplierId: activeSuppliers[0]?.id || '',
-        suggestedSupplierName: activeSuppliers[0]?.name || '',
-        estimatedUnitPrice: 0,
-        estimatedTotal: 0,
-        workOrderRef: '',
-        status: 'pending',
-      },
-    ];
+    return [];
   });
 
-  // Autocomplete & Item Creation Modal states
+  // Top Search & Quick-Add Item Master state
+  const [topSearchQuery, setTopSearchQuery] = useState<string>('');
+  const [isTopSearchOpen, setIsTopSearchOpen] = useState<boolean>(false);
+  const topSearchContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // In-table row autocomplete states
   const [activeSearchIdx, setActiveSearchIdx] = useState<number | null>(null);
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [rowSearchQuery, setRowSearchQuery] = useState<string>('');
   const [isCreateItemModalOpen, setIsCreateItemModalOpen] = useState<boolean>(false);
-  const [activeCreatingItemLineIdx, setActiveCreatingItemLineIdx] = useState<number>(0);
+  const [itemToCreate, setItemToCreate] = useState<ItemMaster | null>(null);
+  const [activeCreatingItemLineIdx, setActiveCreatingItemLineIdx] = useState<number>(-1);
   const searchContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // Close search dropdown on outside click
+  // Close search dropdowns on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      if (topSearchContainerRef.current && !topSearchContainerRef.current.contains(e.target as Node)) {
+        setIsTopSearchOpen(false);
+      }
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
         setActiveSearchIdx(null);
       }
@@ -184,10 +174,10 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Filter items matching search from Item Master single source of truth
-  const filteredItems = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return itemsList.slice(0, 12);
+  // Top search filtered items
+  const topFilteredItems = useMemo(() => {
+    const q = topSearchQuery.toLowerCase().trim();
+    if (!q) return itemsList.slice(0, 15);
     return itemsList
       .filter(
         (i) =>
@@ -201,7 +191,80 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
           ((i as any).description && (i as any).description.toLowerCase().includes(q))
       )
       .slice(0, 15);
-  }, [itemsList, searchQuery]);
+  }, [itemsList, topSearchQuery]);
+
+  // Row autocomplete filtered items
+  const rowFilteredItems = useMemo(() => {
+    const q = rowSearchQuery.toLowerCase().trim();
+    if (!q) return itemsList.slice(0, 12);
+    return itemsList
+      .filter(
+        (i) =>
+          (i.code && i.code.toLowerCase().includes(q)) ||
+          (i.name && i.name.toLowerCase().includes(q)) ||
+          ((i as any).category && (i as any).category.toLowerCase().includes(q)) ||
+          (i.type && i.type.toLowerCase().includes(q)) ||
+          ((i as any).grade && (i as any).grade.toLowerCase().includes(q)) ||
+          ((i as any).hsn && (i as any).hsn.toLowerCase().includes(q)) ||
+          (i.desc && i.desc.toLowerCase().includes(q)) ||
+          ((i as any).description && (i as any).description.toLowerCase().includes(q))
+      )
+      .slice(0, 12);
+  }, [itemsList, rowSearchQuery]);
+
+  // Open item creation modal pre-populated
+  const handleOpenCreateItemModal = (initialQuery = '', lineIdx = -1) => {
+    setActiveCreatingItemLineIdx(lineIdx);
+    const trimmed = initialQuery.trim();
+    const isCodeLike = /^[A-Z0-9_-]{3,15}$/i.test(trimmed);
+    setItemToCreate({
+      id: `item-${Date.now()}`,
+      code: isCodeLike ? trimmed.toUpperCase() : '',
+      name: trimmed || '',
+      type: 'Raw Material',
+      cat: 'Raw Material',
+      desc: trimmed ? `${trimmed} - Polymer Raw Material` : '',
+      baseUOM: 'KG',
+      standardCost: 0,
+      approval: 'approved',
+      status: 'Active',
+    } as any);
+    setIsCreateItemModalOpen(true);
+    setIsTopSearchOpen(false);
+    setActiveSearchIdx(null);
+  };
+
+  // Add line item from top search bar
+  const handleAddFromTopSearch = (item: ItemMaster) => {
+    const unitPrice =
+      (item as any).standardCost ||
+      (item as any).lastPurchasePrice ||
+      parseFloat((item as any).valuation || '0') ||
+      0;
+
+    const newLine: PurchaseRequisitionLine = {
+      id: `PRL-${Date.now()}-${lines.length + 1}`,
+      lineNo: lines.length + 1,
+      itemCode: item.code,
+      itemName: item.name,
+      itemCategory: (item as any).category || item.type || 'Polymer Resin',
+      description: item.desc || (item as any).description || (item as any).grade || (item as any).specifications || '',
+      quantity: 1,
+      uom: item.baseUOM || (item as any).uom || 'KG',
+      requiredDate: requiredDate,
+      suggestedSupplierId: activeSuppliers[0]?.id || '',
+      suggestedSupplierName: activeSuppliers[0]?.name || '',
+      estimatedUnitPrice: unitPrice,
+      estimatedTotal: 1 * unitPrice,
+      workOrderRef: '',
+      status: 'pending',
+    };
+
+    setLines((prev) => [...prev, newLine]);
+    setTopSearchQuery('');
+    setIsTopSearchOpen(false);
+    showToast(`✓ Added ${item.code} (${item.name}) to Requisition`);
+  };
 
   // Live calculation of Estimated Total
   const totalEstimated = useMemo(() => {
@@ -235,31 +298,6 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
 
   // Delete line item with clean index handling
   const handleRemoveLine = (idx: number) => {
-    if (lines.length <= 1) {
-      // If deleting the only remaining line, reset it to clean blank row
-      setLines([
-        {
-          id: `PRL-${Date.now()}-1`,
-          lineNo: 1,
-          itemCode: '',
-          itemName: '',
-          itemCategory: '',
-          description: '',
-          quantity: 1,
-          uom: 'KG',
-          requiredDate: requiredDate,
-          suggestedSupplierId: activeSuppliers[0]?.id || '',
-          suggestedSupplierName: activeSuppliers[0]?.name || '',
-          estimatedUnitPrice: 0,
-          estimatedTotal: 0,
-          workOrderRef: '',
-          status: 'pending',
-        },
-      ]);
-      showToast('Cleared material line item');
-      return;
-    }
-
     const filtered = lines
       .filter((_, i) => i !== idx)
       .map((l, i) => ({ ...l, lineNo: i + 1 }));
@@ -289,7 +327,7 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
       0;
 
     const updated = [...lines];
-    const qty = Number(updated[idx].quantity) || 1;
+    const qty = Number(updated[idx]?.quantity) || 1;
     updated[idx] = {
       ...updated[idx],
       itemCode: item.code,
@@ -302,7 +340,7 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
     };
     setLines(updated);
     setActiveSearchIdx(null);
-    setSearchQuery('');
+    setRowSearchQuery('');
     showToast(`Selected item: ${item.code} (${item.name})`);
   };
 
@@ -311,10 +349,13 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
     itemService.saveItem(newItem).catch(console.warn);
     setItemsList((prev) => [newItem, ...prev.filter((i) => i.code !== newItem.code)]);
 
-    // Automatically fill this created item into the active line
-    handleSelectItem(activeCreatingItemLineIdx, newItem);
+    if (activeCreatingItemLineIdx >= 0 && activeCreatingItemLineIdx < lines.length) {
+      handleSelectItem(activeCreatingItemLineIdx, newItem);
+    } else {
+      handleAddFromTopSearch(newItem);
+    }
     setIsCreateItemModalOpen(false);
-    showToast(`✓ Created & selected new item: ${newItem.code} - ${newItem.name}`);
+    showToast(`✓ Created & added new item: ${newItem.code} - ${newItem.name}`);
   };
 
   // Save PR (Draft or Submit for Approval)
@@ -599,293 +640,483 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Requisition Line Items Table */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-[#14213D]">
-                Requisition Line Items ({lines.length})
-              </h3>
-              <span className="text-[11px] text-slate-500">
-                Type item name/code for live autocomplete or create a new item if not listed
-              </span>
+        {/* Requisition Line Items Section */}
+        <div className="space-y-4">
+          {/* Header Controls */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-[#14213D]">
+                  Requisition Line Items ({lines.length})
+                </h3>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-50 text-[#0F8B8D] border border-teal-200 font-semibold flex items-center gap-1">
+                  <Package className="w-2.5 h-2.5" /> Item Master ({itemsList.length} Catalogued)
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Search item by code/name to add instantly, or create a new item directly into Item Master
+              </p>
             </div>
-            <button
-              onClick={handleAddLine}
-              className="flex items-center gap-1 text-xs font-semibold text-[#0F8B8D] hover:underline cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add Material Line
-            </button>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenCreateItemModal('', -1)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#E8622C] hover:bg-[#d45320] text-white rounded-lg text-xs font-bold shadow-xs transition cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>+ Create New Item</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAddLine}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0F8B8D] hover:bg-[#0d797b] text-white rounded-lg text-xs font-semibold shadow-xs transition cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Add Blank Row</span>
+              </button>
+            </div>
           </div>
 
-          <div className="border border-slate-200 rounded-xl overflow-visible">
-            <div className="overflow-x-auto overflow-y-visible">
-              <table className="w-full text-xs text-left min-w-[900px]">
-                <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] tracking-wider border-b border-slate-200">
-                  <tr>
-                    <th className="py-2.5 px-3 w-10">#</th>
-                    <th className="py-2.5 px-3 min-w-[280px]">Item / Description</th>
-                    <th className="py-2.5 px-3 text-right w-28">Quantity</th>
-                    <th className="py-2.5 px-3 w-20">UOM</th>
-                    <th className="py-2.5 px-3 min-w-[200px]">Suggested Vendor</th>
-                    <th className="py-2.5 px-3 text-right w-32">Est. Unit Price (₹)</th>
-                    <th className="py-2.5 px-3 text-right w-32">Total (₹)</th>
-                    <th className="py-2.5 px-3 text-center w-28">Work Order</th>
-                    <th className="py-2.5 px-3 text-center w-12">Del</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {lines.map((line, idx) => {
-                    const isSearchingThisLine = activeSearchIdx === idx;
-                    return (
-                      <tr key={line.id} className="hover:bg-slate-50/60 relative">
-                        <td className="py-2 px-3 font-semibold text-slate-400">{idx + 1}</td>
+          {/* Quick-Add Item Master Search Bar */}
+          <div ref={topSearchContainerRef} className="relative">
+            <div className="relative flex items-center">
+              <div className="absolute left-3 text-slate-400 pointer-events-none">
+                <Search className="w-4 h-4 text-[#0F8B8D]" />
+              </div>
+              <input
+                type="text"
+                placeholder="🔍 Search & Add Item by Code (e.g. IN-RM-01, HDPE-5502) or Name, Grade, Category..."
+                value={topSearchQuery}
+                onFocus={() => setIsTopSearchOpen(true)}
+                onClick={() => setIsTopSearchOpen(true)}
+                onChange={(e) => {
+                  setTopSearchQuery(e.target.value);
+                  setIsTopSearchOpen(true);
+                }}
+                className="w-full pl-9 pr-24 py-2.5 bg-white border-2 border-slate-200 hover:border-[#0F8B8D]/60 focus:border-[#0F8B8D] rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0F8B8D]/20 transition shadow-xs"
+              />
+              <div className="absolute right-2 flex items-center gap-1.5">
+                {topSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTopSearchQuery('');
+                      setIsTopSearchOpen(false);
+                    }}
+                    className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
+                <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-1 rounded-md font-mono font-medium">
+                  {topFilteredItems.length} found
+                </span>
+              </div>
+            </div>
 
-                        {/* Item / Description with Searchable Autocomplete & + Create New Item */}
-                        <td className="py-2 px-3 relative">
-                          <div
-                            ref={isSearchingThisLine ? searchContainerRef : undefined}
-                            className="relative"
-                          >
-                            <div className="flex items-center relative">
-                              <input
-                                type="text"
-                                placeholder="Search live item name or SKU..."
-                                value={line.itemName}
-                                onFocus={() => {
-                                  setActiveSearchIdx(idx);
-                                  setSearchQuery(line.itemName || '');
-                                }}
-                                onClick={() => {
-                                  setActiveSearchIdx(idx);
-                                  setSearchQuery(line.itemName || '');
-                                }}
-                                onChange={(e) => {
-                                  handleUpdateLine(idx, 'itemName', e.target.value);
-                                  setSearchQuery(e.target.value);
-                                  setActiveSearchIdx(idx);
-                                }}
-                                className="w-full pl-2.5 pr-20 py-1.5 border rounded-lg text-xs font-semibold text-[#14213D] focus:ring-1 focus:ring-[#0F8B8D] focus:outline-none bg-white"
-                              />
-                              <div className="absolute right-1.5 flex items-center gap-1">
-                                {line.itemCode && (
-                                  <span className="px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 text-[9px] font-mono font-bold border border-teal-200">
-                                    {line.itemCode}
-                                  </span>
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (activeSearchIdx === idx) {
-                                      setActiveSearchIdx(null);
-                                    } else {
-                                      setActiveSearchIdx(idx);
-                                      setSearchQuery(line.itemName || '');
-                                    }
-                                  }}
-                                  className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
-                                  title="Browse item catalog"
-                                >
-                                  <ChevronDown className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
+            {/* Quick-Add Dropdown Popover */}
+            {isTopSearchOpen && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-xl shadow-2xl border border-slate-200 z-[100] overflow-hidden animate-fade-in max-h-80 flex flex-col">
+                <div className="p-2.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-xs text-slate-600 font-semibold">
+                  <span className="flex items-center gap-1.5 text-slate-700">
+                    <Package className="w-3.5 h-3.5 text-[#0F8B8D]" /> Select Material from Item Master
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-normal">
+                    Click any item to add to PR
+                  </span>
+                </div>
+
+                <div className="overflow-y-auto divide-y divide-slate-100 flex-1">
+                  {topFilteredItems.length === 0 ? (
+                    <div className="p-5 text-center space-y-2">
+                      <p className="text-xs font-semibold text-slate-700">
+                        No item found matching "{topSearchQuery}"
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        This item does not exist in Master Data. Click below to create it now.
+                      </p>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleOpenCreateItemModal(topSearchQuery, -1);
+                        }}
+                        onClick={() => handleOpenCreateItemModal(topSearchQuery, -1)}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#E8622C] hover:bg-[#d45320] text-white rounded-lg text-xs font-bold shadow-xs transition cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>+ Create "{topSearchQuery}" in Item Master</span>
+                      </button>
+                    </div>
+                  ) : (
+                    topFilteredItems.map((item) => (
+                      <div
+                        key={item.code}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleAddFromTopSearch(item);
+                        }}
+                        onClick={() => handleAddFromTopSearch(item)}
+                        className="p-3 hover:bg-teal-50/80 cursor-pointer transition flex items-center justify-between gap-3 group"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-xs text-[#14213D] group-hover:text-[#0F8B8D] transition">
+                              {item.name}
+                            </span>
+                            <span className="text-[10px] font-mono text-teal-800 bg-teal-100 px-1.5 py-0.5 rounded font-bold border border-teal-200">
+                              {item.code}
+                            </span>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
+                              {item.type || (item as any).category || 'Raw Material'}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
+                            {item.desc || (item as any).description || (item as any).grade || 'Polymer raw material specification'}
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0 flex items-center gap-3">
+                          <div>
+                            <div className="font-bold text-[#0F8B8D] text-xs font-mono">
+                              ₹{((item as any).standardCost || (item as any).lastPurchasePrice || (item as any).valuation || 0).toLocaleString('en-IN')}
                             </div>
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              / {item.baseUOM || (item as any).uom || 'KG'}
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-[#0F8B8D] text-white opacity-0 group-hover:opacity-100 transition shadow-xs">
+                            + Add
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
 
-                            <input
-                              type="text"
-                              placeholder="Polymer specs / MFI / Grade / Tooling details"
-                              value={line.description || ''}
-                              onChange={(e) => handleUpdateLine(idx, 'description', e.target.value)}
-                              className="w-full px-2.5 py-1 border rounded-lg text-[11px] text-slate-600 mt-1 focus:ring-1 focus:ring-[#0F8B8D] focus:outline-none bg-slate-50/50"
-                            />
+                {topFilteredItems.length > 0 && (
+                  <div className="p-2 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-[10px] text-slate-500">
+                      Need an unlisted material?
+                    </span>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleOpenCreateItemModal(topSearchQuery, -1);
+                      }}
+                      onClick={() => handleOpenCreateItemModal(topSearchQuery, -1)}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-[#E8622C] hover:underline cursor-pointer"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>+ Create New Item in Item Master</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
-                            {/* Live Autocomplete Popover */}
-                            {isSearchingThisLine && (
-                              <div
-                                className="absolute left-0 top-full mt-1 w-[420px] bg-white rounded-xl shadow-2xl border border-slate-200 z-50 overflow-hidden animate-fade-in"
-                              >
-                                <div className="p-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
-                                  <span className="flex items-center gap-1 font-semibold text-slate-700">
-                                    <Search className="w-3 h-3 text-[#0F8B8D]" /> Item Master Single Source ({itemsList.length} Total)
-                                  </span>
-                                  <span className="text-[10px] bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full font-mono font-bold">
-                                    {filteredItems.length} matching
-                                  </span>
-                                </div>
+          {/* Lines Table or Empty State */}
+          {lines.length === 0 ? (
+            <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center bg-slate-50/50 space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-100 text-[#0F8B8D] mx-auto flex items-center justify-center">
+                <Package className="w-6 h-6" />
+              </div>
+              <div className="max-w-md mx-auto">
+                <h4 className="text-sm font-bold text-[#14213D]">
+                  No Requisition Line Items Added
+                </h4>
+                <p className="text-xs text-slate-500 mt-1">
+                  Use the search bar above to quickly search and add items from Item Master, or click below to add a blank row or create a new item.
+                </p>
+              </div>
+              <div className="flex items-center justify-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleAddLine}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0F8B8D] hover:bg-[#0d797b] text-white rounded-lg text-xs font-semibold shadow-xs cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Material Line
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenCreateItemModal('', -1)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#E8622C] hover:bg-[#d45320] text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> + Create New Item in Master
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="border border-slate-200 rounded-xl overflow-visible min-h-[300px] pb-20">
+              <div className="overflow-x-auto overflow-y-visible">
+                <table className="w-full text-xs text-left min-w-[900px]">
+                  <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] tracking-wider border-b border-slate-200">
+                    <tr>
+                      <th className="py-2.5 px-3 w-10">#</th>
+                      <th className="py-2.5 px-3 min-w-[280px]">Item / Description</th>
+                      <th className="py-2.5 px-3 text-right w-28">Quantity</th>
+                      <th className="py-2.5 px-3 w-20">UOM</th>
+                      <th className="py-2.5 px-3 min-w-[200px]">Suggested Vendor</th>
+                      <th className="py-2.5 px-3 text-right w-32">Est. Unit Price (₹)</th>
+                      <th className="py-2.5 px-3 text-right w-32">Total (₹)</th>
+                      <th className="py-2.5 px-3 text-center w-28">Work Order</th>
+                      <th className="py-2.5 px-3 text-center w-12">Del</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {lines.map((line, idx) => {
+                      const isSearchingThisLine = activeSearchIdx === idx;
+                      return (
+                        <tr key={line.id} className="hover:bg-slate-50/60 relative">
+                          <td className="py-2 px-3 font-semibold text-slate-400">{idx + 1}</td>
 
-                                <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 text-xs">
-                                  {filteredItems.length === 0 ? (
-                                    <div className="p-4 text-center text-slate-400 text-xs space-y-1">
-                                      <p>No matching item found in Item Master catalog.</p>
-                                      <p className="text-[10px] text-slate-400">Click below to create this new item directly into Item Master.</p>
-                                    </div>
-                                  ) : (
-                                    filteredItems.map((item) => (
-                                      <div
-                                        key={item.code}
-                                        onMouseDown={(e) => {
-                                          e.preventDefault();
-                                          e.stopPropagation();
-                                          handleSelectItem(idx, item);
-                                        }}
-                                        onClick={() => handleSelectItem(idx, item)}
-                                        className="p-2.5 hover:bg-teal-50/70 cursor-pointer transition flex items-start justify-between gap-2"
-                                      >
-                                        <div className="min-w-0 flex-1">
-                                          <div className="font-bold text-[#14213D] flex items-center gap-1.5 flex-wrap">
-                                            <span>{item.name}</span>
-                                            <span className="text-[10px] font-mono text-teal-700 bg-teal-100/70 px-1.5 py-0.2 rounded font-bold">
-                                              {item.code}
-                                            </span>
-                                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-medium">
-                                              {item.type || (item as any).category || 'Resin'}
-                                            </span>
-                                          </div>
-                                          <div className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">
-                                            {item.desc || (item as any).description || (item as any).grade || 'Standard Item Specification'}
-                                          </div>
-                                        </div>
-
-                                        <div className="text-right shrink-0 pl-2">
-                                          <div className="font-bold text-[#0F8B8D] text-xs font-mono">
-                                            ₹{(item as any).standardCost || (item as any).lastPurchasePrice || (item as any).valuation || 0}
-                                          </div>
-                                          <div className="text-[10px] text-slate-400 font-mono">
-                                            / {item.baseUOM || (item as any).uom || 'KG'}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ))
+                          {/* Item / Description with Searchable Autocomplete & + Create New Item */}
+                          <td className="py-2 px-3 relative">
+                            <div
+                              ref={isSearchingThisLine ? searchContainerRef : undefined}
+                              className="relative"
+                            >
+                              <div className="flex items-center relative">
+                                <input
+                                  type="text"
+                                  placeholder="Search live item name or SKU..."
+                                  value={line.itemName}
+                                  onFocus={() => {
+                                    setActiveSearchIdx(idx);
+                                    setRowSearchQuery(line.itemName || '');
+                                  }}
+                                  onClick={() => {
+                                    setActiveSearchIdx(idx);
+                                    setRowSearchQuery(line.itemName || '');
+                                  }}
+                                  onChange={(e) => {
+                                    handleUpdateLine(idx, 'itemName', e.target.value);
+                                    setRowSearchQuery(e.target.value);
+                                    setActiveSearchIdx(idx);
+                                  }}
+                                  className="w-full pl-2.5 pr-20 py-1.5 border rounded-lg text-xs font-semibold text-[#14213D] focus:ring-1 focus:ring-[#0F8B8D] focus:outline-none bg-white"
+                                />
+                                <div className="absolute right-1.5 flex items-center gap-1">
+                                  {line.itemCode && (
+                                    <span className="px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 text-[9px] font-mono font-bold border border-teal-200">
+                                      {line.itemCode}
+                                    </span>
                                   )}
-                                </div>
-
-                                {/* + Create New Item action trigger */}
-                                <div className="p-2 bg-slate-50 border-t border-slate-100">
                                   <button
                                     type="button"
-                                    onMouseDown={(e) => {
-                                      e.preventDefault();
+                                    onClick={(e) => {
                                       e.stopPropagation();
-                                      setActiveCreatingItemLineIdx(idx);
-                                      setIsCreateItemModalOpen(true);
-                                      setActiveSearchIdx(null);
+                                      if (activeSearchIdx === idx) {
+                                        setActiveSearchIdx(null);
+                                      } else {
+                                        setActiveSearchIdx(idx);
+                                        setRowSearchQuery(line.itemName || '');
+                                      }
                                     }}
-                                    onClick={() => {
-                                      setActiveCreatingItemLineIdx(idx);
-                                      setIsCreateItemModalOpen(true);
-                                      setActiveSearchIdx(null);
-                                    }}
-                                    className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-[#E8622C] hover:bg-[#d45320] text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
+                                    className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                                    title="Browse item catalog"
                                   >
-                                    <Sparkles className="w-3.5 h-3.5" />
-                                    <span>
-                                      + Create New Item in Master Data{' '}
-                                      {searchQuery.trim() ? `"${searchQuery.trim()}"` : ''}
-                                    </span>
+                                    <ChevronDown className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
                               </div>
-                            )}
-                          </div>
-                        </td>
 
-                        {/* Quantity */}
-                        <td className="py-2 px-3 text-right">
-                          <input
-                            type="number"
-                            min="1"
-                            step="any"
-                            value={line.quantity}
-                            onChange={(e) => handleUpdateLine(idx, 'quantity', e.target.value)}
-                            className="w-full px-2 py-1.5 border rounded-lg text-xs text-right font-bold text-[#14213D] focus:ring-1 focus:ring-[#0F8B8D] focus:outline-none"
-                          />
-                        </td>
+                              <input
+                                type="text"
+                                placeholder="Polymer specs / MFI / Grade / Tooling details"
+                                value={line.description || ''}
+                                onChange={(e) => handleUpdateLine(idx, 'description', e.target.value)}
+                                className="w-full px-2.5 py-1 border rounded-lg text-[11px] text-slate-600 mt-1 focus:ring-1 focus:ring-[#0F8B8D] focus:outline-none bg-slate-50/50"
+                              />
 
-                        {/* UOM */}
-                        <td className="py-2 px-3">
-                          <select
-                            value={line.uom}
-                            onChange={(e) => handleUpdateLine(idx, 'uom', e.target.value)}
-                            className="w-full px-2 py-1.5 border rounded-lg text-xs bg-white text-slate-800"
-                          >
-                            <option value="KG">KG</option>
-                            <option value="PCS">PCS</option>
-                            <option value="SET">SET</option>
-                            <option value="MTR">MTR</option>
-                            <option value="LTR">LTR</option>
-                            <option value="BOX">BOX</option>
-                            <option value="BAG">BAG</option>
-                          </select>
-                        </td>
+                              {/* Live Autocomplete Popover */}
+                              {isSearchingThisLine && (
+                                <div
+                                  className="absolute left-0 top-full mt-1 w-[420px] bg-white rounded-xl shadow-2xl border border-slate-200 z-50 overflow-hidden animate-fade-in"
+                                >
+                                  <div className="p-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                                    <span className="flex items-center gap-1 font-semibold text-slate-700">
+                                      <Search className="w-3 h-3 text-[#0F8B8D]" /> Item Master Single Source ({itemsList.length} Total)
+                                    </span>
+                                    <span className="text-[10px] bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full font-mono font-bold">
+                                      {rowFilteredItems.length} matching
+                                    </span>
+                                  </div>
 
-                        {/* Suggested Vendor */}
-                        <td className="py-2 px-3">
-                          <select
-                            value={line.suggestedSupplierName || ''}
-                            onChange={(e) => {
-                              const s = suppliers.find((sup) => sup.name === e.target.value);
-                              handleUpdateLine(idx, 'suggestedSupplierName', e.target.value);
-                              if (s) handleUpdateLine(idx, 'suggestedSupplierId', s.id);
-                            }}
-                            className="w-full px-2 py-1.5 border rounded-lg text-xs bg-white text-slate-800"
-                          >
-                            {suppliers.map((s) => (
-                              <option key={s.id} value={s.name}>
-                                {s.name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
+                                  <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 text-xs">
+                                    {rowFilteredItems.length === 0 ? (
+                                      <div className="p-4 text-center text-slate-400 text-xs space-y-1">
+                                        <p>No matching item found in Item Master catalog.</p>
+                                        <p className="text-[10px] text-slate-400">Click below to create this new item directly into Item Master.</p>
+                                      </div>
+                                    ) : (
+                                      rowFilteredItems.map((item) => (
+                                        <div
+                                          key={item.code}
+                                          onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleSelectItem(idx, item);
+                                          }}
+                                          onClick={() => handleSelectItem(idx, item)}
+                                          className="p-2.5 hover:bg-teal-50/70 cursor-pointer transition flex items-start justify-between gap-2"
+                                        >
+                                          <div className="min-w-0 flex-1">
+                                            <div className="font-bold text-[#14213D] flex items-center gap-1.5 flex-wrap">
+                                              <span>{item.name}</span>
+                                              <span className="text-[10px] font-mono text-teal-700 bg-teal-100/70 px-1.5 py-0.2 rounded font-bold">
+                                                {item.code}
+                                              </span>
+                                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-medium">
+                                                {item.type || (item as any).category || 'Resin'}
+                                              </span>
+                                            </div>
+                                            <div className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">
+                                              {item.desc || (item as any).description || (item as any).grade || 'Standard Item Specification'}
+                                            </div>
+                                          </div>
 
-                        {/* Estimated Unit Price */}
-                        <td className="py-2 px-3 text-right">
-                          <input
-                            type="number"
-                            step="any"
-                            min="0"
-                            value={line.estimatedUnitPrice}
-                            onChange={(e) =>
-                              handleUpdateLine(idx, 'estimatedUnitPrice', e.target.value)
-                            }
-                            className="w-full px-2 py-1.5 border rounded-lg text-xs text-right font-semibold text-slate-800 focus:ring-1 focus:ring-[#0F8B8D] focus:outline-none"
-                          />
-                        </td>
+                                          <div className="text-right shrink-0 pl-2">
+                                            <div className="font-bold text-[#0F8B8D] text-xs font-mono">
+                                              ₹{(item as any).standardCost || (item as any).lastPurchasePrice || (item as any).valuation || 0}
+                                            </div>
+                                            <div className="text-[10px] text-slate-400 font-mono">
+                                              / {item.baseUOM || (item as any).uom || 'KG'}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
 
-                        {/* Line Total (₹) */}
-                        <td className="py-2 px-3 text-right font-bold text-[#14213D] font-mono">
-                          ₹{(line.estimatedTotal || 0).toLocaleString('en-IN')}
-                        </td>
+                                  {/* + Create New Item action trigger */}
+                                  <div className="p-2 bg-slate-50 border-t border-slate-100">
+                                    <button
+                                      type="button"
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleOpenCreateItemModal(rowSearchQuery, idx);
+                                      }}
+                                      onClick={() => handleOpenCreateItemModal(rowSearchQuery, idx)}
+                                      className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-[#E8622C] hover:bg-[#d45320] text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
+                                    >
+                                      <Sparkles className="w-3.5 h-3.5" />
+                                      <span>
+                                        + Create New Item in Master Data{' '}
+                                        {rowSearchQuery.trim() ? `"${rowSearchQuery.trim()}"` : ''}
+                                      </span>
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </td>
 
-                        {/* Work Order Ref */}
-                        <td className="py-2 px-3 text-center">
-                          <input
-                            type="text"
-                            placeholder="WO-1188"
-                            value={line.workOrderRef || ''}
-                            onChange={(e) => handleUpdateLine(idx, 'workOrderRef', e.target.value)}
-                            className="w-full px-1.5 py-1 border rounded text-[11px] font-mono text-center text-slate-700"
-                          />
-                        </td>
+                          {/* Quantity */}
+                          <td className="py-2 px-3 text-right">
+                            <input
+                              type="number"
+                              min="1"
+                              step="any"
+                              value={line.quantity}
+                              onChange={(e) => handleUpdateLine(idx, 'quantity', e.target.value)}
+                              className="w-full px-2 py-1.5 border rounded-lg text-xs text-right font-bold text-[#14213D] focus:ring-1 focus:ring-[#0F8B8D] focus:outline-none"
+                            />
+                          </td>
 
-                        {/* Delete Line Action */}
-                        <td className="py-2 px-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveLine(idx)}
-                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
-                            title="Delete Line Item"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          {/* UOM */}
+                          <td className="py-2 px-3">
+                            <select
+                              value={line.uom}
+                              onChange={(e) => handleUpdateLine(idx, 'uom', e.target.value)}
+                              className="w-full px-2 py-1.5 border rounded-lg text-xs bg-white text-slate-800"
+                            >
+                              <option value="KG">KG</option>
+                              <option value="PCS">PCS</option>
+                              <option value="SET">SET</option>
+                              <option value="MTR">MTR</option>
+                              <option value="LTR">LTR</option>
+                              <option value="BOX">BOX</option>
+                              <option value="BAG">BAG</option>
+                            </select>
+                          </td>
+
+                          {/* Suggested Vendor */}
+                          <td className="py-2 px-3">
+                            <select
+                              value={line.suggestedSupplierName || ''}
+                              onChange={(e) => {
+                                const s = suppliers.find((sup) => sup.name === e.target.value);
+                                handleUpdateLine(idx, 'suggestedSupplierName', e.target.value);
+                                if (s) handleUpdateLine(idx, 'suggestedSupplierId', s.id);
+                              }}
+                              className="w-full px-2 py-1.5 border rounded-lg text-xs bg-white text-slate-800"
+                            >
+                              {suppliers.map((s) => (
+                                <option key={s.id} value={s.name}>
+                                  {s.name}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+
+                          {/* Estimated Unit Price */}
+                          <td className="py-2 px-3 text-right">
+                            <input
+                              type="number"
+                              step="any"
+                              min="0"
+                              value={line.estimatedUnitPrice}
+                              onChange={(e) =>
+                                handleUpdateLine(idx, 'estimatedUnitPrice', e.target.value)
+                              }
+                              className="w-full px-2 py-1.5 border rounded-lg text-xs text-right font-semibold text-slate-800 focus:ring-1 focus:ring-[#0F8B8D] focus:outline-none"
+                            />
+                          </td>
+
+                          {/* Line Total (₹) */}
+                          <td className="py-2 px-3 text-right font-bold text-[#14213D] font-mono">
+                            ₹{(line.estimatedTotal || 0).toLocaleString('en-IN')}
+                          </td>
+
+                          {/* Work Order Ref */}
+                          <td className="py-2 px-3 text-center">
+                            <input
+                              type="text"
+                              placeholder="WO-1188"
+                              value={line.workOrderRef || ''}
+                              onChange={(e) => handleUpdateLine(idx, 'workOrderRef', e.target.value)}
+                              className="w-full px-1.5 py-1 border rounded text-[11px] font-mono text-center text-slate-700"
+                            />
+                          </td>
+
+                          {/* Delete Line Action */}
+                          <td className="py-2 px-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveLine(idx)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                              title="Delete Line Item"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Justification & Approval Status Trail */}
@@ -939,8 +1170,12 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
       {isCreateItemModalOpen && (
         <CreateItemWizardModal
           isOpen={isCreateItemModalOpen}
-          onClose={() => setIsCreateItemModalOpen(false)}
+          onClose={() => {
+            setIsCreateItemModalOpen(false);
+            setItemToCreate(null);
+          }}
           onSaveItem={handleSaveCreatedItem}
+          editItem={itemToCreate}
           allItems={itemsList}
           showToast={showToast}
         />
