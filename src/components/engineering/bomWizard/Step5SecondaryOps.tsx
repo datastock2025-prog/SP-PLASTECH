@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ManufacturingBomWizardState } from './types';
 import { SecondaryOperationDetail, ItemMaster } from '../../../types';
+import { LocationAutocompleteInput } from './LocationAutocompleteInput';
 import {
   Wrench,
   Plus,
@@ -450,22 +451,22 @@ export const Step5SecondaryOps: React.FC<Step5Props> = ({ state, items, onChange
               </div>
 
               <div className="field mb-0">
-                <label className="text-[11px] font-bold text-[#14213D] block mb-1">Staging Before</label>
-                <input
-                  type="text"
+                <LocationAutocompleteInput
+                  label="Staging Before (Pick Location)"
                   value={locationBefore}
-                  onChange={(e) => setLocationBefore(e.target.value)}
-                  className="w-full text-xs font-mono py-1.5 px-2 border rounded"
+                  onChange={setLocationBefore}
+                  placeholder="Select or enter staging location..."
+                  filterType="staging_wip"
                 />
               </div>
 
               <div className="field mb-0">
-                <label className="text-[11px] font-bold text-[#14213D] block mb-1">Putaway After</label>
-                <input
-                  type="text"
+                <LocationAutocompleteInput
+                  label="Putaway After (Destination Location)"
                   value={locationAfter}
-                  onChange={(e) => setLocationAfter(e.target.value)}
-                  className="w-full text-xs font-mono py-1.5 px-2 border rounded"
+                  onChange={setLocationAfter}
+                  placeholder="Select or enter putaway location..."
+                  filterType="all"
                 />
               </div>
 
@@ -526,7 +527,7 @@ export const Step5SecondaryOps: React.FC<Step5Props> = ({ state, items, onChange
                         <th className="p-2.5 w-24">Qty / Pc</th>
                         <th className="p-2.5 w-20">UOM</th>
                         <th className="p-2.5 w-24">Scrap %</th>
-                        <th className="p-2.5 w-28">Location</th>
+                        <th className="p-2.5 w-36">Location</th>
                         <th className="p-2.5 w-12 text-center"></th>
                       </tr>
                     </thead>
@@ -584,12 +585,11 @@ export const Step5SecondaryOps: React.FC<Step5Props> = ({ state, items, onChange
                               />
                             </td>
                             <td className="p-2">
-                              <input
-                                type="text"
-                                value={comp.locationCode}
-                                onChange={(e) => handleUpdateConsumedItem(cIdx, { locationCode: e.target.value })}
-                                placeholder="WIP-STAGE-01"
-                                className="w-full p-1.5 border border-gray-300 rounded text-xs font-mono"
+                              <LocationAutocompleteInput
+                                value={comp.locationCode || ''}
+                                onChange={(loc) => handleUpdateConsumedItem(cIdx, { locationCode: loc })}
+                                placeholder="Loc..."
+                                size="sm"
                               />
                             </td>
                             <td className="p-2 text-center">

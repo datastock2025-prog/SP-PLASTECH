@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ManufacturingBomWizardState } from './types';
 import { ItemMaster, BomLine } from '../../../types';
 import { ItemAutocompleteInput } from './ItemAutocompleteInput';
+import { LocationAutocompleteInput } from './LocationAutocompleteInput';
 import { masterDataGovernanceService } from '../../../services/masterDataGovernanceService';
 import {
   Plus,
@@ -26,6 +27,10 @@ import {
   Link2,
   GitBranch,
   Fingerprint,
+  CheckSquare,
+  Square,
+  Sliders,
+  MapPin,
 } from 'lucide-react';
 
 interface Step4Props {
@@ -71,11 +76,18 @@ export const Step4Materials: React.FC<Step4Props> = ({
   const [quickItem, setQuickItem] = useState<ItemMaster | null>(null);
   const [quickQty, setQuickQty] = useState<number>(1);
   const [quickUom, setQuickUom] = useState<string>('KG');
+  const [quickLocation, setQuickLocation] = useState<string>('RM-WH-01');
+
+  // Selected rows for bulk operations
+  const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
+  const [bulkLocationModalOpen, setBulkLocationModalOpen] = useState<boolean>(false);
+  const [bulkTargetLocation, setBulkTargetLocation] = useState<string>('RM-WH-01');
 
   const handleSelectQuickItem = (selected: ItemMaster) => {
     setQuickItem(selected);
     setQuickItemCode(selected.code);
     setQuickUom(selected.baseUOM || 'KG');
+    setQuickLocation(selected.wh || selected.defaultLocation || 'RM-WH-01');
   };
 
   const handleQuickAdd = () => {
@@ -99,7 +111,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
       extendedCost: Number((quickQty * unitCost).toFixed(2)),
       regrindPct: 0,
       dosageRate: `${quickQty}`,
-      position: quickItem.wh || quickItem.defaultLocation || 'RM-SILO-01',
+      position: quickLocation || quickItem.wh || quickItem.defaultLocation || 'RM-WH-01',
       issueMethod: 'Auto Backflush',
       status: 'active',
     };
@@ -125,7 +137,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
   const [modalUom, setModalUom] = useState<string>('KG');
   const [modalScrap, setModalScrap] = useState<number>(1.5);
   const [modalIssueMethod, setModalIssueMethod] = useState<'Auto Backflush' | 'Manual Issue' | 'Floor Stock'>('Auto Backflush');
-  const [modalLocation, setModalLocation] = useState<string>('RM-SILO-01');
+  const [modalLocation, setModalLocation] = useState<string>('RM-WH-01');
   const [modalCategory, setModalCategory] = useState<string>('Virgin Resin');
   const [modalRegrindPct, setModalRegrindPct] = useState<number>(0);
   const [modalDosageRate, setModalDosageRate] = useState<string>('');
@@ -164,7 +176,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
     setModalUom('KG');
     setModalScrap(1.5);
     setModalIssueMethod('Auto Backflush');
-    setModalLocation('RM-SILO-01');
+    setModalLocation('RM-WH-01');
     setModalCategory(presetCategory || 'Virgin Resin');
     setModalRegrindPct(0);
     setModalDosageRate('1.0');
@@ -184,7 +196,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
     setModalUom(line.uom);
     setModalScrap(line.scrap);
     setModalIssueMethod(line.issueMethod || 'Auto Backflush');
-    setModalLocation(line.position || 'RM-SILO-01');
+    setModalLocation(line.position || 'RM-WH-01');
     setModalCategory(line.category || 'Virgin Resin');
     setModalRegrindPct(line.regrindPct || 0);
     setModalDosageRate(line.dosageRate || String(line.qty));
@@ -216,7 +228,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
       extendedCost: Number((modalQty * unitCost).toFixed(2)),
       regrindPct: modalRegrindPct,
       dosageRate: modalDosageRate,
-      position: modalLocation,
+      position: modalLocation || 'RM-WH-01',
       issueMethod: modalIssueMethod,
       substituteGroup: modalSubstituteAllowed ? (modalSubGroup || 'GRP-SUB-1') : undefined,
       instructions: modalNotes,
@@ -251,11 +263,13 @@ export const Step4Materials: React.FC<Step4Props> = ({
     showToast(`Duplicated ${target.item}`);
   };
 
-  // Remove component
+  // Remove single component
   const handleRemove = (idx: number) => {
+    const removedItem = components[idx]?.item;
     const updated = components.filter((_, i) => i !== idx);
     onChange({ components: updated, costRollup: recalculateRollup(updated), costPreviewRan: updated.length > 0 });
-    showToast('Component removed');
+    setSelectedRowIds(prev => prev.filter(id => id !== components[idx]?.id));
+    showToast(`Removed component ${removedItem}`);
   };
 
   // Move row up/down
@@ -274,8 +288,54 @@ export const Step4Materials: React.FC<Step4Props> = ({
   // Inline edit handler
   const handleInlineChange = (idx: number, field: keyof BomLine, value: any) => {
     const updated = [...components];
-    updated[idx] = { ...updated[idx], [field]: value };
+    const current = updated[idx];
+    let newQty = field === 'qty' ? parseFloat(value) || 0 : current.qty;
+    let newCost = current.cost || 32.5;
+
+    updated[idx] = {
+      ...current,
+      [field]: value,
+      extendedCost: field === 'qty' || field === 'cost' ? Number((newQty * newCost).toFixed(2)) : current.extendedCost,
+    };
+    onChange({ components: updated, costRollup: recalculateRollup(updated) });
+  };
+
+  // Bulk Selection Handlers
+  const handleToggleSelectRow = (id: string) => {
+    setSelectedRowIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedRowIds.length === components.length) {
+      setSelectedRowIds([]);
+    } else {
+      setSelectedRowIds(components.map(c => c.id || c.item));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedRowIds.length === 0) return;
+    const count = selectedRowIds.length;
+    const updated = components.filter(c => !selectedRowIds.includes(c.id || c.item));
+    onChange({ components: updated, costRollup: recalculateRollup(updated), costPreviewRan: updated.length > 0 });
+    setSelectedRowIds([]);
+    showToast(`Deleted ${count} selected components`);
+  };
+
+  const handleBulkApplyLocation = () => {
+    if (selectedRowIds.length === 0 || !bulkTargetLocation) return;
+    const updated = components.map(c => {
+      if (selectedRowIds.includes(c.id || c.item)) {
+        return { ...c, position: bulkTargetLocation };
+      }
+      return c;
+    });
     onChange({ components: updated });
+    setBulkLocationModalOpen(false);
+    showToast(`Updated location to ${bulkTargetLocation} for ${selectedRowIds.length} items`);
+    setSelectedRowIds([]);
   };
 
   // Auto-balance resin for formula mode
@@ -307,7 +367,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
         <div>
           <h3 className="text-sm font-bold text-[#14213D] flex items-center gap-2">
             <span>Bill of Materials Components &amp; Formulation</span>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 font-mono">
+            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 font-mono font-bold">
               {components.length} item{components.length === 1 ? '' : 's'}
             </span>
           </h3>
@@ -320,35 +380,35 @@ export const Step4Materials: React.FC<Step4Props> = ({
           <button
             type="button"
             onClick={() => handleOpenAddModal('Virgin Resin')}
-            className="btn btn-sm btn-ghost border-[#E4E0D6] text-xs flex items-center gap-1"
+            className="btn btn-sm btn-ghost border-[#E4E0D6] text-xs flex items-center gap-1 cursor-pointer"
           >
             + Add Resin
           </button>
           <button
             type="button"
             onClick={() => handleOpenAddModal('Masterbatch')}
-            className="btn btn-sm btn-ghost border-[#E4E0D6] text-xs flex items-center gap-1"
+            className="btn btn-sm btn-ghost border-[#E4E0D6] text-xs flex items-center gap-1 cursor-pointer"
           >
             + Masterbatch
           </button>
           <button
             type="button"
             onClick={() => handleOpenAddModal('Packaging')}
-            className="btn btn-sm btn-ghost border-[#E4E0D6] text-xs flex items-center gap-1"
+            className="btn btn-sm btn-ghost border-[#E4E0D6] text-xs flex items-center gap-1 cursor-pointer"
           >
             + Packaging
           </button>
           <button
             type="button"
             onClick={() => handleOpenAddModal()}
-            className="btn btn-sm btn-primary text-xs flex items-center gap-1.5 shadow-sm"
+            className="btn btn-sm btn-primary text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" /> Add Component
           </button>
         </div>
       </div>
 
-      {/* Task 3: Formula / Recipe Mode Unique Recipe Identification Number & Version Linkage Card */}
+      {/* Formula / Recipe Mode Unique Recipe Identification Number */}
       {isFormulaMode && (() => {
         const linkedRecipe = masterDataGovernanceService.generateLinkedRecipeCode(
           state.bomVersion,
@@ -362,7 +422,6 @@ export const Step4Materials: React.FC<Step4Props> = ({
 
         return (
           <div className="space-y-3">
-            {/* Bi-directional linkage card */}
             <div className="p-4 bg-gradient-to-r from-purple-900 via-[#1E1B4B] to-slate-900 text-white rounded-xl shadow-md border border-purple-800/60 flex flex-col md:flex-row md:items-center justify-between gap-3 animate-in fade-in">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
@@ -428,7 +487,6 @@ export const Step4Materials: React.FC<Step4Props> = ({
                 </div>
               </div>
 
-              {/* Meter progress bar */}
               <div className="w-full bg-purple-200 h-2.5 rounded-full overflow-hidden flex">
                 <div
                   className={`h-full transition-all duration-300 ${
@@ -446,7 +504,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
         );
       })()}
 
-      {/* Quick Add Component Bar (Autocomplete) */}
+      {/* Quick Add Component Bar (Autocomplete with Location Dropdown) */}
       <div className="bg-[#FAF9F5] border border-[#E4E0D6] rounded-xl p-3.5 shadow-2xs">
         <div className="flex items-center justify-between gap-2 mb-2">
           <div className="flex items-center gap-1.5 text-xs font-bold text-[#14213D]">
@@ -456,12 +514,12 @@ export const Step4Materials: React.FC<Step4Props> = ({
           <span className="text-[11px] text-gray-500">Live Item Master lookup with auto-filled attributes</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-end">
-          <div className="md:col-span-6">
+          <div className="md:col-span-4">
             <ItemAutocompleteInput
               items={items}
               value={quickItemCode}
               onSelect={handleSelectQuickItem}
-              placeholder="Search or type item number / resin name..."
+              placeholder="Search item number / resin name..."
             />
           </div>
           <div className="md:col-span-2">
@@ -475,13 +533,21 @@ export const Step4Materials: React.FC<Step4Props> = ({
               className="w-full text-xs font-mono font-bold py-2 px-2.5 border rounded-lg bg-white border-[#E4E0D6] focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
             />
           </div>
-          <div className="md:col-span-2">
+          <div className="md:col-span-1">
             <label className="text-[10px] font-semibold text-gray-500 uppercase block mb-1">UOM</label>
             <input
               type="text"
               value={quickUom}
               onChange={(e) => setQuickUom(e.target.value)}
-              className="w-full text-xs font-mono font-bold py-2 px-2.5 border rounded-lg bg-white border-[#E4E0D6] focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
+              className="w-full text-xs font-mono font-bold py-2 px-2 border rounded-lg bg-white border-[#E4E0D6] focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
+            />
+          </div>
+          <div className="md:col-span-3">
+            <LocationAutocompleteInput
+              value={quickLocation}
+              onChange={(loc) => setQuickLocation(loc)}
+              placeholder="Source Location..."
+              filterType="raw_materials"
             />
           </div>
           <div className="md:col-span-2">
@@ -489,7 +555,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
               type="button"
               onClick={handleQuickAdd}
               disabled={!quickItem}
-              className="w-full btn btn-sm btn-primary text-xs py-2 flex items-center justify-center gap-1 shadow-sm disabled:opacity-40"
+              className="w-full btn btn-sm btn-primary text-xs py-2 flex items-center justify-center gap-1 shadow-sm disabled:opacity-40 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" /> Quick Add
             </button>
@@ -502,15 +568,47 @@ export const Step4Materials: React.FC<Step4Props> = ({
               <span>Selected: <strong className="text-[#14213D]">{quickItem.code}</strong> &mdash; {quickItem.name}</span>
             </div>
             <span className="text-gray-500 font-mono text-[10px]">
-              Cat: <strong className="text-gray-700">{quickItem.cat}</strong> | Wh: <strong className="text-gray-700">{quickItem.wh || 'RM-SILO-01'}</strong> | Cost: <strong className="text-[#0F8B8D]">${(quickItem.standardCost || quickItem.cost || 32.5).toFixed(2)}/{quickItem.baseUOM || 'KG'}</strong>
+              Cat: <strong className="text-gray-700">{quickItem.cat}</strong> | Wh: <strong className="text-gray-700">{quickLocation || quickItem.wh || 'RM-WH-01'}</strong> | Cost: <strong className="text-[#0F8B8D]">${(quickItem.standardCost || quickItem.cost || 32.5).toFixed(2)}/{quickItem.baseUOM || 'KG'}</strong>
             </span>
           </div>
         )}
       </div>
 
-      {/* Full-width Component Table */}
+      {/* Bulk Operations Toolbar */}
+      {selectedRowIds.length > 0 && (
+        <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3 text-xs animate-in fade-in">
+          <div className="flex items-center gap-2 text-amber-900 font-bold">
+            <CheckSquare className="w-4 h-4 text-amber-700" />
+            <span>{selectedRowIds.length} row{selectedRowIds.length > 1 ? 's' : ''} selected</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setBulkLocationModalOpen(true)}
+              className="px-2.5 py-1 bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 rounded text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+            >
+              <MapPin className="w-3.5 h-3.5 text-amber-700" /> Set Location
+            </button>
+            <button
+              type="button"
+              onClick={handleBulkDelete}
+              className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs font-bold flex items-center gap-1 cursor-pointer shadow-xs transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Delete Selected ({selectedRowIds.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedRowIds([])}
+              className="px-2 py-1 text-gray-500 hover:text-gray-800 text-xs cursor-pointer"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Full-width Component Table (Grid with Complete CRUD Operations) */}
       {components.length === 0 ? (
-        /* Empty State with exact requested copy */
         <div className="text-center py-12 px-4 bg-white rounded-xl border border-dashed border-[#E4E0D6] space-y-3">
           <div className="w-12 h-12 rounded-full bg-orange-100 text-[#E8622C] flex items-center justify-center mx-auto">
             <Layers className="w-6 h-6" />
@@ -524,7 +622,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
           <button
             type="button"
             onClick={() => handleOpenAddModal()}
-            className="btn btn-sm btn-primary inline-flex items-center gap-1.5"
+            className="btn btn-sm btn-primary inline-flex items-center gap-1.5 cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" /> Add First Component
           </button>
@@ -535,7 +633,16 @@ export const Step4Materials: React.FC<Step4Props> = ({
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-[#F6F4EF] text-[#14213D] border-b border-[#E4E0D6] font-semibold text-[11px] uppercase tracking-wider">
-                  <th className="py-2.5 px-3 w-12 text-center">Seq</th>
+                  <th className="py-2.5 px-3 w-8 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedRowIds.length === components.length && components.length > 0}
+                      onChange={handleSelectAll}
+                      className="rounded text-[#0F8B8D] cursor-pointer"
+                      title="Select all"
+                    />
+                  </th>
+                  <th className="py-2.5 px-2 w-10 text-center">Seq</th>
                   <th className="py-2.5 px-3">Component Code</th>
                   <th className="py-2.5 px-3">Description</th>
                   <th className="py-2.5 px-3">Category</th>
@@ -545,28 +652,52 @@ export const Step4Materials: React.FC<Step4Props> = ({
                   <th className="py-2.5 px-3 text-right">Scrap %</th>
                   <th className="py-2.5 px-3 text-right">Regrind %</th>
                   <th className="py-2.5 px-3">Issue Method</th>
-                  <th className="py-2.5 px-3">Location</th>
-                  <th className="py-2.5 px-3 text-center w-24">Actions</th>
+                  <th className="py-2.5 px-3 min-w-[150px]">Location (Source)</th>
+                  <th className="py-2.5 px-3 text-center w-28">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {components.map((line, idx) => {
                   const qtyPerBatch = (line.qty * state.batchSize).toFixed(2);
+                  const lineKey = line.id || line.item || `row-${idx}`;
+                  const isChecked = selectedRowIds.includes(lineKey);
 
                   return (
-                    <tr key={line.id || idx} className="hover:bg-amber-50/30 transition-colors group">
+                    <tr
+                      key={lineKey}
+                      className={`hover:bg-amber-50/40 transition-colors group ${
+                        isChecked ? 'bg-amber-50/60' : ''
+                      }`}
+                    >
+                      {/* Checkbox */}
+                      <td className="py-2 px-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleSelectRow(lineKey)}
+                          className="rounded text-[#0F8B8D] cursor-pointer"
+                        />
+                      </td>
+
                       {/* Sequence */}
-                      <td className="py-2 px-3 text-center font-mono text-gray-500 font-semibold">
+                      <td className="py-2 px-2 text-center font-mono text-gray-500 font-semibold">
                         {line.sequence || (idx + 1) * 10}
                       </td>
 
                       {/* Code */}
                       <td className="py-2 px-3 font-mono font-bold text-[#0F8B8D]">
-                        {line.item}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditModal(idx)}
+                          className="hover:underline text-left cursor-pointer"
+                          title="Click to edit component"
+                        >
+                          {line.item}
+                        </button>
                       </td>
 
                       {/* Name */}
-                      <td className="py-2 px-3 font-semibold text-[#14213D] max-w-[200px] truncate">
+                      <td className="py-2 px-3 font-semibold text-[#14213D] max-w-[180px] truncate">
                         {line.name}
                         {line.substituteGroup && (
                           <span className="ml-1 text-[10px] text-blue-600 bg-blue-50 px-1 rounded font-normal">
@@ -575,11 +706,19 @@ export const Step4Materials: React.FC<Step4Props> = ({
                         )}
                       </td>
 
-                      {/* Category */}
+                      {/* Category (Interactive Select) */}
                       <td className="py-2 px-3">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-700">
-                          {line.category || 'Raw Material'}
-                        </span>
+                        <select
+                          value={line.category || 'Virgin Resin'}
+                          onChange={(e) => handleInlineChange(idx, 'category', e.target.value)}
+                          className="text-[10px] font-semibold bg-gray-100 hover:bg-gray-200 border-none rounded py-0.5 px-1.5 text-gray-700 cursor-pointer focus:ring-1 focus:ring-[#0F8B8D]"
+                        >
+                          {COMPONENT_CATEGORIES.map((c) => (
+                            <option key={c} value={c}>
+                              {c}
+                            </option>
+                          ))}
+                        </select>
                       </td>
 
                       {/* Qty (Inline editable) */}
@@ -589,17 +728,17 @@ export const Step4Materials: React.FC<Step4Props> = ({
                           step="0.001"
                           value={line.qty}
                           onChange={(e) => handleInlineChange(idx, 'qty', parseFloat(e.target.value) || 0)}
-                          className="w-20 text-right font-mono font-bold text-xs py-1 px-1.5 border border-transparent hover:border-[#E4E0D6] focus:border-[#E8622C] rounded bg-transparent focus:bg-white"
+                          className="w-20 text-right font-mono font-bold text-xs py-1 px-1.5 border border-[#E4E0D6] focus:border-[#E8622C] rounded bg-white"
                         />
                       </td>
 
-                      {/* UOM (Inline editable) */}
+                      {/* UOM */}
                       <td className="py-2 px-3 text-center font-mono font-semibold text-gray-600">
                         {line.uom}
                       </td>
 
                       {/* Quantity per batch */}
-                      <td className="py-2 px-3 text-right font-mono text-gray-700">
+                      <td className="py-2 px-3 text-right font-mono text-gray-700 font-semibold">
                         {qtyPerBatch}
                       </td>
 
@@ -610,7 +749,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
                           step="0.1"
                           value={line.scrap}
                           onChange={(e) => handleInlineChange(idx, 'scrap', parseFloat(e.target.value) || 0)}
-                          className="w-14 text-right font-mono text-xs py-1 px-1 border border-transparent hover:border-[#E4E0D6] focus:border-[#E8622C] rounded bg-transparent focus:bg-white text-rose-700"
+                          className="w-14 text-right font-mono text-xs py-1 px-1 border border-[#E4E0D6] focus:border-[#E8622C] rounded bg-white text-rose-700 font-bold"
                         />
                       </td>
 
@@ -623,18 +762,27 @@ export const Step4Materials: React.FC<Step4Props> = ({
                         )}
                       </td>
 
-                      {/* Issue Method */}
-                      <td className="py-2 px-3 text-[11px] text-gray-600">
-                        {line.issueMethod || 'Auto Backflush'}
+                      {/* Issue Method (Inline Select) */}
+                      <td className="py-2 px-3">
+                        <select
+                          value={line.issueMethod || 'Auto Backflush'}
+                          onChange={(e) => handleInlineChange(idx, 'issueMethod', e.target.value)}
+                          className="text-[11px] py-1 px-1.5 border border-[#E4E0D6] rounded bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
+                        >
+                          <option value="Auto Backflush">Auto Backflush</option>
+                          <option value="Manual Issue">Manual Issue</option>
+                          <option value="Floor Stock">Floor Stock</option>
+                        </select>
                       </td>
 
-                      {/* Location Code (Inline editable) */}
-                      <td className="py-2 px-3 font-mono text-[11px]">
-                        <input
-                          type="text"
-                          value={line.position || 'RM-SILO-01'}
-                          onChange={(e) => handleInlineChange(idx, 'position', e.target.value)}
-                          className="w-24 font-mono text-xs py-1 px-1 border border-transparent hover:border-[#E4E0D6] focus:border-[#E8622C] rounded bg-transparent focus:bg-white"
+                      {/* Location Code (Searchable Autocomplete Dropdown) */}
+                      <td className="py-2 px-3">
+                        <LocationAutocompleteInput
+                          size="sm"
+                          value={line.position || 'RM-WH-01'}
+                          onChange={(loc) => handleInlineChange(idx, 'position', loc)}
+                          placeholder="Location..."
+                          filterType="raw_materials"
                         />
                       </td>
 
@@ -645,43 +793,43 @@ export const Step4Materials: React.FC<Step4Props> = ({
                             type="button"
                             onClick={() => handleMove(idx, 'up')}
                             disabled={idx === 0}
-                            className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-20"
+                            className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-20 cursor-pointer"
                             title="Move Up"
                           >
-                            <ArrowUp className="w-3 h-3" />
+                            <ArrowUp className="w-3.5 h-3.5" />
                           </button>
                           <button
                             type="button"
                             onClick={() => handleMove(idx, 'down')}
                             disabled={idx === components.length - 1}
-                            className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-20"
+                            className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-20 cursor-pointer"
                             title="Move Down"
                           >
-                            <ArrowDown className="w-3 h-3" />
+                            <ArrowDown className="w-3.5 h-3.5" />
                           </button>
                           <button
                             type="button"
                             onClick={() => handleOpenEditModal(idx)}
-                            className="p-1 text-gray-500 hover:text-[#0F8B8D]"
+                            className="p-1 text-gray-500 hover:text-[#0F8B8D] cursor-pointer"
                             title="Edit Details"
                           >
-                            <Edit2 className="w-3 h-3" />
+                            <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDuplicate(idx)}
-                            className="p-1 text-gray-500 hover:text-[#0F8B8D]"
+                            className="p-1 text-gray-500 hover:text-[#0F8B8D] cursor-pointer"
                             title="Duplicate Line"
                           >
-                            <Copy className="w-3 h-3" />
+                            <Copy className="w-3.5 h-3.5" />
                           </button>
                           <button
                             type="button"
                             onClick={() => handleRemove(idx)}
-                            className="p-1 text-gray-400 hover:text-rose-600"
+                            className="p-1 text-gray-400 hover:text-rose-600 cursor-pointer"
                             title="Remove Line"
                           >
-                            <Trash2 className="w-3 h-3" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
@@ -691,10 +839,79 @@ export const Step4Materials: React.FC<Step4Props> = ({
               </tbody>
             </table>
           </div>
+
+          {/* Table bottom CRUD shortcuts */}
+          <div className="p-3 bg-gray-50/80 border-t border-[#E4E0D6] flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenAddModal()}
+                className="px-3 py-1.5 bg-white border border-[#E4E0D6] hover:bg-gray-100 text-[#14213D] rounded-lg font-semibold flex items-center gap-1.5 shadow-2xs cursor-pointer transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5 text-[#0F8B8D]" /> Add Row
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenAddModal('Packaging')}
+                className="px-3 py-1.5 bg-white border border-[#E4E0D6] hover:bg-gray-100 text-[#14213D] rounded-lg font-semibold flex items-center gap-1.5 shadow-2xs cursor-pointer transition-colors"
+              >
+                <Package className="w-3.5 h-3.5 text-amber-600" /> + Packaging Material
+              </button>
+            </div>
+            <div className="font-mono text-gray-500 text-[11px]">
+              Total Ingredients: <strong className="text-[#14213D]">{components.length}</strong> | Total Batch Weight: <strong className="text-[#0F8B8D]">{components.reduce((acc, c) => acc + (c.qty * state.batchSize), 0).toFixed(2)} KG</strong>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Add / Edit Component Modal */}
+      {/* Bulk Location Assignment Modal */}
+      {bulkLocationModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-[#E4E0D6] space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-[#E4E0D6] pb-2.5">
+              <h3 className="text-sm font-bold text-[#14213D] flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-[#0F8B8D]" />
+                Assign Source Location for {selectedRowIds.length} Items
+              </h3>
+              <button
+                type="button"
+                onClick={() => setBulkLocationModalOpen(false)}
+                className="text-gray-400 hover:text-gray-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div>
+              <LocationAutocompleteInput
+                label="Select Target Warehouse / Silo Location"
+                value={bulkTargetLocation}
+                onChange={(loc) => setBulkTargetLocation(loc)}
+                placeholder="Search location..."
+                filterType="raw_materials"
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E4E0D6]">
+              <button
+                type="button"
+                onClick={() => setBulkLocationModalOpen(false)}
+                className="btn btn-sm btn-ghost text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkApplyLocation}
+                className="btn btn-sm btn-primary text-xs flex items-center gap-1 cursor-pointer"
+              >
+                <Check className="w-3.5 h-3.5" /> Apply Location
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add / Edit Component Modal (Image 1) with Location Autocomplete Dropdown */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-[#E4E0D6] space-y-5 animate-in fade-in zoom-in-95 duration-150">
@@ -707,7 +924,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="text-gray-400 hover:text-gray-700 p-1"
+                className="text-gray-400 hover:text-gray-700 p-1 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -727,7 +944,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
                     setModalItem(selected);
                     setModalUom(selected.baseUOM || 'KG');
                     setModalCategory(selected.cat || (selected.type === 'Raw Material' ? 'Virgin Resin' : 'Packaging'));
-                    setModalLocation(selected.wh || selected.defaultLocation || 'RM-SILO-01');
+                    setModalLocation(selected.wh || selected.defaultLocation || 'RM-WH-01');
                     setModalScrap(selected.scrapRate !== undefined ? selected.scrapRate : 1.5);
                   }}
                 />
@@ -750,7 +967,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
               )}
             </div>
 
-            {/* Step B: Attributes Form */}
+            {/* Step B: Attributes Form (Image 1 Layout) with Location Autocomplete Dropdown */}
             {modalItem && (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs bg-[#F9F8F5] p-3.5 rounded-xl border border-[#E4E0D6]">
                 <div className="field mb-0">
@@ -763,7 +980,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
                     min="0.0001"
                     value={modalQty}
                     onChange={(e) => setModalQty(parseFloat(e.target.value) || 0)}
-                    className="w-full text-xs font-mono font-bold py-1.5 px-2 border rounded bg-white"
+                    className="w-full text-xs font-mono font-bold py-1.5 px-2 border rounded bg-white border-[#E4E0D6] focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
                   />
                 </div>
 
@@ -772,7 +989,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
                   <select
                     value={modalCategory}
                     onChange={(e) => setModalCategory(e.target.value)}
-                    className="w-full text-xs py-1.5 px-2 border rounded bg-white"
+                    className="w-full text-xs py-1.5 px-2 border rounded bg-white border-[#E4E0D6] focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
                   >
                     {COMPONENT_CATEGORIES.map((c) => (
                       <option key={c} value={c}>
@@ -790,7 +1007,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
                     min="0"
                     value={modalScrap}
                     onChange={(e) => setModalScrap(parseFloat(e.target.value) || 0)}
-                    className="w-full text-xs font-mono py-1.5 px-2 border rounded bg-white"
+                    className="w-full text-xs font-mono py-1.5 px-2 border rounded bg-white border-[#E4E0D6] focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
                   />
                 </div>
 
@@ -799,7 +1016,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
                   <select
                     value={modalIssueMethod}
                     onChange={(e) => setModalIssueMethod(e.target.value as any)}
-                    className="w-full text-xs py-1.5 px-2 border rounded bg-white"
+                    className="w-full text-xs py-1.5 px-2 border rounded bg-white border-[#E4E0D6] focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
                   >
                     <option value="Auto Backflush">Auto Backflush (Post-run)</option>
                     <option value="Manual Issue">Manual Issue (Warehouse Pick)</option>
@@ -807,13 +1024,14 @@ export const Step4Materials: React.FC<Step4Props> = ({
                   </select>
                 </div>
 
+                {/* TASK 1: SOURCE LOCATION AUTOCOMPLETE DROPDOWN */}
                 <div className="field mb-0">
-                  <label className="text-[11px] font-bold text-[#14213D] block mb-1">Source Location</label>
-                  <input
-                    type="text"
+                  <LocationAutocompleteInput
+                    label="Source Location"
                     value={modalLocation}
-                    onChange={(e) => setModalLocation(e.target.value)}
-                    className="w-full text-xs font-mono py-1.5 px-2 border rounded bg-white"
+                    onChange={(loc) => setModalLocation(loc)}
+                    placeholder="Search source location..."
+                    filterType="raw_materials"
                   />
                 </div>
 
@@ -826,7 +1044,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
                     max="100"
                     value={modalRegrindPct}
                     onChange={(e) => setModalRegrindPct(parseFloat(e.target.value) || 0)}
-                    className="w-full text-xs font-mono py-1.5 px-2 border rounded bg-white"
+                    className="w-full text-xs font-mono py-1.5 px-2 border rounded bg-white border-[#E4E0D6] focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
                   />
                 </div>
               </div>
@@ -837,7 +1055,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="btn btn-sm btn-ghost text-xs"
+                className="btn btn-sm btn-ghost text-xs cursor-pointer"
               >
                 Cancel
               </button>
@@ -845,7 +1063,7 @@ export const Step4Materials: React.FC<Step4Props> = ({
                 type="button"
                 onClick={handleSaveModal}
                 disabled={!modalItem}
-                className="btn btn-sm btn-primary text-xs flex items-center gap-1.5 disabled:opacity-40"
+                className="btn btn-sm btn-primary text-xs flex items-center gap-1.5 disabled:opacity-40 cursor-pointer"
               >
                 <Check className="w-3.5 h-3.5" />
                 {editingIndex !== null ? 'Save Changes' : 'Add to BOM'}
