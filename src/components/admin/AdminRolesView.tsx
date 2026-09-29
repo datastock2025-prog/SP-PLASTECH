@@ -50,8 +50,8 @@ import {
   adminUsers,
 } from '../../data/adminData';
 import {
-  sodRules,
-  sodViolations,
+  mockSodRules,
+  mockSodViolations,
   simulationScenarios,
   multiContextPolicies,
 } from '../../data/adminExtendedData';
