@@ -21,11 +21,18 @@ import {
   ChevronRight,
   ShoppingCart,
   ArrowRight,
+  ArrowLeft,
   Sparkles,
   Check,
   FilePlus,
   Factory,
   CheckCircle2,
+  ChevronLeft,
+  ChevronsLeft,
+  ChevronsRight,
+  SlidersHorizontal,
+  FileSpreadsheet,
+  Download,
 } from 'lucide-react';
 import {
   MonthlyPlanOrder,
@@ -45,7 +52,7 @@ interface MonthlyPlanOrdersViewProps {
   showToast: (msg: string) => void;
 }
 
-// Helper to advance month string e.g. "October 2026" -> "November 2026"
+// Helper to advance month string e.g. "September 2026" -> "October 2026"
 function getNextMonthPeriod(currentPeriod: string): string {
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -62,7 +69,47 @@ function getNextMonthPeriod(currentPeriod: string): string {
       return `${months[nextIdx]} ${nextYear}`;
     }
   }
-  return 'November 2026';
+  return 'October 2026';
+}
+
+// Flat Planned Line Item with parent metadata
+export interface ConsolidatedPlanItem {
+  id: string;
+  planId: string;
+  monthPeriod: string;
+  customer: string;
+  customerGstin: string;
+  plant: string;
+  fgStore: string;
+  itemCode: string;
+  itemName: string;
+  customerItemCode?: string;
+  hsn: string;
+  plannedQty: number;
+  deliveredQty: number;
+  invoicedQty: number;
+  remainingQty: number; // Tally: planned - delivered
+  rate: number;
+  totalValue: number;
+  uom: string;
+  status: string;
+}
+
+// Month-Level Consolidated Master Plan
+export interface MonthMasterPlan {
+  monthKey: string; // e.g. "September 2026"
+  planId: string; // e.g. "PLN-2026-09"
+  monthPeriod: string;
+  customers: string[];
+  plants: string[];
+  totalPlannedQty: number;
+  totalDispatchedQty: number;
+  pendingBalanceQty: number;
+  totalPlannedValue: number;
+  totalItemsCount: number;
+  status: 'Partially Supplied' | 'Fully Supplied' | 'Active' | 'Variance';
+  items: ConsolidatedPlanItem[];
+  rawPlans: MonthlyPlanOrder[];
 }
 
 export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
@@ -77,14 +124,27 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
   const [plans, setPlans] = useState<MonthlyPlanOrder[]>(propPlans);
   const [activeTab, setActiveTab] = useState<string>('All Plans');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(propPlans[0]?.id || null);
-  const [expandedPlanIds, setExpandedPlanIds] = useState<Record<string, boolean>>({
-    [propPlans[0]?.id || '']: true,
-  });
+
+  // Page View: 'master' (Master Month Grid) vs 'monthDetail' (Detailed Items Page Grid)
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(null);
+
+  // Pagination for Master Grid
+  const [masterPage, setMasterPage] = useState(1);
+  const [masterPageSize, setMasterPageSize] = useState(5);
+
+  // Pagination for Month Detailed Items Grid
+  const [itemPage, setItemPage] = useState(1);
+  const [itemPageSize, setItemPageSize] = useState(10);
+  const [itemSearchQuery, setItemSearchQuery] = useState('');
+  const [itemPlantFilter, setItemPlantFilter] = useState('All');
+  const [itemCustomerFilter, setItemCustomerFilter] = useState('All');
+
+  // Selected item checkboxes for batch operations
+  const [selectedItemIds, setSelectedItemIds] = useState<Record<string, boolean>>({});
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(initialCreateOpen);
-  const [duplicateModalPlan, setDuplicateModalPlan] = useState<MonthlyPlanOrder | null>(null);
+  const [duplicateModalMonth, setDuplicateModalMonth] = useState<MonthMasterPlan | null>(null);
 
   // Synchronize with parent props
   useEffect(() => {
@@ -111,10 +171,14 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
   const [newPlanNotes, setNewPlanNotes] = useState('Committed monthly call-off schedule based on OEM production forecasts.');
 
   // Form State for Duplicate to Next Month Modal
-  const [dupMonth, setDupMonth] = useState('');
+  const [dupTargetMonth, setDupTargetMonth] = useState('');
   const [dupNotes, setDupNotes] = useState('');
   const [dupItems, setDupItems] = useState<
     Array<{
+      id: string;
+      customer: string;
+      plant: string;
+      fgStore: string;
       itemCode: string;
       itemName: string;
       prevPlannedQty: number;
@@ -122,173 +186,342 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
       newPlannedQty: number;
       rate: number;
       uom: string;
-      plant: string;
-      fgStore: string;
     }>
   >([]);
 
-  // Summary Metrics
-  const totalActivePlans = plans.filter((p) => !['Closed', 'Expired'].includes(p.status)).length;
-  const totalPlannedQty = plans.reduce((sum, p) => sum + p.totalPlannedQty, 0);
-  const totalDailySupplied = plans.reduce((sum, p) => sum + p.totalDailySuppliedQty, 0);
-  const remainingPlanQty = plans.reduce((sum, p) => sum + (p.totalPlannedQty - p.totalDailySuppliedQty), 0);
-  const totalPlannedValue = plans.reduce((sum, p) => sum + p.totalPlannedValue, 0);
-  const overallVariancePct = totalPlannedQty > 0
-    ? (((totalDailySupplied - totalPlannedQty) / totalPlannedQty) * 100).toFixed(1)
-    : '0.0';
+  // Consolidated Master Plans: Grouped as One Plan ID per Month Period
+  const monthMasterPlans: MonthMasterPlan[] = useMemo(() => {
+    const monthGroups: Record<string, MonthlyPlanOrder[]> = {};
 
-  // Filter tabs
-  const filteredPlans = useMemo(() => {
-    return plans.filter((plan) => {
-      if (activeTab === 'Active Plans' && plan.status === 'Closed') return false;
+    plans.forEach((plan) => {
+      const mPeriod = (plan.monthPeriod || 'September 2026').trim();
+      if (!monthGroups[mPeriod]) {
+        monthGroups[mPeriod] = [];
+      }
+      monthGroups[mPeriod].push(plan);
+    });
+
+    return Object.entries(monthGroups).map(([monthPeriod, groupPlans]) => {
+      const monthsMap: Record<string, string> = {
+        january: '01', february: '02', march: '03', april: '04',
+        may: '05', june: '06', july: '07', august: '08',
+        september: '09', october: '10', november: '11', december: '12',
+      };
+      const parts = monthPeriod.split(' ');
+      const mName = (parts[0] || '').toLowerCase();
+      const yr = parts[1] || '2026';
+      const mCode = monthsMap[mName] || '09';
+      const consolidatedPlanId = `PLN-${yr}-${mCode}`;
+
+      const allItems: ConsolidatedPlanItem[] = [];
+      const customersSet = new Set<string>();
+      const plantsSet = new Set<string>();
+
+      let totalPlanned = 0;
+      let totalDispatched = 0;
+      let totalVal = 0;
+
+      groupPlans.forEach((plan) => {
+        customersSet.add(plan.customer);
+        if (plan.plant) plantsSet.add(plan.plant);
+
+        (plan.items || []).forEach((it, idx) => {
+          const planned = Number(it.plannedQty) || 0;
+          const dispatched = Number(it.deliveredQty) || 0;
+          const invoiced = Number(it.invoicedQty) || 0;
+          const pending = planned - dispatched;
+          const rate = Number(it.rate) || 0;
+          const lineVal = planned * rate;
+
+          totalPlanned += planned;
+          totalDispatched += dispatched;
+          totalVal += lineVal;
+
+          allItems.push({
+            id: `${plan.id}-ITM-${idx + 1}`,
+            planId: plan.id,
+            monthPeriod,
+            customer: plan.customer,
+            customerGstin: plan.customerGstin || '27AAACG0943A1ZX',
+            plant: it.plant || plan.plant,
+            fgStore: it.fgStore || plan.fgStore,
+            itemCode: it.itemCode,
+            itemName: it.itemName,
+            customerItemCode: it.customerItemCode,
+            hsn: it.hsn || '39269099',
+            plannedQty: planned,
+            deliveredQty: dispatched,
+            invoicedQty: invoiced,
+            remainingQty: pending,
+            rate,
+            totalValue: lineVal,
+            uom: it.uom || 'PCS',
+            status:
+              dispatched >= planned
+                ? 'Fully Supplied'
+                : dispatched > 0
+                ? 'Partially Supplied'
+                : 'Pending Supply',
+          });
+        });
+      });
+
+      const pendingBal = totalPlanned - totalDispatched;
+      let status: 'Partially Supplied' | 'Fully Supplied' | 'Active' | 'Variance' = 'Active';
+      if (totalDispatched >= totalPlanned && totalPlanned > 0) {
+        status = 'Fully Supplied';
+      } else if (totalDispatched > 0) {
+        status = 'Partially Supplied';
+      }
+
+      return {
+        monthKey: monthPeriod,
+        planId: consolidatedPlanId,
+        monthPeriod,
+        customers: Array.from(customersSet),
+        plants: Array.from(plantsSet),
+        totalPlannedQty: totalPlanned,
+        totalDispatchedQty: totalDispatched,
+        pendingBalanceQty: pendingBal,
+        totalPlannedValue: totalVal,
+        totalItemsCount: allItems.length,
+        status,
+        items: allItems,
+        rawPlans: groupPlans,
+      };
+    });
+  }, [plans]);
+
+  // Active Selected Month Master Plan (if drilled down)
+  const currentSelectedMonthPlan = useMemo(() => {
+    if (!selectedMonthKey) return null;
+    return monthMasterPlans.find((m) => m.monthKey === selectedMonthKey) || null;
+  }, [monthMasterPlans, selectedMonthKey]);
+
+  // Summary Metrics across all months
+  const totalMonthlyMasterPlans = monthMasterPlans.length;
+  const overallPlannedQty = monthMasterPlans.reduce((sum, p) => sum + p.totalPlannedQty, 0);
+  const overallDispatchedQty = monthMasterPlans.reduce((sum, p) => sum + p.totalDispatchedQty, 0);
+  const overallRemainingTally = overallPlannedQty - overallDispatchedQty;
+  const overallPlannedValue = monthMasterPlans.reduce((sum, p) => sum + p.totalPlannedValue, 0);
+
+  // Tabs
+  const tabs = [
+    'All Plans',
+    'Partially Supplied',
+    'Fully Supplied',
+    'Active',
+  ];
+
+  // Filter Master Monthly Plans
+  const filteredMasterPlans = useMemo(() => {
+    return monthMasterPlans.filter((plan) => {
       if (activeTab === 'Partially Supplied' && plan.status !== 'Partially Supplied') return false;
       if (activeTab === 'Fully Supplied' && plan.status !== 'Fully Supplied') return false;
-      if (activeTab === 'Variance (>10%)' && Math.abs(plan.variancePct) < 10) return false;
-      if (activeTab === 'Closed/Expired' && !['Closed', 'Expired'].includes(plan.status)) return false;
+      if (activeTab === 'Active' && plan.status !== 'Active') return false;
 
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        const matchId = plan.id.toLowerCase().includes(q);
-        const matchCust = plan.customer.toLowerCase().includes(q);
+        const matchId = plan.planId.toLowerCase().includes(q);
         const matchPeriod = plan.monthPeriod.toLowerCase().includes(q);
-        const matchItem = plan.items?.some(
+        const matchCust = plan.customers.some((c) => c.toLowerCase().includes(q));
+        const matchPlant = plan.plants.some((p) => p.toLowerCase().includes(q));
+        const matchItem = plan.items.some(
           (i) => i.itemCode.toLowerCase().includes(q) || i.itemName.toLowerCase().includes(q)
         );
-        if (!matchId && !matchCust && !matchPeriod && !matchItem) return false;
+        if (!matchId && !matchPeriod && !matchCust && !matchPlant && !matchItem) return false;
       }
       return true;
     });
-  }, [plans, activeTab, searchQuery]);
+  }, [monthMasterPlans, activeTab, searchQuery]);
 
-  const selectedPlan = plans.find((p) => p.id === selectedPlanId) || filteredPlans[0];
+  // Master Pagination
+  const totalMasterPages = Math.ceil(filteredMasterPlans.length / masterPageSize) || 1;
+  const paginatedMasterPlans = useMemo(() => {
+    const start = (masterPage - 1) * masterPageSize;
+    return filteredMasterPlans.slice(start, start + masterPageSize);
+  }, [filteredMasterPlans, masterPage, masterPageSize]);
 
-  // Daily orders that belong to the selected plan customer
-  const relatedDailyOrders = selectedPlan
-    ? dailyOrders.filter((d) => d.customer === selectedPlan.customer)
-    : [];
+  // Month Detail Page: Filter & Paginate Items
+  const filteredMonthItems = useMemo(() => {
+    if (!currentSelectedMonthPlan) return [];
+    return currentSelectedMonthPlan.items.filter((item) => {
+      if (itemPlantFilter !== 'All' && item.plant !== itemPlantFilter) return false;
+      if (itemCustomerFilter !== 'All' && item.customer !== itemCustomerFilter) return false;
 
-  const tabs = [
-    'All Plans',
-    'Active Plans',
-    'Partially Supplied',
-    'Fully Supplied',
-    'Variance (>10%)',
-    'Closed/Expired',
-  ];
+      if (itemSearchQuery) {
+        const q = itemSearchQuery.toLowerCase();
+        const matchCode = item.itemCode.toLowerCase().includes(q);
+        const matchName = item.itemName.toLowerCase().includes(q);
+        const matchCust = item.customer.toLowerCase().includes(q);
+        const matchPlant = item.plant.toLowerCase().includes(q);
+        if (!matchCode && !matchName && !matchCust && !matchPlant) return false;
+      }
+      return true;
+    });
+  }, [currentSelectedMonthPlan, itemPlantFilter, itemCustomerFilter, itemSearchQuery]);
 
-  // Open Duplicate Modal for a given plan
-  const handleOpenDuplicate = (plan: MonthlyPlanOrder, e?: React.MouseEvent) => {
+  const totalItemPages = Math.ceil(filteredMonthItems.length / itemPageSize) || 1;
+  const paginatedMonthItems = useMemo(() => {
+    const start = (itemPage - 1) * itemPageSize;
+    return filteredMonthItems.slice(start, start + itemPageSize);
+  }, [filteredMonthItems, itemPage, itemPageSize]);
+
+  // Handle Master Row Click to Drill Down into Month Detail Grid
+  const handleOpenMonthDetail = (monthKey: string) => {
+    setSelectedMonthKey(monthKey);
+    setItemPage(1);
+    setItemSearchQuery('');
+    setItemPlantFilter('All');
+    setItemCustomerFilter('All');
+    setSelectedItemIds({});
+  };
+
+  // Open Duplicate Modal for a Month Master Plan
+  const handleOpenDuplicateMonth = (monthPlan: MonthMasterPlan, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    setDuplicateModalPlan(plan);
-    const nextM = getNextMonthPeriod(plan.monthPeriod);
-    setDupMonth(nextM);
-    setDupNotes(`Rolled forward commitment from ${plan.monthPeriod} (${plan.id}). Planned quantities adjusted for next month forecast.`);
+    setDuplicateModalMonth(monthPlan);
+    const nextM = getNextMonthPeriod(monthPlan.monthPeriod);
+    setDupTargetMonth(nextM);
+    setDupNotes(`Consolidated monthly demand roll-forward from ${monthPlan.monthPeriod} (${monthPlan.planId}) with tuned production forecast.`);
     setDupItems(
-      (plan.items || []).map((i) => ({
+      monthPlan.items.map((i) => ({
+        id: i.id,
+        customer: i.customer,
+        plant: i.plant,
+        fgStore: i.fgStore,
         itemCode: i.itemCode,
         itemName: i.itemName,
         prevPlannedQty: i.plannedQty,
-        prevDispatchedQty: i.deliveredQty || 0,
-        newPlannedQty: i.plannedQty, // default same as prev planned, user can edit
+        prevDispatchedQty: i.deliveredQty,
+        newPlannedQty: i.plannedQty, // User can edit
         rate: i.rate,
-        uom: i.uom || 'PCS',
-        plant: i.plant || plan.plant,
-        fgStore: i.fgStore || plan.fgStore,
+        uom: i.uom,
       }))
     );
   };
 
-  // Confirm Duplication to Next Month
-  const handleConfirmDuplicate = () => {
-    if (!duplicateModalPlan) return;
+  // Confirm Duplicating Month Plan to Next Month
+  const handleConfirmDuplicateMonth = () => {
+    if (!duplicateModalMonth) return;
 
-    const newTotalPlanned = dupItems.reduce((sum, item) => sum + Number(item.newPlannedQty || 0), 0);
-    const newTotalVal = dupItems.reduce((sum, item) => sum + (Number(item.newPlannedQty || 0) * (Number(item.rate) || 0)), 0);
-    const randSuffix = Math.floor(10 + Math.random() * 90);
-    const monthCode = dupMonth.slice(0, 3).toUpperCase();
-    const newPlanId = `PLN-2026-${monthCode}-${randSuffix}`;
+    // Group items by customer & plant to create child plan records for next month
+    const groups: Record<string, typeof dupItems> = {};
+    dupItems.forEach((item) => {
+      const key = `${item.customer}__${item.plant}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(item);
+    });
 
-    const newPlanObj: MonthlyPlanOrder = {
-      id: newPlanId,
-      customer: duplicateModalPlan.customer,
-      customerGstin: duplicateModalPlan.customerGstin || '27AAACG0943A1ZX',
-      monthPeriod: dupMonth || 'November 2026',
-      planType: duplicateModalPlan.planType,
-      consumptionMode: duplicateModalPlan.consumptionMode || 'Manual reconciliation',
-      billingMode: duplicateModalPlan.billingMode || 'Reconciliation only',
-      status: 'Published',
-      plant: duplicateModalPlan.plant,
-      fgStore: duplicateModalPlan.fgStore,
-      createdDate: new Date().toISOString().slice(0, 10),
-      items: dupItems.map((item) => ({
-        itemCode: item.itemCode,
-        itemName: item.itemName,
-        hsn: '39269099',
-        plannedQty: Number(item.newPlannedQty) || 0,
-        deliveredQty: 0,
-        invoicedQty: 0,
-        remainingQty: Number(item.newPlannedQty) || 0,
-        rate: Number(item.rate) || 0,
-        uom: item.uom || 'PCS',
-        plant: item.plant || duplicateModalPlan.plant,
-        fgStore: item.fgStore || duplicateModalPlan.fgStore,
-      })),
-      totalPlannedQty: newTotalPlanned,
-      totalDailySuppliedQty: 0,
-      remainingPlanQty: newTotalPlanned,
-      varianceQty: -newTotalPlanned,
-      variancePct: -100,
-      totalPlannedValue: newTotalVal,
-      notes: dupNotes,
-      auditTrail: [
-        {
-          action: `Duplicated from ${duplicateModalPlan.id} (${duplicateModalPlan.monthPeriod})`,
-          user: 'Sales Planning Head',
-          timestamp: new Date().toISOString().replace('T', ' ').slice(0, 16),
-          note: `Rolled over with edited planned quantities (Total ${newTotalPlanned.toLocaleString()} PCS)`,
-        },
-      ],
+    const monthsMap: Record<string, string> = {
+      january: '01', february: '02', march: '03', april: '04',
+      may: '05', june: '06', july: '07', august: '08',
+      september: '09', october: '10', november: '11', december: '12',
     };
+    const parts = (dupTargetMonth || '').split(' ');
+    const mName = (parts[0] || '').toLowerCase();
+    const yr = parts[1] || '2026';
+    const mCode = monthsMap[mName] || '10';
 
-    setPlans((prev) => [newPlanObj, ...prev]);
-    if (onCreatePlan) onCreatePlan(newPlanObj);
-    setSelectedPlanId(newPlanId);
-    setExpandedPlanIds((prev) => ({ ...prev, [newPlanId]: true }));
-    setDuplicateModalPlan(null);
+    const newCreatedPlans: MonthlyPlanOrder[] = [];
+    let counter = 1;
 
-    showToast(`✓ Monthly Plan ${newPlanId} for ${dupMonth} created successfully! Planned Qty tallied.`);
+    Object.entries(groups).forEach(([key, itemsList]) => {
+      const first = itemsList[0];
+      const planId = `PLN-${yr}-${mCode}-${String(counter).padStart(2, '0')}`;
+      counter++;
+
+      const totalPlanned = itemsList.reduce((sum, it) => sum + (Number(it.newPlannedQty) || 0), 0);
+      const totalVal = itemsList.reduce((sum, it) => sum + ((Number(it.newPlannedQty) || 0) * (Number(it.rate) || 0)), 0);
+
+      const newPlan: MonthlyPlanOrder = {
+        id: planId,
+        customer: first.customer,
+        customerGstin: '27AAACG0943A1ZX',
+        monthPeriod: dupTargetMonth || 'October 2026',
+        planType: 'Monthly supply plan',
+        consumptionMode: 'Manual reconciliation',
+        billingMode: 'Reconciliation only',
+        status: 'Published',
+        plant: first.plant,
+        fgStore: first.fgStore || 'FG-Automotive Cell',
+        createdDate: new Date().toISOString().slice(0, 10),
+        items: itemsList.map((it) => ({
+          itemCode: it.itemCode,
+          itemName: it.itemName,
+          hsn: '39269099',
+          plannedQty: Number(it.newPlannedQty) || 0,
+          deliveredQty: 0,
+          invoicedQty: 0,
+          remainingQty: Number(it.newPlannedQty) || 0,
+          rate: Number(it.rate) || 0,
+          uom: it.uom || 'PCS',
+          plant: it.plant,
+          fgStore: it.fgStore || 'FG-Automotive Cell',
+        })),
+        totalPlannedQty: totalPlanned,
+        totalDailySuppliedQty: 0,
+        remainingPlanQty: totalPlanned,
+        varianceQty: -totalPlanned,
+        variancePct: -100,
+        totalPlannedValue: totalVal,
+        notes: dupNotes,
+        auditTrail: [
+          {
+            action: `Duplicated from ${duplicateModalMonth.planId} (${duplicateModalMonth.monthPeriod})`,
+            user: 'Sales Operations Manager',
+            timestamp: new Date().toISOString().replace('T', ' ').slice(0, 16),
+            note: `Monthly forecast rolled over to ${dupTargetMonth} (Total ${totalPlanned.toLocaleString()} PCS)`,
+          },
+        ],
+      };
+
+      newCreatedPlans.push(newPlan);
+      if (onCreatePlan) onCreatePlan(newPlan);
+    });
+
+    setPlans((prev) => [...newCreatedPlans, ...prev]);
+    setDuplicateModalMonth(null);
+    setSelectedMonthKey(dupTargetMonth);
+    showToast(`✓ Master Monthly Plan for ${dupTargetMonth} duplicated successfully! All item planned quantities tallied.`);
   };
 
-  // Convert Monthly Plan to Purchase Module (Generate Purchase Requisition)
-  const handleSendToPurchase = (plan: MonthlyPlanOrder, e?: React.MouseEvent) => {
-    e?.stopPropagation();
+  // Centralized "Move Monthly Plan to Purchase Team" Action
+  const handleCentralizedSendToPurchase = (monthPlan: MonthMasterPlan, itemsToConvert?: ConsolidatedPlanItem[]) => {
+    const targetItems = itemsToConvert && itemsToConvert.length > 0 ? itemsToConvert : monthPlan.items;
+    if (targetItems.length === 0) {
+      showToast('No items selected to send to Purchase.');
+      return;
+    }
 
     const prNumber = `PR-2026-${Math.floor(100 + Math.random() * 900)}`;
-    const totalPlasticQty = plan.items.reduce((sum, item) => sum + (item.plannedQty || 0), 0);
-    // Standard plastic injection raw material calculation: ~0.45 kg polymer per PCS
-    const estimatedRawResinKg = Math.round(totalPlasticQty * 0.45);
+    const totalPlasticPieces = targetItems.reduce((sum, it) => sum + (it.plannedQty || 0), 0);
+
+    // Standard plastic injection raw material calculation:
+    // ~0.45 kg polymer resin per PCS + 2% Masterbatch colorant
+    const estimatedRawResinKg = Math.round(totalPlasticPieces * 0.45);
     const estimatedMasterbatchKg = Math.round(estimatedRawResinKg * 0.02);
 
     const newPR: PurchaseRequisition = {
       id: prNumber,
       prNumber: prNumber,
       requestDate: new Date().toISOString().slice(0, 10),
-      requestedBy: 'SCM MRP Shortage Engine (Sales Plan Rollup)',
+      requestedBy: 'Consolidated Sales Monthly Plan Engine (MRP)',
       department: 'Store & Procurement',
-      plantWarehouse: `${plan.plant.split(' - ')[0]} Store`,
-      requiredDate: new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10),
+      plantWarehouse: `${monthPlan.plants[0]?.split(' - ')[0] || 'Plant 1'} Central Store`,
+      requiredDate: new Date(Date.now() + 12 * 86400000).toISOString().slice(0, 10),
       priority: 'High',
       source: 'Monthly Plan Order',
       currency: 'INR (₹)',
       estimatedTotal: estimatedRawResinKg * 88.5 + estimatedMasterbatchKg * 340,
-      budgetAllocated: 2500000,
-      budgetRemaining: 1200000,
+      budgetAllocated: 3500000,
+      budgetRemaining: 1850000,
       budgetExceeded: false,
       status: 'pending_approval',
       approvalStatus: 'pending',
       currentApprover: 'K. Ramanathan (Procurement VP)',
-      justification: `Automated raw material requisition generated for Consolidated Monthly Sales Plan ${plan.id} (${plan.monthPeriod}) — ${plan.customer}.`,
-      notes: `Direct MRP calculation for ${plan.items.map((i) => i.itemCode).join(', ')}. Planned output: ${totalPlasticQty.toLocaleString()} PCS.`,
+      justification: `Centralized automated raw polymer requirement generated for Master Monthly Sales Plan ${monthPlan.planId} (${monthPlan.monthPeriod}).`,
+      notes: `Consolidated requirements for ${targetItems.length} planned SKUs across ${monthPlan.customers.join(', ')}. Planned plastic output: ${totalPlasticPieces.toLocaleString()} PCS.`,
       lines: [
         {
           id: `PRL-${Math.floor(100 + Math.random() * 900)}`,
@@ -296,7 +529,7 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
           itemCode: 'RM-PP-NAT-001',
           itemName: 'Polypropylene Injection Grade Virgin Resin H110MA',
           itemCategory: 'Polymer Granules',
-          description: `Virgin raw resin for ${plan.customer} monthly delivery commitments`,
+          description: `Virgin raw resin for ${monthPlan.monthPeriod} consolidated sales commitment`,
           quantity: estimatedRawResinKg,
           uom: 'KG',
           requiredDate: new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10),
@@ -304,7 +537,7 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
           suggestedSupplierName: 'RELIANCE INDUSTRIES LIMITED',
           estimatedUnitPrice: 88.5,
           estimatedTotal: estimatedRawResinKg * 88.5,
-          salesOrderRef: plan.id,
+          salesOrderRef: monthPlan.planId,
           status: 'pending',
         },
         {
@@ -313,7 +546,7 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
           itemCode: 'MB-BLK-002',
           itemName: 'Carbon Black Masterbatch 40% Concentration',
           itemCategory: 'Color Masterbatch',
-          description: 'High-dispersion black colorant for automotive trim parts',
+          description: 'High-dispersion black colorant for automotive trim and consumer parts',
           quantity: estimatedMasterbatchKg,
           uom: 'KG',
           requiredDate: new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10),
@@ -321,7 +554,7 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
           suggestedSupplierName: 'CLARIANT COLORANTS CHEMICALS INDIA',
           estimatedUnitPrice: 340.0,
           estimatedTotal: estimatedMasterbatchKg * 340.0,
-          salesOrderRef: plan.id,
+          salesOrderRef: monthPlan.planId,
           status: 'pending',
         },
       ],
@@ -332,14 +565,14 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
           user: 'Sales & Operations Consensus',
           action: 'Approved',
           date: new Date().toISOString().slice(0, 10),
-          comment: `Material requirement rollup from Sales Monthly Plan ${plan.id}`,
+          comment: `Rollup from Consolidated Master Monthly Plan ${monthPlan.planId} (${monthPlan.monthPeriod})`,
         },
         {
           step: 2,
           role: 'Purchase Manager',
           user: 'Purchase Manager (You)',
           action: 'Pending',
-          comment: 'Under commercial vendor rate review in Enterprise Approvals Hub',
+          comment: 'Pending commercial rate validation in Enterprise Approvals Hub',
         },
       ],
     };
@@ -349,366 +582,697 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
     adminEventBus.emit('PR_CREATED', newPR);
     adminEventBus.emit('PR_SUBMITTED_FOR_APPROVAL', newPR);
 
-    showToast(`✓ Monthly Plan ${plan.id} sent to Purchase Module! Generated PR ${prNumber} (${estimatedRawResinKg.toLocaleString()} KG Resin).`);
+    showToast(`✓ Monthly Plan ${monthPlan.planId} sent to Purchase Module! Generated PR ${prNumber} (${estimatedRawResinKg.toLocaleString()} KG Polymer Resin).`);
   };
 
-  const toggleExpand = (planId: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    setExpandedPlanIds((prev) => ({ ...prev, [planId]: !prev[planId] }));
-    setSelectedPlanId(planId);
+  // Toggle Single Item Selection
+  const toggleSelectItem = (itemId: string) => {
+    setSelectedItemIds((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
   };
+
+  // Select / Deselect All Items on current page
+  const handleSelectAllPageItems = (checked: boolean) => {
+    const updated = { ...selectedItemIds };
+    paginatedMonthItems.forEach((it) => {
+      updated[it.id] = checked;
+    });
+    setSelectedItemIds(updated);
+  };
+
+  const isAllPageSelected =
+    paginatedMonthItems.length > 0 &&
+    paginatedMonthItems.every((it) => selectedItemIds[it.id]);
+
+  const selectedItemsCount = Object.values(selectedItemIds).filter(Boolean).length;
 
   return (
     <div className="space-y-5">
-      {/* Prominent Architectural Banner */}
-      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-cyan-50 border border-blue-200 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-sm">
-        <div className="flex items-start gap-3">
-          <div className="p-2.5 bg-[#14213D] text-white rounded-xl shrink-0 shadow-sm">
-            <Layers className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-blue-950">
-                Consolidated Monthly Sales Plan &amp; Plant-Wise Demand Forecast Grid
-              </h2>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                MRP Integrated
-              </span>
+      {/* View Mode 1: Detailed Items Page Grid for a Selected Month Period */}
+      {currentSelectedMonthPlan ? (
+        <div className="space-y-5 animate-fade-in">
+          {/* Breadcrumb & Navigation Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setSelectedMonthKey(null)}
+                className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                title="Return to Master Monthly Plans Grid"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back to Monthly Plans</span>
+              </button>
+              <div className="h-5 w-px bg-slate-200 hidden sm:block" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-sm text-[#0F8B8D]">
+                    {currentSelectedMonthPlan.planId}
+                  </span>
+                  <span className="text-xs font-bold text-slate-900">
+                    &bull; {currentSelectedMonthPlan.monthPeriod} Detailed Sales Commitments
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    {currentSelectedMonthPlan.items.length} Planned SKUs
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Plant-wise item sales forecast, dispatched tally, and centralized procurement conversion.
+                </p>
+              </div>
             </div>
-            <p className="text-xs text-blue-800 mt-0.5 leading-relaxed">
-              Consolidated demand commitments by plant. Click any plan row to view plant-wise line items, previous month dispatch tally, duplicate to next month, or generate purchase requisitions.
-            </p>
+
+            {/* Centralized Action Buttons in Detailed View */}
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={(e) => handleOpenDuplicateMonth(currentSelectedMonthPlan, e)}
+                className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
+                title="Duplicate this month plan to next month with previous dispatch tally comparison"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>Duplicate to Next Month</span>
+              </button>
+
+              {/* Centralized Button: Move Monthly Plan to Purchase Team */}
+              <button
+                onClick={() => {
+                  const selectedList = currentSelectedMonthPlan.items.filter((it) => selectedItemIds[it.id]);
+                  handleCentralizedSendToPurchase(
+                    currentSelectedMonthPlan,
+                    selectedList.length > 0 ? selectedList : currentSelectedMonthPlan.items
+                  );
+                }}
+                className="px-4 py-2 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-md hover:shadow-lg transition cursor-pointer"
+                title="Calculate BOM raw material resin requirements and create Purchase Requisition in Procurement module"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                <span>
+                  {selectedItemsCount > 0
+                    ? `Send ${selectedItemsCount} Selected to Purchase Team`
+                    : 'Send Monthly Plan to Purchase Team'}
+                </span>
+                <span className="bg-white/20 text-white text-[10px] px-1.5 py-0.5 rounded-full font-mono">
+                  ~{Math.round(currentSelectedMonthPlan.totalPlannedQty * 0.45).toLocaleString()} KG Resin
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Month Summary KPI Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
+              <div className="text-[10px] uppercase font-bold text-gray-500">Plan Period</div>
+              <div className="text-base font-bold text-slate-900 mt-1">{currentSelectedMonthPlan.monthPeriod}</div>
+              <div className="text-[10px] text-indigo-600 mt-0.5">{currentSelectedMonthPlan.customers.length} Customers Enrolled</div>
+            </div>
+
+            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
+              <div className="text-[10px] uppercase font-bold text-gray-500">Total Planned Qty</div>
+              <div className="text-lg font-bold text-blue-700 mt-1">
+                {currentSelectedMonthPlan.totalPlannedQty.toLocaleString()} <span className="text-xs text-gray-500 font-normal">PCS</span>
+              </div>
+              <div className="text-[10px] text-gray-400 mt-0.5">{currentSelectedMonthPlan.items.length} Product Lines</div>
+            </div>
+
+            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
+              <div className="text-[10px] uppercase font-bold text-gray-500">Total Dispatched</div>
+              <div className="text-lg font-bold text-emerald-700 mt-1">
+                {currentSelectedMonthPlan.totalDispatchedQty.toLocaleString()} <span className="text-xs text-gray-500 font-normal">PCS</span>
+              </div>
+              <div className="text-[10px] text-emerald-600 mt-0.5">Delivered via Daily SOs</div>
+            </div>
+
+            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
+              <div className="text-[10px] uppercase font-bold text-gray-500">Pending Balance Tally</div>
+              <div className="text-lg font-bold text-amber-700 mt-1">
+                {currentSelectedMonthPlan.pendingBalanceQty.toLocaleString()} <span className="text-xs text-gray-500 font-normal">PCS</span>
+              </div>
+              <div className="text-[10px] text-amber-600 mt-0.5">Planned &minus; Dispatched</div>
+            </div>
+
+            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm col-span-2 sm:col-span-1">
+              <div className="text-[10px] uppercase font-bold text-gray-500">Total Planned Value</div>
+              <div className="text-lg font-bold text-slate-900 mt-1">
+                ₹{(currentSelectedMonthPlan.totalPlannedValue / 100000).toFixed(2)}L
+              </div>
+              <div className="text-[10px] text-gray-400 mt-0.5">Monthly Commitment</div>
+            </div>
+          </div>
+
+          {/* Filter & Search Bar for Month Items Grid */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-gray-200 shadow-sm text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Search item code, description, customer..."
+                  value={itemSearchQuery}
+                  onChange={(e) => {
+                    setItemSearchQuery(e.target.value);
+                    setItemPage(1);
+                  }}
+                  className="pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0F8B8D] text-xs w-64"
+                />
+              </div>
+
+              {/* Plant Filter */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-gray-500 font-semibold text-[11px]">Plant:</span>
+                <select
+                  value={itemPlantFilter}
+                  onChange={(e) => {
+                    setItemPlantFilter(e.target.value);
+                    setItemPage(1);
+                  }}
+                  className="border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-xs text-slate-700"
+                >
+                  <option value="All">All Plants</option>
+                  {currentSelectedMonthPlan.plants.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Customer Filter */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-gray-500 font-semibold text-[11px]">Customer:</span>
+                <select
+                  value={itemCustomerFilter}
+                  onChange={(e) => {
+                    setItemCustomerFilter(e.target.value);
+                    setItemPage(1);
+                  }}
+                  className="border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-xs text-slate-700 max-w-[180px] truncate"
+                >
+                  <option value="All">All Customers</option>
+                  {currentSelectedMonthPlan.customers.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-gray-500">Rows per page:</span>
+              <select
+                value={itemPageSize}
+                onChange={(e) => {
+                  setItemPageSize(Number(e.target.value));
+                  setItemPage(1);
+                }}
+                className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Month Detailed Items Table Grid */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden text-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 text-slate-700 font-bold uppercase tracking-wider text-[10px] border-b border-gray-200">
+                  <tr>
+                    <th className="p-3 w-8 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isAllPageSelected}
+                        onChange={(e) => handleSelectAllPageItems(e.target.checked)}
+                        className="rounded text-[#0F8B8D] focus:ring-[#0F8B8D]"
+                      />
+                    </th>
+                    <th className="p-3">Item Code &amp; Description</th>
+                    <th className="p-3">Target Customer</th>
+                    <th className="p-3">Manufacturing Plant &amp; Store</th>
+                    <th className="p-3 text-right">Planned Qty</th>
+                    <th className="p-3 text-right">Dispatched Qty</th>
+                    <th className="p-3 text-right">Invoiced Qty</th>
+                    <th className="p-3 text-right font-bold text-amber-800">Pending Tally Balance</th>
+                    <th className="p-3 text-right">Unit Rate</th>
+                    <th className="p-3 text-right">Item Value</th>
+                    <th className="p-3 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {paginatedMonthItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={11} className="p-8 text-center text-gray-400">
+                        No sales planned line items found for this month matching filter.
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedMonthItems.map((item) => {
+                      const isSelected = Boolean(selectedItemIds[item.id]);
+
+                      return (
+                        <tr
+                          key={item.id}
+                          className={`hover:bg-blue-50/30 transition-colors ${
+                            isSelected ? 'bg-blue-50/50' : ''
+                          }`}
+                        >
+                          <td className="p-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleSelectItem(item.id)}
+                              className="rounded text-[#0F8B8D] focus:ring-[#0F8B8D]"
+                            />
+                          </td>
+                          <td className="p-3">
+                            <div className="font-mono font-bold text-slate-900 flex items-center gap-1">
+                              <span>{item.itemCode}</span>
+                              {item.customerItemCode && (
+                                <span className="text-[10px] text-gray-400 font-normal">
+                                  ({item.customerItemCode})
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-600 mt-0.5">{item.itemName}</div>
+                          </td>
+                          <td className="p-3 font-semibold text-gray-900">
+                            <div>{item.customer}</div>
+                            <div className="text-[10px] text-gray-400 font-mono font-normal">
+                              GSTIN: {item.customerGstin}
+                            </div>
+                          </td>
+                          <td className="p-3 text-slate-600">
+                            <div className="flex items-center gap-1 font-medium text-slate-800">
+                              <Factory className="w-3.5 h-3.5 text-slate-400" />
+                              <span>{item.plant}</span>
+                            </div>
+                            <div className="text-[10px] text-slate-400">{item.fgStore}</div>
+                          </td>
+                          <td className="p-3 text-right font-bold text-gray-900">
+                            {item.plannedQty.toLocaleString()} <span className="text-[10px] text-gray-500 font-normal">{item.uom}</span>
+                          </td>
+                          <td className="p-3 text-right font-semibold text-emerald-700">
+                            {item.deliveredQty.toLocaleString()}
+                          </td>
+                          <td className="p-3 text-right text-indigo-700 font-medium">
+                            {item.invoicedQty.toLocaleString()}
+                          </td>
+                          <td className="p-3 text-right font-mono font-bold">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                                item.remainingQty <= 0
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-amber-100 text-amber-900'
+                              }`}
+                            >
+                              {item.remainingQty.toLocaleString()} {item.uom}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right font-mono text-slate-700">
+                            ₹{item.rate.toFixed(2)}
+                          </td>
+                          <td className="p-3 text-right font-bold text-gray-900">
+                            ₹{(item.totalValue / 100000).toFixed(2)}L
+                          </td>
+                          <td className="p-3 text-center">
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                                item.status === 'Fully Supplied'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : item.status === 'Partially Supplied'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {item.status}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls for Item Grid */}
+            <div className="p-3 border-t border-gray-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-600">
+              <div>
+                Showing <b>{filteredMonthItems.length === 0 ? 0 : (itemPage - 1) * itemPageSize + 1}</b> to{' '}
+                <b>{Math.min(itemPage * itemPageSize, filteredMonthItems.length)}</b> of{' '}
+                <b>{filteredMonthItems.length}</b> line item records
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  disabled={itemPage <= 1}
+                  onClick={() => setItemPage(1)}
+                  className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronsLeft className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  disabled={itemPage <= 1}
+                  onClick={() => setItemPage((p) => Math.max(p - 1, 1))}
+                  className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <span className="px-2 py-1 text-xs font-semibold text-slate-800">
+                  Page {itemPage} of {totalItemPages}
+                </span>
+                <button
+                  disabled={itemPage >= totalItemPages}
+                  onClick={() => setItemPage((p) => Math.min(p + 1, totalItemPages))}
+                  className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  disabled={itemPage >= totalItemPages}
+                  onClick={() => setItemPage(totalItemPages)}
+                  className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronsRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
+      ) : (
+        /* View Mode 2: Master Monthly Plan Grid (One Month Period = One Master Plan ID) */
+        <div className="space-y-5">
+          {/* Prominent Architectural Banner */}
+          <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-cyan-50 border border-blue-200 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 bg-[#14213D] text-white rounded-xl shrink-0 shadow-sm">
+                <Calendar className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-blue-950">
+                    Monthly Sales Plan Management &bull; One Month Master Plan Engine
+                  </h2>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    MRP Integrated
+                  </span>
+                </div>
+                <p className="text-xs text-blue-800 mt-0.5 leading-relaxed">
+                  One Master Plan ID per month period. Click any monthly plan row to open the full item commitments grid, duplicate the plan to next month, or convert all planned demand directly into Procurement Purchase Requisitions.
+                </p>
+              </div>
+            </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="px-3.5 py-2 bg-[#14213D] hover:bg-[#1f335e] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" /> Create Monthly Plan
-          </button>
-          <button
-            onClick={() => onNavigate('purchaseReqList')}
-            className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
-          >
-            <ShoppingCart className="w-3.5 h-3.5 text-[#0F8B8D]" />
-            <span>Procurement PRs</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-        <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-gray-500">Active Plans</div>
-          <div className="text-xl font-bold text-gray-900 mt-1">{totalActivePlans}</div>
-          <div className="text-[10px] text-gray-400 mt-0.5">Automotive &amp; FMCG</div>
-        </div>
-
-        <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-gray-500">Total Planned Qty</div>
-          <div className="text-xl font-bold text-blue-700 mt-1">{totalPlannedQty.toLocaleString()}</div>
-          <div className="text-[10px] text-gray-400 mt-0.5">Committed Supply PCS</div>
-        </div>
-
-        <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-gray-500">Total Dispatched</div>
-          <div className="text-xl font-bold text-emerald-700 mt-1">{totalDailySupplied.toLocaleString()}</div>
-          <div className="text-[10px] text-emerald-600 mt-0.5">Delivered via Daily SOs</div>
-        </div>
-
-        <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-gray-500">Balance Tally Pending</div>
-          <div className="text-xl font-bold text-amber-700 mt-1">{remainingPlanQty.toLocaleString()}</div>
-          <div className="text-[10px] text-amber-600 mt-0.5">Planned &minus; Dispatched</div>
-        </div>
-
-        <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-gray-500">Total Planned Value</div>
-          <div className="text-xl font-bold text-gray-900 mt-1">₹{(totalPlannedValue / 100000).toFixed(1)}L</div>
-          <div className="text-[10px] text-gray-400 mt-0.5">Commitment total</div>
-        </div>
-
-        <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-gray-500">Overall Variance</div>
-          <div className="text-xl font-bold text-purple-700 mt-1">{overallVariancePct}%</div>
-          <div className="text-[10px] text-gray-400 mt-0.5">Forecast alignment</div>
-        </div>
-      </div>
-
-      {/* Tabs & Search */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
-        <div className="flex items-center gap-1 overflow-x-auto">
-          {tabs.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => {
-                setActiveTab(tab);
-                setSelectedPlanId(null);
-              }}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
-                activeTab === tab
-                  ? 'bg-[#14213D] text-white'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
-            <input
-              type="text"
-              placeholder="Search plan #, customer, item code..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="text-xs pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
-            />
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="px-3.5 py-2 bg-[#14213D] hover:bg-[#1f335e] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" /> Create Monthly Plan
+              </button>
+              <button
+                onClick={() => onNavigate('purchaseReqList')}
+                className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <ShoppingCart className="w-3.5 h-3.5 text-[#0F8B8D]" />
+                <span>Procurement PRs</span>
+              </button>
+            </div>
           </div>
-          <button
-            onClick={() => onNavigate('reconciliation')}
-            className="px-3 py-1.5 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg text-xs font-semibold flex items-center gap-1 shadow-2xs transition-colors whitespace-nowrap cursor-pointer"
-          >
-            <Layers className="w-3.5 h-3.5" /> Reconcile Hub
-          </button>
-        </div>
-      </div>
 
-      {/* Consolidated Monthly Plan Grid with Expandable Plant-Wise Rows */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden text-xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[10px] border-b border-gray-200">
-              <tr>
-                <th className="p-3 w-8 text-center"></th>
-                <th className="p-3">Plan ID</th>
-                <th className="p-3">Customer</th>
-                <th className="p-3">Month Period</th>
-                <th className="p-3">Manufacturing Plant</th>
-                <th className="p-3 text-right">Planned Qty</th>
-                <th className="p-3 text-right">Dispatched Qty</th>
-                <th className="p-3 text-right">Pending Balance (Tally)</th>
-                <th className="p-3 text-right">Plan Value</th>
-                <th className="p-3 text-center">Status</th>
-                <th className="p-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredPlans.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="p-8 text-center text-gray-400">
-                    No monthly plan orders found matching filter criteria.
-                  </td>
-                </tr>
-              ) : (
-                filteredPlans.map((plan) => {
-                  const isExpanded = Boolean(expandedPlanIds[plan.id]);
-                  const isSelected = selectedPlanId === plan.id;
-                  const balanceQty = plan.totalPlannedQty - plan.totalDailySuppliedQty;
+          {/* Top Level Summary Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
+              <div className="text-[10px] uppercase font-bold text-gray-500">Monthly Master Plans</div>
+              <div className="text-xl font-bold text-gray-900 mt-1">{totalMonthlyMasterPlans}</div>
+              <div className="text-[10px] text-gray-400 mt-0.5">One Plan ID Per Month</div>
+            </div>
 
-                  return (
-                    <React.Fragment key={plan.id}>
-                      {/* Master Consolidated Plan Row */}
-                      <tr
-                        className={`hover:bg-blue-50/40 transition-colors cursor-pointer group ${
-                          isSelected ? 'bg-blue-50/50 font-medium' : ''
-                        }`}
-                        onClick={() => toggleExpand(plan.id)}
-                      >
-                        <td className="p-3 text-center" onClick={(e) => toggleExpand(plan.id, e)}>
-                          <button className="text-slate-400 group-hover:text-slate-700 transition">
-                            {isExpanded ? (
-                              <ChevronDown className="w-4 h-4 text-[#0F8B8D]" />
-                            ) : (
-                              <ChevronRight className="w-4 h-4" />
-                            )}
-                          </button>
-                        </td>
-                        <td className="p-3 font-mono font-bold text-[#0F8B8D] whitespace-nowrap">
-                          {plan.id}
-                        </td>
-                        <td className="p-3 font-semibold text-gray-900">
-                          <div>{plan.customer}</div>
-                          <div className="text-[10px] text-gray-400 font-normal">
-                            {plan.items?.length || 1} Planned SKU(s)
-                          </div>
-                        </td>
-                        <td className="p-3 text-gray-800 font-medium whitespace-nowrap">
-                          <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-semibold border border-indigo-100 text-[11px]">
-                            {plan.monthPeriod}
-                          </span>
-                        </td>
-                        <td className="p-3 text-gray-600">
-                          <div className="flex items-center gap-1 font-medium text-slate-800">
-                            <Factory className="w-3.5 h-3.5 text-slate-400" />
-                            <span>{plan.plant}</span>
-                          </div>
-                          <div className="text-[10px] text-gray-400">{plan.fgStore}</div>
-                        </td>
-                        <td className="p-3 text-right font-bold text-gray-900">
-                          {plan.totalPlannedQty.toLocaleString()} <span className="text-[10px] text-gray-500 font-normal">PCS</span>
-                        </td>
-                        <td className="p-3 text-right font-semibold text-emerald-700">
-                          {plan.totalDailySuppliedQty.toLocaleString()}
-                        </td>
-                        <td className="p-3 text-right font-bold font-mono">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                              balanceQty <= 0
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-amber-100 text-amber-900'
-                            }`}
-                          >
-                            {balanceQty.toLocaleString()} PCS
-                          </span>
-                        </td>
-                        <td className="p-3 text-right font-bold text-gray-900">
-                          ₹{((plan.totalPlannedValue || 0) / 100000).toFixed(2)}L
-                        </td>
-                        <td className="p-3 text-center">
-                          <span
-                            className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                              plan.status === 'Fully Supplied'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : plan.status === 'Variance'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-blue-100 text-blue-800'
-                            }`}
-                          >
-                            {plan.status}
-                          </span>
-                        </td>
-                        <td className="p-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-1.5">
-                            {/* Duplicate Plan to Next Month Button */}
-                            <button
-                              onClick={(e) => handleOpenDuplicate(plan, e)}
-                              className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer"
-                              title="Duplicate this plan to the next month with previous month dispatch comparison and editable planned quantity"
+            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
+              <div className="text-[10px] uppercase font-bold text-gray-500">Total Planned Qty</div>
+              <div className="text-xl font-bold text-blue-700 mt-1">{overallPlannedQty.toLocaleString()}</div>
+              <div className="text-[10px] text-gray-400 mt-0.5">Committed Supply PCS</div>
+            </div>
+
+            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
+              <div className="text-[10px] uppercase font-bold text-gray-500">Total Dispatched</div>
+              <div className="text-xl font-bold text-emerald-700 mt-1">{overallDispatchedQty.toLocaleString()}</div>
+              <div className="text-[10px] text-emerald-600 mt-0.5">Delivered via Daily SOs</div>
+            </div>
+
+            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
+              <div className="text-[10px] uppercase font-bold text-gray-500">Pending Tally Balance</div>
+              <div className="text-xl font-bold text-amber-700 mt-1">{overallRemainingTally.toLocaleString()}</div>
+              <div className="text-[10px] text-amber-600 mt-0.5">Planned &minus; Dispatched</div>
+            </div>
+
+            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm col-span-2 sm:col-span-1">
+              <div className="text-[10px] uppercase font-bold text-gray-500">Total Planned Value</div>
+              <div className="text-xl font-bold text-gray-900 mt-1">₹{(overallPlannedValue / 100000).toFixed(1)}L</div>
+              <div className="text-[10px] text-gray-400 mt-0.5">Commitment total</div>
+            </div>
+          </div>
+
+          {/* Filter Tabs & Search */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-gray-200 shadow-sm text-xs">
+            <div className="flex items-center gap-1 overflow-x-auto">
+              {tabs.map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => {
+                    setActiveTab(tab);
+                    setMasterPage(1);
+                  }}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+                    activeTab === tab
+                      ? 'bg-[#14213D] text-white'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Search plan #, month, customer, SKU..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setMasterPage(1);
+                  }}
+                  className="text-xs pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0F8B8D] w-60"
+                />
+              </div>
+
+              <div className="flex items-center gap-1 text-[11px] text-gray-500">
+                <span>Page size:</span>
+                <select
+                  value={masterPageSize}
+                  onChange={(e) => {
+                    setMasterPageSize(Number(e.target.value));
+                    setMasterPage(1);
+                  }}
+                  className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Master Monthly Plan Grid (One Month = One Row) */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden text-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[10px] border-b border-gray-200">
+                  <tr>
+                    <th className="p-3.5">Plan ID</th>
+                    <th className="p-3.5">Month Period</th>
+                    <th className="p-3.5">Enrolled Customers &amp; SKUs</th>
+                    <th className="p-3.5">Manufacturing Plants</th>
+                    <th className="p-3.5 text-right">Planned Qty</th>
+                    <th className="p-3.5 text-right">Dispatched Qty</th>
+                    <th className="p-3.5 text-right">Pending Balance (Tally)</th>
+                    <th className="p-3.5 text-right">Plan Value</th>
+                    <th className="p-3.5 text-center">Status</th>
+                    <th className="p-3.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {paginatedMasterPlans.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="p-8 text-center text-gray-400">
+                        No monthly master plans found matching criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedMasterPlans.map((mPlan) => {
+                      const balanceQty = mPlan.pendingBalanceQty;
+
+                      return (
+                        <tr
+                          key={mPlan.monthKey}
+                          onClick={() => handleOpenMonthDetail(mPlan.monthKey)}
+                          className="hover:bg-blue-50/50 transition-colors cursor-pointer group"
+                        >
+                          <td className="p-3.5 font-mono font-bold text-[#0F8B8D] whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-slate-900 group-hover:text-[#0F8B8D] font-bold">
+                                {mPlan.planId}
+                              </span>
+                              <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#0F8B8D] transition-transform group-hover:translate-x-0.5" />
+                            </div>
+                          </td>
+                          <td className="p-3.5 font-semibold text-gray-900 whitespace-nowrap">
+                            <span className="px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 font-bold border border-indigo-100 text-xs">
+                              {mPlan.monthPeriod}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-gray-800">
+                            <div className="font-semibold text-slate-900 truncate max-w-xs">
+                              {mPlan.customers.join(', ')}
+                            </div>
+                            <div className="text-[10px] text-gray-400">
+                              {mPlan.totalItemsCount} Planned SKU Line(s)
+                            </div>
+                          </td>
+                          <td className="p-3.5 text-gray-600">
+                            <div className="flex items-center gap-1 font-medium text-slate-800">
+                              <Factory className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span className="truncate max-w-xs">{mPlan.plants.join(', ')}</span>
+                            </div>
+                          </td>
+                          <td className="p-3.5 text-right font-bold text-gray-900">
+                            {mPlan.totalPlannedQty.toLocaleString()} <span className="text-[10px] text-gray-500 font-normal">PCS</span>
+                          </td>
+                          <td className="p-3.5 text-right font-semibold text-emerald-700">
+                            {mPlan.totalDispatchedQty.toLocaleString()}
+                          </td>
+                          <td className="p-3.5 text-right font-bold font-mono">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                                balanceQty <= 0
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-amber-100 text-amber-900'
+                              }`}
                             >
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>Duplicate to Next Month</span>
-                            </button>
-
-                            {/* Move to Purchase Module Button */}
-                            <button
-                              onClick={(e) => handleSendToPurchase(plan, e)}
-                              className="px-2.5 py-1 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer"
-                              title="Generate Purchase Requisition (PR) for raw polymer materials and send to Procurement Module"
+                              {balanceQty.toLocaleString()} PCS
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-right font-bold text-gray-900">
+                            ₹{((mPlan.totalPlannedValue || 0) / 100000).toFixed(2)}L
+                          </td>
+                          <td className="p-3.5 text-center">
+                            <span
+                              className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                mPlan.status === 'Fully Supplied'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : mPlan.status === 'Partially Supplied'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : 'bg-indigo-100 text-indigo-800'
+                              }`}
                             >
-                              <ShoppingCart className="w-3.5 h-3.5" />
-                              <span>Send to Purchase</span>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                              {mPlan.status}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1.5">
+                              {/* Open Detail Page Grid Button */}
+                              <button
+                                onClick={() => handleOpenMonthDetail(mPlan.monthKey)}
+                                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
+                                title="Open full month item sales planned grid"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-slate-600" />
+                                <span>View Items Grid</span>
+                              </button>
 
-                      {/* Plant-Wise Expanded Item Breakdown Row */}
-                      {isExpanded && (
-                        <tr className="bg-slate-50/90 border-b border-gray-200">
-                          <td colSpan={11} className="p-4 pl-10">
-                            <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-2xs">
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 uppercase">
-                                    Plant-Wise Item Commitments
-                                  </span>
-                                  <span className="text-xs font-bold text-slate-800">
-                                    {plan.plant} &bull; {plan.monthPeriod}
-                                  </span>
-                                </div>
-                                <div className="text-[11px] text-slate-500">
-                                  Tally Calculation: <b>Planned Qty &minus; Dispatched Qty = Pending Balance</b>
-                                </div>
-                              </div>
+                              {/* Duplicate Plan to Next Month */}
+                              <button
+                                onClick={(e) => handleOpenDuplicateMonth(mPlan, e)}
+                                className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                                title="Duplicate this month plan to next month"
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>Duplicate</span>
+                              </button>
 
-                              <div className="overflow-x-auto">
-                                <table className="w-full text-xs text-left">
-                                  <thead className="bg-slate-100/80 text-slate-600 font-semibold text-[10px] uppercase">
-                                    <tr>
-                                      <th className="p-2">Item Code</th>
-                                      <th className="p-2">Description</th>
-                                      <th className="p-2">Plant &amp; Location</th>
-                                      <th className="p-2 text-right">Planned Qty</th>
-                                      <th className="p-2 text-right">Dispatched Qty</th>
-                                      <th className="p-2 text-right">Invoiced</th>
-                                      <th className="p-2 text-right font-bold text-amber-800">Pending Tally Balance</th>
-                                      <th className="p-2 text-right">Unit Rate</th>
-                                      <th className="p-2 text-right">Item Value</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-100">
-                                    {plan.items?.map((item, idx) => {
-                                      const itemPending = (item.plannedQty || 0) - (item.deliveredQty || 0);
-                                      const lineVal = (item.plannedQty || 0) * (item.rate || 0);
-
-                                      return (
-                                        <tr key={idx} className="hover:bg-slate-50">
-                                          <td className="p-2 font-mono font-bold text-slate-900">{item.itemCode}</td>
-                                          <td className="p-2 font-medium text-slate-800">{item.itemName}</td>
-                                          <td className="p-2 text-slate-600">
-                                            <div>{item.plant || plan.plant}</div>
-                                            <div className="text-[10px] text-slate-400">{item.fgStore || plan.fgStore}</div>
-                                          </td>
-                                          <td className="p-2 text-right font-bold text-slate-900">
-                                            {item.plannedQty.toLocaleString()} {item.uom || 'PCS'}
-                                          </td>
-                                          <td className="p-2 text-right font-semibold text-emerald-700">
-                                            {(item.deliveredQty || 0).toLocaleString()}
-                                          </td>
-                                          <td className="p-2 text-right text-indigo-700 font-medium">
-                                            {(item.invoicedQty || 0).toLocaleString()}
-                                          </td>
-                                          <td className="p-2 text-right font-mono font-bold text-amber-700">
-                                            {itemPending.toLocaleString()} {item.uom || 'PCS'}
-                                          </td>
-                                          <td className="p-2 text-right font-mono text-slate-700">
-                                            ₹{Number(item.rate).toFixed(2)}
-                                          </td>
-                                          <td className="p-2 text-right font-bold text-slate-900">
-                                            ₹{(lineVal / 100000).toFixed(2)} Lakhs
-                                          </td>
-                                        </tr>
-                                      );
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
-
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-100 text-[11px] text-slate-500">
-                                <div>
-                                  <b>Notes:</b> {plan.notes || 'Committed monthly forecast schedule.'}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    onClick={() => onNavigate('reconciliation')}
-                                    className="text-xs font-semibold text-[#0F8B8D] hover:underline"
-                                  >
-                                    Reconcile with Daily Orders &rarr;
-                                  </button>
-                                </div>
-                              </div>
+                              {/* Move to Purchase Module Button */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCentralizedSendToPurchase(mPlan);
+                                }}
+                                className="px-2.5 py-1 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                                title="Generate Purchase Requisition (PR) for raw materials"
+                              >
+                                <ShoppingCart className="w-3.5 h-3.5" />
+                                <span>Send to Purchase</span>
+                              </button>
                             </div>
                           </td>
                         </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-      {/* Duplicate Plan to Next Month Modal (matching User requirements & Image 3) */}
-      {duplicateModalPlan && (
+            {/* Pagination Controls for Master Grid */}
+            <div className="p-3.5 border-t border-gray-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-600">
+              <div>
+                Showing <b>{filteredMasterPlans.length === 0 ? 0 : (masterPage - 1) * masterPageSize + 1}</b> to{' '}
+                <b>{Math.min(masterPage * masterPageSize, filteredMasterPlans.length)}</b> of{' '}
+                <b>{filteredMasterPlans.length}</b> monthly master plans
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  disabled={masterPage <= 1}
+                  onClick={() => setMasterPage(1)}
+                  className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronsLeft className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  disabled={masterPage <= 1}
+                  onClick={() => setMasterPage((p) => Math.max(p - 1, 1))}
+                  className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <span className="px-2 py-1 text-xs font-semibold text-slate-800">
+                  Page {masterPage} of {totalMasterPages}
+                </span>
+                <button
+                  disabled={masterPage >= totalMasterPages}
+                  onClick={() => setMasterPage((p) => Math.min(p + 1, totalMasterPages))}
+                  className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  disabled={masterPage >= totalMasterPages}
+                  onClick={() => setMasterPage(totalMasterPages)}
+                  className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronsRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate Plan to Next Month Modal */}
+      {duplicateModalMonth && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
             {/* Header */}
             <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -720,12 +1284,12 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
                     Duplicate Monthly Plan Order to Next Month
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Roll forward <b>{duplicateModalPlan.id}</b> ({duplicateModalPlan.customer}). Edit planned quantities and confirm commitment.
+                    Roll forward <b>{duplicateModalMonth.planId}</b> ({duplicateModalMonth.monthPeriod}). Edit planned quantities and confirm commitment.
                   </p>
                 </div>
               </div>
               <button
-                onClick={() => setDuplicateModalPlan(null)}
+                onClick={() => setDuplicateModalMonth(null)}
                 className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition"
               >
                 <X className="w-4 h-4" />
@@ -738,58 +1302,38 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
               <div className="bg-gradient-to-r from-slate-50 to-indigo-50/50 p-3.5 rounded-xl border border-slate-200 grid grid-cols-3 gap-3">
                 <div>
                   <span className="text-[10px] uppercase font-bold text-slate-500">Previous Period</span>
-                  <div className="font-bold text-slate-900 text-xs mt-0.5">{duplicateModalPlan.monthPeriod}</div>
+                  <div className="font-bold text-slate-900 text-xs mt-0.5">{duplicateModalMonth.monthPeriod}</div>
                 </div>
                 <div>
                   <span className="text-[10px] uppercase font-bold text-slate-500">Prev Planned Qty</span>
-                  <div className="font-bold text-blue-700 text-sm mt-0.5">{duplicateModalPlan.totalPlannedQty.toLocaleString()} PCS</div>
+                  <div className="font-bold text-blue-700 text-sm mt-0.5">{duplicateModalMonth.totalPlannedQty.toLocaleString()} PCS</div>
                 </div>
                 <div>
                   <span className="text-[10px] uppercase font-bold text-slate-500">Prev Dispatched Qty</span>
-                  <div className="font-bold text-emerald-700 text-sm mt-0.5">{duplicateModalPlan.totalDailySuppliedQty.toLocaleString()} PCS</div>
+                  <div className="font-bold text-emerald-700 text-sm mt-0.5">{duplicateModalMonth.totalDispatchedQty.toLocaleString()} PCS</div>
                 </div>
               </div>
 
               {/* Form Fields */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Target Customer</label>
-                  <input
-                    type="text"
-                    disabled
-                    value={duplicateModalPlan.customer}
-                    className="w-full border border-slate-200 rounded-lg p-2 bg-slate-100 text-slate-700 font-semibold cursor-not-allowed"
-                  />
-                </div>
-
-                <div>
                   <label className="block font-bold text-slate-700 mb-1">New Plan Month Period *</label>
                   <input
                     type="text"
-                    value={dupMonth}
-                    onChange={(e) => setDupMonth(e.target.value)}
-                    placeholder="e.g. November 2026"
+                    value={dupTargetMonth}
+                    onChange={(e) => setDupTargetMonth(e.target.value)}
+                    placeholder="e.g. October 2026"
                     className="w-full border border-slate-300 rounded-lg p-2 focus:ring-1 focus:ring-[#14213D] focus:outline-none font-semibold text-slate-900"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Manufacturing Plant</label>
+                  <label className="block font-bold text-slate-700 mb-1">Enrolled Customers</label>
                   <input
                     type="text"
                     disabled
-                    value={duplicateModalPlan.plant}
-                    className="w-full border border-slate-200 rounded-lg p-2 bg-slate-100 text-slate-700 font-semibold cursor-not-allowed"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Plan Classification</label>
-                  <input
-                    type="text"
-                    disabled
-                    value={duplicateModalPlan.planType}
-                    className="w-full border border-slate-200 rounded-lg p-2 bg-slate-100 text-slate-700 font-semibold cursor-not-allowed"
+                    value={duplicateModalMonth.customers.join(', ')}
+                    className="w-full border border-slate-200 rounded-lg p-2 bg-slate-100 text-slate-700 font-semibold cursor-not-allowed truncate"
                   />
                 </div>
               </div>
@@ -798,18 +1342,18 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-slate-800 text-xs">
-                    Planned Line Items (Edit quantities for {dupMonth})
+                    Planned Line Items (Edit quantities for {dupTargetMonth})
                   </span>
                   <span className="text-[11px] text-slate-500">
                     Dispatched starts at 0 PCS
                   </span>
                 </div>
 
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <div className="border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-100 text-slate-700 uppercase text-[10px] font-semibold">
+                    <thead className="bg-slate-100 text-slate-700 uppercase text-[10px] font-semibold sticky top-0">
                       <tr>
-                        <th className="p-2.5">Item Code &amp; Description</th>
+                        <th className="p-2.5">Item &amp; Customer</th>
                         <th className="p-2.5 text-right">Prev Planned</th>
                         <th className="p-2.5 text-right">Prev Dispatched</th>
                         <th className="p-2.5 text-right w-28">New Planned (PCS) *</th>
@@ -822,7 +1366,8 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
                         <tr key={idx} className="hover:bg-slate-50">
                           <td className="p-2.5">
                             <div className="font-mono font-bold text-slate-900">{item.itemCode}</div>
-                            <div className="text-[11px] text-slate-500">{item.itemName}</div>
+                            <div className="text-[11px] text-slate-600">{item.itemName}</div>
+                            <div className="text-[10px] text-gray-400">{item.customer} &bull; {item.plant}</div>
                           </td>
                           <td className="p-2.5 text-right font-medium text-slate-600">
                             {item.prevPlannedQty.toLocaleString()}
@@ -891,13 +1436,13 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
             {/* Modal Footer */}
             <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2">
               <button
-                onClick={() => setDuplicateModalPlan(null)}
+                onClick={() => setDuplicateModalMonth(null)}
                 className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg font-semibold transition"
               >
                 Cancel
               </button>
               <button
-                onClick={handleConfirmDuplicate}
+                onClick={handleConfirmDuplicateMonth}
                 className="px-5 py-2 bg-[#14213D] hover:bg-[#1f335e] text-white rounded-lg font-semibold shadow-sm transition flex items-center gap-1.5 cursor-pointer"
               >
                 <Check className="w-4 h-4 text-emerald-400" />
@@ -949,8 +1494,8 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
                     className="w-full border border-gray-300 rounded-lg p-2 focus:ring-1 focus:ring-[#14213D] focus:outline-none"
                   >
                     <option value="Tata Motors Passenger Vehicles Ltd">Tata Motors Passenger Vehicles Ltd</option>
-                    <option value="Marico Consumer Goods Ltd">Marico Consumer Goods Ltd</option>
-                    <option value="Bajaj Auto Ltd">Bajaj Auto Ltd</option>
+                    <option value="Marico FMCG Consumer Products">Marico FMCG Consumer Products</option>
+                    <option value="Bajaj Auto Ltd Chakan Works">Bajaj Auto Ltd Chakan Works</option>
                     <option value="Mahindra Automotive Div">Mahindra Automotive Div</option>
                     <option value="Motherson Sumi Systems">Motherson Sumi Systems</option>
                   </select>
@@ -1014,20 +1559,20 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
                         } else if (e.target.value === 'FG-AUTO-045') {
                           setNewPlanItemName('PP Air Duct Housing - Front Left');
                           setNewPlanRate('28.75');
-                        } else if (e.target.value === 'FG-CAP-28-WHT') {
-                          setNewPlanItemName('28mm Flip-Top Oil Dispenser Cap (White)');
-                          setNewPlanRate('3.40');
-                        } else if (e.target.value === 'FG-BTL-HDPE-500') {
-                          setNewPlanItemName('500ml HDPE Shampoo Bottle Container');
-                          setNewPlanRate('12.80');
+                        } else if (e.target.value === 'FG-FLIP-28') {
+                          setNewPlanItemName('28mm PP Flip-Top Dispenser Cap (Parachute Blue)');
+                          setNewPlanRate('15.00');
+                        } else if (e.target.value === 'FG-MOTO-088') {
+                          setNewPlanItemName('Nylon-6 Reinforced Rear Mudguard Cowl');
+                          setNewPlanRate('95.00');
                         }
                       }}
                       className="w-full border border-gray-300 rounded-lg p-2 bg-white"
                     >
                       <option value="FG-AUTO-012">FG-AUTO-012 (Dashboard Trim Bezel)</option>
                       <option value="FG-AUTO-045">FG-AUTO-045 (Air Duct Housing)</option>
-                      <option value="FG-CAP-28-WHT">FG-CAP-28-WHT (28mm Flip-Top Cap)</option>
-                      <option value="FG-BTL-HDPE-500">FG-BTL-HDPE-500 (500ml HDPE Bottle)</option>
+                      <option value="FG-FLIP-28">FG-FLIP-28 (28mm Flip-Top Cap)</option>
+                      <option value="FG-MOTO-088">FG-MOTO-088 (Rear Mudguard Cowl)</option>
                     </select>
                   </div>
 
@@ -1166,3 +1711,5 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
     </div>
   );
 };
+
+
