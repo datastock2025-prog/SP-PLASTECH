@@ -286,14 +286,16 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
       quantity: 1,
       uom: 'KG',
       requiredDate: requiredDate,
-      suggestedSupplierId: activeSuppliers[0]?.id || '',
-      suggestedSupplierName: activeSuppliers[0]?.name || '',
+      suggestedSupplierId: '',
+      suggestedSupplierName: '',
       estimatedUnitPrice: 0,
       estimatedTotal: 0,
       workOrderRef: '',
       status: 'pending',
     };
-    setLines([...lines, newLine]);
+    setLines((prev) => [...prev, newLine]);
+    setActiveSearchIdx(lines.length);
+    setRowSearchQuery('');
   };
 
   // Delete line item with clean index handling
@@ -1054,12 +1056,14 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
                             <select
                               value={line.suggestedSupplierName || ''}
                               onChange={(e) => {
-                                const s = suppliers.find((sup) => sup.name === e.target.value);
-                                handleUpdateLine(idx, 'suggestedSupplierName', e.target.value);
-                                if (s) handleUpdateLine(idx, 'suggestedSupplierId', s.id);
+                                const val = e.target.value;
+                                const s = suppliers.find((sup) => sup.name === val);
+                                handleUpdateLine(idx, 'suggestedSupplierName', val);
+                                handleUpdateLine(idx, 'suggestedSupplierId', s ? s.id : '');
                               }}
-                              className="w-full px-2 py-1.5 border rounded-lg text-xs bg-white text-slate-800"
+                              className="w-full px-2 py-1.5 border rounded-lg text-xs bg-white text-slate-800 focus:ring-1 focus:ring-[#0F8B8D] focus:outline-none"
                             >
+                              <option value="">-- Select Vendor --</option>
                               {suppliers.map((s) => (
                                 <option key={s.id} value={s.name}>
                                   {s.name}

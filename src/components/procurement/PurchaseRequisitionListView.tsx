@@ -39,12 +39,24 @@ export const PurchaseRequisitionListView: React.FC<Props> = ({
   const [pageSize, setPageSize] = useState(10);
 
   const filteredPrs = useMemo(() => {
-    return prs.filter((pr) => {
+    return (prs || []).filter((pr) => {
+      if (!pr) return false;
+      const prNum = pr.prNumber || '';
+      const reqBy = pr.requestedBy || '';
+      const dept = pr.department || '';
+      const linesList = pr.lines || [];
+      const q = searchTerm.toLowerCase().trim();
+
       const matchSearch =
-        pr.prNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pr.requestedBy.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pr.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pr.lines.some((l) => l.itemName.toLowerCase().includes(searchTerm.toLowerCase()) || l.itemCode.toLowerCase().includes(searchTerm.toLowerCase()));
+        !q ||
+        prNum.toLowerCase().includes(q) ||
+        reqBy.toLowerCase().includes(q) ||
+        dept.toLowerCase().includes(q) ||
+        linesList.some(
+          (l) =>
+            (l?.itemName || '').toLowerCase().includes(q) ||
+            (l?.itemCode || '').toLowerCase().includes(q)
+        );
 
       const matchStatus = selectedStatus === 'All' || pr.status === selectedStatus;
       const matchPriority = selectedPriority === 'All' || pr.priority === selectedPriority;
@@ -210,10 +222,13 @@ export const PurchaseRequisitionListView: React.FC<Props> = ({
                     {/* Lines Summary */}
                     <td className="py-3 px-3">
                       <div className="font-medium text-[#14213D]">
-                        {pr.lines[0]?.itemName || 'Materials'}
+                        {(pr.lines && pr.lines[0]?.itemName) || (pr.lines && pr.lines.length > 0 ? 'Material Listed' : 'No items')}
                       </div>
                       <div className="text-[10px] text-slate-500">
-                        {pr.lines[0]?.quantity.toLocaleString()} {pr.lines[0]?.uom} {pr.lines.length > 1 && `+ ${pr.lines.length - 1} more lines`}
+                        {pr.lines && pr.lines[0]
+                          ? `${Number(pr.lines[0].quantity || 0).toLocaleString('en-IN')} ${pr.lines[0].uom || 'KG'}`
+                          : '0 items'}
+                        {pr.lines && pr.lines.length > 1 && ` + ${pr.lines.length - 1} more lines`}
                       </div>
                     </td>
 
@@ -225,7 +240,7 @@ export const PurchaseRequisitionListView: React.FC<Props> = ({
 
                     {/* Est. Total */}
                     <td className="py-3 px-3 text-right font-bold text-[#14213D]">
-                      ₹{(pr.estimatedTotal / 100000).toFixed(2)} Lakhs
+                      ₹{((Number(pr.estimatedTotal) || 0) / 100000).toFixed(2)} Lakhs
                     </td>
 
                     {/* Priority */}
@@ -239,7 +254,7 @@ export const PurchaseRequisitionListView: React.FC<Props> = ({
                             : 'bg-slate-100 text-slate-700'
                         }`}
                       >
-                        {pr.priority}
+                        {pr.priority || 'Medium'}
                       </span>
                     </td>
 
@@ -251,15 +266,15 @@ export const PurchaseRequisitionListView: React.FC<Props> = ({
                     {/* Actions */}
                     <td className="py-3 px-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => {
-                              showToast(`Opening PO creation wizard with lines from ${pr.prNumber}`);
-                              onNavigate('poList', { openCreateModal: true, sourcePr: pr.prNumber, pr: pr });
-                            }}
-                            className="px-2.5 py-1 bg-[#0F8B8D] text-white rounded-lg text-[11px] font-semibold hover:bg-[#0d797b] transition shadow-2xs"
-                          >
-                            + Issue PO
-                          </button>
+                        <button
+                          onClick={() => {
+                            showToast(`Opening PO creation wizard with lines from ${pr.prNumber}`);
+                            onNavigate('poList', { openCreateModal: true, sourcePr: pr.prNumber, pr: pr });
+                          }}
+                          className="px-2.5 py-1 bg-[#0F8B8D] text-white rounded-lg text-[11px] font-semibold hover:bg-[#0d797b] transition shadow-2xs"
+                        >
+                          + Issue PO
+                        </button>
                         {pr.status === 'pending_approval' && (
                           <button
                             onClick={() => onNavigate('prDetail', { id: pr.id })}
