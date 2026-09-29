@@ -39,6 +39,8 @@ import {
   Percent,
   Sliders,
   Send,
+  ShoppingBag,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   MonthlyPlanOrder,
@@ -276,6 +278,15 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
 
   // Task-3: Plant-wise Scope Switcher (Purchase Manager can see All Plants; Plant Units see relative plan)
   const [selectedPlantScope, setSelectedPlantScope] = useState<string>('All Plants');
+  const [isPlantScopeDropdownOpen, setIsPlantScopeDropdownOpen] = useState<boolean>(false);
+  const [plantScopeSearch, setPlantScopeSearch] = useState<string>('');
+
+  const plantScopeOptions = [
+    { id: 'All Plants', label: '🏭 All Manufacturing Plants (Central Purchase Manager View)', shortName: 'All Plants' },
+    { id: 'Plant 1', label: '🏢 Plant 1 - Pimpri Auto-Hub', shortName: 'Plant 1 - Pimpri' },
+    { id: 'Plant 2', label: '🏢 Plant 2 - Chakan Packaging Plant', shortName: 'Plant 2 - Chakan' },
+    { id: 'Plant 3', label: '🏢 Plant 3 - Chennai Unit (Sanand EV)', shortName: 'Plant 3 - Chennai' },
+  ];
 
   // Task-3: Plant-Wise Consolidated PR & BOM Shortage Engine Modal State
   const [isConsolidatedPrModalOpen, setIsConsolidatedPrModalOpen] = useState<boolean>(false);
@@ -1696,34 +1707,65 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
       ) : (
         /* View Mode 2: Master Monthly Plan Grid (One Month Period = One Master Plan ID) */
         <div className="space-y-4">
-          {/* Plant Scope Switcher: Central Purchase Manager vs Individual Plant Unit */}
+          {/* Plant Scope Switcher: Autocomplete Dropdown Selector */}
           <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5 flex-1 min-w-0">
               <span className="font-bold text-slate-700 flex items-center gap-1.5 shrink-0">
                 <Building2 className="w-4 h-4 text-[#0F8B8D]" /> Operational View Scope:
               </span>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {[
-                  { id: 'All Plants', label: '🏭 All Manufacturing Plants (Central Purchase Manager View)' },
-                  { id: 'Plant 1', label: '🏢 Plant 1 - Pimpri Auto-Hub' },
-                  { id: 'Plant 2', label: '🏢 Plant 2 - Chakan Packaging' },
-                  { id: 'Plant 3', label: '🏢 Plant 3 - Chennai Unit' },
-                ].map((scope) => (
-                  <button
-                    key={scope.id}
-                    onClick={() => {
-                      setSelectedPlantScope(scope.id);
-                      setMasterPage(1);
-                    }}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                      selectedPlantScope === scope.id
-                        ? 'bg-[#14213D] text-white shadow-xs'
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                    }`}
-                  >
-                    {scope.label}
-                  </button>
-                ))}
+              <div className="relative w-full max-w-md">
+                <button
+                  type="button"
+                  onClick={() => setIsPlantScopeDropdownOpen(!isPlantScopeDropdownOpen)}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 transition cursor-pointer shadow-2xs"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <Factory className="w-3.5 h-3.5 text-[#0F8B8D] shrink-0" />
+                    <span className="truncate">
+                      {plantScopeOptions.find((o) => o.id === selectedPlantScope)?.label || 'All Manufacturing Plants'}
+                    </span>
+                  </div>
+                  <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform ${isPlantScopeDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isPlantScopeDropdownOpen && (
+                  <div className="absolute left-0 top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl p-2 z-40 animate-in fade-in zoom-in-95 duration-100 text-xs">
+                    <div className="relative mb-2">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
+                      <input
+                        type="text"
+                        placeholder="Search/autocomplete plant name..."
+                        value={plantScopeSearch}
+                        onChange={(e) => setPlantScopeSearch(e.target.value)}
+                        autoFocus
+                        className="w-full pl-8 pr-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:ring-1 focus:ring-[#0F8B8D]"
+                      />
+                    </div>
+                    <div className="max-h-52 overflow-y-auto space-y-1">
+                      {plantScopeOptions
+                        .filter((opt) => opt.label.toLowerCase().includes(plantScopeSearch.toLowerCase()))
+                        .map((opt) => (
+                          <div
+                            key={opt.id}
+                            onClick={() => {
+                              setSelectedPlantScope(opt.id);
+                              setIsPlantScopeDropdownOpen(false);
+                              setPlantScopeSearch('');
+                              setMasterPage(1);
+                            }}
+                            className={`p-2 rounded-lg cursor-pointer transition flex items-center justify-between gap-2 ${
+                              selectedPlantScope === opt.id
+                                ? 'bg-[#14213D] text-white font-bold'
+                                : 'hover:bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            <span className="truncate">{opt.label}</span>
+                            {selectedPlantScope === opt.id && <Check className="w-3.5 h-3.5 shrink-0" />}
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1732,7 +1774,8 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
                 onClick={() => setIsCreateModalOpen(true)}
                 className="px-3.5 py-1.5 bg-[#0F8B8D] hover:bg-[#0d797b] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
               >
-                <Plus className="w-3.5 h-3.5" /> + Create Monthly Plan
+                <Plus className="w-3.5 h-3.5" />
+                <span>Create Monthly Plan</span>
               </button>
               <button
                 onClick={() => onNavigate('purchaseReqList')}
@@ -1893,19 +1936,37 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
 
                         {/* Customers & SKUs */}
                         <td className="py-3 px-3 text-gray-800">
-                          <div className="font-semibold text-slate-900 line-clamp-1">
-                            {mPlan.customers.join(', ')}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold text-slate-900 truncate max-w-[180px]">
+                              {mPlan.customers[0] || 'Universal Automotive OEM'}
+                            </span>
+                            {mPlan.customers.length > 1 && (
+                              <span
+                                className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200 shrink-0"
+                                title={mPlan.customers.join(', ')}
+                              >
+                                +{mPlan.customers.length - 1} more
+                              </span>
+                            )}
                           </div>
-                          <div className="text-[10px] text-gray-500 font-medium">
+                          <div className="text-[10px] text-gray-500 font-medium mt-0.5">
                             {mPlan.totalItemsCount} Planned SKU Line(s) &bull; ₹{((mPlan.totalPlannedValue || 0) / 100000).toFixed(1)}L
                           </div>
                         </td>
 
                         {/* Manufacturing Plants */}
                         <td className="py-3 px-2 text-gray-600">
-                          <div className="flex items-center gap-1 font-medium text-slate-800 line-clamp-1">
+                          <div className="flex items-center gap-1 font-medium text-slate-800">
                             <Factory className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span className="truncate">{mPlan.plants.join(', ')}</span>
+                            <span className="truncate max-w-[150px]">{mPlan.plants[0] || 'Plant 1 - Pimpri Auto-Hub'}</span>
+                            {mPlan.plants.length > 1 && (
+                              <span
+                                className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-teal-50 text-teal-700 border border-teal-200 shrink-0"
+                                title={mPlan.plants.join(', ')}
+                              >
+                                +{mPlan.plants.length - 1}
+                              </span>
+                            )}
                           </div>
                         </td>
 
