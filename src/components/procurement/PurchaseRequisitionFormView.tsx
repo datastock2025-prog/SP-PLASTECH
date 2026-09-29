@@ -166,7 +166,7 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
         (i) =>
           i.code.toLowerCase().includes(q) ||
           i.name.toLowerCase().includes(q) ||
-          (i.category && i.category.toLowerCase().includes(q)) ||
+          ((i as any).category && (i as any).category.toLowerCase().includes(q)) ||
           (i.type && i.type.toLowerCase().includes(q)) ||
           ((i as any).description && (i as any).description.toLowerCase().includes(q))
       )
@@ -264,8 +264,8 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
       ...updated[idx],
       itemCode: item.code,
       itemName: item.name,
-      itemCategory: item.category || item.type || 'Polymer Resin',
-      description: item.desc || (item as any).description || item.grade || item.specifications || '',
+      itemCategory: (item as any).category || item.type || 'Polymer Resin',
+      description: item.desc || (item as any).description || (item as any).grade || (item as any).specifications || '',
       uom: item.baseUOM || (item as any).uom || 'KG',
       estimatedUnitPrice: unitPrice,
       estimatedTotal: qty * unitPrice,
@@ -325,7 +325,7 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
           step: 1,
           role: department || 'Department Head',
           user: requestedBy,
-          action: submitForApproval ? 'Submitted' : 'Draft Saved',
+          action: submitForApproval ? ('Approved' as const) : ('Pending' as const),
           date: new Date().toISOString().slice(0, 10),
           comment: submitForApproval
             ? 'Submitted for multi-level approval and PO authorization'
@@ -678,8 +678,8 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
                                             </span>
                                           </div>
                                           <div className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">
-                                            {item.desc || (item as any).description || item.grade || 'Standard Item'} •{' '}
-                                            <span className="font-semibold text-slate-600">{item.type || item.category || 'Resin'}</span>
+                                            {item.desc || (item as any).description || (item as any).grade || 'Standard Item'} •{' '}
+                                            <span className="font-semibold text-slate-600">{item.type || (item as any).category || 'Resin'}</span>
                                           </div>
                                         </div>
 
@@ -871,6 +871,7 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
           onClose={() => setIsCreateItemModalOpen(false)}
           onSaveItem={handleSaveCreatedItem}
           allItems={itemsList}
+          showToast={showToast}
         />
       )}
     </div>
