@@ -26,6 +26,7 @@
     "exceljs": "^4.4.0",
     "handlebars": "^4.7.8",
     "ioredis": "^5.5.0",
+    "jsonwebtoken": "^9.0.2",
     "nodemailer": "^6.10.0",
     "pdfkit": "^0.16.0",
     "reflect-metadata": "^0.2.2",
@@ -34,6 +35,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.8",
     "@types/node": "^22.13.0",
     "@types/nodemailer": "^6.4.17",
     "@types/pdfkit": "^0.13.9",

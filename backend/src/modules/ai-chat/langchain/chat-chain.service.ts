@@ -16,6 +16,14 @@ export class ChatChainService {
   /**
    * Translates natural language questions into safe, tenant-isolated SQL queries
    */
+  public async executeNaturalLanguageQuery(
+    message: string,
+    tenantId: string,
+    userId: string = 'USER'
+  ): Promise<ChatResponse> {
+    return this.processNaturalLanguageQuery(message, tenantId, userId);
+  }
+
   public async processNaturalLanguageQuery(
     message: string,
     tenantId: string,
