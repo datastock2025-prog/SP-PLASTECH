@@ -389,6 +389,51 @@ export const numberingSequences: NumberingSequence[] = [
 
 export const approvalWorkflows: ApprovalWorkflow[] = [
   {
+    id: 'WF-PR-AUTHORIZATION',
+    workflowName: 'Purchase Requisition (PR) Authorization Matrix',
+    module: 'Procurement',
+    documentType: 'Purchase Requisition (PR)',
+    description: 'Multi-level approval workflow routing material requests to Department Heads, Purchase Managers, and Plant Directors before RFQ/PO issuance.',
+    triggerCondition: 'All Submitted PRs OR Urgent Material Demands',
+    isActive: true,
+    lastModifiedDate: '2026-09-29',
+    modifiedBy: 'Super Administrator',
+    tiers: [
+      {
+        tierLevel: 1,
+        tierName: 'Tier 1 — Department Head & Requisition Review',
+        approverRoleId: 'ROLE-STORE-MANAGER',
+        approverRoleName: 'Store & Department Manager',
+        conditionDescription: 'Stock verify & budget check (< ₹2,00,000)',
+        thresholdAmount: 200000,
+        slaHours: 12,
+        autoEscalateAfterSla: true,
+        escalationTargetRole: 'Procurement Manager',
+      },
+      {
+        tierLevel: 2,
+        tierName: 'Tier 2 — Purchase Manager Commercial Sign-Off',
+        approverRoleId: 'ROLE-PROC-DIRECTOR',
+        approverRoleName: 'Purchase Manager / Procurement Head',
+        conditionDescription: 'Value exceeds ₹2,00,000 OR Raw Material Polymer Resins',
+        thresholdAmount: 1000000,
+        slaHours: 24,
+        autoEscalateAfterSla: true,
+        escalationTargetRole: 'Plant Operations Manager',
+      },
+      {
+        tierLevel: 3,
+        tierName: 'Tier 3 — Plant Director / VP Authorization',
+        approverRoleId: 'ROLE-SUPER-ADMIN',
+        approverRoleName: 'Plant Director / Super Admin',
+        conditionDescription: 'Value exceeds ₹10,00,000 (Capex or High Volume Resin)',
+        thresholdAmount: 1000000,
+        slaHours: 48,
+        autoEscalateAfterSla: false,
+      },
+    ],
+  },
+  {
     id: 'WF-PO-AUTHORIZATION',
     workflowName: 'Purchase Order Multi-Tier Authorization Matrix',
     module: 'Procurement',
@@ -882,3 +927,22 @@ export const mockIntegrations = integrations;
 export const mockBackupRecords = backupRecords;
 export const mockNotificationTemplates = notificationTemplates;
 export const mockSystemParameters = systemParameters;
+
+export const loadStoredApprovalWorkflows = (): ApprovalWorkflow[] => {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_erp_approval_workflows_v2') : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return approvalWorkflows;
+};
+
+export const saveStoredApprovalWorkflows = (wfs: ApprovalWorkflow[]): void => {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('reboot_erp_approval_workflows_v2', JSON.stringify(wfs));
+    }
+  } catch {}
+};

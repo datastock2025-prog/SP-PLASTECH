@@ -380,8 +380,26 @@ class WorkspaceRbacService {
     const canonicalRole = normalizeRoleKey(roleId);
     if (canonicalRole === 'admin') return true;
 
+    const SCREEN_ALIAS_MAP: Record<string, string> = {
+      prList: 'purchaseReqList',
+      prDetail: 'purchaseReqList',
+      prCreate: 'purchaseReqList',
+      newPR: 'purchaseReqList',
+      purchaseReqForm: 'purchaseReqList',
+      purchaseRequisitions: 'purchaseReqList',
+      purchaseRequisitionForm: 'purchaseReqList',
+      rfqs: 'rfqList',
+      pos: 'poList',
+      grns: 'grnList',
+      contracts: 'supplierContracts',
+      priceLists: 'supplierPriceList',
+      monthlyPlan: 'monthlyPlanOrders',
+      reconciliation: 'monthlyReconciliation',
+    };
+    const normView = SCREEN_ALIAS_MAP[screenView] || screenView;
+
     // Quarantined check
-    const quarantined = this.quarantinedScreens.find((q) => q.view === screenView);
+    const quarantined = this.quarantinedScreens.find((q) => q.view === normView || q.view === screenView);
     if (quarantined) {
       if (quarantined.status === 'PENDING_APPROVAL' || quarantined.status === 'RESTRICTED') {
         const allowed = quarantined.showInWorkspaceForRoles || quarantined.allowedRoles;
@@ -391,6 +409,7 @@ class WorkspaceRbacService {
 
     const roleMap = this.workspaceMatrix[canonicalRole];
     if (!roleMap) return false;
+    if (roleMap[normView] !== undefined) return roleMap[normView];
     if (roleMap[screenView] !== undefined) return roleMap[screenView];
 
     return !this.config.strictZeroTrustQuarantine;
@@ -401,8 +420,26 @@ class WorkspaceRbacService {
     const canonicalRole = normalizeRoleKey(roleId);
     if (canonicalRole === 'admin') return true;
 
+    const SCREEN_ALIAS_MAP: Record<string, string> = {
+      prList: 'purchaseReqList',
+      prDetail: 'purchaseReqList',
+      prCreate: 'purchaseReqList',
+      newPR: 'purchaseReqList',
+      purchaseReqForm: 'purchaseReqList',
+      purchaseRequisitions: 'purchaseReqList',
+      purchaseRequisitionForm: 'purchaseReqList',
+      rfqs: 'rfqList',
+      pos: 'poList',
+      grns: 'grnList',
+      contracts: 'supplierContracts',
+      priceLists: 'supplierPriceList',
+      monthlyPlan: 'monthlyPlanOrders',
+      reconciliation: 'monthlyReconciliation',
+    };
+    const normView = SCREEN_ALIAS_MAP[screenView] || screenView;
+
     // Quarantined check
-    const quarantined = this.quarantinedScreens.find((q) => q.view === screenView);
+    const quarantined = this.quarantinedScreens.find((q) => q.view === normView || q.view === screenView);
     if (quarantined) {
       if (quarantined.status === 'PENDING_APPROVAL' || quarantined.status === 'RESTRICTED') {
         const allowed = quarantined.showInSidebarForRoles || quarantined.allowedRoles;
@@ -412,6 +449,7 @@ class WorkspaceRbacService {
 
     const roleMap = this.sidebarMatrix[canonicalRole];
     if (!roleMap) return false;
+    if (roleMap[normView] !== undefined) return roleMap[normView];
     if (roleMap[screenView] !== undefined) return roleMap[screenView];
 
     // Fallback to workspace matrix if not set

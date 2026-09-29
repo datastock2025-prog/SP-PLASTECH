@@ -24,7 +24,16 @@ import {
   Lock,
 } from 'lucide-react';
 import { INITIAL_RECENT_RECORDS, RecentRecordItem } from '../../data/sidebarNavigationData';
-import { RequireAuth } from '../../shared/components/RequireAuth';
+import { RequireAuth, useAuthContext } from '../../shared/components/RequireAuth';
+import {
+  getStoredPRs,
+  INITIAL_PURCHASE_REQUISITIONS,
+  addPurchaseRequisition,
+  INITIAL_EXTENDED_POS,
+} from '../../data/procurementData';
+import { loadStoredApprovalWorkflows } from '../../data/adminData';
+import { adminEventBus } from '../../services/adminService';
+import { PurchaseRequisition } from '../../types/procurement';
 
 interface WorkspaceToolProps {
   onNavigate: (view: string, param?: any) => void;
@@ -134,157 +143,222 @@ export const WorkspaceTasksView: React.FC<WorkspaceToolProps> = ({ onNavigate, s
 };
 
 export const WorkspaceApprovalsView: React.FC<WorkspaceToolProps> = ({ onNavigate, showToast }) => {
+  const { currentUser } = useAuthContext();
   const [activeTab, setActiveTab] = useState<'MY_PENDING' | 'DELEGATED' | 'TEAM_QUEUE' | 'HISTORY'>('MY_PENDING');
   const [domainFilter, setDomainFilter] = useState<string>('ALL');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [inspectItem, setInspectItem] = useState<any | null>(null);
   const [reworkModalItem, setReworkModalItem] = useState<any | null>(null);
   const [reworkReason, setReworkReason] = useState('');
-
-  const [approvals, setApprovals] = useState([
-    {
-      id: 'APP-201',
-      type: 'Purchase Order',
-      domain: 'Procurement',
-      record: 'PO-2026-00789',
-      desc: '40MT Virgin Polypropylene Copolymer (₹38.5 Lakhs)',
-      initiator: 'Kavita Iyer (SCM Buyer)',
-      date: 'Today, 11:20 AM',
-      amount: '₹38,50,000',
-      priority: 'HIGH',
-      slaHoursLeft: 4.5,
-      currentTier: 2,
-      totalTiers: 3,
-      tierName: 'Plant Budget & Working Capital Validation',
-      approverRole: 'Financial Controller',
-      isDelegated: false,
-      status: 'PENDING',
-      view: 'poApprovals',
-      vendor: 'Reliance Polymers Ltd',
-      costVariancePct: '+2.4% vs Last PO',
-      notes: 'Urgent resin batch required for Maruti Suzuki bumper molding run starting Friday.',
-      timeline: [
-        { tier: 1, name: 'Technical & Rate Variance Check', approver: 'SCM Purchase Manager (Arun Nair)', status: 'APPROVED', time: 'Today, 09:30 AM' },
-        { tier: 2, name: 'Plant Budget Validation', approver: 'Financial Controller (You)', status: 'CURRENT', time: 'Pending' },
-        { tier: 3, name: 'Executive Authorization', approver: 'Priya Rao (VP Ops)', status: 'WAITING', time: 'Queued' },
-      ],
-    },
-    {
-      id: 'APP-202',
-      type: 'Engineering Change (ECO)',
-      domain: 'Engineering',
-      record: 'ECO-2026-014',
-      desc: 'Cavity Core insert revision for Bumper Mold M-004',
-      initiator: 'R&D Tooling Engineering',
-      date: 'Yesterday, 04:15 PM',
-      amount: 'Tooling Rev B',
-      priority: 'CRITICAL',
-      slaHoursLeft: 1.2,
-      currentTier: 1,
-      totalTiers: 2,
-      tierName: 'Mold Feasibility & Cycle Time Impact',
-      approverRole: 'Tooling & DFM Lead',
-      isDelegated: false,
-      status: 'PENDING',
-      view: 'ecoList',
-      vendor: 'In-House Toolroom',
-      costVariancePct: 'Zero CapEx (+0.8s Cycle)',
-      notes: 'Shrinkage compensation for modified PP compound with 15% Talc filler.',
-      timeline: [
-        { tier: 1, name: 'Mold Feasibility & Cycle Time', approver: 'Tooling Lead (You)', status: 'CURRENT', time: 'Pending' },
-        { tier: 2, name: 'Quality & First Article Sign-off', approver: 'QA Director', status: 'WAITING', time: 'Queued' },
-      ],
-    },
-    {
-      id: 'APP-203',
-      type: 'Credit Limit Exception',
-      domain: 'Finance',
-      record: 'SO-2026-1234',
-      desc: 'Maruti Suzuki ₹15L over standard 60-day credit exposure',
-      initiator: 'Sales Desk (Rohan Verma)',
-      date: 'Yesterday, 06:40 PM',
-      amount: '₹15,00,000 Over-limit',
-      priority: 'MEDIUM',
-      slaHoursLeft: 14.0,
-      currentTier: 1,
-      totalTiers: 1,
-      tierName: 'Finance Director Over-Limit Sign-off',
-      approverRole: 'Finance Director',
-      isDelegated: true,
-      delegatedFrom: 'Priya Rao (CFO)',
-      status: 'PENDING',
-      view: 'creditControl',
-      vendor: 'Customer: Maruti Suzuki India',
-      costVariancePct: 'O/S ₹65L / Limit ₹50L',
-      notes: 'Customer payment committed for wire transfer on 28th. Order dispatch held on dock.',
-      timeline: [
-        { tier: 1, name: 'Finance Director Exception', approver: 'Delegated to You (Priya Rao OOO)', status: 'CURRENT', time: 'Pending' },
-      ],
-    },
-    {
-      id: 'APP-204',
-      type: 'Quality Quarantine Release',
-      domain: 'Quality',
-      record: 'MRB-2026-0089',
-      desc: 'Black speck scrap purge write-off for 480kg Masterbatch Lot',
-      initiator: 'Vikram Mehta (QA Engineer)',
-      date: '2 days ago',
-      amount: '₹96,000 Scrap Loss',
-      priority: 'HIGH',
-      slaHoursLeft: 0,
-      currentTier: 2,
-      totalTiers: 2,
-      tierName: 'Plant Manager Write-off Clearance',
-      approverRole: 'Plant Operations Head',
-      isDelegated: false,
-      status: 'PENDING',
-      view: 'quarantine',
-      vendor: 'Supplier: Clariant Colorants',
-      costVariancePct: 'Debit Note Issued to Vendor',
-      notes: 'Pigment agglomeration exceeded allowable delta-E. Supplier agreed to 100% credit note.',
-      timeline: [
-        { tier: 1, name: 'QA Root Cause & Quarantine', approver: 'QA Lead (Anand Kumar)', status: 'APPROVED', time: 'Yesterday' },
-        { tier: 2, name: 'Plant Manager Disposition', approver: 'Plant Head (You)', status: 'CURRENT', time: 'Overdue (SLA Breached)' },
-      ],
-    },
-  ]);
-
-  const [history, setHistory] = useState<any[]>([]);
-
-  // Filter items
-  const filteredApprovals = approvals.filter((item) => {
-    if (activeTab === 'DELEGATED' && !item.isDelegated) return false;
-    if (activeTab === 'MY_PENDING' && item.isDelegated) return false;
-    if (domainFilter !== 'ALL' && item.domain !== domainFilter) return false;
-    return true;
+  const [history, setHistory] = useState<any[]>(() => {
+    try {
+      const raw = localStorage.getItem('reboot_erp_approvals_history');
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return [];
   });
+
+  // Dynamic approval items loaded from live real ERP modules
+  const [livePrs, setLivePrs] = useState<PurchaseRequisition[]>(() => {
+    const stored = getStoredPRs();
+    if (stored && stored.length > 0) return stored;
+    return INITIAL_PURCHASE_REQUISITIONS;
+  });
+  const [liveWorkflows, setLiveWorkflows] = useState(() => loadStoredApprovalWorkflows());
+
+  // Listen for real-time PR and workflow updates across the ERP
+  React.useEffect(() => {
+    const refreshData = () => {
+      const stored = getStoredPRs();
+      setLivePrs(stored && stored.length > 0 ? stored : INITIAL_PURCHASE_REQUISITIONS);
+      setLiveWorkflows(loadStoredApprovalWorkflows());
+    };
+    adminEventBus.on('PR_SAVED', refreshData);
+    adminEventBus.on('PR_CREATED', refreshData);
+    adminEventBus.on('PR_SUBMITTED_FOR_APPROVAL', refreshData);
+    adminEventBus.on('WORKFLOWS_UPDATED', refreshData);
+    return () => {
+      adminEventBus.off('PR_SAVED', refreshData);
+      adminEventBus.off('PR_CREATED', refreshData);
+      adminEventBus.off('PR_SUBMITTED_FOR_APPROVAL', refreshData);
+      adminEventBus.off('WORKFLOWS_UPDATED', refreshData);
+    };
+  }, []);
+
+  // Compute live approval action items dynamically
+  const approvals = React.useMemo(() => {
+    const items: any[] = [];
+    const prWf = liveWorkflows.find((w) => w.id === 'WF-PR-AUTHORIZATION' || w.module === 'Procurement');
+    const poWf = liveWorkflows.find((w) => w.id === 'WF-PO-AUTHORIZATION');
+
+    // 1. Live Purchase Requisitions pending approval (if PR workflow is active)
+    if (!prWf || prWf.isActive) {
+      const pendingPrs = livePrs.filter((p) => p.status === 'pending_approval' || p.approvalStatus === 'pending');
+      pendingPrs.forEach((pr) => {
+        const estValue = Number(pr.estimatedTotal) || 0;
+        const tier = prWf?.tiers?.find((t) => !t.thresholdAmount || estValue <= t.thresholdAmount) || prWf?.tiers?.[0];
+        
+        items.push({
+          id: `APP-PR-${pr.id}`,
+          type: 'Purchase Requisition',
+          domain: 'Procurement',
+          record: pr.prNumber,
+          desc: `${pr.lines?.[0]?.itemName || 'Materials'} (₹${(estValue / 100000).toFixed(2)} Lakhs) — ${pr.justification || 'Departmental Material Requisition'}`,
+          initiator: pr.requestedBy || 'Procurement Requester',
+          date: pr.requestDate || 'Recent',
+          amount: `₹${(estValue / 100000).toFixed(2)} Lakhs`,
+          priority: (pr.priority?.toUpperCase() || 'HIGH') as 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW',
+          slaHoursLeft: tier?.slaHours || 24,
+          currentTier: tier?.tierLevel || 1,
+          totalTiers: prWf?.tiers?.length || 3,
+          tierName: tier?.tierName || 'Department Head & Commercial Sign-off',
+          approverRole: tier?.approverRoleName || 'Purchase Manager / Department Head',
+          isDelegated: false,
+          status: 'PENDING',
+          view: 'prDetail',
+          viewParam: { id: pr.id },
+          vendor: pr.lines?.[0]?.suggestedSupplierName || 'Supplier Under Validation',
+          costVariancePct: pr.budgetExceeded ? 'Budget Exceeded Warning' : 'Within Allocated CapEx',
+          notes: pr.justification || pr.notes || 'Requisition submitted for multi-level approval & PO authorization.',
+          rawType: 'PR',
+          rawRecord: pr,
+          timeline: pr.approvalHistory && pr.approvalHistory.length > 0
+            ? pr.approvalHistory.map((h, idx) => ({
+                tier: idx + 1,
+                name: h.role || `Tier ${idx + 1}`,
+                approver: h.user || 'Approver',
+                status: h.action === 'Approved' ? 'APPROVED' : 'CURRENT',
+                time: h.date || 'Pending',
+              }))
+            : [
+                { tier: 1, name: 'Department Head & Stock Verify', approver: pr.requestedBy, status: 'APPROVED', time: pr.requestDate },
+                { tier: 2, name: 'Purchase Manager Authorization', approver: 'Purchase Manager (You)', status: 'CURRENT', time: 'Pending' },
+                { tier: 3, name: 'Executive Sign-off', approver: 'Plant Director', status: 'WAITING', time: 'Queued' },
+              ],
+        });
+      });
+    }
+
+    // 2. Real Purchase Orders pending approval (if PO workflow is active)
+    if (!poWf || poWf.isActive) {
+      const pendingPos = INITIAL_EXTENDED_POS.filter(
+        (po) => po.approvalStatus === 'pending' || po.status === 'pending_approval' || (po as any).requiresApproval
+      );
+      pendingPos.forEach((po) => {
+        items.push({
+          id: `APP-PO-${po.id}`,
+          type: 'Purchase Order',
+          domain: 'Procurement',
+          record: po.poNumber,
+          desc: `${po.vendorName} — ₹${(po.totalAmount / 100000).toFixed(2)} Lakhs (${po.items?.[0]?.description || 'Polymer Material Order'})`,
+          initiator: po.buyerName || 'SCM Buyer',
+          date: po.poDate || 'Recent',
+          amount: `₹${(po.totalAmount / 100000).toFixed(2)} Lakhs`,
+          priority: po.totalAmount > 1000000 ? 'CRITICAL' : 'HIGH',
+          slaHoursLeft: 12,
+          currentTier: 2,
+          totalTiers: 3,
+          tierName: 'Working Capital & Vendor Rate Authorization',
+          approverRole: 'Purchase Manager / Procurement Head',
+          isDelegated: false,
+          status: 'PENDING',
+          view: 'poDetail',
+          viewParam: { id: po.id, poNumber: po.poNumber },
+          vendor: po.vendorName,
+          costVariancePct: 'Within Contract Budget',
+          notes: `Purchase order released for plant operations. Payment terms: ${po.paymentTerms || '30 Days'}.`,
+          rawType: 'PO',
+          rawRecord: po,
+          timeline: [
+            { tier: 1, name: 'Technical & Rate Variance Check', approver: 'SCM Purchase Manager', status: 'APPROVED', time: 'Recent' },
+            { tier: 2, name: 'Plant Budget Validation', approver: 'Purchase Head (You)', status: 'CURRENT', time: 'Pending' },
+            { tier: 3, name: 'Executive Authorization', approver: 'Plant VP', status: 'WAITING', time: 'Queued' },
+          ],
+        });
+      });
+    }
+
+    return items;
+  }, [livePrs, liveWorkflows]);
+
+  // Filter items by designation, activeTab, and domain
+  const userRole = (currentUser?.role || currentUser?.roleType || '').toLowerCase();
+  const filteredApprovals = React.useMemo(() => {
+    return approvals.filter((item) => {
+      if (activeTab === 'DELEGATED' && !item.isDelegated) return false;
+      if (activeTab === 'MY_PENDING' && item.isDelegated) return false;
+      if (domainFilter !== 'ALL' && item.domain !== domainFilter) return false;
+
+      // Role-based designation coordination
+      if (userRole && !userRole.includes('admin') && !userRole.includes('super')) {
+        if (userRole.includes('purchase') || userRole.includes('procurement') || userRole.includes('buyer')) {
+          if (item.domain !== 'Procurement') return false;
+        } else if (userRole.includes('quality') || userRole.includes('qa')) {
+          if (item.domain !== 'Quality') return false;
+        } else if (userRole.includes('plant') || userRole.includes('operation')) {
+          // Plant manager sees all operational & procurement items
+          return true;
+        }
+      }
+
+      return true;
+    });
+  }, [approvals, activeTab, domainFilter, userRole]);
 
   const handleAction = (id: string, action: 'Approve' | 'Reject', notes: string = '') => {
     const item = approvals.find((a) => a.id === id);
     if (!item) return;
 
-    setApprovals((prev) => prev.filter((a) => a.id !== id));
-    setSelectedIds((prev) => prev.filter((selId) => selId !== id));
+    // 1. If it's a Purchase Requisition, update the actual real PR record in DB / LocalStorage
+    if (item.rawType === 'PR' && item.rawRecord) {
+      const pr = item.rawRecord as PurchaseRequisition;
+      const updatedPr: PurchaseRequisition = {
+        ...pr,
+        status: action === 'Approve' ? 'approved' : 'rejected',
+        approvalStatus: action === 'Approve' ? 'approved' : 'rejected',
+        currentApprover: currentUser?.name || 'Authorized Approver',
+        approvalHistory: [
+          ...(pr.approvalHistory || []),
+          {
+            step: (pr.approvalHistory?.length || 1) + 1,
+            role: currentUser?.role || 'Purchase Manager',
+            user: currentUser?.name || 'Purchase Manager',
+            action: action === 'Approve' ? ('Approved' as const) : ('Rejected' as const),
+            date: new Date().toISOString().slice(0, 10),
+            comment: notes || (action === 'Approve' ? 'Approved through Enterprise Approvals Hub' : 'Rejected by authorized reviewer'),
+          },
+        ],
+      };
+      addPurchaseRequisition(updatedPr);
+      adminEventBus.emit('PR_SAVED', updatedPr);
+      adminEventBus.emit('PR_APPROVED', updatedPr);
+    }
 
+    // 2. Add to Resolution History
     const historyEntry = {
       ...item,
       status: action === 'Approve' ? 'APPROVED' : 'REJECTED',
       decidedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       actionNotes: notes || (action === 'Approve' ? 'Approved through Universal Workflow Engine.' : 'Rejected by authorized reviewer.'),
     };
-    setHistory((prev) => [historyEntry, ...prev]);
+    const nextHistory = [historyEntry, ...history];
+    setHistory(nextHistory);
+    try {
+      localStorage.setItem('reboot_erp_approvals_history', JSON.stringify(nextHistory.slice(0, 50)));
+    } catch {}
 
+    setSelectedIds((prev) => prev.filter((selId) => selId !== id));
     if (inspectItem?.id === id) setInspectItem(null);
     if (reworkModalItem?.id === id) setReworkModalItem(null);
 
-    showToast?.(`${action === 'Approve' ? 'Approved' : 'Rejected'} ${item.record} successfully.`);
+    showToast?.(`✓ ${action === 'Approve' ? 'Approved' : 'Rejected'} ${item.record} successfully.`);
   };
 
   const handleBatchApprove = () => {
     if (selectedIds.length === 0) return;
     const count = selectedIds.length;
-    selectedIds.forEach((id) => handleAction(id, 'Approve', 'Batch Approved'));
-    showToast?.(`Batch approved ${count} transactions.`);
+    selectedIds.forEach((id) => handleAction(id, 'Approve', 'Batch Approved via Enterprise Approvals Hub'));
+    showToast?.(`✓ Batch approved ${count} transactions.`);
   };
 
   const handleRequestRework = () => {
@@ -293,19 +367,45 @@ export const WorkspaceApprovalsView: React.FC<WorkspaceToolProps> = ({ onNavigat
       return;
     }
     const item = reworkModalItem;
-    setApprovals((prev) => prev.filter((a) => a.id !== item.id));
-    setSelectedIds((prev) => prev.filter((selId) => selId !== item.id));
 
-    setHistory((prev) => [
+    if (item.rawType === 'PR' && item.rawRecord) {
+      const pr = item.rawRecord as PurchaseRequisition;
+      const updatedPr: PurchaseRequisition = {
+        ...pr,
+        status: 'draft',
+        approvalStatus: 'pending',
+        notes: `Rework Requested: ${reworkReason}`,
+        approvalHistory: [
+          ...(pr.approvalHistory || []),
+          {
+            step: (pr.approvalHistory?.length || 1) + 1,
+            role: currentUser?.role || 'Purchase Manager',
+            user: currentUser?.name || 'Purchase Manager',
+            action: 'Pending' as const,
+            date: new Date().toISOString().slice(0, 10),
+            comment: `Rework Requested: ${reworkReason}`,
+          },
+        ],
+      };
+      addPurchaseRequisition(updatedPr);
+      adminEventBus.emit('PR_SAVED', updatedPr);
+    }
+
+    const nextHistory = [
       {
         ...item,
         status: 'REWORK_REQUESTED',
         decidedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         actionNotes: `Rework Requested: ${reworkReason}`,
       },
-      ...prev,
-    ]);
+      ...history,
+    ];
+    setHistory(nextHistory);
+    try {
+      localStorage.setItem('reboot_erp_approvals_history', JSON.stringify(nextHistory.slice(0, 50)));
+    } catch {}
 
+    setSelectedIds((prev) => prev.filter((selId) => selId !== item.id));
     setReworkModalItem(null);
     setReworkReason('');
     showToast?.(`Rework requested on ${item.record}. Document returned to ${item.initiator}.`);
@@ -339,7 +439,7 @@ export const WorkspaceApprovalsView: React.FC<WorkspaceToolProps> = ({ onNavigat
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Multi-tier hierarchical authorization with SLA tracking, Segregation of Duties (SoD), and delegation proxy
+              Multi-tier hierarchical authorization with SLA tracking, Segregation of Duties (SoD), and designation coordination
             </p>
           </div>
         </div>
@@ -356,8 +456,15 @@ export const WorkspaceApprovalsView: React.FC<WorkspaceToolProps> = ({ onNavigat
               </button>
             </RequireAuth>
           )}
+          <button
+            onClick={() => onNavigate('adminWorkflows')}
+            className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1 transition-colors"
+          >
+            <Sliders className="w-3.5 h-3.5 text-slate-500" />
+            <span>Configure Workflows in Admin</span>
+          </button>
           <div className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
-            {approvals.length} PENDING DECISIONS
+            {filteredApprovals.length} PENDING DECISIONS
           </div>
         </div>
       </div>
@@ -409,9 +516,9 @@ export const WorkspaceApprovalsView: React.FC<WorkspaceToolProps> = ({ onNavigat
               className="px-2.5 py-1 text-xs font-semibold bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-[#0F8B8D]"
             >
               <option value="ALL">All ERP Domains</option>
-              <option value="Procurement">Procurement (PO/PR)</option>
+              <option value="Procurement">Procurement (PR / PO)</option>
               <option value="Finance">Finance &amp; Credit</option>
-              <option value="Engineering">Engineering (ECO/BOM)</option>
+              <option value="Engineering">Engineering (ECO / BOM)</option>
               <option value="Quality">Quality &amp; Quarantine</option>
             </select>
             {filteredApprovals.length > 0 && (
@@ -430,14 +537,15 @@ export const WorkspaceApprovalsView: React.FC<WorkspaceToolProps> = ({ onNavigat
       {activeTab === 'HISTORY' ? (
         <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 shadow-xs">
           {history.length === 0 ? (
-            <div className="p-8 text-center text-slate-400 text-xs">
-              No approval actions recorded in this session yet.
+            <div className="p-12 text-center text-slate-400 text-xs">
+              <History className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+              No past resolution records found. Newly approved or rejected items will be logged here.
             </div>
           ) : (
-            history.map((h) => (
-              <div key={h.id} className="p-4 flex items-center justify-between gap-4">
+            history.map((h, idx) => (
+              <div key={`${h.id}-${idx}`} className="p-4 flex items-center justify-between gap-4">
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span
                       className={`text-[10px] font-bold px-2 py-0.5 rounded ${
                         h.status === 'APPROVED'
@@ -450,10 +558,10 @@ export const WorkspaceApprovalsView: React.FC<WorkspaceToolProps> = ({ onNavigat
                       {h.status}
                     </span>
                     <span className="font-mono text-xs font-bold text-slate-800">{h.record}</span>
-                    <span className="text-xs text-slate-500 font-semibold">{h.desc}</span>
+                    <span className="text-xs text-slate-600 font-semibold">{h.desc}</span>
                   </div>
                   <div className="text-[11px] text-slate-500">
-                    Decision at <b>{h.decidedAt}</b> &middot; Note: <i>{h.actionNotes}</i>
+                    Action recorded at <b>{h.decidedAt}</b> &middot; Note: <i>{h.actionNotes}</i>
                   </div>
                 </div>
                 <div className="text-right text-xs font-mono font-bold text-slate-700">{h.amount}</div>
@@ -464,10 +572,28 @@ export const WorkspaceApprovalsView: React.FC<WorkspaceToolProps> = ({ onNavigat
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {filteredApprovals.length === 0 ? (
-            <div className="bg-white p-12 rounded-xl border border-slate-200 text-center space-y-2">
-              <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
-              <h3 className="text-sm font-bold text-slate-800">All Clear! No Pending Actions</h3>
-              <p className="text-xs text-slate-500">You have zero sign-off backlogs under this filter.</p>
+            <div className="bg-white p-12 rounded-xl border border-slate-200 text-center space-y-3 shadow-xs">
+              <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
+              <h3 className="text-base font-bold text-slate-800">Approvals Queue Clear</h3>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                There are no pending authorization requests matching your designation ({currentUser?.role || 'Admin'}).
+                Newly submitted Purchase Requisitions and Purchase Orders will automatically arrive here.
+              </p>
+              <div className="flex items-center justify-center gap-2 pt-2">
+                <button
+                  onClick={() => onNavigate('prCreate')}
+                  className="px-3.5 py-2 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Create Purchase Requisition (PR)
+                </button>
+                <button
+                  onClick={() => onNavigate('purchaseReqList')}
+                  className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold"
+                >
+                  View All Requisitions
+                </button>
+              </div>
             </div>
           ) : (
             filteredApprovals.map((app) => {
@@ -544,7 +670,7 @@ export const WorkspaceApprovalsView: React.FC<WorkspaceToolProps> = ({ onNavigat
                     </button>
 
                     <RequireAuth
-                      roles={['admin', 'manager', 'lead', 'director']}
+                      roles={['admin', 'manager', 'lead', 'director', 'purchase_manager', 'procurement_head', 'procurement_buyer', 'plant_manager']}
                       fallback={
                         <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-1.5 rounded-lg border border-amber-200 flex items-center gap-1 font-medium">
                           <Lock className="w-3 h-3" /> Sign-off Clearance Required
@@ -608,11 +734,11 @@ export const WorkspaceApprovalsView: React.FC<WorkspaceToolProps> = ({ onNavigat
                   <p className="font-bold text-sm text-slate-900 mt-0.5">{inspectItem.amount}</p>
                 </div>
                 <div>
-                  <span className="text-slate-400 uppercase font-semibold text-[10px]">Variance Indicator</span>
+                  <span className="text-slate-400 uppercase font-semibold text-[10px]">Budget Indicator</span>
                   <p className="font-semibold text-emerald-700 mt-0.5">{inspectItem.costVariancePct}</p>
                 </div>
                 <div>
-                  <span className="text-slate-400 uppercase font-semibold text-[10px]">Vendor / Entity</span>
+                  <span className="text-slate-400 uppercase font-semibold text-[10px]">Vendor / Suggested Source</span>
                   <p className="font-semibold text-slate-800 mt-0.5">{inspectItem.vendor}</p>
                 </div>
               </div>
@@ -626,6 +752,39 @@ export const WorkspaceApprovalsView: React.FC<WorkspaceToolProps> = ({ onNavigat
                   {inspectItem.notes}
                 </div>
               </div>
+
+              {/* Requisition Lines Table (if PR) */}
+              {inspectItem.rawRecord?.lines && inspectItem.rawRecord.lines.length > 0 && (
+                <div>
+                  <h4 className="font-bold text-slate-800 uppercase tracking-wider text-[11px] mb-2">
+                    Line Item Breakdown
+                  </h4>
+                  <div className="border border-slate-200 rounded-lg overflow-hidden">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 text-slate-600 uppercase text-[10px] font-semibold">
+                        <tr>
+                          <th className="p-2">Item Code</th>
+                          <th className="p-2">Description</th>
+                          <th className="p-2 text-right">Quantity</th>
+                          <th className="p-2 text-right">Est. Unit Price</th>
+                          <th className="p-2 text-right">Est. Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {inspectItem.rawRecord.lines.map((l: any, i: number) => (
+                          <tr key={i} className="hover:bg-slate-50">
+                            <td className="p-2 font-mono font-bold text-slate-800">{l.itemCode}</td>
+                            <td className="p-2 text-slate-700">{l.itemName}</td>
+                            <td className="p-2 text-right font-bold text-slate-900">{l.quantity} {l.uom || 'KG'}</td>
+                            <td className="p-2 text-right font-mono">₹{l.estimatedUnitPrice || 0}</td>
+                            <td className="p-2 text-right font-bold font-mono text-emerald-700">₹{(l.estimatedTotal || ((Number(l.quantity) || 0) * (Number(l.estimatedUnitPrice) || 0))).toLocaleString('en-IN')}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* Multi-Tier Signature Stepper */}
               <div>
@@ -670,7 +829,7 @@ export const WorkspaceApprovalsView: React.FC<WorkspaceToolProps> = ({ onNavigat
             <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
               <button
                 onClick={() => {
-                  onNavigate(inspectItem.view);
+                  onNavigate(inspectItem.view, inspectItem.viewParam);
                   setInspectItem(null);
                 }}
                 className="text-xs font-semibold text-indigo-600 hover:underline cursor-pointer"
@@ -722,7 +881,7 @@ export const WorkspaceApprovalsView: React.FC<WorkspaceToolProps> = ({ onNavigat
               <textarea
                 value={reworkReason}
                 onChange={(e) => setReworkReason(e.target.value)}
-                placeholder="e.g. Please negotiate a 2% volume discount with Reliance or update delivery schedule to split across two fortnights..."
+                placeholder="e.g. Please negotiate a volume discount or update delivery schedule to split across two fortnights..."
                 rows={4}
                 className="w-full text-xs p-3 border border-slate-200 rounded-xl focus:ring-1 focus:ring-[#0F8B8D] focus:outline-hidden"
               />

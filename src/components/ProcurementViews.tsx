@@ -56,6 +56,7 @@ import { ItemMaster, AuthUser } from '../types';
 import { INITIAL_ITEMS } from '../data/initialData';
 import { supplierService } from '../services/procurement/supplierService';
 import { itemService } from '../services/itemService';
+import { adminEventBus } from '../services/adminService';
 
 interface Props {
   view?: string;
@@ -130,7 +131,29 @@ export const ProcurementViews: React.FC<Props> = ({
     if (propSuppliers && propSuppliers.length > 0) return propSuppliers;
     return supplierService.getSuppliersSync();
   });
-  const [prs, setPrs] = useState<PurchaseRequisition[]>(propPrs || INITIAL_PURCHASE_REQUISITIONS);
+  const [prs, setPrs] = useState<PurchaseRequisition[]>(() => {
+    return propPrs && propPrs.length > 0 ? propPrs : INITIAL_PURCHASE_REQUISITIONS;
+  });
+
+  React.useEffect(() => {
+    const handlePrUpdate = (updatedPr: PurchaseRequisition) => {
+      setPrs((prev) => {
+        const idx = prev.findIndex((p) => p.id === updatedPr.id || p.prNumber === updatedPr.prNumber);
+        if (idx >= 0) {
+          const copy = [...prev];
+          copy[idx] = updatedPr;
+          return copy;
+        }
+        return [updatedPr, ...prev];
+      });
+    };
+    adminEventBus.on('PR_SAVED', handlePrUpdate);
+    adminEventBus.on('PR_CREATED', handlePrUpdate);
+    return () => {
+      adminEventBus.off('PR_SAVED', handlePrUpdate);
+      adminEventBus.off('PR_CREATED', handlePrUpdate);
+    };
+  }, []);
   const [rfqs, setRfqs] = useState<RequestForQuotation[]>(propRfqs || INITIAL_PROCUREMENT_RFQS);
   const [pos, setPos] = useState<ExtendedPurchaseOrder[]>(propPos || INITIAL_EXTENDED_POS);
   const [grns, setGrns] = useState<GoodsReceiptNote[]>(propGrns || INITIAL_PROCUREMENT_GRNS);

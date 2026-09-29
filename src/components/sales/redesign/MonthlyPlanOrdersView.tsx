@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Calendar,
   Layers,
@@ -16,11 +16,24 @@ import {
   Building2,
   Package,
   X,
+  Copy,
+  ChevronDown,
+  ChevronRight,
+  ShoppingCart,
+  ArrowRight,
+  Sparkles,
+  Check,
+  FilePlus,
+  Factory,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   MonthlyPlanOrder,
   PlasticSalesOrder,
 } from '../../../types/salesOrderDeliveryTypes';
+import { addPurchaseRequisition } from '../../../data/procurementData';
+import { adminEventBus } from '../../../services/adminService';
+import { PurchaseRequisition } from '../../../types/procurement';
 
 interface MonthlyPlanOrdersViewProps {
   monthlyPlans: MonthlyPlanOrder[];
@@ -32,8 +45,28 @@ interface MonthlyPlanOrdersViewProps {
   showToast: (msg: string) => void;
 }
 
+// Helper to advance month string e.g. "October 2026" -> "November 2026"
+function getNextMonthPeriod(currentPeriod: string): string {
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  const parts = (currentPeriod || '').trim().split(' ');
+  if (parts.length >= 2) {
+    const monthName = parts[0];
+    const year = parseInt(parts[1], 10);
+    const mIdx = months.findIndex((m) => m.toLowerCase() === monthName.toLowerCase());
+    if (mIdx >= 0) {
+      const nextIdx = (mIdx + 1) % 12;
+      const nextYear = nextIdx === 0 ? year + 1 : year;
+      return `${months[nextIdx]} ${nextYear}`;
+    }
+  }
+  return 'November 2026';
+}
+
 export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
-  monthlyPlans,
+  monthlyPlans: propPlans,
   dailyOrders,
   onNavigate,
   onCreatePlan,
@@ -41,10 +74,24 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
   onCloseCreateModal,
   showToast,
 }) => {
+  const [plans, setPlans] = useState<MonthlyPlanOrder[]>(propPlans);
   const [activeTab, setActiveTab] = useState<string>('All Plans');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(propPlans[0]?.id || null);
+  const [expandedPlanIds, setExpandedPlanIds] = useState<Record<string, boolean>>({
+    [propPlans[0]?.id || '']: true,
+  });
+
+  // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(initialCreateOpen);
+  const [duplicateModalPlan, setDuplicateModalPlan] = useState<MonthlyPlanOrder | null>(null);
+
+  // Synchronize with parent props
+  useEffect(() => {
+    if (propPlans && propPlans.length > 0) {
+      setPlans(propPlans);
+    }
+  }, [propPlans]);
 
   useEffect(() => {
     if (initialCreateOpen) {
@@ -52,7 +99,7 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
     }
   }, [initialCreateOpen]);
 
-  // Form State for creating a new plan
+  // Form State for creating a brand new plan
   const [newPlanCustomer, setNewPlanCustomer] = useState('Tata Motors Passenger Vehicles Ltd');
   const [newPlanMonth, setNewPlanMonth] = useState('October 2026');
   const [newPlanType, setNewPlanType] = useState<'Monthly supply plan' | 'Forecast' | 'Rate contract' | 'Billable monthly order'>('Monthly supply plan');
@@ -63,36 +110,57 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
   const [newPlanRate, setNewPlanRate] = useState('42.50');
   const [newPlanNotes, setNewPlanNotes] = useState('Committed monthly call-off schedule based on OEM production forecasts.');
 
+  // Form State for Duplicate to Next Month Modal
+  const [dupMonth, setDupMonth] = useState('');
+  const [dupNotes, setDupNotes] = useState('');
+  const [dupItems, setDupItems] = useState<
+    Array<{
+      itemCode: string;
+      itemName: string;
+      prevPlannedQty: number;
+      prevDispatchedQty: number;
+      newPlannedQty: number;
+      rate: number;
+      uom: string;
+      plant: string;
+      fgStore: string;
+    }>
+  >([]);
+
   // Summary Metrics
-  const totalActivePlans = monthlyPlans.filter((p) => !['Closed', 'Expired'].includes(p.status)).length;
-  const totalPlannedQty = monthlyPlans.reduce((sum, p) => sum + p.totalPlannedQty, 0);
-  const totalDailySupplied = monthlyPlans.reduce((sum, p) => sum + p.totalDailySuppliedQty, 0);
-  const remainingPlanQty = monthlyPlans.reduce((sum, p) => sum + p.remainingPlanQty, 0);
-  const totalPlannedValue = monthlyPlans.reduce((sum, p) => sum + p.totalPlannedValue, 0);
-  const overallVariancePct = (
-    ((totalDailySupplied - totalPlannedQty) / totalPlannedQty) *
-    100
-  ).toFixed(1);
+  const totalActivePlans = plans.filter((p) => !['Closed', 'Expired'].includes(p.status)).length;
+  const totalPlannedQty = plans.reduce((sum, p) => sum + p.totalPlannedQty, 0);
+  const totalDailySupplied = plans.reduce((sum, p) => sum + p.totalDailySuppliedQty, 0);
+  const remainingPlanQty = plans.reduce((sum, p) => sum + (p.totalPlannedQty - p.totalDailySuppliedQty), 0);
+  const totalPlannedValue = plans.reduce((sum, p) => sum + p.totalPlannedValue, 0);
+  const overallVariancePct = totalPlannedQty > 0
+    ? (((totalDailySupplied - totalPlannedQty) / totalPlannedQty) * 100).toFixed(1)
+    : '0.0';
 
   // Filter tabs
-  const filteredPlans = monthlyPlans.filter((plan) => {
-    if (activeTab === 'Active Plans' && plan.status === 'Closed') return false;
-    if (activeTab === 'Partially Supplied' && plan.status !== 'Partially Supplied') return false;
-    if (activeTab === 'Fully Supplied' && plan.status !== 'Fully Supplied') return false;
-    if (activeTab === 'Variance (>10%)' && Math.abs(plan.variancePct) < 10) return false;
-    if (activeTab === 'Closed/Expired' && !['Closed', 'Expired'].includes(plan.status)) return false;
+  const filteredPlans = useMemo(() => {
+    return plans.filter((plan) => {
+      if (activeTab === 'Active Plans' && plan.status === 'Closed') return false;
+      if (activeTab === 'Partially Supplied' && plan.status !== 'Partially Supplied') return false;
+      if (activeTab === 'Fully Supplied' && plan.status !== 'Fully Supplied') return false;
+      if (activeTab === 'Variance (>10%)' && Math.abs(plan.variancePct) < 10) return false;
+      if (activeTab === 'Closed/Expired' && !['Closed', 'Expired'].includes(plan.status)) return false;
 
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      const matchId = plan.id.toLowerCase().includes(q);
-      const matchCust = plan.customer.toLowerCase().includes(q);
-      const matchPeriod = plan.monthPeriod.toLowerCase().includes(q);
-      if (!matchId && !matchCust && !matchPeriod) return false;
-    }
-    return true;
-  });
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const matchId = plan.id.toLowerCase().includes(q);
+        const matchCust = plan.customer.toLowerCase().includes(q);
+        const matchPeriod = plan.monthPeriod.toLowerCase().includes(q);
+        const matchItem = plan.items?.some(
+          (i) => i.itemCode.toLowerCase().includes(q) || i.itemName.toLowerCase().includes(q)
+        );
+        if (!matchId && !matchCust && !matchPeriod && !matchItem) return false;
+      }
+      return true;
+    });
+  }, [plans, activeTab, searchQuery]);
 
-  const selectedPlan = monthlyPlans.find((p) => p.id === selectedPlanId);
+  const selectedPlan = plans.find((p) => p.id === selectedPlanId) || filteredPlans[0];
 
   // Daily orders that belong to the selected plan customer
   const relatedDailyOrders = selectedPlan
@@ -108,20 +176,225 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
     'Closed/Expired',
   ];
 
+  // Open Duplicate Modal for a given plan
+  const handleOpenDuplicate = (plan: MonthlyPlanOrder, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setDuplicateModalPlan(plan);
+    const nextM = getNextMonthPeriod(plan.monthPeriod);
+    setDupMonth(nextM);
+    setDupNotes(`Rolled forward commitment from ${plan.monthPeriod} (${plan.id}). Planned quantities adjusted for next month forecast.`);
+    setDupItems(
+      (plan.items || []).map((i) => ({
+        itemCode: i.itemCode,
+        itemName: i.itemName,
+        prevPlannedQty: i.plannedQty,
+        prevDispatchedQty: i.deliveredQty || 0,
+        newPlannedQty: i.plannedQty, // default same as prev planned, user can edit
+        rate: i.rate,
+        uom: i.uom || 'PCS',
+        plant: i.plant || plan.plant,
+        fgStore: i.fgStore || plan.fgStore,
+      }))
+    );
+  };
+
+  // Confirm Duplication to Next Month
+  const handleConfirmDuplicate = () => {
+    if (!duplicateModalPlan) return;
+
+    const newTotalPlanned = dupItems.reduce((sum, item) => sum + Number(item.newPlannedQty || 0), 0);
+    const newTotalVal = dupItems.reduce((sum, item) => sum + (Number(item.newPlannedQty || 0) * (Number(item.rate) || 0)), 0);
+    const randSuffix = Math.floor(10 + Math.random() * 90);
+    const monthCode = dupMonth.slice(0, 3).toUpperCase();
+    const newPlanId = `PLN-2026-${monthCode}-${randSuffix}`;
+
+    const newPlanObj: MonthlyPlanOrder = {
+      id: newPlanId,
+      customer: duplicateModalPlan.customer,
+      customerGstin: duplicateModalPlan.customerGstin || '27AAACG0943A1ZX',
+      monthPeriod: dupMonth || 'November 2026',
+      planType: duplicateModalPlan.planType,
+      consumptionMode: duplicateModalPlan.consumptionMode || 'Manual reconciliation',
+      billingMode: duplicateModalPlan.billingMode || 'Reconciliation only',
+      status: 'Published',
+      plant: duplicateModalPlan.plant,
+      fgStore: duplicateModalPlan.fgStore,
+      createdDate: new Date().toISOString().slice(0, 10),
+      items: dupItems.map((item) => ({
+        itemCode: item.itemCode,
+        itemName: item.itemName,
+        hsn: '39269099',
+        plannedQty: Number(item.newPlannedQty) || 0,
+        deliveredQty: 0,
+        invoicedQty: 0,
+        remainingQty: Number(item.newPlannedQty) || 0,
+        rate: Number(item.rate) || 0,
+        uom: item.uom || 'PCS',
+        plant: item.plant || duplicateModalPlan.plant,
+        fgStore: item.fgStore || duplicateModalPlan.fgStore,
+      })),
+      totalPlannedQty: newTotalPlanned,
+      totalDailySuppliedQty: 0,
+      remainingPlanQty: newTotalPlanned,
+      varianceQty: -newTotalPlanned,
+      variancePct: -100,
+      totalPlannedValue: newTotalVal,
+      notes: dupNotes,
+      auditTrail: [
+        {
+          action: `Duplicated from ${duplicateModalPlan.id} (${duplicateModalPlan.monthPeriod})`,
+          user: 'Sales Planning Head',
+          timestamp: new Date().toISOString().replace('T', ' ').slice(0, 16),
+          note: `Rolled over with edited planned quantities (Total ${newTotalPlanned.toLocaleString()} PCS)`,
+        },
+      ],
+    };
+
+    setPlans((prev) => [newPlanObj, ...prev]);
+    if (onCreatePlan) onCreatePlan(newPlanObj);
+    setSelectedPlanId(newPlanId);
+    setExpandedPlanIds((prev) => ({ ...prev, [newPlanId]: true }));
+    setDuplicateModalPlan(null);
+
+    showToast(`✓ Monthly Plan ${newPlanId} for ${dupMonth} created successfully! Planned Qty tallied.`);
+  };
+
+  // Convert Monthly Plan to Purchase Module (Generate Purchase Requisition)
+  const handleSendToPurchase = (plan: MonthlyPlanOrder, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+
+    const prNumber = `PR-2026-${Math.floor(100 + Math.random() * 900)}`;
+    const totalPlasticQty = plan.items.reduce((sum, item) => sum + (item.plannedQty || 0), 0);
+    // Standard plastic injection raw material calculation: ~0.45 kg polymer per PCS
+    const estimatedRawResinKg = Math.round(totalPlasticQty * 0.45);
+    const estimatedMasterbatchKg = Math.round(estimatedRawResinKg * 0.02);
+
+    const newPR: PurchaseRequisition = {
+      id: prNumber,
+      prNumber: prNumber,
+      requestDate: new Date().toISOString().slice(0, 10),
+      requestedBy: 'SCM MRP Shortage Engine (Sales Plan Rollup)',
+      department: 'Store & Procurement',
+      plantWarehouse: `${plan.plant.split(' - ')[0]} Store`,
+      requiredDate: new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10),
+      priority: 'High',
+      source: 'Monthly Plan Order',
+      currency: 'INR (₹)',
+      estimatedTotal: estimatedRawResinKg * 88.5 + estimatedMasterbatchKg * 340,
+      budgetAllocated: 2500000,
+      budgetRemaining: 1200000,
+      budgetExceeded: false,
+      status: 'pending_approval',
+      approvalStatus: 'pending',
+      currentApprover: 'K. Ramanathan (Procurement VP)',
+      justification: `Automated raw material requisition generated for Consolidated Monthly Sales Plan ${plan.id} (${plan.monthPeriod}) — ${plan.customer}.`,
+      notes: `Direct MRP calculation for ${plan.items.map((i) => i.itemCode).join(', ')}. Planned output: ${totalPlasticQty.toLocaleString()} PCS.`,
+      lines: [
+        {
+          id: `PRL-${Math.floor(100 + Math.random() * 900)}`,
+          lineNo: 1,
+          itemCode: 'RM-PP-NAT-001',
+          itemName: 'Polypropylene Injection Grade Virgin Resin H110MA',
+          itemCategory: 'Polymer Granules',
+          description: `Virgin raw resin for ${plan.customer} monthly delivery commitments`,
+          quantity: estimatedRawResinKg,
+          uom: 'KG',
+          requiredDate: new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10),
+          suggestedSupplierId: 'SUP-S0128',
+          suggestedSupplierName: 'RELIANCE INDUSTRIES LIMITED',
+          estimatedUnitPrice: 88.5,
+          estimatedTotal: estimatedRawResinKg * 88.5,
+          salesOrderRef: plan.id,
+          status: 'pending',
+        },
+        {
+          id: `PRL-${Math.floor(100 + Math.random() * 900)}`,
+          lineNo: 2,
+          itemCode: 'MB-BLK-002',
+          itemName: 'Carbon Black Masterbatch 40% Concentration',
+          itemCategory: 'Color Masterbatch',
+          description: 'High-dispersion black colorant for automotive trim parts',
+          quantity: estimatedMasterbatchKg,
+          uom: 'KG',
+          requiredDate: new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10),
+          suggestedSupplierId: 'SUP-S0045',
+          suggestedSupplierName: 'CLARIANT COLORANTS CHEMICALS INDIA',
+          estimatedUnitPrice: 340.0,
+          estimatedTotal: estimatedMasterbatchKg * 340.0,
+          salesOrderRef: plan.id,
+          status: 'pending',
+        },
+      ],
+      approvalHistory: [
+        {
+          step: 1,
+          role: 'SCM Demand Planner',
+          user: 'Sales & Operations Consensus',
+          action: 'Approved',
+          date: new Date().toISOString().slice(0, 10),
+          comment: `Material requirement rollup from Sales Monthly Plan ${plan.id}`,
+        },
+        {
+          step: 2,
+          role: 'Purchase Manager',
+          user: 'Purchase Manager (You)',
+          action: 'Pending',
+          comment: 'Under commercial vendor rate review in Enterprise Approvals Hub',
+        },
+      ],
+    };
+
+    addPurchaseRequisition(newPR);
+    adminEventBus.emit('PR_SAVED', newPR);
+    adminEventBus.emit('PR_CREATED', newPR);
+    adminEventBus.emit('PR_SUBMITTED_FOR_APPROVAL', newPR);
+
+    showToast(`✓ Monthly Plan ${plan.id} sent to Purchase Module! Generated PR ${prNumber} (${estimatedRawResinKg.toLocaleString()} KG Resin).`);
+  };
+
+  const toggleExpand = (planId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setExpandedPlanIds((prev) => ({ ...prev, [planId]: !prev[planId] }));
+    setSelectedPlanId(planId);
+  };
+
   return (
     <div className="space-y-5">
-      {/* Mandated Prominent Architectural Banner */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3 shadow-sm">
-        <div className="p-2 bg-blue-600 text-white rounded-lg shrink-0">
-          <Layers className="w-5 h-5" />
+      {/* Prominent Architectural Banner */}
+      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-cyan-50 border border-blue-200 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="p-2.5 bg-[#14213D] text-white rounded-xl shrink-0 shadow-sm">
+            <Layers className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-blue-950">
+                Consolidated Monthly Sales Plan &amp; Plant-Wise Demand Forecast Grid
+              </h2>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                MRP Integrated
+              </span>
+            </div>
+            <p className="text-xs text-blue-800 mt-0.5 leading-relaxed">
+              Consolidated demand commitments by plant. Click any plan row to view plant-wise line items, previous month dispatch tally, duplicate to next month, or generate purchase requisitions.
+            </p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-sm font-bold text-blue-950">
-            Monthly Supply Plans & Demand Forecast Reconciliation
-          </h2>
-          <p className="text-xs text-blue-800 mt-0.5 leading-relaxed">
-            <strong>Key Architecture Rule:</strong> Monthly Plan Orders are customer demand forecasts and supply commitments. Daily Sales Orders are completely independent and do <strong>not</strong> automatically deduct from Monthly Plans unless manually mapped during reconciliation.
-          </p>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="px-3.5 py-2 bg-[#14213D] hover:bg-[#1f335e] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" /> Create Monthly Plan
+          </button>
+          <button
+            onClick={() => onNavigate('purchaseReqList')}
+            className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+          >
+            <ShoppingCart className="w-3.5 h-3.5 text-[#0F8B8D]" />
+            <span>Procurement PRs</span>
+          </button>
         </div>
       </div>
 
@@ -130,25 +403,25 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
         <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
           <div className="text-[10px] uppercase font-bold text-gray-500">Active Plans</div>
           <div className="text-xl font-bold text-gray-900 mt-1">{totalActivePlans}</div>
-          <div className="text-[10px] text-gray-400 mt-0.5">Automotive & FMCG</div>
+          <div className="text-[10px] text-gray-400 mt-0.5">Automotive &amp; FMCG</div>
         </div>
 
         <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
           <div className="text-[10px] uppercase font-bold text-gray-500">Total Planned Qty</div>
           <div className="text-xl font-bold text-blue-700 mt-1">{totalPlannedQty.toLocaleString()}</div>
-          <div className="text-[10px] text-gray-400 mt-0.5">Target supply PCS</div>
+          <div className="text-[10px] text-gray-400 mt-0.5">Committed Supply PCS</div>
         </div>
 
         <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-gray-500">Total Daily Supplied</div>
+          <div className="text-[10px] uppercase font-bold text-gray-500">Total Dispatched</div>
           <div className="text-xl font-bold text-emerald-700 mt-1">{totalDailySupplied.toLocaleString()}</div>
           <div className="text-[10px] text-emerald-600 mt-0.5">Delivered via Daily SOs</div>
         </div>
 
         <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-gray-500">Remaining Plan Qty</div>
+          <div className="text-[10px] uppercase font-bold text-gray-500">Balance Tally Pending</div>
           <div className="text-xl font-bold text-amber-700 mt-1">{remainingPlanQty.toLocaleString()}</div>
-          <div className="text-[10px] text-amber-600 mt-0.5">Pending call-offs</div>
+          <div className="text-[10px] text-amber-600 mt-0.5">Planned &minus; Dispatched</div>
         </div>
 
         <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
@@ -174,7 +447,7 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
                 setActiveTab(tab);
                 setSelectedPlanId(null);
               }}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap ${
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
                 activeTab === tab
                   ? 'bg-[#14213D] text-white'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
@@ -187,226 +460,470 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
 
         <div className="flex items-center gap-2">
           <div className="relative">
-            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2" />
+            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
             <input
               type="text"
-              placeholder="Search plan #, customer..."
+              placeholder="Search plan #, customer, item code..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="text-xs pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg focus:outline-none"
+              className="text-xs pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
             />
           </div>
           <button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="px-3 py-1.5 bg-[#14213D] hover:bg-[#1f335e] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors whitespace-nowrap"
-          >
-            <Plus className="w-3.5 h-3.5" /> Create Monthly Plan
-          </button>
-          <button
             onClick={() => onNavigate('reconciliation')}
-            className="px-3 py-1.5 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg text-xs font-semibold flex items-center gap-1 shadow-2xs transition-colors whitespace-nowrap"
+            className="px-3 py-1.5 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg text-xs font-semibold flex items-center gap-1 shadow-2xs transition-colors whitespace-nowrap cursor-pointer"
           >
             <Layers className="w-3.5 h-3.5" /> Reconcile Hub
           </button>
         </div>
       </div>
 
-      {/* Main List Table */}
+      {/* Consolidated Monthly Plan Grid with Expandable Plant-Wise Rows */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden text-xs">
-        <table className="w-full text-left">
-          <thead className="bg-gray-50 text-gray-500 font-bold uppercase tracking-wider text-[11px] border-b border-gray-200">
-            <tr>
-              <th className="p-3">Plan ID</th>
-              <th className="p-3">Customer</th>
-              <th className="p-3">Month Period</th>
-              <th className="p-3">Plant & FG Store</th>
-              <th className="p-3 text-right">Planned Qty</th>
-              <th className="p-3 text-right">Daily Supplied</th>
-              <th className="p-3 text-right">Remaining</th>
-              <th className="p-3 text-right">Variance %</th>
-              <th className="p-3">Status</th>
-              <th className="p-3 text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {filteredPlans.map((plan) => (
-              <tr
-                key={plan.id}
-                className={`hover:bg-gray-50/70 transition-colors cursor-pointer ${
-                  selectedPlanId === plan.id ? 'bg-blue-50/40' : ''
-                }`}
-                onClick={() => setSelectedPlanId(plan.id)}
-              >
-                <td className="p-3 font-mono font-bold text-[#0F8B8D]">{plan.id}</td>
-                <td className="p-3 font-semibold text-gray-900">{plan.customer}</td>
-                <td className="p-3 text-gray-700 font-medium">{plan.monthPeriod}</td>
-                <td className="p-3 text-gray-600">
-                  <div>{plan.plant.split('-')[0]}</div>
-                  <div className="text-[10px] text-gray-400">{plan.fgStore}</div>
-                </td>
-                <td className="p-3 text-right font-bold text-gray-900">
-                  {plan.totalPlannedQty.toLocaleString()}
-                </td>
-                <td className="p-3 text-right font-semibold text-emerald-700">
-                  {plan.totalDailySuppliedQty.toLocaleString()}
-                </td>
-                <td className="p-3 text-right font-semibold text-amber-700">
-                  {plan.remainingPlanQty.toLocaleString()}
-                </td>
-                <td className="p-3 text-right font-mono font-bold">
-                  <span
-                    className={
-                      plan.variancePct > 0
-                        ? 'text-red-600'
-                        : plan.variancePct < 0
-                        ? 'text-amber-600'
-                        : 'text-gray-600'
-                    }
-                  >
-                    {plan.variancePct > 0 ? `+${plan.variancePct}%` : `${plan.variancePct}%`}
-                  </span>
-                </td>
-                <td className="p-3">
-                  <span
-                    className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                      plan.status === 'Fully Supplied'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : plan.status === 'Variance'
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-blue-100 text-blue-800'
-                    }`}
-                  >
-                    {plan.status}
-                  </span>
-                </td>
-                <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    onClick={() => setSelectedPlanId(plan.id)}
-                    className="px-2.5 py-1 text-xs font-semibold text-[#0F8B8D] hover:bg-[#0F8B8D]/10 rounded"
-                  >
-                    View Breakdown
-                  </button>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[10px] border-b border-gray-200">
+              <tr>
+                <th className="p-3 w-8 text-center"></th>
+                <th className="p-3">Plan ID</th>
+                <th className="p-3">Customer</th>
+                <th className="p-3">Month Period</th>
+                <th className="p-3">Manufacturing Plant</th>
+                <th className="p-3 text-right">Planned Qty</th>
+                <th className="p-3 text-right">Dispatched Qty</th>
+                <th className="p-3 text-right">Pending Balance (Tally)</th>
+                <th className="p-3 text-right">Plan Value</th>
+                <th className="p-3 text-center">Status</th>
+                <th className="p-3 text-right">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filteredPlans.length === 0 ? (
+                <tr>
+                  <td colSpan={11} className="p-8 text-center text-gray-400">
+                    No monthly plan orders found matching filter criteria.
+                  </td>
+                </tr>
+              ) : (
+                filteredPlans.map((plan) => {
+                  const isExpanded = Boolean(expandedPlanIds[plan.id]);
+                  const isSelected = selectedPlanId === plan.id;
+                  const balanceQty = plan.totalPlannedQty - plan.totalDailySuppliedQty;
+
+                  return (
+                    <React.Fragment key={plan.id}>
+                      {/* Master Consolidated Plan Row */}
+                      <tr
+                        className={`hover:bg-blue-50/40 transition-colors cursor-pointer group ${
+                          isSelected ? 'bg-blue-50/50 font-medium' : ''
+                        }`}
+                        onClick={() => toggleExpand(plan.id)}
+                      >
+                        <td className="p-3 text-center" onClick={(e) => toggleExpand(plan.id, e)}>
+                          <button className="text-slate-400 group-hover:text-slate-700 transition">
+                            {isExpanded ? (
+                              <ChevronDown className="w-4 h-4 text-[#0F8B8D]" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4" />
+                            )}
+                          </button>
+                        </td>
+                        <td className="p-3 font-mono font-bold text-[#0F8B8D] whitespace-nowrap">
+                          {plan.id}
+                        </td>
+                        <td className="p-3 font-semibold text-gray-900">
+                          <div>{plan.customer}</div>
+                          <div className="text-[10px] text-gray-400 font-normal">
+                            {plan.items?.length || 1} Planned SKU(s)
+                          </div>
+                        </td>
+                        <td className="p-3 text-gray-800 font-medium whitespace-nowrap">
+                          <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-semibold border border-indigo-100 text-[11px]">
+                            {plan.monthPeriod}
+                          </span>
+                        </td>
+                        <td className="p-3 text-gray-600">
+                          <div className="flex items-center gap-1 font-medium text-slate-800">
+                            <Factory className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{plan.plant}</span>
+                          </div>
+                          <div className="text-[10px] text-gray-400">{plan.fgStore}</div>
+                        </td>
+                        <td className="p-3 text-right font-bold text-gray-900">
+                          {plan.totalPlannedQty.toLocaleString()} <span className="text-[10px] text-gray-500 font-normal">PCS</span>
+                        </td>
+                        <td className="p-3 text-right font-semibold text-emerald-700">
+                          {plan.totalDailySuppliedQty.toLocaleString()}
+                        </td>
+                        <td className="p-3 text-right font-bold font-mono">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                              balanceQty <= 0
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-amber-100 text-amber-900'
+                            }`}
+                          >
+                            {balanceQty.toLocaleString()} PCS
+                          </span>
+                        </td>
+                        <td className="p-3 text-right font-bold text-gray-900">
+                          ₹{((plan.totalPlannedValue || 0) / 100000).toFixed(2)}L
+                        </td>
+                        <td className="p-3 text-center">
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                              plan.status === 'Fully Supplied'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : plan.status === 'Variance'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-blue-100 text-blue-800'
+                            }`}
+                          >
+                            {plan.status}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* Duplicate Plan to Next Month Button */}
+                            <button
+                              onClick={(e) => handleOpenDuplicate(plan, e)}
+                              className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                              title="Duplicate this plan to the next month with previous month dispatch comparison and editable planned quantity"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Duplicate to Next Month</span>
+                            </button>
+
+                            {/* Move to Purchase Module Button */}
+                            <button
+                              onClick={(e) => handleSendToPurchase(plan, e)}
+                              className="px-2.5 py-1 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                              title="Generate Purchase Requisition (PR) for raw polymer materials and send to Procurement Module"
+                            >
+                              <ShoppingCart className="w-3.5 h-3.5" />
+                              <span>Send to Purchase</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Plant-Wise Expanded Item Breakdown Row */}
+                      {isExpanded && (
+                        <tr className="bg-slate-50/90 border-b border-gray-200">
+                          <td colSpan={11} className="p-4 pl-10">
+                            <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-2xs">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 uppercase">
+                                    Plant-Wise Item Commitments
+                                  </span>
+                                  <span className="text-xs font-bold text-slate-800">
+                                    {plan.plant} &bull; {plan.monthPeriod}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-slate-500">
+                                  Tally Calculation: <b>Planned Qty &minus; Dispatched Qty = Pending Balance</b>
+                                </div>
+                              </div>
+
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-xs text-left">
+                                  <thead className="bg-slate-100/80 text-slate-600 font-semibold text-[10px] uppercase">
+                                    <tr>
+                                      <th className="p-2">Item Code</th>
+                                      <th className="p-2">Description</th>
+                                      <th className="p-2">Plant &amp; Location</th>
+                                      <th className="p-2 text-right">Planned Qty</th>
+                                      <th className="p-2 text-right">Dispatched Qty</th>
+                                      <th className="p-2 text-right">Invoiced</th>
+                                      <th className="p-2 text-right font-bold text-amber-800">Pending Tally Balance</th>
+                                      <th className="p-2 text-right">Unit Rate</th>
+                                      <th className="p-2 text-right">Item Value</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                    {plan.items?.map((item, idx) => {
+                                      const itemPending = (item.plannedQty || 0) - (item.deliveredQty || 0);
+                                      const lineVal = (item.plannedQty || 0) * (item.rate || 0);
+
+                                      return (
+                                        <tr key={idx} className="hover:bg-slate-50">
+                                          <td className="p-2 font-mono font-bold text-slate-900">{item.itemCode}</td>
+                                          <td className="p-2 font-medium text-slate-800">{item.itemName}</td>
+                                          <td className="p-2 text-slate-600">
+                                            <div>{item.plant || plan.plant}</div>
+                                            <div className="text-[10px] text-slate-400">{item.fgStore || plan.fgStore}</div>
+                                          </td>
+                                          <td className="p-2 text-right font-bold text-slate-900">
+                                            {item.plannedQty.toLocaleString()} {item.uom || 'PCS'}
+                                          </td>
+                                          <td className="p-2 text-right font-semibold text-emerald-700">
+                                            {(item.deliveredQty || 0).toLocaleString()}
+                                          </td>
+                                          <td className="p-2 text-right text-indigo-700 font-medium">
+                                            {(item.invoicedQty || 0).toLocaleString()}
+                                          </td>
+                                          <td className="p-2 text-right font-mono font-bold text-amber-700">
+                                            {itemPending.toLocaleString()} {item.uom || 'PCS'}
+                                          </td>
+                                          <td className="p-2 text-right font-mono text-slate-700">
+                                            ₹{Number(item.rate).toFixed(2)}
+                                          </td>
+                                          <td className="p-2 text-right font-bold text-slate-900">
+                                            ₹{(lineVal / 100000).toFixed(2)} Lakhs
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-100 text-[11px] text-slate-500">
+                                <div>
+                                  <b>Notes:</b> {plan.notes || 'Committed monthly forecast schedule.'}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => onNavigate('reconciliation')}
+                                    className="text-xs font-semibold text-[#0F8B8D] hover:underline"
+                                  >
+                                    Reconcile with Daily Orders &rarr;
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Selected Plan In-depth Breakdown */}
-      {selectedPlan && (
-        <div className="bg-white p-5 rounded-xl border border-[#0F8B8D]/30 shadow-md space-y-4 animate-fadeIn">
-          <div className="flex items-center justify-between border-b pb-3">
-            <div>
-              <div className="text-[11px] font-semibold text-[#0F8B8D] uppercase tracking-wider">
-                Detailed Product-Wise Reconciliation Breakdown
+      {/* Duplicate Plan to Next Month Modal (matching User requirements & Image 3) */}
+      {duplicateModalPlan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-[#14213D] text-white rounded-xl shadow-sm">
+                  <Copy className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Duplicate Monthly Plan Order to Next Month
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Roll forward <b>{duplicateModalPlan.id}</b> ({duplicateModalPlan.customer}). Edit planned quantities and confirm commitment.
+                  </p>
+                </div>
               </div>
-              <h3 className="text-lg font-bold text-gray-900 mt-0.5">
-                {selectedPlan.id} &bull; {selectedPlan.customer} ({selectedPlan.monthPeriod})
-              </h3>
+              <button
+                onClick={() => setDuplicateModalPlan(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <button
-              onClick={() => onNavigate('reconciliation')}
-              className="px-3 py-1.5 bg-[#14213D] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5"
-            >
-              <LinkIcon className="w-3.5 h-3.5" /> Open Reconciliation Matrix
-            </button>
-          </div>
 
-          {/* Line items in Plan */}
-          <div className="space-y-2 text-xs">
-            <h4 className="font-bold text-gray-700 uppercase text-[11px]">Product Commitments</h4>
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <table className="w-full text-left">
-                <thead className="bg-gray-100 text-gray-600 font-semibold text-[11px]">
-                  <tr>
-                    <th className="p-2.5">Item Code</th>
-                    <th className="p-2.5">Description</th>
-                    <th className="p-2.5 text-right">Planned Qty</th>
-                    <th className="p-2.5 text-right">Delivered Qty</th>
-                    <th className="p-2.5 text-right">Invoiced Qty</th>
-                    <th className="p-2.5 text-right">Remaining</th>
-                    <th className="p-2.5 text-right">Unit Rate</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {selectedPlan.items.map((item) => (
-                    <tr key={item.itemCode} className="hover:bg-gray-50">
-                      <td className="p-2.5 font-mono font-bold text-gray-900">{item.itemCode}</td>
-                      <td className="p-2.5 font-semibold text-gray-800">{item.itemName}</td>
-                      <td className="p-2.5 text-right font-bold text-gray-900">{item.plannedQty.toLocaleString()} {item.uom}</td>
-                      <td className="p-2.5 text-right font-bold text-emerald-700">{item.deliveredQty.toLocaleString()}</td>
-                      <td className="p-2.5 text-right text-indigo-700 font-semibold">{item.invoicedQty.toLocaleString()}</td>
-                      <td className="p-2.5 text-right font-bold text-amber-700">{item.remainingQty.toLocaleString()}</td>
-                      <td className="p-2.5 text-right font-mono">₹{item.rate}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-4 text-xs">
+              {/* Previous Month Performance Card */}
+              <div className="bg-gradient-to-r from-slate-50 to-indigo-50/50 p-3.5 rounded-xl border border-slate-200 grid grid-cols-3 gap-3">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-500">Previous Period</span>
+                  <div className="font-bold text-slate-900 text-xs mt-0.5">{duplicateModalPlan.monthPeriod}</div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-500">Prev Planned Qty</span>
+                  <div className="font-bold text-blue-700 text-sm mt-0.5">{duplicateModalPlan.totalPlannedQty.toLocaleString()} PCS</div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-500">Prev Dispatched Qty</span>
+                  <div className="font-bold text-emerald-700 text-sm mt-0.5">{duplicateModalPlan.totalDailySuppliedQty.toLocaleString()} PCS</div>
+                </div>
+              </div>
+
+              {/* Form Fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Target Customer</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={duplicateModalPlan.customer}
+                    className="w-full border border-slate-200 rounded-lg p-2 bg-slate-100 text-slate-700 font-semibold cursor-not-allowed"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">New Plan Month Period *</label>
+                  <input
+                    type="text"
+                    value={dupMonth}
+                    onChange={(e) => setDupMonth(e.target.value)}
+                    placeholder="e.g. November 2026"
+                    className="w-full border border-slate-300 rounded-lg p-2 focus:ring-1 focus:ring-[#14213D] focus:outline-none font-semibold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Manufacturing Plant</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={duplicateModalPlan.plant}
+                    className="w-full border border-slate-200 rounded-lg p-2 bg-slate-100 text-slate-700 font-semibold cursor-not-allowed"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Plan Classification</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={duplicateModalPlan.planType}
+                    className="w-full border border-slate-200 rounded-lg p-2 bg-slate-100 text-slate-700 font-semibold cursor-not-allowed"
+                  />
+                </div>
+              </div>
+
+              {/* Editable Planned Line Items Table */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-800 text-xs">
+                    Planned Line Items (Edit quantities for {dupMonth})
+                  </span>
+                  <span className="text-[11px] text-slate-500">
+                    Dispatched starts at 0 PCS
+                  </span>
+                </div>
+
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-100 text-slate-700 uppercase text-[10px] font-semibold">
+                      <tr>
+                        <th className="p-2.5">Item Code &amp; Description</th>
+                        <th className="p-2.5 text-right">Prev Planned</th>
+                        <th className="p-2.5 text-right">Prev Dispatched</th>
+                        <th className="p-2.5 text-right w-28">New Planned (PCS) *</th>
+                        <th className="p-2.5 text-right">Unit Rate (₹)</th>
+                        <th className="p-2.5 text-right">Tally Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {dupItems.map((item, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50">
+                          <td className="p-2.5">
+                            <div className="font-mono font-bold text-slate-900">{item.itemCode}</div>
+                            <div className="text-[11px] text-slate-500">{item.itemName}</div>
+                          </td>
+                          <td className="p-2.5 text-right font-medium text-slate-600">
+                            {item.prevPlannedQty.toLocaleString()}
+                          </td>
+                          <td className="p-2.5 text-right font-semibold text-emerald-700">
+                            {item.prevDispatchedQty.toLocaleString()}
+                          </td>
+                          <td className="p-2.5 text-right">
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.newPlannedQty}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10) || 0;
+                                setDupItems((prev) =>
+                                  prev.map((it, i) => (i === idx ? { ...it, newPlannedQty: val } : it))
+                                );
+                              }}
+                              className="w-24 border border-indigo-300 rounded-lg p-1.5 text-right font-bold text-blue-900 bg-white focus:ring-1 focus:ring-indigo-500"
+                            />
+                          </td>
+                          <td className="p-2.5 text-right font-mono">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={item.rate}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                setDupItems((prev) =>
+                                  prev.map((it, i) => (i === idx ? { ...it, rate: val } : it))
+                                );
+                              }}
+                              className="w-20 border border-slate-200 rounded-lg p-1.5 text-right font-mono text-slate-800 bg-white"
+                            />
+                          </td>
+                          <td className="p-2.5 text-right font-bold font-mono text-amber-700">
+                            {Number(item.newPlannedQty).toLocaleString()} PCS
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+                  <span className="text-slate-600 font-medium">Estimated New Monthly Commitment Value:</span>
+                  <span className="text-base font-extrabold text-[#14213D]">
+                    ₹{dupItems
+                      .reduce((sum, item) => sum + (Number(item.newPlannedQty || 0) * (Number(item.rate) || 0)), 0)
+                      .toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Commitment Notes &amp; Call-off Rules</label>
+                <textarea
+                  rows={2}
+                  value={dupNotes}
+                  onChange={(e) => setDupNotes(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                />
+              </div>
             </div>
-          </div>
 
-          {/* Related Daily Orders Section with One-Click Mapping */}
-          <div className="space-y-2 text-xs pt-2">
-            <h4 className="font-bold text-gray-700 uppercase text-[11px]">
-              Daily Orders for this Customer ({relatedDailyOrders.length})
-            </h4>
-            <div className="space-y-2">
-              {relatedDailyOrders.map((doOrder) => {
-                const isLinked = doOrder.monthlyPlanRef === selectedPlan.id;
-                return (
-                  <div
-                    key={doOrder.id}
-                    className="p-3 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono font-bold text-gray-900">{doOrder.id}</span>
-                      <span className="text-gray-500">PO: {doOrder.customerPoNumber}</span>
-                      <span className="text-gray-500">Date: {doOrder.orderDate}</span>
-                      <span className="font-semibold text-gray-900">
-                        ₹{doOrder.totalOrderValue.toLocaleString()}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {isLinked ? (
-                        <span className="flex items-center gap-1 text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded text-[11px]">
-                          <CheckCircle className="w-3.5 h-3.5" /> Mapped to Plan
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            showToast(`Mapped Daily SO ${doOrder.id} to Monthly Plan ${selectedPlan.id}.`);
-                          }}
-                          className="flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px] font-semibold"
-                        >
-                          <LinkIcon className="w-3 h-3" /> Map to Plan
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setDuplicateModalPlan(null)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg font-semibold transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDuplicate}
+                className="px-5 py-2 bg-[#14213D] hover:bg-[#1f335e] text-white rounded-lg font-semibold shadow-sm transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span>Confirm &amp; Create Plan</span>
+              </button>
             </div>
           </div>
         </div>
       )}
-      {/* Create Monthly Plan Modal */}
+
+      {/* Brand New Monthly Plan Modal (Initial Create) */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
             {/* Header */}
-            <div className="p-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+            <div className="p-5 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-[#14213D] text-white rounded-xl">
+                <div className="p-2.5 bg-[#14213D] text-white rounded-xl shadow-sm">
                   <Calendar className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-gray-900">
+                  <h3 className="text-base font-bold text-gray-900">
                     Create Monthly Plan Order (Demand Forecast)
                   </h3>
-                  <p className="text-[11px] text-gray-500">
-                    Supply commitment & customer forecast schedule. Not auto-deducted by daily dispatches.
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    Supply commitment &amp; customer forecast schedule. Not auto-deducted by daily dispatches.
                   </p>
                 </div>
               </div>
@@ -415,7 +932,7 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
                   setIsCreateModalOpen(false);
                   if (onCloseCreateModal) onCloseCreateModal();
                 }}
-                className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+                className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-lg transition"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -559,7 +1076,7 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-gray-700 mb-1">Commitment Notes & Call-off Rules</label>
+                <label className="block font-bold text-gray-700 mb-1">Commitment Notes &amp; Call-off Rules</label>
                 <textarea
                   rows={2}
                   value={newPlanNotes}
@@ -576,7 +1093,7 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
                   setIsCreateModalOpen(false);
                   if (onCloseCreateModal) onCloseCreateModal();
                 }}
-                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-semibold transition-colors"
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-semibold transition"
               >
                 Cancel
               </button>
@@ -599,7 +1116,7 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
                     status: 'Published',
                     plant: newPlanPlant,
                     fgStore: 'FG-Automotive Cell',
-                    createdDate: '2026-09-15',
+                    createdDate: new Date().toISOString().slice(0, 10),
                     items: [
                       {
                         itemCode: newPlanItemCode,
@@ -626,22 +1143,21 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
                       {
                         action: 'Monthly Plan Created',
                         user: 'Supply Planning Executive',
-                        timestamp: '2026-09-15 11:30',
+                        timestamp: new Date().toISOString().replace('T', ' ').slice(0, 16),
                         note: 'Created via Monthly Demand Planning Center',
                       },
                     ],
                   };
 
-                  if (onCreatePlan) {
-                    onCreatePlan(newPlanObj);
-                  }
+                  setPlans((prev) => [newPlanObj, ...prev]);
+                  if (onCreatePlan) onCreatePlan(newPlanObj);
                   showToast(`Monthly Plan Order ${generatedId} created successfully.`);
                   setIsCreateModalOpen(false);
                   if (onCloseCreateModal) onCloseCreateModal();
                 }}
-                className="px-4 py-2 bg-[#14213D] hover:bg-[#1f335e] text-white rounded-lg font-semibold shadow-sm transition-colors"
+                className="px-4 py-2 bg-[#14213D] hover:bg-[#1f335e] text-white rounded-lg font-semibold shadow-sm transition"
               >
-                Confirm & Create Plan
+                Confirm &amp; Create Plan
               </button>
             </div>
           </div>

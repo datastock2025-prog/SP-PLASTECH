@@ -15,7 +15,15 @@ import {
   Layers,
 } from 'lucide-react';
 import { ApprovalWorkflow, ApprovalTier } from '../../types/admin';
-import { approvalWorkflows, adminRoles, mockApprovalWorkflows, mockAdminRoles } from '../../data/adminData';
+import {
+  approvalWorkflows,
+  adminRoles,
+  mockApprovalWorkflows,
+  mockAdminRoles,
+  loadStoredApprovalWorkflows,
+  saveStoredApprovalWorkflows,
+} from '../../data/adminData';
+import { adminEventBus } from '../../services/adminService';
 
 interface AdminWorkflowsViewProps {
   showToast?: (msg: string) => void;
@@ -24,8 +32,8 @@ interface AdminWorkflowsViewProps {
 export const AdminWorkflowsView: React.FC<AdminWorkflowsViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
-  const [workflows, setWorkflows] = useState<ApprovalWorkflow[]>(mockApprovalWorkflows);
-  const [selectedWfId, setSelectedWfId] = useState<string>(workflows[0]?.id || '');
+  const [workflows, setWorkflows] = useState<ApprovalWorkflow[]>(loadStoredApprovalWorkflows);
+  const [selectedWfId, setSelectedWfId] = useState<string>(() => loadStoredApprovalWorkflows()[0]?.id || '');
   const [isTierModalOpen, setIsTierModalOpen] = useState(false);
   const [newTierData, setNewTierData] = useState<Partial<ApprovalTier>>({
     tierLevel: 4,
@@ -41,16 +49,19 @@ export const AdminWorkflowsView: React.FC<AdminWorkflowsViewProps> = ({
   const selectedWf = workflows.find((w) => w.id === selectedWfId) || workflows[0];
 
   const handleToggleWorkflow = (id: string) => {
-    setWorkflows((prev) =>
-      prev.map((w) => {
+    setWorkflows((prev) => {
+      const updated = prev.map((w) => {
         if (w.id === id) {
           const nextState = !w.isActive;
-          showToast(`Workflow "${w.workflowName}" is now ${nextState ? 'Active' : 'Paused'}.`);
+          showToast(`Workflow "${w.workflowName}" is now ${nextState ? 'Active (Routing to Approvals Hub)' : 'Paused'}.`);
           return { ...w, isActive: nextState };
         }
         return w;
-      })
-    );
+      });
+      saveStoredApprovalWorkflows(updated);
+      adminEventBus.emit('WORKFLOWS_UPDATED', updated);
+      return updated;
+    });
   };
 
   const handleAddTier = (e: React.FormEvent) => {
@@ -63,7 +74,7 @@ export const AdminWorkflowsView: React.FC<AdminWorkflowsViewProps> = ({
     const approverRole = mockAdminRoles.find((r) => r.id === newTierData.approverRoleId);
 
     const newTier: ApprovalTier = {
-      tierLevel: selectedWf.tiers.length + 1,
+      tierLevel: (selectedWf?.tiers?.length || 0) + 1,
       tierName: newTierData.tierName,
       approverRoleId: newTierData.approverRoleId || 'ROLE-SUPER-ADMIN',
       approverRoleName: approverRole?.name || 'Authorized Approver',
@@ -74,11 +85,14 @@ export const AdminWorkflowsView: React.FC<AdminWorkflowsViewProps> = ({
       escalationTargetRole: newTierData.escalationTargetRole,
     };
 
-    setWorkflows((prev) =>
-      prev.map((w) =>
+    setWorkflows((prev) => {
+      const updated = prev.map((w) =>
         w.id === selectedWfId ? { ...w, tiers: [...w.tiers, newTier] } : w
-      )
-    );
+      );
+      saveStoredApprovalWorkflows(updated);
+      adminEventBus.emit('WORKFLOWS_UPDATED', updated);
+      return updated;
+    });
     setIsTierModalOpen(false);
     showToast(`Added approval tier "${newTier.tierName}" to workflow.`);
   };
