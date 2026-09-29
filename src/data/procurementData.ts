@@ -27,15 +27,16 @@ export const addPurchaseRequisition = (newPr: PurchaseRequisition) => {
   INITIAL_PURCHASE_REQUISITIONS.unshift(newPr);
   try {
     const existing = JSON.parse(localStorage.getItem('plastix_purchase_requisitions') || '[]');
+    localStorage.setItem('reboot_erp_purchase_requisitions', JSON.stringify([newPr, ...existing.filter((p: any) => p.id !== newPr.id)]));
     localStorage.setItem('plastix_purchase_requisitions', JSON.stringify([newPr, ...existing.filter((p: any) => p.id !== newPr.id)]));
   } catch (e) {
     // ignore
   }
 };
 
-const getStoredPRs = (): PurchaseRequisition[] => {
+export const getStoredPRs = (): PurchaseRequisition[] => {
   try {
-    const saved = localStorage.getItem('plastix_purchase_requisitions');
+    const saved = localStorage.getItem('reboot_erp_purchase_requisitions') || localStorage.getItem('plastix_purchase_requisitions');
     if (saved) return JSON.parse(saved);
   } catch (e) {}
   return [];

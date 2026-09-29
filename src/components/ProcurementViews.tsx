@@ -16,6 +16,7 @@ import {
 import {
   INITIAL_PROCUREMENT_SUPPLIERS,
   INITIAL_PURCHASE_REQUISITIONS,
+  addPurchaseRequisition,
   INITIAL_PROCUREMENT_RFQS,
   INITIAL_EXTENDED_POS,
   INITIAL_PROCUREMENT_GRNS,
@@ -51,7 +52,7 @@ import { SupplierRiskComplianceView } from './procurement/SupplierRiskCompliance
 import { ProcurementReportsAnalyticsView } from './procurement/ProcurementReportsAnalyticsView';
 import { ProcurementSettingsView } from './procurement/ProcurementSettingsView';
 
-import { ItemMaster } from '../types';
+import { ItemMaster, AuthUser } from '../types';
 import { INITIAL_ITEMS } from '../data/initialData';
 import { supplierService } from '../services/procurement/supplierService';
 import { itemService } from '../services/itemService';
@@ -61,6 +62,7 @@ interface Props {
   currentSubView?: string;
   viewParams?: any;
   selectedParam?: any;
+  currentUser?: AuthUser | null;
   items?: ItemMaster[];
   suppliers?: SupplierMaster[];
   prs?: PurchaseRequisition[];
@@ -91,6 +93,7 @@ export const ProcurementViews: React.FC<Props> = ({
   currentSubView,
   viewParams,
   selectedParam,
+  currentUser,
   items: propItems,
   suppliers: propSuppliers,
   prs: propPrs,
@@ -158,11 +161,13 @@ export const ProcurementViews: React.FC<Props> = ({
   };
 
   const handleUpdatePR = (updated: PurchaseRequisition) => {
+    addPurchaseRequisition(updated);
     setPrs((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
     propOnUpdatePR?.(updated);
   };
 
   const handleCreatePR = (created: PurchaseRequisition) => {
+    addPurchaseRequisition(created);
     setPrs((prev) => [created, ...prev]);
     propOnCreatePR?.(created);
   };
@@ -267,6 +272,8 @@ export const ProcurementViews: React.FC<Props> = ({
           prId={activeParam?.id}
           prs={prs}
           suppliers={suppliers}
+          items={items}
+          currentUser={currentUser}
           onNavigate={onNavigate}
           onSavePR={(savedPR) => {
             const exists = prs.some((p) => p.id === savedPR.id);

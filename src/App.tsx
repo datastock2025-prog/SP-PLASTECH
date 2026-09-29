@@ -1570,6 +1570,7 @@ export const App: React.FC = () => {
               view={currentView}
               viewParams={viewParams}
               items={approvedItems}
+              currentUser={currentUser}
               onUpdateItem={(updated) => {
                 setItems((prev) => prev.map((i) => (i.code === updated.code ? updated : i)));
               }}

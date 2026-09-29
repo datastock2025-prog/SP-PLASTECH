@@ -260,6 +260,20 @@ export const companyProfile: CompanyProfile = {
 
 export const numberingSequences: NumberingSequence[] = [
   {
+    id: 'SEQ-PR',
+    documentType: 'Purchase Requisition',
+    module: 'Procurement & Sourcing',
+    prefix: 'PR-2026-',
+    suffix: '',
+    currentSequence: 367,
+    zeroPadding: 4,
+    resetFrequency: 'Fiscal Year (Apr-Mar)',
+    samplePreview: 'PR-2026-0368',
+    allowManualOverride: false,
+    lastGeneratedOn: '2026-09-29 10:00 AM',
+    notes: 'Sequential numbering governed by Admin backend',
+  },
+  {
     id: 'SEQ-WO',
     documentType: 'Work Order (Manufacturing)',
     module: 'Manufacturing & MES',

@@ -70,6 +70,18 @@ export const PurchaseOrderListView: React.FC<Props> = ({
     return undefined;
   });
 
+  React.useEffect(() => {
+    if (activeParam?.openCreateModal || activeParam?.sourcePr) {
+      setIsCreateModalOpen(true);
+      if (activeParam?.pr) {
+        setPreselectedPr(activeParam.pr);
+      } else if (activeParam?.sourcePr) {
+        const found = prs.find((p) => p.prNumber === activeParam.sourcePr || p.id === activeParam.sourcePr);
+        if (found) setPreselectedPr(found);
+      }
+    }
+  }, [activeParam, prs]);
+
   const filteredPos = useMemo(() => {
     return pos.filter((po) => {
       const matchSearch =
