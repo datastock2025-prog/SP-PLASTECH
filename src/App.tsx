@@ -1015,6 +1015,8 @@ export const App: React.FC = () => {
       adminNotifications: ['Admin & System Settings', 'Notification Templates & Event Routing'],
       adminCustomFields: ['Admin & System Settings', 'Global System Parameters & User Defined Fields'],
       adminSystemParameters: ['Admin & System Settings', 'Global System Parameters & User Defined Fields'],
+      adminTransportMaster: ['Admin & System Settings', 'Transporter Master & Fleet Logistics Directory'],
+      adminTransporters: ['Admin & System Settings', 'Transporter Master & Fleet Logistics Directory'],
       analyticsDash: ['Analytics & Intelligence', 'Executive KPI Dashboard'],
       oeeDash: ['Analytics & Intelligence', 'OEE Analytics & Loss Pareto'],
       qualityReports: ['Analytics & Intelligence', 'Quality Defect PPM & Six Sigma'],

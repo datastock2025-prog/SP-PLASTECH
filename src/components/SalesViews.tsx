@@ -417,20 +417,7 @@ export const SalesViews: React.FC<SalesProps> = ({
     view === 'monthlyReconciliation' ||
     view === 'reconciliation'
   ) {
-    const currentSub =
-      view === 'soDashboard'
-        ? 'dashboard'
-        : view === 'soWizard' || view === 'soCreate'
-        ? 'wizard'
-        : view === 'monthlyPlanOrders' || view === 'monthlyPlan'
-        ? 'plans'
-        : view === 'dailyQuickEntry'
-        ? 'quickEntry'
-        : view === 'monthlyReconciliation' || view === 'reconciliation'
-        ? 'reconciliation'
-        : view === 'soList' || view === 'salesOrders'
-        ? 'list'
-        : salesSubNav;
+    const currentSub = salesSubNav;
 
     return (
       <div className="space-y-4">
@@ -590,9 +577,10 @@ export const SalesViews: React.FC<SalesProps> = ({
               setSelectedPlasticSoId(orderId);
               onNavigate('soDetail', { id: orderId });
             }}
-            onCreateOrder={() => {
-              setWizardDefaultType('Daily Sales Order');
+            onCreateOrder={(type) => {
+              setWizardDefaultType(type || 'Daily Sales Order');
               setSalesSubNav('wizard');
+              onNavigate('soWizard', { defaultOrderType: type || 'Daily Sales Order' });
             }}
             onNavigate={onNavigate}
             showToast={showToast}
@@ -603,6 +591,8 @@ export const SalesViews: React.FC<SalesProps> = ({
           <SalesOrderWizard
             defaultOrderType={wizardDefaultType}
             monthlyPlans={monthlyPlans}
+            customers={customers}
+            existingOrders={plasticSalesOrders}
             onSave={handleSaveOrder}
             onCancel={() => setSalesSubNav('list')}
             showToast={showToast}

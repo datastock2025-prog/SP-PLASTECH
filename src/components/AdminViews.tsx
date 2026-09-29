@@ -56,6 +56,8 @@ import { AdminLicenseSubscriptionView } from './admin/AdminLicenseSubscriptionVi
 import { AdminGlobalSearchConfigView } from './admin/AdminGlobalSearchConfigView';
 import { AdminQuickActionsConfigView } from './admin/AdminQuickActionsConfigView';
 import { AdminRbacSecurityMultiContextView } from './admin/AdminRbacSecurityMultiContextView';
+import { AdminTransportMasterView } from './admin/AdminTransportMasterView';
+import { Truck } from 'lucide-react';
 
 interface AdminViewsProps {
   currentView: string;
@@ -81,6 +83,7 @@ export const AdminViews: React.FC<AdminViewsProps> = ({
     { id: 'itemList', label: 'Item Master Catalog (1,719 SKUs)', icon: Boxes, category: 'Production & Taxonomy' },
     { id: 'adminWarehouseLocations', label: 'Warehouse & Bins', icon: Boxes, category: 'Production & Taxonomy' },
     { id: 'adminMasterData', label: 'Master Data Governance', icon: Database, category: 'Production & Taxonomy' },
+    { id: 'adminTransportMaster', label: 'Transporter Master (Fleet)', icon: Truck, category: 'Production & Taxonomy' },
     { id: 'adminCompanySettings', label: 'Company Settings', icon: Building2, category: 'Org & Workflow' },
     { id: 'adminPlantSettings', label: 'Plant / Branches', icon: Building2, category: 'Org & Workflow' },
     { id: 'adminUserGroups', label: 'User Groups & Crews', icon: Users, category: 'Org & Workflow' },
@@ -166,6 +169,12 @@ export const AdminViews: React.FC<AdminViewsProps> = ({
       case 'adminMasterData':
       case 'adminMasterDataManagement':
         return <AdminMasterDataView showToast={showToast} />;
+
+      // Transporter Master Directory
+      case 'adminTransportMaster':
+      case 'adminTransporters':
+      case 'adminTransporterMaster':
+        return <AdminTransportMasterView showToast={showToast} />;
 
       // 16. Document Management Settings Screen
       case 'adminDocumentSettings':

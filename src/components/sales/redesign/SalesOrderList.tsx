@@ -368,8 +368,11 @@ export const SalesOrderList: React.FC<SalesOrderListProps> = ({
             <Zap className="w-3.5 h-3.5 text-[#0F8B8D]" /> Quick Entry
           </button>
           <button
-            onClick={() => onCreateOrder('Daily Sales Order')}
-            className="px-4 py-2 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm active:scale-95"
+            onClick={() => {
+              onCreateOrder('Daily Sales Order');
+              onNavigate('soWizard', { defaultOrderType: 'Daily Sales Order' });
+            }}
+            className="px-4 py-2 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm active:scale-95 cursor-pointer"
           >
             <Plus className="w-4 h-4" /> New Sales Order
           </button>
