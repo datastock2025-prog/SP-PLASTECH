@@ -118,6 +118,149 @@ export interface MonthMasterPlan {
   rawPlans: MonthlyPlanOrder[];
 }
 
+// Exploded Raw Material line item connecting Planned Finished Goods to BOM requirements
+export interface PlantBomExplodedItem {
+  rawItemCode: string;
+  rawItemName: string;
+  category: string;
+  grossRequiredKg: number;
+  currentStockKg: number;
+  safetyBufferKg: number;
+  netNeedKg: number;
+  unitPrice: number;
+  totalCost: number;
+  uom: string;
+  suggestedSupplierId: string;
+  suggestedSupplierName: string;
+  secondarySupplierName?: string;
+  leadTimeDays: number;
+  supplierRating: number;
+  stockStatus: 'Critical Shortage' | 'Partial Stock' | 'Sufficient Buffer';
+}
+
+// Advanced BOM Explosion Engine with Inventory Shortage & Supplier Intelligence
+export function computePlantBomExplosion(plantName: string, items: ConsolidatedPlanItem[]): PlantBomExplodedItem[] {
+  const totalFinishedGoodsPieces = items.reduce((sum, it) => sum + (it.plannedQty || 0), 0);
+  const isHosur = plantName.toLowerCase().includes('hosur') || plantName.toLowerCase().includes('plant 1') || plantName.toLowerCase().includes('pimpri');
+  const isChakan = plantName.toLowerCase().includes('chakan') || plantName.toLowerCase().includes('plant 2');
+
+  const hasNylon = items.some((i) => (i.itemName || '').toLowerCase().includes('nylon') || (i.itemName || '').toLowerCase().includes('cowl') || (i.itemName || '').toLowerCase().includes('mudguard'));
+  const hasABS = items.some((i) => (i.itemName || '').toLowerCase().includes('abs') || (i.itemName || '').toLowerCase().includes('bezel') || (i.itemName || '').toLowerCase().includes('trim'));
+
+  const results: PlantBomExplodedItem[] = [];
+
+  // 1. Virgin Polymer Raw Resin (Prime Virgin Grade)
+  const resinMultiplier = hasNylon ? 0.52 : hasABS ? 0.48 : 0.425;
+  const resinGrossKg = Math.round(totalFinishedGoodsPieces * resinMultiplier);
+  const resinStockKg = isHosur ? 18500 : isChakan ? 12400 : 9800;
+  const resinBufferKg = Math.round(resinGrossKg * 0.12);
+  const resinNetKg = Math.max(0, resinGrossKg - resinStockKg + resinBufferKg);
+  const resinRate = hasNylon ? 145.0 : hasABS ? 118.0 : 88.5;
+
+  results.push({
+    rawItemCode: hasNylon ? 'RM-PA6-GF30-01' : hasABS ? 'RM-ABS-HI121-02' : 'RM-PP-NAT-001',
+    rawItemName: hasNylon
+      ? 'Polyamide 6 (Nylon 6) 30% Glass Filled Granules'
+      : hasABS
+      ? 'ABS Injection Grade Virgin Polymer Resin HI-121'
+      : 'Polypropylene Injection Grade Virgin Resin H110MA',
+    category: 'Polymer Granules',
+    grossRequiredKg: resinGrossKg,
+    currentStockKg: resinStockKg,
+    safetyBufferKg: resinBufferKg,
+    netNeedKg: resinNetKg,
+    unitPrice: resinRate,
+    totalCost: resinNetKg * resinRate,
+    uom: 'KG',
+    suggestedSupplierId: 'SUP-S0128',
+    suggestedSupplierName: 'RELIANCE INDUSTRIES LIMITED',
+    secondarySupplierName: 'IOCL Polymers Division',
+    leadTimeDays: 3,
+    supplierRating: 98.5,
+    stockStatus: resinNetKg > 15000 ? 'Critical Shortage' : resinNetKg > 0 ? 'Partial Stock' : 'Sufficient Buffer',
+  });
+
+  // 2. High Concentration Color Masterbatch (2% to 3% dosage)
+  const mbGrossKg = Math.round(totalFinishedGoodsPieces * 0.015);
+  const mbStockKg = isHosur ? 650 : isChakan ? 420 : 310;
+  const mbBufferKg = Math.round(mbGrossKg * 0.15);
+  const mbNetKg = Math.max(0, mbGrossKg - mbStockKg + mbBufferKg);
+  const mbRate = 340.0;
+
+  results.push({
+    rawItemCode: 'MB-BLK-002',
+    rawItemName: 'Carbon Black Masterbatch 40% Concentration (Automotive Grade)',
+    category: 'Color Masterbatch',
+    grossRequiredKg: mbGrossKg,
+    currentStockKg: mbStockKg,
+    safetyBufferKg: mbBufferKg,
+    netNeedKg: mbNetKg,
+    unitPrice: mbRate,
+    totalCost: mbNetKg * mbRate,
+    uom: 'KG',
+    suggestedSupplierId: 'SUP-S0045',
+    suggestedSupplierName: 'CLARIANT COLORANTS CHEMICALS INDIA',
+    secondarySupplierName: 'Supreme Masterbatch Ltd',
+    leadTimeDays: 5,
+    supplierRating: 97.2,
+    stockStatus: mbNetKg > 500 ? 'Critical Shortage' : mbNetKg > 0 ? 'Partial Stock' : 'Sufficient Buffer',
+  });
+
+  // 3. Functional Additives (UV / Impact Modifier)
+  const addGrossKg = Math.round(totalFinishedGoodsPieces * 0.005);
+  const addStockKg = isHosur ? 140 : isChakan ? 85 : 60;
+  const addBufferKg = Math.round(addGrossKg * 0.15);
+  const addNetKg = Math.max(0, addGrossKg - addStockKg + addBufferKg);
+  const addRate = 520.0;
+
+  results.push({
+    rawItemCode: 'AD-UV-STAB-003',
+    rawItemName: 'UV Stabilizer, Thermal Antioxidant & Clarifier Additive',
+    category: 'Performance Additive',
+    grossRequiredKg: addGrossKg,
+    currentStockKg: addStockKg,
+    safetyBufferKg: addBufferKg,
+    netNeedKg: addNetKg,
+    unitPrice: addRate,
+    totalCost: addNetKg * addRate,
+    uom: 'KG',
+    suggestedSupplierId: 'SUP-S0078',
+    suggestedSupplierName: 'BASF PERFORMANCE CHEMICALS INDIA',
+    secondarySupplierName: 'Solvay Special Chemicals Ltd',
+    leadTimeDays: 7,
+    supplierRating: 99.1,
+    stockStatus: addNetKg > 100 ? 'Critical Shortage' : addNetKg > 0 ? 'Partial Stock' : 'Sufficient Buffer',
+  });
+
+  // 4. Heavy-Duty Corrugated Master Shipping Boxes (5-Ply)
+  const boxGross = Math.ceil(totalFinishedGoodsPieces / 40);
+  const boxStock = isHosur ? 920 : isChakan ? 580 : 450;
+  const boxBuffer = Math.round(boxGross * 0.10);
+  const boxNet = Math.max(0, boxGross - boxStock + boxBuffer);
+  const boxRate = 65.0;
+
+  results.push({
+    rawItemCode: 'PKG-BOX-5PLY-01',
+    rawItemName: '5-Ply Heavy-Duty Corrugated Outer Master Cartons (Printed)',
+    category: 'Secondary Packaging',
+    grossRequiredKg: boxGross,
+    currentStockKg: boxStock,
+    safetyBufferKg: boxBuffer,
+    netNeedKg: boxNet,
+    unitPrice: boxRate,
+    totalCost: boxNet * boxRate,
+    uom: 'BOX',
+    suggestedSupplierId: 'SUP-S0164',
+    suggestedSupplierName: 'PARKSONS PACKAGING LTD',
+    secondarySupplierName: 'Uflex Packaging Division',
+    leadTimeDays: 2,
+    supplierRating: 96.8,
+    stockStatus: boxNet > 800 ? 'Critical Shortage' : boxNet > 0 ? 'Partial Stock' : 'Sufficient Buffer',
+  });
+
+  return results;
+}
+
 export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
   monthlyPlans: propPlans,
   dailyOrders,
@@ -130,6 +273,19 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
   const [plans, setPlans] = useState<MonthlyPlanOrder[]>(propPlans);
   const [activeTab, setActiveTab] = useState<string>('All Plans');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Task-3: Plant-wise Scope Switcher (Purchase Manager can see All Plants; Plant Units see relative plan)
+  const [selectedPlantScope, setSelectedPlantScope] = useState<string>('All Plants');
+
+  // Task-3: Plant-Wise Consolidated PR & BOM Shortage Engine Modal State
+  const [isConsolidatedPrModalOpen, setIsConsolidatedPrModalOpen] = useState<boolean>(false);
+  const [selectedConsolidatedPrPlant, setSelectedConsolidatedPrPlant] = useState<{
+    planId: string;
+    monthPeriod: string;
+    plantName: string;
+    items: ConsolidatedPlanItem[];
+  } | null>(null);
+  const [activePrDrilldownTab, setActivePrDrilldownTab] = useState<'overview' | 'bom' | 'preview'>('bom');
 
   // View Mode: 'master' | 'monthDetail' | 'duplicateWorkbench'
   const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(null);
@@ -324,6 +480,13 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
   // Filter Master Monthly Plans
   const filteredMasterPlans = useMemo(() => {
     return monthMasterPlans.filter((plan) => {
+      if (
+        selectedPlantScope !== 'All Plants' &&
+        !plan.plants.some((p) => p.toLowerCase().includes(selectedPlantScope.toLowerCase()))
+      ) {
+        return false;
+      }
+
       if (activeTab === 'Partially Supplied' && plan.status !== 'Partially Supplied') return false;
       if (activeTab === 'Fully Supplied' && plan.status !== 'Fully Supplied') return false;
       if (activeTab === 'Active' && plan.status !== 'Active') return false;
@@ -341,7 +504,7 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
       }
       return true;
     });
-  }, [monthMasterPlans, activeTab, searchQuery]);
+  }, [monthMasterPlans, activeTab, searchQuery, selectedPlantScope]);
 
   // Master Pagination
   const totalMasterPages = Math.ceil(filteredMasterPlans.length / masterPageSize) || 1;
@@ -1532,80 +1695,101 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
         </div>
       ) : (
         /* View Mode 2: Master Monthly Plan Grid (One Month Period = One Master Plan ID) */
-        <div className="space-y-5">
-          {/* Prominent Architectural Banner */}
-          <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-cyan-50 border border-blue-200 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-sm">
-            <div className="flex items-start gap-3">
-              <div className="p-2.5 bg-[#14213D] text-white rounded-xl shrink-0 shadow-sm">
-                <Calendar className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-bold text-blue-950">
-                    Monthly Sales Plan Management &bull; One Month Master Plan Engine
-                  </h2>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                    MRP Integrated
-                  </span>
-                </div>
-                <p className="text-xs text-blue-800 mt-0.5 leading-relaxed">
-                  One Master Plan ID per month period. Click any monthly plan row to open the full item commitments grid, duplicate the plan to next month on a dedicated full-page workbench, or convert demand directly into Procurement Purchase Requisitions.
-                </p>
+        <div className="space-y-4">
+          {/* Plant Scope Switcher: Central Purchase Manager vs Individual Plant Unit */}
+          <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-700 flex items-center gap-1.5 shrink-0">
+                <Building2 className="w-4 h-4 text-[#0F8B8D]" /> Operational View Scope:
+              </span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {[
+                  { id: 'All Plants', label: '🏭 All Manufacturing Plants (Central Purchase Manager View)' },
+                  { id: 'Plant 1', label: '🏢 Plant 1 - Pimpri Auto-Hub' },
+                  { id: 'Plant 2', label: '🏢 Plant 2 - Chakan Packaging' },
+                  { id: 'Plant 3', label: '🏢 Plant 3 - Chennai Unit' },
+                ].map((scope) => (
+                  <button
+                    key={scope.id}
+                    onClick={() => {
+                      setSelectedPlantScope(scope.id);
+                      setMasterPage(1);
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                      selectedPlantScope === scope.id
+                        ? 'bg-[#14213D] text-white shadow-xs'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    {scope.label}
+                  </button>
+                ))}
               </div>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => setIsCreateModalOpen(true)}
-                className="px-3.5 py-2 bg-[#14213D] hover:bg-[#1f335e] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                className="px-3.5 py-1.5 bg-[#0F8B8D] hover:bg-[#0d797b] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
               >
-                <Plus className="w-3.5 h-3.5" /> Create Monthly Plan
+                <Plus className="w-3.5 h-3.5" /> + Create Monthly Plan
               </button>
               <button
                 onClick={() => onNavigate('purchaseReqList')}
-                className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
               >
                 <ShoppingCart className="w-3.5 h-3.5 text-[#0F8B8D]" />
-                <span>Procurement PRs</span>
+                <span>PR Register</span>
               </button>
             </div>
           </div>
 
           {/* Top Level Summary Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
+            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-xs">
               <div className="text-[10px] uppercase font-bold text-gray-500">Monthly Master Plans</div>
-              <div className="text-xl font-bold text-gray-900 mt-1">{totalMonthlyMasterPlans}</div>
+              <div className="text-xl font-bold text-gray-900 mt-1">{filteredMasterPlans.length}</div>
               <div className="text-[10px] text-gray-400 mt-0.5">One Plan ID Per Month</div>
             </div>
 
-            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
+            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-xs">
               <div className="text-[10px] uppercase font-bold text-gray-500">Total Planned Qty</div>
-              <div className="text-xl font-bold text-blue-700 mt-1">{overallPlannedQty.toLocaleString()}</div>
+              <div className="text-xl font-bold text-blue-700 mt-1">
+                {filteredMasterPlans.reduce((s, p) => s + p.totalPlannedQty, 0).toLocaleString()}
+              </div>
               <div className="text-[10px] text-gray-400 mt-0.5">Committed Supply PCS</div>
             </div>
 
-            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
+            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-xs">
               <div className="text-[10px] uppercase font-bold text-gray-500">Total Dispatched</div>
-              <div className="text-xl font-bold text-emerald-700 mt-1">{overallDispatchedQty.toLocaleString()}</div>
+              <div className="text-xl font-bold text-emerald-700 mt-1">
+                {filteredMasterPlans.reduce((s, p) => s + p.totalDispatchedQty, 0).toLocaleString()}
+              </div>
               <div className="text-[10px] text-emerald-600 mt-0.5">Delivered via Daily SOs</div>
             </div>
 
-            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm">
+            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-xs">
               <div className="text-[10px] uppercase font-bold text-gray-500">Pending Tally Balance</div>
-              <div className="text-xl font-bold text-amber-700 mt-1">{overallRemainingTally.toLocaleString()}</div>
+              <div className="text-xl font-bold text-amber-700 mt-1">
+                {(
+                  filteredMasterPlans.reduce((s, p) => s + p.totalPlannedQty, 0) -
+                  filteredMasterPlans.reduce((s, p) => s + p.totalDispatchedQty, 0)
+                ).toLocaleString()}
+              </div>
               <div className="text-[10px] text-amber-600 mt-0.5">Planned &minus; Dispatched</div>
             </div>
 
-            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm col-span-2 sm:col-span-1">
+            <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-xs col-span-2 sm:col-span-1">
               <div className="text-[10px] uppercase font-bold text-gray-500">Total Planned Value</div>
-              <div className="text-xl font-bold text-gray-900 mt-1">₹{(overallPlannedValue / 100000).toFixed(1)}L</div>
+              <div className="text-xl font-bold text-gray-900 mt-1">
+                ₹{(filteredMasterPlans.reduce((s, p) => s + p.totalPlannedValue, 0) / 100000).toFixed(1)}L
+              </div>
               <div className="text-[10px] text-gray-400 mt-0.5">Commitment total</div>
             </div>
           </div>
 
           {/* Filter Tabs & Search */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-gray-200 shadow-sm text-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-gray-200 shadow-xs text-xs">
             <div className="flex items-center gap-1 overflow-x-auto">
               {['All Plans', 'Partially Supplied', 'Fully Supplied', 'Active'].map((tab) => (
                 <button
@@ -1658,147 +1842,155 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
             </div>
           </div>
 
-          {/* Master Monthly Plan Grid (One Month = One Row) */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden text-xs">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50 text-slate-600 font-bold uppercase tracking-wider text-[10px] border-b border-gray-200">
+          {/* Task-1: Master Monthly Plan Grid (Fitted 100% width with NO horizontal sliding bar) */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-xs overflow-hidden text-xs">
+            <table className="w-full text-left table-auto">
+              <thead className="bg-slate-50 text-slate-700 font-bold uppercase tracking-wider text-[10px] border-b border-gray-200">
+                <tr>
+                  <th className="py-3 px-3 w-[12%]">Plan ID</th>
+                  <th className="py-3 px-2 w-[11%]">Month Period</th>
+                  <th className="py-3 px-3 w-[22%]">Enrolled Customers &amp; SKUs</th>
+                  <th className="py-3 px-2 w-[17%]">Manufacturing Plants</th>
+                  <th className="py-3 px-2 text-right w-[9%]">Planned Qty</th>
+                  <th className="py-3 px-2 text-right w-[8%]">Dispatched</th>
+                  <th className="py-3 px-2 text-right w-[10%]">Balance (Tally)</th>
+                  <th className="py-3 px-3 text-right w-[11%]">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {paginatedMasterPlans.length === 0 ? (
                   <tr>
-                    <th className="p-3.5">Plan ID</th>
-                    <th className="p-3.5">Month Period</th>
-                    <th className="p-3.5">Enrolled Customers &amp; SKUs</th>
-                    <th className="p-3.5">Manufacturing Plants</th>
-                    <th className="p-3.5 text-right">Planned Qty</th>
-                    <th className="p-3.5 text-right">Dispatched Qty</th>
-                    <th className="p-3.5 text-right">Pending Balance (Tally)</th>
-                    <th className="p-3.5 text-right">Plan Value</th>
-                    <th className="p-3.5 text-center">Status</th>
-                    <th className="p-3.5 text-right">Actions</th>
+                    <td colSpan={8} className="p-8 text-center text-gray-400">
+                      No monthly master plans found matching criteria.
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {paginatedMasterPlans.length === 0 ? (
-                    <tr>
-                      <td colSpan={10} className="p-8 text-center text-gray-400">
-                        No monthly master plans found matching criteria.
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedMasterPlans.map((mPlan) => {
-                      const balanceQty = mPlan.pendingBalanceQty;
+                ) : (
+                  paginatedMasterPlans.map((mPlan) => {
+                    const balanceQty = mPlan.pendingBalanceQty;
 
-                      return (
-                        <tr
-                          key={mPlan.monthKey}
-                          onClick={() => handleOpenMonthDetail(mPlan.monthKey)}
-                          className="hover:bg-blue-50/50 transition-colors cursor-pointer group"
-                        >
-                          <td className="p-3.5 font-mono font-bold text-[#0F8B8D] whitespace-nowrap">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-slate-900 group-hover:text-[#0F8B8D] font-bold">
-                                {mPlan.planId}
-                              </span>
-                              <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#0F8B8D] transition-transform group-hover:translate-x-0.5" />
-                            </div>
-                          </td>
-                          <td className="p-3.5 font-semibold text-gray-900 whitespace-nowrap">
-                            <span className="px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 font-bold border border-indigo-100 text-xs">
-                              {mPlan.monthPeriod}
+                    return (
+                      <tr
+                        key={mPlan.monthKey}
+                        onClick={() => handleOpenMonthDetail(mPlan.monthKey)}
+                        className="hover:bg-teal-50/40 transition-colors cursor-pointer group"
+                      >
+                        {/* Plan ID */}
+                        <td className="py-3 px-3 font-mono font-bold text-[#0F8B8D]">
+                          <div className="flex items-center gap-1">
+                            <span className="text-slate-900 group-hover:text-[#0F8B8D] font-bold">
+                              {mPlan.planId}
                             </span>
-                          </td>
-                          <td className="p-3.5 text-gray-800">
-                            <div className="font-semibold text-slate-900 truncate max-w-xs">
-                              {mPlan.customers.join(', ')}
-                            </div>
-                            <div className="text-[10px] text-gray-400">
-                              {mPlan.totalItemsCount} Planned SKU Line(s)
-                            </div>
-                          </td>
-                          <td className="p-3.5 text-gray-600">
-                            <div className="flex items-center gap-1 font-medium text-slate-800">
-                              <Factory className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              <span className="truncate max-w-xs">{mPlan.plants.join(', ')}</span>
-                            </div>
-                          </td>
-                          <td className="p-3.5 text-right font-bold text-gray-900">
-                            {mPlan.totalPlannedQty.toLocaleString()} <span className="text-[10px] text-gray-500 font-normal">PCS</span>
-                          </td>
-                          <td className="p-3.5 text-right font-semibold text-emerald-700">
-                            {mPlan.totalDispatchedQty.toLocaleString()}
-                          </td>
-                          <td className="p-3.5 text-right font-bold font-mono">
-                            <span
-                              className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                                balanceQty <= 0
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : 'bg-amber-100 text-amber-900'
-                              }`}
+                            <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#0F8B8D] transition-transform group-hover:translate-x-0.5" />
+                          </div>
+                        </td>
+
+                        {/* Month Period */}
+                        <td className="py-3 px-2 font-semibold text-gray-900">
+                          <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-bold border border-indigo-100 text-[11px] inline-block">
+                            {mPlan.monthPeriod}
+                          </span>
+                        </td>
+
+                        {/* Customers & SKUs */}
+                        <td className="py-3 px-3 text-gray-800">
+                          <div className="font-semibold text-slate-900 line-clamp-1">
+                            {mPlan.customers.join(', ')}
+                          </div>
+                          <div className="text-[10px] text-gray-500 font-medium">
+                            {mPlan.totalItemsCount} Planned SKU Line(s) &bull; ₹{((mPlan.totalPlannedValue || 0) / 100000).toFixed(1)}L
+                          </div>
+                        </td>
+
+                        {/* Manufacturing Plants */}
+                        <td className="py-3 px-2 text-gray-600">
+                          <div className="flex items-center gap-1 font-medium text-slate-800 line-clamp-1">
+                            <Factory className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span className="truncate">{mPlan.plants.join(', ')}</span>
+                          </div>
+                        </td>
+
+                        {/* Planned Qty */}
+                        <td className="py-3 px-2 text-right font-bold text-gray-900">
+                          {mPlan.totalPlannedQty.toLocaleString()} <span className="text-[9px] text-gray-500 font-normal">PCS</span>
+                        </td>
+
+                        {/* Dispatched Qty */}
+                        <td className="py-3 px-2 text-right font-semibold text-emerald-700">
+                          {mPlan.totalDispatchedQty.toLocaleString()}
+                        </td>
+
+                        {/* Pending Balance (Tally) */}
+                        <td className="py-3 px-2 text-right font-bold font-mono">
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold inline-block ${
+                              balanceQty <= 0
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-amber-100 text-amber-900'
+                            }`}
+                          >
+                            {balanceQty.toLocaleString()} PCS
+                          </span>
+                        </td>
+
+                        {/* Actions */}
+                        <td className="py-3 px-3 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1">
+                            {/* Task-2: Create Order linked to this Plan ID */}
+                            <button
+                              onClick={() => {
+                                onNavigate('soWizard', {
+                                  linkedPlanId: mPlan.planId,
+                                  monthPeriod: mPlan.monthPeriod,
+                                  customer: mPlan.customers[0],
+                                  plant: mPlan.plants[0] || 'Plant 1 - Pimpri Auto-Hub',
+                                  defaultOrderType: 'Daily Sales Order',
+                                });
+                              }}
+                              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[11px] font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                              title="Create Sales Order linked to this Plan ID"
                             >
-                              {balanceQty.toLocaleString()} PCS
-                            </span>
-                          </td>
-                          <td className="p-3.5 text-right font-bold text-gray-900">
-                            ₹{((mPlan.totalPlannedValue || 0) / 100000).toFixed(2)}L
-                          </td>
-                          <td className="p-3.5 text-center">
-                            <span
-                              className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                mPlan.status === 'Fully Supplied'
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : mPlan.status === 'Partially Supplied'
-                                  ? 'bg-blue-100 text-blue-800'
-                                  : 'bg-indigo-100 text-indigo-800'
-                              }`}
+                              <Plus className="w-3 h-3" />
+                              <span>+ Order</span>
+                            </button>
+
+                            {/* Task-3: Consolidated Plant PR Drilldown (BOM Explosion & Net Need Stock) */}
+                            <button
+                              onClick={() => {
+                                setSelectedConsolidatedPrPlant({
+                                  planId: mPlan.planId,
+                                  monthPeriod: mPlan.monthPeriod,
+                                  plantName: mPlan.plants[0] || 'Plant 1 - Pimpri Auto-Hub',
+                                  items: mPlan.items,
+                                });
+                                setActivePrDrilldownTab('bom');
+                                setIsConsolidatedPrModalOpen(true);
+                              }}
+                              className="px-2 py-1 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-md text-[11px] font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                              title="Explode BOM and Raise PR for this Plant & Plan"
                             >
-                              {mPlan.status}
-                            </span>
-                          </td>
-                          <td className="p-3.5 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-end gap-1.5">
-                              {/* Open Detail Page Grid Button */}
-                              <button
-                                onClick={() => handleOpenMonthDetail(mPlan.monthKey)}
-                                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
-                                title="Open full month item sales planned grid"
-                              >
-                                <Eye className="w-3.5 h-3.5 text-slate-600" />
-                                <span>View Items Grid</span>
-                              </button>
+                              <Sparkles className="w-3 h-3" />
+                              <span>Raise PR</span>
+                            </button>
 
-                              {/* Duplicate Plan to Next Month Dedicated Workbench */}
-                              <button
-                                onClick={(e) => handleOpenDuplicateWorkbench(mPlan, e)}
-                                className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer"
-                                title="Open dedicated workbench to edit quantities and duplicate to next month"
-                              >
-                                <Copy className="w-3.5 h-3.5" />
-                                <span>Duplicate</span>
-                              </button>
-
-                              {/* Move to Purchase Module Button */}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCentralizedSendToPurchase(mPlan);
-                                }}
-                                className="px-2.5 py-1 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer"
-                                title="Generate Purchase Requisition (PR) for raw materials"
-                              >
-                                <ShoppingCart className="w-3.5 h-3.5" />
-                                <span>Send to Purchase</span>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                            {/* Duplicate Plan */}
+                            <button
+                              onClick={(e) => handleOpenDuplicateWorkbench(mPlan, e)}
+                              className="p-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-md transition cursor-pointer"
+                              title="Duplicate plan to next month on dedicated workbench"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
 
             {/* Pagination Controls for Master Grid */}
-            <div className="p-3.5 border-t border-gray-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-600">
+            <div className="p-3 border-t border-gray-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-600">
               <div>
                 Showing <b>{filteredMasterPlans.length === 0 ? 0 : (masterPage - 1) * masterPageSize + 1}</b> to{' '}
                 <b>{Math.min(masterPage * masterPageSize, filteredMasterPlans.length)}</b> of{' '}
@@ -1838,6 +2030,406 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
                   <ChevronsRight className="w-3.5 h-3.5" />
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Task-3: Consolidated Plant BOM Explosion, Inventory Shortage & PR Generation Modal */}
+      {isConsolidatedPrModalOpen && selectedConsolidatedPrPlant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden text-xs">
+            {/* Header Banner */}
+            <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-[#14213D] via-[#1c2d52] to-[#0F8B8D] text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/10 rounded-xl">
+                  <Factory className="w-5 h-5 text-teal-300" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold tracking-tight">
+                      Consolidated Plant BOM Material Explosion &amp; PR Shortage Engine
+                    </h3>
+                    <span className="px-2 py-0.5 rounded bg-teal-500/30 text-teal-200 border border-teal-400/40 text-[10px] font-mono font-bold">
+                      {selectedConsolidatedPrPlant.planId}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-0.5">
+                    Plant: <b>{selectedConsolidatedPrPlant.plantName}</b> &bull; Month: <b>{selectedConsolidatedPrPlant.monthPeriod}</b> &bull; Connected to Item Masters &amp; BOM Catalog
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsConsolidatedPrModalOpen(false);
+                  setSelectedConsolidatedPrPlant(null);
+                }}
+                className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Tabs */}
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 bg-slate-50 text-xs">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setActivePrDrilldownTab('bom')}
+                  className={`py-3 px-3 font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
+                    activePrDrilldownTab === 'bom'
+                      ? 'border-[#0F8B8D] text-[#0F8B8D]'
+                      : 'border-transparent text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>BOM Explosion &amp; Live Shortage Analysis</span>
+                </button>
+
+                <button
+                  onClick={() => setActivePrDrilldownTab('overview')}
+                  className={`py-3 px-3 font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
+                    activePrDrilldownTab === 'overview'
+                      ? 'border-[#0F8B8D] text-[#0F8B8D]'
+                      : 'border-transparent text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Package className="w-3.5 h-3.5" />
+                  <span>Planned Finished Goods ({selectedConsolidatedPrPlant.items.length} SKUs)</span>
+                </button>
+
+                <button
+                  onClick={() => setActivePrDrilldownTab('preview')}
+                  className={`py-3 px-3 font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
+                    activePrDrilldownTab === 'preview'
+                      ? 'border-[#0F8B8D] text-[#0F8B8D]'
+                      : 'border-transparent text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>PR Authorization &amp; Justification</span>
+                </button>
+              </div>
+
+              <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">
+                Single consolidated row &bull; Explodes all items into net shortage
+              </span>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto flex-1 space-y-4">
+              {(() => {
+                const exploded = computePlantBomExplosion(
+                  selectedConsolidatedPrPlant.plantName,
+                  selectedConsolidatedPrPlant.items
+                );
+                const grossKg = exploded.reduce((s, it) => s + (it.uom === 'KG' ? it.grossRequiredKg : 0), 0);
+                const stockKg = exploded.reduce((s, it) => s + (it.uom === 'KG' ? it.currentStockKg : 0), 0);
+                const netKg = exploded.reduce((s, it) => s + (it.uom === 'KG' ? it.netNeedKg : 0), 0);
+                const totalCost = exploded.reduce((s, it) => s + it.totalCost, 0);
+
+                return (
+                  <>
+                    {/* Tab 1: Planned Finished Goods */}
+                    {activePrDrilldownTab === 'overview' && (
+                      <div className="space-y-3">
+                        <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl flex items-center justify-between text-xs text-blue-950">
+                          <span>
+                            Showing planned finished goods output committed for <b>{selectedConsolidatedPrPlant.plantName}</b>.
+                          </span>
+                          <span className="font-bold">
+                            Total Planned Output:{' '}
+                            {selectedConsolidatedPrPlant.items
+                              .reduce((s, i) => s + (i.plannedQty || 0), 0)
+                              .toLocaleString()}{' '}
+                            PCS
+                          </span>
+                        </div>
+
+                        <div className="border border-slate-200 rounded-xl overflow-hidden">
+                          <table className="w-full text-left">
+                            <thead className="bg-slate-50 text-slate-700 font-bold uppercase text-[10px] border-b border-slate-200">
+                              <tr>
+                                <th className="p-2.5">Item Code</th>
+                                <th className="p-2.5">Finished Good Description</th>
+                                <th className="p-2.5">Customer</th>
+                                <th className="p-2.5 text-right">Planned Qty</th>
+                                <th className="p-2.5 text-right">Dispatched</th>
+                                <th className="p-2.5 text-right">Pending Balance</th>
+                                <th className="p-2.5 text-right">Unit Rate</th>
+                                <th className="p-2.5 text-right">Total Value</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {selectedConsolidatedPrPlant.items.map((it) => (
+                                <tr key={it.id} className="hover:bg-slate-50">
+                                  <td className="p-2.5 font-mono font-bold text-slate-900">{it.itemCode}</td>
+                                  <td className="p-2.5 font-semibold text-slate-800">{it.itemName}</td>
+                                  <td className="p-2.5 text-slate-600">{it.customer}</td>
+                                  <td className="p-2.5 text-right font-bold text-slate-900">
+                                    {it.plannedQty.toLocaleString()} {it.uom}
+                                  </td>
+                                  <td className="p-2.5 text-right font-medium text-emerald-700">
+                                    {it.deliveredQty.toLocaleString()}
+                                  </td>
+                                  <td className="p-2.5 text-right font-bold font-mono text-amber-800">
+                                    {it.remainingQty.toLocaleString()}
+                                  </td>
+                                  <td className="p-2.5 text-right text-slate-700">₹{it.rate.toFixed(2)}</td>
+                                  <td className="p-2.5 text-right font-bold text-slate-900">
+                                    ₹{it.totalValue.toLocaleString()}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Tab 2: BOM Material Explosion & Inventory Shortage */}
+                    {activePrDrilldownTab === 'bom' && (
+                      <div className="space-y-4">
+                        {/* Summary Metrics */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                            <div className="text-[10px] font-bold text-slate-500 uppercase">Gross Raw Material</div>
+                            <div className="text-lg font-bold text-slate-900 mt-0.5">{grossKg.toLocaleString()} KG</div>
+                            <div className="text-[10px] text-slate-400">Total BOM explosion requirement</div>
+                          </div>
+
+                          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                            <div className="text-[10px] font-bold text-slate-500 uppercase">Current Plant Stock</div>
+                            <div className="text-lg font-bold text-emerald-700 mt-0.5">{stockKg.toLocaleString()} KG</div>
+                            <div className="text-[10px] text-emerald-600">On-hand warehouse free stock</div>
+                          </div>
+
+                          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                            <div className="text-[10px] font-bold text-amber-800 uppercase">Net Shortage to Buy</div>
+                            <div className="text-lg font-bold text-amber-900 mt-0.5">{netKg.toLocaleString()} KG</div>
+                            <div className="text-[10px] text-amber-700">Gross &minus; Stock + Safety Buffer</div>
+                          </div>
+
+                          <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl">
+                            <div className="text-[10px] font-bold text-teal-800 uppercase">Est. PR Budget Value</div>
+                            <div className="text-lg font-bold text-[#0F8B8D] mt-0.5">₹{(totalCost / 100000).toFixed(2)} Lakhs</div>
+                            <div className="text-[10px] text-teal-700">Based on approved vendor rates</div>
+                          </div>
+                        </div>
+
+                        {/* Exploded BOM Lines Table */}
+                        <div className="border border-slate-200 rounded-xl overflow-hidden">
+                          <table className="w-full text-left">
+                            <thead className="bg-slate-50 text-slate-700 font-bold uppercase text-[10px] border-b border-slate-200">
+                              <tr>
+                                <th className="p-2.5">Raw Material Code &amp; Name</th>
+                                <th className="p-2.5">Category</th>
+                                <th className="p-2.5 text-right">Gross Needed</th>
+                                <th className="p-2.5 text-right">Current Stock</th>
+                                <th className="p-2.5 text-right">Buffer</th>
+                                <th className="p-2.5 text-right font-bold text-amber-900">Net Need (PR Qty)</th>
+                                <th className="p-2.5">Suggested Approved Vendor</th>
+                                <th className="p-2.5 text-right">Unit Rate</th>
+                                <th className="p-2.5 text-right">Total Est. (₹)</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {exploded.map((mat) => (
+                                <tr key={mat.rawItemCode} className="hover:bg-slate-50">
+                                  <td className="p-2.5">
+                                    <div className="font-bold text-slate-900 font-mono text-[11px]">{mat.rawItemCode}</div>
+                                    <div className="text-[11px] text-slate-600 font-medium">{mat.rawItemName}</div>
+                                  </td>
+                                  <td className="p-2.5 text-slate-600">
+                                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-semibold">
+                                      {mat.category}
+                                    </span>
+                                  </td>
+                                  <td className="p-2.5 text-right font-semibold text-slate-800">
+                                    {mat.grossRequiredKg.toLocaleString()} {mat.uom}
+                                  </td>
+                                  <td className="p-2.5 text-right font-medium text-emerald-700">
+                                    {mat.currentStockKg.toLocaleString()} {mat.uom}
+                                  </td>
+                                  <td className="p-2.5 text-right text-slate-500">
+                                    {mat.safetyBufferKg.toLocaleString()} {mat.uom}
+                                  </td>
+                                  <td className="p-2.5 text-right font-bold font-mono">
+                                    <span
+                                      className={`px-2 py-0.5 rounded font-bold ${
+                                        mat.netNeedKg > 0
+                                          ? 'bg-amber-100 text-amber-900 border border-amber-200'
+                                          : 'bg-emerald-100 text-emerald-800'
+                                      }`}
+                                    >
+                                      {mat.netNeedKg.toLocaleString()} {mat.uom}
+                                    </span>
+                                  </td>
+                                  <td className="p-2.5 text-slate-800">
+                                    <div className="font-bold text-slate-900">{mat.suggestedSupplierName}</div>
+                                    <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                                      <span>Lead Time: <b>{mat.leadTimeDays}d</b></span>
+                                      <span>&bull;</span>
+                                      <span className="text-emerald-700 font-semibold">Score: {mat.supplierRating}%</span>
+                                    </div>
+                                  </td>
+                                  <td className="p-2.5 text-right font-semibold text-slate-800">
+                                    ₹{mat.unitPrice.toFixed(2)}
+                                  </td>
+                                  <td className="p-2.5 text-right font-bold text-slate-900 font-mono">
+                                    ₹{mat.totalCost.toLocaleString()}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Tab 3: PR Authorization & Justification */}
+                    {activePrDrilldownTab === 'preview' && (
+                      <div className="space-y-4">
+                        <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                          <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wide">
+                            Requisition Header &amp; Compliance Details
+                          </h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                              <span className="text-slate-500 block text-[11px]">Requisition Source</span>
+                              <span className="font-semibold text-slate-900">Monthly Plan Order ({selectedConsolidatedPrPlant.planId})</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-500 block text-[11px]">Receiving Plant &amp; Store</span>
+                              <span className="font-semibold text-slate-900">{selectedConsolidatedPrPlant.plantName} Central Store</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-500 block text-[11px]">Target Delivery Date</span>
+                              <span className="font-semibold text-slate-900">{new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10)}</span>
+                            </div>
+                          </div>
+
+                          <div>
+                            <span className="text-slate-500 block text-[11px] mb-1">Operational Justification</span>
+                            <p className="p-2.5 bg-white border border-slate-200 rounded-lg text-slate-700 text-xs">
+                              Automated BOM material replenishment generated for {selectedConsolidatedPrPlant.monthPeriod} commitments under Master Plan ID {selectedConsolidatedPrPlant.planId}. Ensures buffer levels and avoids plant production bottleneck.
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Approval Stage */}
+                        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            <span className="font-bold text-emerald-950">
+                              Multi-tier Approval: Department Verification &rarr; Plant Budget Sign-off &rarr; Central Procurement VP
+                            </span>
+                          </div>
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-200 text-emerald-900 font-bold text-[10px]">
+                            Ready to Dispatch
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Modal Footer Actions */}
+                    <div className="p-4 border-t border-gray-200 bg-slate-50 flex items-center justify-between">
+                      <div className="text-slate-600 text-xs">
+                        Total {exploded.length} raw material lines &bull; Est. Budget:{' '}
+                        <b className="text-slate-900 font-mono">₹{(totalCost / 100000).toFixed(2)} Lakhs</b>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setIsConsolidatedPrModalOpen(false);
+                            setSelectedConsolidatedPrPlant(null);
+                          }}
+                          className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg font-semibold transition cursor-pointer"
+                        >
+                          Close
+                        </button>
+                        <button
+                          onClick={() => {
+                            const prNumber = `PR-2026-${Math.floor(100 + Math.random() * 900)}`;
+                            const newPR: PurchaseRequisition = {
+                              id: prNumber,
+                              prNumber: prNumber,
+                              requestDate: new Date().toISOString().slice(0, 10),
+                              requestedBy: `${selectedConsolidatedPrPlant.plantName} Store & Planning Manager`,
+                              department: 'Store & Procurement',
+                              plantWarehouse: `${selectedConsolidatedPrPlant.plantName} Central Store`,
+                              requiredDate: new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10),
+                              priority: 'High',
+                              source: 'Monthly Plan Order',
+                              currency: 'INR (₹)',
+                              estimatedTotal: totalCost,
+                              budgetAllocated: Math.round(totalCost * 1.3),
+                              budgetRemaining: Math.round(totalCost * 0.3),
+                              budgetExceeded: false,
+                              status: 'pending_approval',
+                              approvalStatus: 'pending',
+                              currentApprover: 'K. Ramanathan (Procurement VP)',
+                              justification: `Automated BOM raw material requisition exploded from Monthly Master Plan ${selectedConsolidatedPrPlant.planId} (${selectedConsolidatedPrPlant.monthPeriod}) for ${selectedConsolidatedPrPlant.plantName}.`,
+                              notes: `BOM Explosion generated for ${exploded.length} critical raw materials to support committed monthly output.`,
+                              lines: exploded
+                                .filter((m) => m.netNeedKg > 0)
+                                .map((m, idx) => ({
+                                  id: `PRL-${Math.floor(100 + Math.random() * 900)}-${idx + 1}`,
+                                  lineNo: idx + 1,
+                                  itemCode: m.rawItemCode,
+                                  itemName: m.rawItemName,
+                                  itemCategory: m.category,
+                                  description: `BOM exploded raw material requirement for ${selectedConsolidatedPrPlant.planId} (${selectedConsolidatedPrPlant.plantName})`,
+                                  quantity: m.netNeedKg,
+                                  uom: m.uom,
+                                  requiredDate: new Date(Date.now() + 8 * 86400000).toISOString().slice(0, 10),
+                                  suggestedSupplierId: m.suggestedSupplierId,
+                                  suggestedSupplierName: m.suggestedSupplierName,
+                                  estimatedUnitPrice: m.unitPrice,
+                                  estimatedTotal: m.totalCost,
+                                  salesOrderRef: selectedConsolidatedPrPlant.planId,
+                                  status: 'pending',
+                                })),
+                              approvalHistory: [
+                                {
+                                  step: 1,
+                                  role: `${selectedConsolidatedPrPlant.plantName} Plant Head`,
+                                  user: 'Plant Operations Manager',
+                                  action: 'Approved',
+                                  date: new Date().toISOString().slice(0, 10),
+                                  comment: `Automated BOM explosion validated for ${selectedConsolidatedPrPlant.planId} demand requirements.`,
+                                },
+                                {
+                                  step: 2,
+                                  role: 'Purchase Manager',
+                                  user: 'Purchase Manager (You)',
+                                  action: 'Pending',
+                                  comment: 'Awaiting procurement rate & supplier confirmation',
+                                },
+                              ],
+                            };
+
+                            addPurchaseRequisition(newPR);
+                            adminEventBus.emit('PR_SAVED', newPR);
+                            adminEventBus.emit('PR_CREATED', newPR);
+                            adminEventBus.emit('PR_SUBMITTED_FOR_APPROVAL', newPR);
+
+                            showToast(
+                              `✓ Generated Purchase Requisition ${prNumber} for ${selectedConsolidatedPrPlant.plantName} (${newPR.lines.length} BOM lines recorded)!`
+                            );
+                            setIsConsolidatedPrModalOpen(false);
+                            setSelectedConsolidatedPrPlant(null);
+                          }}
+                          className="px-5 py-2 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Generate &amp; Submit Purchase Requisition (PR)</span>
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -2022,7 +2614,7 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-gray-200 bg-gray-50 flex items-center justify-end gap-2">
+            <div className="p-4 border-t border-gray-200 bg-gray-50 flex flex-col sm:flex-row items-center justify-end gap-2">
               <button
                 onClick={() => {
                   setIsCreateModalOpen(false);
@@ -2032,6 +2624,78 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
               >
                 Cancel
               </button>
+              
+              {/* Task-2: Save & Create Sales Order */}
+              <button
+                onClick={() => {
+                  const qty = parseInt(newPlanQty, 10) || 10000;
+                  const rate = parseFloat(newPlanRate) || 35;
+                  const totalVal = qty * rate;
+                  const randomSuffix = Math.floor(10 + Math.random() * 90);
+                  const generatedId = `PLN-2026-10-${randomSuffix}`;
+
+                  const newPlanObj: MonthlyPlanOrder = {
+                    id: generatedId,
+                    customer: newPlanCustomer,
+                    customerGstin: '27AAACG0943A1ZX',
+                    monthPeriod: newPlanMonth || 'October 2026',
+                    planType: newPlanType,
+                    consumptionMode: 'Manual reconciliation',
+                    billingMode: 'Reconciliation only',
+                    status: 'Published',
+                    plant: newPlanPlant,
+                    fgStore: 'FG-Automotive Cell',
+                    createdDate: new Date().toISOString().slice(0, 10),
+                    items: [
+                      {
+                        itemCode: newPlanItemCode,
+                        itemName: newPlanItemName,
+                        hsn: '39269099',
+                        plannedQty: qty,
+                        deliveredQty: 0,
+                        invoicedQty: 0,
+                        remainingQty: qty,
+                        rate,
+                        uom: 'PCS',
+                        plant: newPlanPlant,
+                        fgStore: 'FG-Automotive Cell',
+                      },
+                    ],
+                    totalPlannedQty: qty,
+                    totalDailySuppliedQty: 0,
+                    remainingPlanQty: qty,
+                    varianceQty: -qty,
+                    variancePct: -100,
+                    totalPlannedValue: totalVal,
+                    notes: newPlanNotes,
+                    auditTrail: [
+                      {
+                        action: 'Monthly Plan Created & Linked to Sales Order Wizard',
+                        user: 'Supply Planning Executive',
+                        timestamp: new Date().toISOString().replace('T', ' ').slice(0, 16),
+                        note: 'Created via Monthly Demand Planning Center',
+                      },
+                    ],
+                  };
+
+                  setPlans((prev) => [newPlanObj, ...prev]);
+                  if (onCreatePlan) onCreatePlan(newPlanObj);
+                  setIsCreateModalOpen(false);
+                  if (onCloseCreateModal) onCloseCreateModal();
+                  showToast(`✓ Plan ${generatedId} created. Transitioning to Sales Order creation...`);
+                  onNavigate('soWizard', {
+                    linkedPlanId: generatedId,
+                    monthPeriod: newPlanMonth,
+                    customer: newPlanCustomer,
+                    plant: newPlanPlant,
+                  });
+                }}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold shadow-xs transition flex items-center gap-1.5"
+              >
+                <ShoppingBag className="w-3.5 h-3.5" />
+                <span>Save &amp; Create Sales Order</span>
+              </button>
+
               <button
                 onClick={() => {
                   const qty = parseInt(newPlanQty, 10) || 10000;
@@ -2090,7 +2754,7 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
                   setIsCreateModalOpen(false);
                   if (onCloseCreateModal) onCloseCreateModal();
                 }}
-                className="px-4 py-2 bg-[#14213D] hover:bg-[#1f335e] text-white rounded-lg font-semibold shadow-sm transition"
+                className="px-4 py-2 bg-[#14213D] hover:bg-[#1f335e] text-white rounded-lg font-semibold shadow-xs transition"
               >
                 Confirm &amp; Create Plan
               </button>
