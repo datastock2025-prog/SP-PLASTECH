@@ -34,6 +34,7 @@ import { ExcelImportModal } from './manufacturing/ExcelImportModal';
 import { JitSchedulingPlanner } from './manufacturing/JitSchedulingPlanner';
 import { WipOperationsManager } from './manufacturing/WipOperationsManager';
 import { WipStoreQcInspectionView } from './quality/WipStoreQcInspectionView';
+import { RegrindMaterialEntryView } from './manufacturing/RegrindMaterialEntryView';
 import {
   INITIAL_WIP_RECORDS,
   INITIAL_PLANT_STORE_ITEMS,
@@ -563,6 +564,21 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
           items={items}
           workOrders={workOrders}
           onUpdateWipRecord={handleUpdateWipRecord}
+          onNavigate={onNavigate}
+          showToast={showToast}
+        />
+      )}
+
+      {/* 22. Transitional Regrind (RG) Material Entry & Mixing Hub */}
+      {(view === 'rgMaterialEntry' ||
+        view === 'regrindMaterialEntry' ||
+        view === 'regrindEntry' ||
+        view === 'regrindMixingHub') && (
+        <RegrindMaterialEntryView
+          workOrders={workOrders}
+          items={items}
+          machines={machines}
+          boms={boms}
           onNavigate={onNavigate}
           showToast={showToast}
         />

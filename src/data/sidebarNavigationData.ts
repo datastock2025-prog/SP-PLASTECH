@@ -161,6 +161,7 @@ export const NAVIGATION_GROUPS: NavGroupDef[] = [
       { id: 'nav-jit-board', label: 'JIT Scheduling Board', view: 'jitBoard', icon: 'Calendar', subGroup: 'Production' },
       { id: 'nav-wo-list', label: 'Work Orders', view: 'woList', icon: 'ClipboardList', badge: '14 Active', badgeColor: 'bg-cyan-600', subGroup: 'Production' },
       { id: 'nav-prod-entry', label: 'Daily Production Entry', view: 'prodEntryGrid', icon: 'FileSpreadsheet', subGroup: 'Production' },
+      { id: 'nav-rg-material-entry', label: 'Regrind (RG) Entry & Mixing Hub', view: 'rgMaterialEntry', icon: 'RotateCcw', badge: 'IoT Ready', badgeColor: 'bg-emerald-600', subGroup: 'Production' },
       { id: 'nav-wip-qc-stores', label: 'WIP, Deflash & Assembly Stores (QC)', view: 'wipOperations', icon: 'Layers', badge: 'QC Gate', badgeColor: 'bg-[#E8622C]', subGroup: 'Production' },
       { id: 'nav-shop-floor', label: 'Shop Floor Console', view: 'shopFloor', icon: 'Tv', subGroup: 'Production' },
       { id: 'nav-mfg-dash', label: 'Machine Monitoring / Telemetry', view: 'mfgDash', icon: 'Activity', subGroup: 'Production' },

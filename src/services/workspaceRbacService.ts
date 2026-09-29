@@ -143,7 +143,7 @@ function buildDefaultVisibilityMatrix(): Record<string, Record<string, boolean>>
   });
 
   // Additional known special views
-  const additionalSpecialViews = ['architectureGuide', 'aiPromptBuilder', 'wipOperations', 'adminWorkspaceRbac', 'adminMultiContextSecurity'];
+  const additionalSpecialViews = ['architectureGuide', 'aiPromptBuilder', 'wipOperations', 'rgMaterialEntry', 'regrindMaterialEntry', 'adminWorkspaceRbac', 'adminMultiContextSecurity'];
   additionalSpecialViews.forEach((v) => {
     if (!allScreenViews.includes(v)) allScreenViews.push(v);
   });
@@ -172,7 +172,7 @@ function buildDefaultVisibilityMatrix(): Record<string, Record<string, boolean>>
 
       switch (role.id) {
         case 'operator':
-          isAllowed = ['shopFloor', 'woList', 'prodEntryGrid', 'scrapDowntime', 'changeover', 'materialIssuing', 'barcodePrinting', 'wipOperations'].includes(viewKey);
+          isAllowed = ['shopFloor', 'woList', 'prodEntryGrid', 'scrapDowntime', 'changeover', 'materialIssuing', 'barcodePrinting', 'wipOperations', 'rgMaterialEntry', 'regrindMaterialEntry'].includes(viewKey);
           break;
 
         case 'planner':

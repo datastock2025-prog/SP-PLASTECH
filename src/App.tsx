@@ -137,6 +137,8 @@ export const getScreenTitle = (view: string, params: any = {}): string => {
     woDetail: `Work Order: ${params?.id || 'Detail'}`,
     jitBoard: 'JIT Production Planner',
     prodEntryGrid: params?.date ? `Daily Production (${params.date})` : 'Daily Production Entry',
+    rgMaterialEntry: 'Regrind (RG) Material Entry & Mixing Hub',
+    regrindMaterialEntry: 'Regrind (RG) Material Entry & Mixing Hub',
     shopFloor: 'Shop Floor Console',
     changeover: 'Changeover (SMED)',
     scrapDowntime: 'Scrap & Downtime Matrix',
@@ -799,6 +801,8 @@ export const App: React.FC = () => {
       woDetail: ['Manufacturing', 'Work Orders', viewParams.id || 'Detail'],
       jitBoard: ['Manufacturing', 'JIT Scheduling'],
       prodEntryGrid: ['Manufacturing', 'Production Entry Grid'],
+      rgMaterialEntry: ['Operations & Production', 'Regrind (RG) Material Entry & Mixing Hub'],
+      regrindMaterialEntry: ['Operations & Production', 'Regrind (RG) Material Entry & Mixing Hub'],
       shopFloor: ['Manufacturing', 'Shop Floor Console'],
       changeover: ['Manufacturing', 'Changeover (SMED)'],
       scrapDowntime: ['Manufacturing', 'Scrap & Downtime'],
@@ -1071,6 +1075,9 @@ export const App: React.FC = () => {
     'createWoGrid',
     'wipOperations',
     'wip',
+    'rgMaterialEntry',
+    'regrindMaterialEntry',
+    'regrindMixingHub',
   ].includes(currentView);
   const isProcurement = [
     'procurementDash',
