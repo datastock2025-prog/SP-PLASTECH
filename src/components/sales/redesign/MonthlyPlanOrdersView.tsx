@@ -33,6 +33,12 @@ import {
   SlidersHorizontal,
   FileSpreadsheet,
   Download,
+  Lock,
+  ExternalLink,
+  RefreshCw,
+  Percent,
+  Sliders,
+  Send,
 } from 'lucide-react';
 import {
   MonthlyPlanOrder,
@@ -125,8 +131,10 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
   const [activeTab, setActiveTab] = useState<string>('All Plans');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Page View: 'master' (Master Month Grid) vs 'monthDetail' (Detailed Items Page Grid)
+  // View Mode: 'master' | 'monthDetail' | 'duplicateWorkbench'
   const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(null);
+  const [isDuplicating, setIsDuplicating] = useState<boolean>(false);
+  const [duplicateSourceMonth, setDuplicateSourceMonth] = useState<MonthMasterPlan | null>(null);
 
   // Pagination for Master Grid
   const [masterPage, setMasterPage] = useState(1);
@@ -142,9 +150,8 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
   // Selected item checkboxes for batch operations
   const [selectedItemIds, setSelectedItemIds] = useState<Record<string, boolean>>({});
 
-  // Modals
+  // Modals (Initial Create Plan)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(initialCreateOpen);
-  const [duplicateModalMonth, setDuplicateModalMonth] = useState<MonthMasterPlan | null>(null);
 
   // Synchronize with parent props
   useEffect(() => {
@@ -170,13 +177,15 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
   const [newPlanRate, setNewPlanRate] = useState('42.50');
   const [newPlanNotes, setNewPlanNotes] = useState('Committed monthly call-off schedule based on OEM production forecasts.');
 
-  // Form State for Duplicate to Next Month Modal
-  const [dupTargetMonth, setDupTargetMonth] = useState('');
+  // Form & Workbench State for Dedicated Duplication Screen
+  const [dupSelectedMonth, setDupSelectedMonth] = useState('October');
+  const [dupSelectedYear, setDupSelectedYear] = useState('2026');
   const [dupNotes, setDupNotes] = useState('');
   const [dupItems, setDupItems] = useState<
     Array<{
       id: string;
       customer: string;
+      customerGstin: string;
       plant: string;
       fgStore: string;
       itemCode: string;
@@ -184,10 +193,17 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
       prevPlannedQty: number;
       prevDispatchedQty: number;
       newPlannedQty: number;
-      rate: number;
+      rate: number; // Master Price (Read-only)
       uom: string;
     }>
   >([]);
+
+  // Pagination & Filtering for Dedicated Duplication Screen (Scalable for 10,000+ items)
+  const [dupPage, setDupPage] = useState(1);
+  const [dupPageSize, setDupPageSize] = useState(10);
+  const [dupSearchQuery, setDupSearchQuery] = useState('');
+  const [dupCustomerFilter, setDupCustomerFilter] = useState('All');
+  const [dupPlantFilter, setDupPlantFilter] = useState('All');
 
   // Consolidated Master Plans: Grouped as One Plan ID per Month Period
   const monthMasterPlans: MonthMasterPlan[] = useMemo(() => {
@@ -305,14 +321,6 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
   const overallRemainingTally = overallPlannedQty - overallDispatchedQty;
   const overallPlannedValue = monthMasterPlans.reduce((sum, p) => sum + p.totalPlannedValue, 0);
 
-  // Tabs
-  const tabs = [
-    'All Plans',
-    'Partially Supplied',
-    'Fully Supplied',
-    'Active',
-  ];
-
   // Filter Master Monthly Plans
   const filteredMasterPlans = useMemo(() => {
     return monthMasterPlans.filter((plan) => {
@@ -367,9 +375,45 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
     return filteredMonthItems.slice(start, start + itemPageSize);
   }, [filteredMonthItems, itemPage, itemPageSize]);
 
+  // Dedicated Duplication Screen: Filter & Paginate dupItems
+  const filteredDupItems = useMemo(() => {
+    return dupItems.filter((item) => {
+      if (dupCustomerFilter !== 'All' && item.customer !== dupCustomerFilter) return false;
+      if (dupPlantFilter !== 'All' && item.plant !== dupPlantFilter) return false;
+
+      if (dupSearchQuery) {
+        const q = dupSearchQuery.toLowerCase();
+        const matchCode = item.itemCode.toLowerCase().includes(q);
+        const matchName = item.itemName.toLowerCase().includes(q);
+        const matchCust = item.customer.toLowerCase().includes(q);
+        const matchPlant = item.plant.toLowerCase().includes(q);
+        if (!matchCode && !matchName && !matchCust && !matchPlant) return false;
+      }
+      return true;
+    });
+  }, [dupItems, dupCustomerFilter, dupPlantFilter, dupSearchQuery]);
+
+  const totalDupPages = Math.ceil(filteredDupItems.length / dupPageSize) || 1;
+  const paginatedDupItems = useMemo(() => {
+    const start = (dupPage - 1) * dupPageSize;
+    return filteredDupItems.slice(start, start + dupPageSize);
+  }, [filteredDupItems, dupPage, dupPageSize]);
+
+  // Duplication Screen Totals
+  const dupTotalPlannedQty = useMemo(() => {
+    return dupItems.reduce((sum, it) => sum + (Number(it.newPlannedQty) || 0), 0);
+  }, [dupItems]);
+
+  const dupTotalPlannedValue = useMemo(() => {
+    return dupItems.reduce((sum, it) => sum + ((Number(it.newPlannedQty) || 0) * (Number(it.rate) || 0)), 0);
+  }, [dupItems]);
+
+  const dupEstimatedPolymerKg = Math.round(dupTotalPlannedQty * 0.45);
+
   // Handle Master Row Click to Drill Down into Month Detail Grid
   const handleOpenMonthDetail = (monthKey: string) => {
     setSelectedMonthKey(monthKey);
+    setIsDuplicating(false);
     setItemPage(1);
     setItemSearchQuery('');
     setItemPlantFilter('All');
@@ -377,33 +421,68 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
     setSelectedItemIds({});
   };
 
-  // Open Duplicate Modal for a Month Master Plan
-  const handleOpenDuplicateMonth = (monthPlan: MonthMasterPlan, e?: React.MouseEvent) => {
+  // Open Dedicated Duplication Screen for a Month Master Plan
+  const handleOpenDuplicateWorkbench = (monthPlan: MonthMasterPlan, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    setDuplicateModalMonth(monthPlan);
+    setDuplicateSourceMonth(monthPlan);
+    setIsDuplicating(true);
+    setSelectedMonthKey(null);
+
     const nextM = getNextMonthPeriod(monthPlan.monthPeriod);
-    setDupTargetMonth(nextM);
+    const parts = nextM.split(' ');
+    setDupSelectedMonth(parts[0] || 'October');
+    setDupSelectedYear(parts[1] || '2026');
     setDupNotes(`Consolidated monthly demand roll-forward from ${monthPlan.monthPeriod} (${monthPlan.planId}) with tuned production forecast.`);
+
     setDupItems(
       monthPlan.items.map((i) => ({
         id: i.id,
         customer: i.customer,
+        customerGstin: i.customerGstin,
         plant: i.plant,
         fgStore: i.fgStore,
         itemCode: i.itemCode,
         itemName: i.itemName,
         prevPlannedQty: i.plannedQty,
         prevDispatchedQty: i.deliveredQty,
-        newPlannedQty: i.plannedQty, // User can edit
-        rate: i.rate,
+        newPlannedQty: i.plannedQty, // User can freely edit
+        rate: i.rate, // Read-only from Price Master
         uom: i.uom,
       }))
     );
+
+    setDupPage(1);
+    setDupSearchQuery('');
+    setDupCustomerFilter('All');
+    setDupPlantFilter('All');
+  };
+
+  // Bulk adjustment helper on duplication workbench
+  const handleApplyGrowthPercentage = (pct: number) => {
+    setDupItems((prev) =>
+      prev.map((it) => ({
+        ...it,
+        newPlannedQty: Math.round(it.prevPlannedQty * (1 + pct / 100)),
+      }))
+    );
+    showToast(`Applied ${pct > 0 ? `+${pct}%` : `${pct}%`} forecast adjustment across all ${dupItems.length} planned items.`);
+  };
+
+  const handleCopyPrevDispatchedAll = () => {
+    setDupItems((prev) =>
+      prev.map((it) => ({
+        ...it,
+        newPlannedQty: it.prevDispatchedQty > 0 ? it.prevDispatchedQty : it.prevPlannedQty,
+      }))
+    );
+    showToast('Updated planned quantities to match previous month dispatched actuals.');
   };
 
   // Confirm Duplicating Month Plan to Next Month
-  const handleConfirmDuplicateMonth = () => {
-    if (!duplicateModalMonth) return;
+  const handleExecutePlanDuplication = (shareDirectlyToPurchase: boolean = false) => {
+    if (!duplicateSourceMonth) return;
+
+    const computedMonthPeriod = `${dupSelectedMonth} ${dupSelectedYear}`;
 
     // Group items by customer & plant to create child plan records for next month
     const groups: Record<string, typeof dupItems> = {};
@@ -418,17 +497,14 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
       may: '05', june: '06', july: '07', august: '08',
       september: '09', october: '10', november: '11', december: '12',
     };
-    const parts = (dupTargetMonth || '').split(' ');
-    const mName = (parts[0] || '').toLowerCase();
-    const yr = parts[1] || '2026';
-    const mCode = monthsMap[mName] || '10';
+    const mCode = monthsMap[dupSelectedMonth.toLowerCase()] || '10';
 
     const newCreatedPlans: MonthlyPlanOrder[] = [];
     let counter = 1;
 
     Object.entries(groups).forEach(([key, itemsList]) => {
       const first = itemsList[0];
-      const planId = `PLN-${yr}-${mCode}-${String(counter).padStart(2, '0')}`;
+      const planId = `PLN-${dupSelectedYear}-${mCode}-${String(counter).padStart(2, '0')}`;
       counter++;
 
       const totalPlanned = itemsList.reduce((sum, it) => sum + (Number(it.newPlannedQty) || 0), 0);
@@ -437,8 +513,8 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
       const newPlan: MonthlyPlanOrder = {
         id: planId,
         customer: first.customer,
-        customerGstin: '27AAACG0943A1ZX',
-        monthPeriod: dupTargetMonth || 'October 2026',
+        customerGstin: first.customerGstin || '27AAACG0943A1ZX',
+        monthPeriod: computedMonthPeriod,
         planType: 'Monthly supply plan',
         consumptionMode: 'Manual reconciliation',
         billingMode: 'Reconciliation only',
@@ -468,10 +544,10 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
         notes: dupNotes,
         auditTrail: [
           {
-            action: `Duplicated from ${duplicateModalMonth.planId} (${duplicateModalMonth.monthPeriod})`,
+            action: `Duplicated from ${duplicateSourceMonth.planId} (${duplicateSourceMonth.monthPeriod})`,
             user: 'Sales Operations Manager',
             timestamp: new Date().toISOString().replace('T', ' ').slice(0, 16),
-            note: `Monthly forecast rolled over to ${dupTargetMonth} (Total ${totalPlanned.toLocaleString()} PCS)`,
+            note: `Monthly forecast rolled over to ${computedMonthPeriod} (Total ${totalPlanned.toLocaleString()} PCS)`,
           },
         ],
       };
@@ -481,12 +557,104 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
     });
 
     setPlans((prev) => [...newCreatedPlans, ...prev]);
-    setDuplicateModalMonth(null);
-    setSelectedMonthKey(dupTargetMonth);
-    showToast(`✓ Master Monthly Plan for ${dupTargetMonth} duplicated successfully! All item planned quantities tallied.`);
+
+    // If "Share to Purchase" was clicked, automatically generate Purchase Requisition
+    if (shareDirectlyToPurchase) {
+      const prNumber = `PR-2026-${Math.floor(100 + Math.random() * 900)}`;
+      const totalPlasticPieces = dupTotalPlannedQty;
+      const estimatedRawResinKg = Math.round(totalPlasticPieces * 0.45);
+      const estimatedMasterbatchKg = Math.round(estimatedRawResinKg * 0.02);
+
+      const newPR: PurchaseRequisition = {
+        id: prNumber,
+        prNumber: prNumber,
+        requestDate: new Date().toISOString().slice(0, 10),
+        requestedBy: 'Consolidated Monthly Demand Engine (Rolled Forward Plan)',
+        department: 'Store & Procurement',
+        plantWarehouse: 'Plant 1 Central Store',
+        requiredDate: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10),
+        priority: 'High',
+        source: 'Monthly Plan Order',
+        currency: 'INR (₹)',
+        estimatedTotal: estimatedRawResinKg * 88.5 + estimatedMasterbatchKg * 340,
+        budgetAllocated: 3800000,
+        budgetRemaining: 2100000,
+        budgetExceeded: false,
+        status: 'pending_approval',
+        approvalStatus: 'pending',
+        currentApprover: 'K. Ramanathan (Procurement VP)',
+        justification: `Automated polymer resin purchase requisition rolled forward for ${computedMonthPeriod} (${newCreatedPlans.length} customer commitments).`,
+        notes: `Direct MRP calculation for ${dupItems.length} planned items. Planned plastic output: ${totalPlasticPieces.toLocaleString()} PCS.`,
+        lines: [
+          {
+            id: `PRL-${Math.floor(100 + Math.random() * 900)}`,
+            lineNo: 1,
+            itemCode: 'RM-PP-NAT-001',
+            itemName: 'Polypropylene Injection Grade Virgin Resin H110MA',
+            itemCategory: 'Polymer Granules',
+            description: `Virgin raw resin for ${computedMonthPeriod} demand commitments`,
+            quantity: estimatedRawResinKg,
+            uom: 'KG',
+            requiredDate: new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10),
+            suggestedSupplierId: 'SUP-S0128',
+            suggestedSupplierName: 'RELIANCE INDUSTRIES LIMITED',
+            estimatedUnitPrice: 88.5,
+            estimatedTotal: estimatedRawResinKg * 88.5,
+            salesOrderRef: `PLN-${dupSelectedYear}-${mCode}`,
+            status: 'pending',
+          },
+          {
+            id: `PRL-${Math.floor(100 + Math.random() * 900)}`,
+            lineNo: 2,
+            itemCode: 'MB-BLK-002',
+            itemName: 'Carbon Black Masterbatch 40% Concentration',
+            itemCategory: 'Color Masterbatch',
+            description: 'High-dispersion black colorant for automotive trim and consumer parts',
+            quantity: estimatedMasterbatchKg,
+            uom: 'KG',
+            requiredDate: new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10),
+            suggestedSupplierId: 'SUP-S0045',
+            suggestedSupplierName: 'CLARIANT COLORANTS CHEMICALS INDIA',
+            estimatedUnitPrice: 340.0,
+            estimatedTotal: estimatedMasterbatchKg * 340.0,
+            salesOrderRef: `PLN-${dupSelectedYear}-${mCode}`,
+            status: 'pending',
+          },
+        ],
+        approvalHistory: [
+          {
+            step: 1,
+            role: 'SCM Demand Planner',
+            user: 'Sales Operations (Rollover)',
+            action: 'Approved',
+            date: new Date().toISOString().slice(0, 10),
+            comment: `Generated from Duplicated Monthly Plan for ${computedMonthPeriod}`,
+          },
+          {
+            step: 2,
+            role: 'Purchase Manager',
+            user: 'Purchase Manager (You)',
+            action: 'Pending',
+            comment: 'Pending rate validation in Enterprise Approvals Hub',
+          },
+        ],
+      };
+
+      addPurchaseRequisition(newPR);
+      adminEventBus.emit('PR_SAVED', newPR);
+      adminEventBus.emit('PR_CREATED', newPR);
+      adminEventBus.emit('PR_SUBMITTED_FOR_APPROVAL', newPR);
+
+      showToast(`✓ Master Plan for ${computedMonthPeriod} created & shared directly to Purchase Team! Generated PR ${prNumber} (${estimatedRawResinKg.toLocaleString()} KG Resin).`);
+    } else {
+      showToast(`✓ Master Monthly Plan for ${computedMonthPeriod} duplicated and confirmed successfully!`);
+    }
+
+    setIsDuplicating(false);
+    setSelectedMonthKey(computedMonthPeriod);
   };
 
-  // Centralized "Move Monthly Plan to Purchase Team" Action
+  // Centralized "Move Monthly Plan to Purchase Team" Action from standard views
   const handleCentralizedSendToPurchase = (monthPlan: MonthMasterPlan, itemsToConvert?: ConsolidatedPlanItem[]) => {
     const targetItems = itemsToConvert && itemsToConvert.length > 0 ? itemsToConvert : monthPlan.items;
     if (targetItems.length === 0) {
@@ -496,9 +664,6 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
 
     const prNumber = `PR-2026-${Math.floor(100 + Math.random() * 900)}`;
     const totalPlasticPieces = targetItems.reduce((sum, it) => sum + (it.plannedQty || 0), 0);
-
-    // Standard plastic injection raw material calculation:
-    // ~0.45 kg polymer resin per PCS + 2% Masterbatch colorant
     const estimatedRawResinKg = Math.round(totalPlasticPieces * 0.45);
     const estimatedMasterbatchKg = Math.round(estimatedRawResinKg * 0.02);
 
@@ -605,6 +770,412 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
 
   const selectedItemsCount = Object.values(selectedItemIds).filter(Boolean).length;
 
+  const monthOptions = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+
+  const yearOptions = ['2026', '2027', '2028'];
+
+  // -------------------------------------------------------------
+  // RENDER: Dedicated Duplication Full-Page Workbench (10,000+ Items Scalable)
+  // -------------------------------------------------------------
+  if (isDuplicating && duplicateSourceMonth) {
+    const distinctCustomers = Array.from(new Set(dupItems.map((i) => i.customer)));
+    const distinctPlants = Array.from(new Set(dupItems.map((i) => i.plant)));
+
+    return (
+      <div className="space-y-5 animate-fade-in text-xs">
+        {/* Top Header & Navigation */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsDuplicating(false)}
+              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold flex items-center gap-1.5 transition cursor-pointer"
+              title="Cancel and return to Monthly Plans"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to Plans</span>
+            </button>
+            <div className="h-5 w-px bg-slate-200 hidden sm:block" />
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 bg-[#14213D] text-white rounded-lg">
+                  <Copy className="w-4 h-4" />
+                </span>
+                <h1 className="text-base font-bold text-slate-900">
+                  Duplicate Monthly Plan Workbench &bull; Roll Forward {duplicateSourceMonth.planId}
+                </h1>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  {dupItems.length} Planned SKUs
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Freely adjust new monthly planned quantities. Unit rates are governed strictly by the Central Price Master.
+              </p>
+            </div>
+          </div>
+
+          {/* Action Buttons: Confirm & Create or Share Directly to Purchase */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setIsDuplicating(false)}
+              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold transition"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => handleExecutePlanDuplication(false)}
+              className="px-4 py-2 bg-[#14213D] hover:bg-[#1f335e] text-white rounded-lg font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+            >
+              <Check className="w-4 h-4 text-emerald-400" />
+              <span>Confirm &amp; Create Plan</span>
+            </button>
+            <button
+              onClick={() => handleExecutePlanDuplication(true)}
+              className="px-4 py-2 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg font-bold flex items-center gap-2 shadow-md hover:shadow-lg transition cursor-pointer"
+              title="Create new plan and immediately generate raw polymer Purchase Requisition in Procurement"
+            >
+              <Send className="w-4 h-4" />
+              <span>Confirm &amp; Share to Purchase</span>
+              <span className="bg-white/20 text-white text-[10px] px-1.5 py-0.5 rounded-full font-mono">
+                ~{dupEstimatedPolymerKg.toLocaleString()} KG
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Month Calendar Selector & Period Controls (Enrolled Customer removed per requirement) */}
+        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            {/* Month Calendar / Period Picker */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-[#0F8B8D]" />
+                <span className="font-bold text-slate-900 text-xs">Target Plan Month Period:</span>
+              </div>
+
+              {/* Month Selector */}
+              <select
+                value={dupSelectedMonth}
+                onChange={(e) => setDupSelectedMonth(e.target.value)}
+                className="border border-indigo-300 rounded-lg px-3 py-1.5 bg-indigo-50/50 text-indigo-950 font-bold focus:ring-1 focus:ring-indigo-500 text-xs"
+              >
+                {monthOptions.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+
+              {/* Year Selector */}
+              <select
+                value={dupSelectedYear}
+                onChange={(e) => setDupSelectedYear(e.target.value)}
+                className="border border-indigo-300 rounded-lg px-3 py-1.5 bg-indigo-50/50 text-indigo-950 font-bold focus:ring-1 focus:ring-indigo-500 text-xs"
+              >
+                {yearOptions.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+
+              <span className="px-2.5 py-1 rounded bg-slate-100 text-slate-700 font-semibold text-[11px] border border-slate-200">
+                Roll forward from: <b>{duplicateSourceMonth.monthPeriod}</b>
+              </span>
+            </div>
+
+            {/* Price Master Notice & Quick Link */}
+            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 px-3 py-2 rounded-lg text-amber-900 text-[11px]">
+              <Lock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+              <span>Unit Prices are locked to Price Master.</span>
+              <button
+                onClick={() => onNavigate('pricingMatrix')}
+                className="text-[#0F8B8D] font-bold hover:underline flex items-center gap-0.5 ml-1"
+              >
+                <span>Open Price Master</span>
+                <ExternalLink className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+
+          {/* KPI Tally Summary for Roll-forward */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <div className="text-[10px] uppercase font-bold text-slate-500">Prev Dispatched Qty</div>
+              <div className="text-base font-bold text-emerald-700 mt-0.5">
+                {duplicateSourceMonth.totalDispatchedQty.toLocaleString()} PCS
+              </div>
+              <div className="text-[10px] text-slate-400">Actual deliveries</div>
+            </div>
+
+            <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-200">
+              <div className="text-[10px] uppercase font-bold text-blue-800">New Planned Commitment</div>
+              <div className="text-base font-bold text-blue-900 mt-0.5">
+                {dupTotalPlannedQty.toLocaleString()} PCS
+              </div>
+              <div className="text-[10px] text-blue-700">Editable for {dupSelectedMonth} {dupSelectedYear}</div>
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <div className="text-[10px] uppercase font-bold text-slate-500">Total Commitment Value</div>
+              <div className="text-base font-bold text-slate-900 mt-0.5">
+                ₹{(dupTotalPlannedValue / 100000).toFixed(2)} Lakhs
+              </div>
+              <div className="text-[10px] text-slate-400">Master unit price total</div>
+            </div>
+
+            <div className="bg-cyan-50/50 p-3 rounded-lg border border-cyan-200">
+              <div className="text-[10px] uppercase font-bold text-cyan-800">Raw Polymer Requirement</div>
+              <div className="text-base font-bold text-cyan-900 mt-0.5">
+                {dupEstimatedPolymerKg.toLocaleString()} KG
+              </div>
+              <div className="text-[10px] text-cyan-700">MRP BOM rollup for Purchase</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Scalable Items Grid Toolbar: Search, Filters & Bulk Operations */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Search */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" />
+              <input
+                type="text"
+                placeholder="Search SKU code, description, customer..."
+                value={dupSearchQuery}
+                onChange={(e) => {
+                  setDupSearchQuery(e.target.value);
+                  setDupPage(1);
+                }}
+                className="pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0F8B8D] text-xs w-64"
+              />
+            </div>
+
+            {/* Customer Filter */}
+            <div className="flex items-center gap-1">
+              <span className="text-gray-500 font-semibold text-[11px]">Customer:</span>
+              <select
+                value={dupCustomerFilter}
+                onChange={(e) => {
+                  setDupCustomerFilter(e.target.value);
+                  setDupPage(1);
+                }}
+                className="border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-xs text-slate-700 max-w-[180px] truncate"
+              >
+                <option value="All">All Customers ({distinctCustomers.length})</option>
+                {distinctCustomers.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Plant Filter */}
+            <div className="flex items-center gap-1">
+              <span className="text-gray-500 font-semibold text-[11px]">Plant:</span>
+              <select
+                value={dupPlantFilter}
+                onChange={(e) => {
+                  setDupPlantFilter(e.target.value);
+                  setDupPage(1);
+                }}
+                className="border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-xs text-slate-700"
+              >
+                <option value="All">All Plants ({distinctPlants.length})</option>
+                {distinctPlants.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Quick Bulk Tuning Actions */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-semibold text-slate-500">Quick Adjust:</span>
+            <button
+              onClick={() => handleApplyGrowthPercentage(5)}
+              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-200 text-[11px] font-semibold transition"
+              title="Add 5% growth to all planned quantities"
+            >
+              +5% Forecast
+            </button>
+            <button
+              onClick={() => handleApplyGrowthPercentage(10)}
+              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-200 text-[11px] font-semibold transition"
+              title="Add 10% growth to all planned quantities"
+            >
+              +10% Forecast
+            </button>
+            <button
+              onClick={handleCopyPrevDispatchedAll}
+              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-200 text-[11px] font-semibold transition"
+              title="Set new planned quantities to previous month dispatched amounts"
+            >
+              Match Actuals
+            </button>
+
+            <div className="h-4 w-px bg-slate-200 mx-1" />
+
+            <span className="text-[11px] text-gray-500">Rows:</span>
+            <select
+              value={dupPageSize}
+              onChange={(e) => {
+                setDupPageSize(Number(e.target.value));
+                setDupPage(1);
+              }}
+              className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white"
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Dedicated Editable Duplication Table Grid */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden text-xs">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-slate-50 text-slate-700 font-bold uppercase tracking-wider text-[10px] border-b border-gray-200">
+                <tr>
+                  <th className="p-3">Item Code &amp; Description</th>
+                  <th className="p-3">Customer</th>
+                  <th className="p-3">Plant &amp; Location</th>
+                  <th className="p-3 text-right">Prev Planned</th>
+                  <th className="p-3 text-right">Prev Dispatched</th>
+                  <th className="p-3 text-right w-36">New Planned (PCS) *</th>
+                  <th className="p-3 text-right">Master Rate (₹)</th>
+                  <th className="p-3 text-right">Commitment Value</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {paginatedDupItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="p-8 text-center text-gray-400">
+                      No line items matching filter criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedDupItems.map((item) => {
+                    const lineVal = (Number(item.newPlannedQty) || 0) * (Number(item.rate) || 0);
+
+                    return (
+                      <tr key={item.id} className="hover:bg-blue-50/30 transition-colors">
+                        <td className="p-3">
+                          <div className="font-mono font-bold text-slate-900">{item.itemCode}</div>
+                          <div className="text-[11px] text-slate-600 mt-0.5">{item.itemName}</div>
+                        </td>
+                        <td className="p-3 font-semibold text-gray-900">
+                          <div>{item.customer}</div>
+                          <div className="text-[10px] text-gray-400 font-mono font-normal">
+                            GSTIN: {item.customerGstin}
+                          </div>
+                        </td>
+                        <td className="p-3 text-slate-600">
+                          <div className="flex items-center gap-1 font-medium text-slate-800">
+                            <Factory className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{item.plant}</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400">{item.fgStore}</div>
+                        </td>
+                        <td className="p-3 text-right font-medium text-slate-600">
+                          {item.prevPlannedQty.toLocaleString()} {item.uom}
+                        </td>
+                        <td className="p-3 text-right font-semibold text-emerald-700">
+                          {item.prevDispatchedQty.toLocaleString()} {item.uom}
+                        </td>
+                        <td className="p-3 text-right">
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.newPlannedQty}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10) || 0;
+                              setDupItems((prev) =>
+                                prev.map((it) => (it.id === item.id ? { ...it, newPlannedQty: val } : it))
+                              );
+                            }}
+                            className="w-32 border border-indigo-300 rounded-lg p-1.5 text-right font-bold text-blue-950 bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                          />
+                        </td>
+                        <td className="p-3 text-right font-mono">
+                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-semibold" title="Master Unit Price locked to Central Price Master">
+                            <Lock className="w-3 h-3 text-slate-400" />
+                            <span>₹{item.rate.toFixed(2)}</span>
+                          </div>
+                        </td>
+                        <td className="p-3 text-right font-bold text-gray-900">
+                          ₹{(lineVal / 100000).toFixed(2)}L
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Duplication Grid Pagination Controls */}
+          <div className="p-3.5 border-t border-gray-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-600">
+            <div>
+              Showing <b>{filteredDupItems.length === 0 ? 0 : (dupPage - 1) * dupPageSize + 1}</b> to{' '}
+              <b>{Math.min(dupPage * dupPageSize, filteredDupItems.length)}</b> of{' '}
+              <b>{filteredDupItems.length}</b> line item records
+            </div>
+
+            <div className="flex items-center gap-1">
+              <button
+                disabled={dupPage <= 1}
+                onClick={() => setDupPage(1)}
+                className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronsLeft className="w-3.5 h-3.5" />
+              </button>
+              <button
+                disabled={dupPage <= 1}
+                onClick={() => setDupPage((p) => Math.max(p - 1, 1))}
+                className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <span className="px-2 py-1 text-xs font-semibold text-slate-800">
+                Page {dupPage} of {totalDupPages}
+              </span>
+              <button
+                disabled={dupPage >= totalDupPages}
+                onClick={() => setDupPage((p) => Math.min(p + 1, totalDupPages))}
+                className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                disabled={dupPage >= totalDupPages}
+                onClick={() => setDupPage(totalDupPages)}
+                className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronsRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Commitment Notes */}
+        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-2">
+          <label className="block font-bold text-slate-700">Monthly Plan Notes &amp; Consensus Rules</label>
+          <textarea
+            rows={2}
+            value={dupNotes}
+            onChange={(e) => setDupNotes(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg p-2 text-xs"
+            placeholder="Enter consensus notes, forecast assumptions, or supply constraints..."
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------
+  // RENDER: Standard Views (Master Grid & Detailed Month Grid)
+  // -------------------------------------------------------------
   return (
     <div className="space-y-5">
       {/* View Mode 1: Detailed Items Page Grid for a Selected Month Period */}
@@ -643,9 +1214,9 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
             {/* Centralized Action Buttons in Detailed View */}
             <div className="flex items-center gap-2 shrink-0">
               <button
-                onClick={(e) => handleOpenDuplicateMonth(currentSelectedMonthPlan, e)}
+                onClick={(e) => handleOpenDuplicateWorkbench(currentSelectedMonthPlan, e)}
                 className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
-                title="Duplicate this month plan to next month with previous dispatch tally comparison"
+                title="Open dedicated full-screen workbench to duplicate this month plan to next month"
               >
                 <Copy className="w-3.5 h-3.5" />
                 <span>Duplicate to Next Month</span>
@@ -810,7 +1381,7 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
                     <th className="p-3 text-right">Dispatched Qty</th>
                     <th className="p-3 text-right">Invoiced Qty</th>
                     <th className="p-3 text-right font-bold text-amber-800">Pending Tally Balance</th>
-                    <th className="p-3 text-right">Unit Rate</th>
+                    <th className="p-3 text-right">Unit Rate (Master)</th>
                     <th className="p-3 text-right">Item Value</th>
                     <th className="p-3 text-center">Status</th>
                   </tr>
@@ -885,8 +1456,11 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
                               {item.remainingQty.toLocaleString()} {item.uom}
                             </span>
                           </td>
-                          <td className="p-3 text-right font-mono text-slate-700">
-                            ₹{item.rate.toFixed(2)}
+                          <td className="p-3 text-right font-mono">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 text-[11px]">
+                              <Lock className="w-2.5 h-2.5 text-slate-400" />
+                              <span>₹{item.rate.toFixed(2)}</span>
+                            </span>
                           </td>
                           <td className="p-3 text-right font-bold text-gray-900">
                             ₹{(item.totalValue / 100000).toFixed(2)}L
@@ -975,7 +1549,7 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
                   </span>
                 </div>
                 <p className="text-xs text-blue-800 mt-0.5 leading-relaxed">
-                  One Master Plan ID per month period. Click any monthly plan row to open the full item commitments grid, duplicate the plan to next month, or convert all planned demand directly into Procurement Purchase Requisitions.
+                  One Master Plan ID per month period. Click any monthly plan row to open the full item commitments grid, duplicate the plan to next month on a dedicated full-page workbench, or convert demand directly into Procurement Purchase Requisitions.
                 </p>
               </div>
             </div>
@@ -1033,7 +1607,7 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
           {/* Filter Tabs & Search */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-gray-200 shadow-sm text-xs">
             <div className="flex items-center gap-1 overflow-x-auto">
-              {tabs.map((tab) => (
+              {['All Plans', 'Partially Supplied', 'Fully Supplied', 'Active'].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => {
@@ -1191,11 +1765,11 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
                                 <span>View Items Grid</span>
                               </button>
 
-                              {/* Duplicate Plan to Next Month */}
+                              {/* Duplicate Plan to Next Month Dedicated Workbench */}
                               <button
-                                onClick={(e) => handleOpenDuplicateMonth(mPlan, e)}
+                                onClick={(e) => handleOpenDuplicateWorkbench(mPlan, e)}
                                 className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer"
-                                title="Duplicate this month plan to next month"
+                                title="Open dedicated workbench to edit quantities and duplicate to next month"
                               >
                                 <Copy className="w-3.5 h-3.5" />
                                 <span>Duplicate</span>
@@ -1264,190 +1838,6 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
                   <ChevronsRight className="w-3.5 h-3.5" />
                 </button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Duplicate Plan to Next Month Modal */}
-      {duplicateModalMonth && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
-            {/* Header */}
-            <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-[#14213D] text-white rounded-xl shadow-sm">
-                  <Copy className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">
-                    Duplicate Monthly Plan Order to Next Month
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Roll forward <b>{duplicateModalMonth.planId}</b> ({duplicateModalMonth.monthPeriod}). Edit planned quantities and confirm commitment.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setDuplicateModalMonth(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6 overflow-y-auto space-y-4 text-xs">
-              {/* Previous Month Performance Card */}
-              <div className="bg-gradient-to-r from-slate-50 to-indigo-50/50 p-3.5 rounded-xl border border-slate-200 grid grid-cols-3 gap-3">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-500">Previous Period</span>
-                  <div className="font-bold text-slate-900 text-xs mt-0.5">{duplicateModalMonth.monthPeriod}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-500">Prev Planned Qty</span>
-                  <div className="font-bold text-blue-700 text-sm mt-0.5">{duplicateModalMonth.totalPlannedQty.toLocaleString()} PCS</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-500">Prev Dispatched Qty</span>
-                  <div className="font-bold text-emerald-700 text-sm mt-0.5">{duplicateModalMonth.totalDispatchedQty.toLocaleString()} PCS</div>
-                </div>
-              </div>
-
-              {/* Form Fields */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">New Plan Month Period *</label>
-                  <input
-                    type="text"
-                    value={dupTargetMonth}
-                    onChange={(e) => setDupTargetMonth(e.target.value)}
-                    placeholder="e.g. October 2026"
-                    className="w-full border border-slate-300 rounded-lg p-2 focus:ring-1 focus:ring-[#14213D] focus:outline-none font-semibold text-slate-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Enrolled Customers</label>
-                  <input
-                    type="text"
-                    disabled
-                    value={duplicateModalMonth.customers.join(', ')}
-                    className="w-full border border-slate-200 rounded-lg p-2 bg-slate-100 text-slate-700 font-semibold cursor-not-allowed truncate"
-                  />
-                </div>
-              </div>
-
-              {/* Editable Planned Line Items Table */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-800 text-xs">
-                    Planned Line Items (Edit quantities for {dupTargetMonth})
-                  </span>
-                  <span className="text-[11px] text-slate-500">
-                    Dispatched starts at 0 PCS
-                  </span>
-                </div>
-
-                <div className="border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-100 text-slate-700 uppercase text-[10px] font-semibold sticky top-0">
-                      <tr>
-                        <th className="p-2.5">Item &amp; Customer</th>
-                        <th className="p-2.5 text-right">Prev Planned</th>
-                        <th className="p-2.5 text-right">Prev Dispatched</th>
-                        <th className="p-2.5 text-right w-28">New Planned (PCS) *</th>
-                        <th className="p-2.5 text-right">Unit Rate (₹)</th>
-                        <th className="p-2.5 text-right">Tally Balance</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {dupItems.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50">
-                          <td className="p-2.5">
-                            <div className="font-mono font-bold text-slate-900">{item.itemCode}</div>
-                            <div className="text-[11px] text-slate-600">{item.itemName}</div>
-                            <div className="text-[10px] text-gray-400">{item.customer} &bull; {item.plant}</div>
-                          </td>
-                          <td className="p-2.5 text-right font-medium text-slate-600">
-                            {item.prevPlannedQty.toLocaleString()}
-                          </td>
-                          <td className="p-2.5 text-right font-semibold text-emerald-700">
-                            {item.prevDispatchedQty.toLocaleString()}
-                          </td>
-                          <td className="p-2.5 text-right">
-                            <input
-                              type="number"
-                              min="1"
-                              value={item.newPlannedQty}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value, 10) || 0;
-                                setDupItems((prev) =>
-                                  prev.map((it, i) => (i === idx ? { ...it, newPlannedQty: val } : it))
-                                );
-                              }}
-                              className="w-24 border border-indigo-300 rounded-lg p-1.5 text-right font-bold text-blue-900 bg-white focus:ring-1 focus:ring-indigo-500"
-                            />
-                          </td>
-                          <td className="p-2.5 text-right font-mono">
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={item.rate}
-                              onChange={(e) => {
-                                const val = parseFloat(e.target.value) || 0;
-                                setDupItems((prev) =>
-                                  prev.map((it, i) => (i === idx ? { ...it, rate: val } : it))
-                                );
-                              }}
-                              className="w-20 border border-slate-200 rounded-lg p-1.5 text-right font-mono text-slate-800 bg-white"
-                            />
-                          </td>
-                          <td className="p-2.5 text-right font-bold font-mono text-amber-700">
-                            {Number(item.newPlannedQty).toLocaleString()} PCS
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
-                  <span className="text-slate-600 font-medium">Estimated New Monthly Commitment Value:</span>
-                  <span className="text-base font-extrabold text-[#14213D]">
-                    ₹{dupItems
-                      .reduce((sum, item) => sum + (Number(item.newPlannedQty || 0) * (Number(item.rate) || 0)), 0)
-                      .toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Commitment Notes &amp; Call-off Rules</label>
-                <textarea
-                  rows={2}
-                  value={dupNotes}
-                  onChange={(e) => setDupNotes(e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg p-2 text-xs"
-                />
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2">
-              <button
-                onClick={() => setDuplicateModalMonth(null)}
-                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg font-semibold transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmDuplicateMonth}
-                className="px-5 py-2 bg-[#14213D] hover:bg-[#1f335e] text-white rounded-lg font-semibold shadow-sm transition flex items-center gap-1.5 cursor-pointer"
-              >
-                <Check className="w-4 h-4 text-emerald-400" />
-                <span>Confirm &amp; Create Plan</span>
-              </button>
             </div>
           </div>
         </div>
