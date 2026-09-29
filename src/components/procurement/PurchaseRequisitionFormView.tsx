@@ -32,14 +32,14 @@ import { ItemMaster, AuthUser } from '../../types';
 import { ProcurementStatusBadge } from './ProcurementStatusBadge';
 import { itemService } from '../../services/itemService';
 import { adminService, adminEventBus } from '../../services/adminService';
-import { useAuth } from '../../features/auth/hooks/useAuth';
 import { CreateItemWizardModal } from '../masterdata/CreateItemWizardModal';
-import { addPurchaseRequisition } from '../../data/procurementData';
+import { addPurchaseRequisition, INITIAL_PROCUREMENT_SUPPLIERS } from '../../data/procurementData';
+import { DOCUMENT_ITEM_MASTER_CATALOG } from '../../data/masterItemsCatalog';
 
 interface Props {
   prId?: string;
-  prs: PurchaseRequisition[];
-  suppliers: SupplierMaster[];
+  prs?: PurchaseRequisition[];
+  suppliers?: SupplierMaster[];
   items?: ItemMaster[];
   currentUser?: AuthUser | null;
   onNavigate: (view: string, param?: any) => void;
@@ -49,17 +49,24 @@ interface Props {
 
 export const PurchaseRequisitionFormView: React.FC<Props> = ({
   prId,
-  prs,
-  suppliers,
+  prs = [],
+  suppliers = [],
   items: propItems,
   currentUser: propUser,
   onNavigate,
   onSavePR,
   showToast,
 }) => {
-  const { currentUser: authUser } = useAuth();
-  const activeUser = propUser || authUser;
+  const activeUser = propUser || {
+    id: 'usr-admin-01',
+    name: 'SP-PLASTECH Master Admin',
+    role: 'Super Administrator',
+    department: 'Store & Procurement',
+    plantName: 'Main Plant - Hosur',
+    plantId: 'RM-WH-01',
+  };
 
+  const activeSuppliers = suppliers && suppliers.length > 0 ? suppliers : INITIAL_PROCUREMENT_SUPPLIERS;
   const existingPr = prs.find((p) => p.id === prId || p.prNumber === prId);
   const isEditing = Boolean(existingPr);
 
@@ -68,13 +75,16 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
     const list = itemService.getItemsSync();
     if (list && list.length > 0) return list;
     if (propItems && propItems.length > 0) return propItems;
-    return [];
+    return DOCUMENT_ITEM_MASTER_CATALOG;
   });
 
   // Listen for real-time Item Master events across ERP
   useEffect(() => {
     const handleUpdate = () => {
-      setItemsList(itemService.getItemsSync());
+      const refreshed = itemService.getItemsSync();
+      if (refreshed && refreshed.length > 0) {
+        setItemsList(refreshed);
+      }
     };
     adminEventBus.on('ITEM_SAVED', handleUpdate);
     adminEventBus.on('ITEM_DELETED', handleUpdate);
@@ -146,8 +156,8 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
         quantity: 1,
         uom: 'KG',
         requiredDate: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
-        suggestedSupplierId: suppliers[0]?.id || '',
-        suggestedSupplierName: suppliers[0]?.name || '',
+        suggestedSupplierId: activeSuppliers[0]?.id || '',
+        suggestedSupplierName: activeSuppliers[0]?.name || '',
         estimatedUnitPrice: 0,
         estimatedTotal: 0,
         workOrderRef: '',
@@ -213,8 +223,8 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
       quantity: 1,
       uom: 'KG',
       requiredDate: requiredDate,
-      suggestedSupplierId: suppliers[0]?.id || '',
-      suggestedSupplierName: suppliers[0]?.name || '',
+      suggestedSupplierId: activeSuppliers[0]?.id || '',
+      suggestedSupplierName: activeSuppliers[0]?.name || '',
       estimatedUnitPrice: 0,
       estimatedTotal: 0,
       workOrderRef: '',
@@ -238,8 +248,8 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
           quantity: 1,
           uom: 'KG',
           requiredDate: requiredDate,
-          suggestedSupplierId: suppliers[0]?.id || '',
-          suggestedSupplierName: suppliers[0]?.name || '',
+          suggestedSupplierId: activeSuppliers[0]?.id || '',
+          suggestedSupplierName: activeSuppliers[0]?.name || '',
           estimatedUnitPrice: 0,
           estimatedTotal: 0,
           workOrderRef: '',
@@ -714,6 +724,11 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
                                     filteredItems.map((item) => (
                                       <div
                                         key={item.code}
+                                        onMouseDown={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          handleSelectItem(idx, item);
+                                        }}
                                         onClick={() => handleSelectItem(idx, item)}
                                         className="p-2.5 hover:bg-teal-50/70 cursor-pointer transition flex items-start justify-between gap-2"
                                       >
@@ -749,6 +764,13 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
                                 <div className="p-2 bg-slate-50 border-t border-slate-100">
                                   <button
                                     type="button"
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setActiveCreatingItemLineIdx(idx);
+                                      setIsCreateItemModalOpen(true);
+                                      setActiveSearchIdx(null);
+                                    }}
                                     onClick={() => {
                                       setActiveCreatingItemLineIdx(idx);
                                       setIsCreateItemModalOpen(true);
