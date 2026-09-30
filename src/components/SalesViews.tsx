@@ -128,7 +128,19 @@ export const SalesViews: React.FC<SalesProps> = ({
   // Sub-navigation states
   const [salesSubNav, setSalesSubNav] = useState<'list' | 'dashboard' | 'wizard' | 'plans' | 'quickEntry' | 'reconciliation'>(() => {
     if (view === 'soDashboard') return 'dashboard';
-    if (view === 'soWizard' || view === 'soCreate') return 'wizard';
+    if (
+      view === 'soWizard' ||
+      view === 'soCreate' ||
+      view === 'createSO' ||
+      view === 'newSO' ||
+      view === 'createSalesOrder' ||
+      view === 'newSalesOrder' ||
+      view === 'salesOrderCreate' ||
+      view === 'salesOrderNew' ||
+      view === 'soNew' ||
+      view === 'salesOrderForm'
+    )
+      return 'wizard';
     if (view === 'monthlyPlanOrders' || view === 'monthlyPlan') return 'plans';
     if (view === 'dailyQuickEntry') return 'quickEntry';
     if (view === 'monthlyReconciliation' || view === 'reconciliation') return 'reconciliation';
@@ -155,7 +167,18 @@ export const SalesViews: React.FC<SalesProps> = ({
       setSalesSubNav('dashboard');
     } else if (view === 'soList' || view === 'salesOrders') {
       setSalesSubNav('list');
-    } else if (view === 'soWizard' || view === 'soCreate') {
+    } else if (
+      view === 'soWizard' ||
+      view === 'soCreate' ||
+      view === 'createSO' ||
+      view === 'newSO' ||
+      view === 'createSalesOrder' ||
+      view === 'newSalesOrder' ||
+      view === 'salesOrderCreate' ||
+      view === 'salesOrderNew' ||
+      view === 'soNew' ||
+      view === 'salesOrderForm'
+    ) {
       setSalesSubNav('wizard');
     } else if (view === 'monthlyPlanOrders' || view === 'monthlyPlan') {
       setSalesSubNav('plans');
@@ -540,6 +563,14 @@ export const SalesViews: React.FC<SalesProps> = ({
     view === 'soDashboard' ||
     view === 'soWizard' ||
     view === 'soCreate' ||
+    view === 'createSO' ||
+    view === 'newSO' ||
+    view === 'createSalesOrder' ||
+    view === 'newSalesOrder' ||
+    view === 'salesOrderCreate' ||
+    view === 'salesOrderNew' ||
+    view === 'soNew' ||
+    view === 'salesOrderForm' ||
     view === 'monthlyPlanOrders' ||
     view === 'monthlyPlan' ||
     view === 'dailyQuickEntry' ||

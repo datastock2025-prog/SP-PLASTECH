@@ -244,6 +244,7 @@ export const SalesOrderWizard: React.FC<SalesOrderWizardProps> = ({
   );
   const [customerState, setCustomerState] = useState('Maharashtra');
   const [customerStateCode, setCustomerStateCode] = useState('27');
+  const isInterState = customerStateCode !== '27';
   const [customerCreditLimit, setCustomerCreditLimit] = useState<number>(15000000);
   const [customerCurrentExposure, setCustomerCurrentExposure] = useState<number>(6420000);
   const [customerAvailableCredit, setCustomerAvailableCredit] = useState<number>(8580000);
@@ -668,7 +669,6 @@ export const SalesOrderWizard: React.FC<SalesOrderWizardProps> = ({
   };
 
   // Inter-state GST calculation (Maharashtra POS = 27)
-  const isInterState = customerStateCode !== '27';
   const totalTaxable = lines.reduce((acc, l) => acc + (l.taxableValue || 0), 0);
   const totalCgst = isInterState ? 0 : totalTaxable * 0.09;
   const totalSgst = isInterState ? 0 : totalTaxable * 0.09;
