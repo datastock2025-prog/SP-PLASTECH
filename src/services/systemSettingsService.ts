@@ -7,6 +7,7 @@ export interface SystemSettingsConfig {
   timeFormat: '12h' | '24h';
   dateFormat: string;
   numberFormat: 'indian' | 'international';
+  salesOrderValidityMonths: number;
 }
 
 const STORAGE_KEY = 'reboot_erp_system_settings_config';
@@ -27,6 +28,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettingsConfig = {
   timeFormat: '24h',
   dateFormat: 'DD/MM/YYYY',
   numberFormat: 'indian',
+  salesOrderValidityMonths: 1,
 };
 
 function loadSettings(): SystemSettingsConfig {
@@ -67,6 +69,10 @@ class SystemSettingsService {
 
   public getCurrencySymbol(): string {
     return this.current.currencySymbol || '₹';
+  }
+
+  public getSalesOrderValidityMonths(): number {
+    return this.current.salesOrderValidityMonths || 1;
   }
 
   public getTimeFormat(): '12h' | '24h' {

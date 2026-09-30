@@ -54,6 +54,13 @@ export const AdminSystemParametersView: React.FC<AdminSystemParametersViewProps>
     showToast(`✓ Number Formatting updated to ${fmt === 'indian' ? 'Indian (Lakhs / Crores)' : 'International (Millions)'}.`);
   };
 
+  const handleUpdateSoValidityMonths = (months: number) => {
+    const safeMonths = Math.max(1, isNaN(months) ? 1 : months);
+    const updated = systemSettingsService.updateSettings({ salesOrderValidityMonths: safeMonths });
+    setSettings(updated);
+    showToast(`✓ Sales Order & Monthly Plan Expiry Validity updated to ${safeMonths} Month(s).`);
+  };
+
   // Custom User Defined Fields (UDFs) State
   const [customFields, setCustomFields] = useState([
     { id: 'UDF-01', entity: 'Item Master (Raw Material)', fieldName: 'resinMeltFlowIndex', label: 'Polymer MFI (g/10min)', type: 'Number', required: true },

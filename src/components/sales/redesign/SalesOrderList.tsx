@@ -63,8 +63,35 @@ export const SalesOrderList: React.FC<SalesOrderListProps> = ({
   onNavigate,
   showToast,
 }) => {
-  // 13 Specified Tabs
+  // 14 Specified Tabs (including Expired / Rollover Needed)
   const [activeTab, setActiveTab] = useState<string>('All Orders');
+
+  // Helper to determine if a Sales Order is expired past the configured validity months (default 1 month)
+  const isOrderExpired = (order: PlasticSalesOrder) => {
+    if (order.status === 'Delivered' || order.status === 'Closed' || order.status === 'Cancelled') {
+      return false;
+    }
+    const validityMonths = systemSettingsService.getSalesOrderValidityMonths() || 1;
+    const orderDate = new Date(order.orderDate).getTime();
+    const thresholdMs = validityMonths * 30 * 24 * 3600 * 1000;
+    return (Date.now() - orderDate) > thresholdMs;
+  };
+
+  // Rollover / Duplicate order for the new month (preserves historical database record)
+  const handleRolloverOrder = (order: PlasticSalesOrder, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    showToast(`Initiating monthly rollover from ${order.id}. Previous month's order record archived safely in database.`);
+    onNavigate('soWizard', {
+      duplicateFromOrder: order,
+      linkedPlanId: order.linkedMonthlyPlanId,
+      customer: order.customer,
+      plant: order.plant,
+      fgStore: order.fgStore,
+      lines: order.lines,
+      defaultOrderType: order.orderType,
+      orderNotes: `Monthly rollover renewal from ${order.id} (Preserved in DB).`,
+    });
+  };
 
   // Filter Bar state
   const [searchQuery, setSearchQuery] = useState('');
@@ -103,6 +130,7 @@ export const SalesOrderList: React.FC<SalesOrderListProps> = ({
       // Tab matching
       if (activeTab === 'Daily Orders' && order.orderType !== 'Daily Sales Order') return false;
       if (activeTab === 'Monthly Plan Orders' && order.orderType !== 'Monthly Plan Order') return false;
+      if (activeTab === 'Expired / Rollover' && !isOrderExpired(order)) return false;
       if (activeTab === 'Draft' && order.status !== 'Draft') return false;
       if (activeTab === 'Pending Approval' && order.status !== 'Pending Approval') return false;
       if (activeTab === 'Credit Hold' && order.status !== 'Credit Hold' && order.creditStatus !== 'Hold') return false;
@@ -776,6 +804,11 @@ export const SalesOrderList: React.FC<SalesOrderListProps> = ({
                               HOLD
                             </span>
                           )}
+                          {isOrderExpired(order) && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 border border-rose-200" title="Order has exceeded 1-month validity. Click Rollover to duplicate for new month.">
+                              EXPIRED
+                            </span>
+                          )}
                         </div>
                         <div className="text-[10px] text-gray-400 font-sans truncate">{order.salesperson}</div>
                       </td>
@@ -837,6 +870,16 @@ export const SalesOrderList: React.FC<SalesOrderListProps> = ({
                       {/* Row Actions & Drilldown */}
                       <td className="py-3 px-2 text-center" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
+                          {isOrderExpired(order) && (
+                            <button
+                              onClick={(e) => handleRolloverOrder(order, e)}
+                              className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold flex items-center gap-1 shadow-2xs transition cursor-pointer"
+                              title="Order expired after 1 month. Click to duplicate and submit for new month."
+                            >
+                              <RefreshCw className="w-2.5 h-2.5" />
+                              <span>Rollover</span>
+                            </button>
+                          )}
                           <button
                             onClick={() => setExpandedRowId(isExpanded ? null : order.id)}
                             className="p-1 rounded text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition"
@@ -894,6 +937,15 @@ export const SalesOrderList: React.FC<SalesOrderListProps> = ({
                                   <LinkIcon className="w-3.5 h-3.5 text-blue-600" /> Monthly Plan Link
                                 </button>
                                 <div className="border-t border-gray-100 my-1"></div>
+                                <button
+                                  onClick={(e) => {
+                                    setActiveMenuId(null);
+                                    handleRolloverOrder(order, e);
+                                  }}
+                                  className="w-full px-3 py-1.5 hover:bg-indigo-50 flex items-center gap-2 text-indigo-700 font-bold"
+                                >
+                                  <RefreshCw className="w-3.5 h-3.5 text-indigo-600" /> Rollover to Next Month
+                                </button>
                                 <button
                                   onClick={() => {
                                     setActiveMenuId(null);
