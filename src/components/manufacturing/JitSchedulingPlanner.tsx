@@ -20,6 +20,7 @@ import {
   Package,
   MoreVertical,
   FileText,
+  Target,
 } from 'lucide-react';
 import {
   WorkOrder,
@@ -30,6 +31,7 @@ import {
 } from '../../types';
 import { useAuthContext } from '../../shared/components/RequireAuth';
 import { MoldMaster } from '../../data/manufacturingData';
+import { INITIAL_MONTHLY_PLANS } from '../../data/salesOrderDeliveryData';
 import {
   PlannedMachineJob,
   ExplodedMaterialRequirement,
@@ -152,6 +154,39 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
   const materialRequirements = useMemo(() => {
     return explodePlanRequirements(currentPlanJobs, boms, items, stores);
   }, [currentPlanJobs, boms, items, stores]);
+
+  // Target Month Period & Monthly SO Demand Calculation
+  const monthPeriodName = useMemo(() => {
+    try {
+      const d = new Date(planDate || Date.now());
+      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      return `${months[d.getMonth()]} ${d.getFullYear()}`;
+    } catch {
+      return 'September 2026';
+    }
+  }, [planDate]);
+
+  const totalMonthlySoDemand = useMemo(() => {
+    let sum = 0;
+    INITIAL_MONTHLY_PLANS.forEach((p) => {
+      if (p.monthPeriod === monthPeriodName || !p.monthPeriod) {
+        sum += p.totalPlannedQty || 0;
+      }
+    });
+    return sum;
+  }, [monthPeriodName]);
+
+  const totalMonthScheduledPcs = useMemo(() => {
+    let sum = 0;
+    jobs.forEach((j) => {
+      if ((j.planDate || '').startsWith(planDate.slice(0, 7))) {
+        sum += j.calculatedPcs || 0;
+      }
+    });
+    return sum;
+  }, [jobs, planDate]);
+
+  const totalMonthRemainingSo = Math.max(0, totalMonthlySoDemand - totalMonthScheduledPcs);
 
   // High-level KPIs for selected plan date
   const totalPlannedHours = currentPlanJobs.reduce((acc, j) => acc + j.plannedHours, 0);
@@ -737,7 +772,20 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
       </div>
 
       {/* Aggregate KPI Strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 text-xs">
+        <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl p-3 shadow-2xs space-y-1">
+          <span className="text-indigo-800 font-bold text-[11px] block truncate flex items-center gap-1">
+            <Target className="w-3 h-3 text-indigo-600" />
+            <span>Monthly SO Target</span>
+          </span>
+          <div className="text-lg font-black text-indigo-950 font-mono">
+            {totalMonthlySoDemand.toLocaleString()} <span className="text-[10px] font-bold text-slate-500">PCS</span>
+          </div>
+          <div className="text-[10px] text-indigo-700 font-medium truncate">
+            Sched: {totalMonthScheduledPcs.toLocaleString()} | Bal: {totalMonthRemainingSo.toLocaleString()}
+          </div>
+        </div>
+
         <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs space-y-1">
           <span className="text-slate-500 font-medium text-[11px] block truncate">Scheduled IMMs</span>
           <div className="text-xl font-extrabold text-slate-900 font-mono">
@@ -762,7 +810,7 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
           <div className="text-xl font-extrabold text-emerald-700 font-mono">
             {totalProducedPcs.toLocaleString()} <span className="text-xs font-bold text-slate-500">PCS</span>
           </div>
-          <div className="text-[10px] text-emerald-600">Based on cycle & cavities</div>
+          <div className="text-[10px] text-emerald-600">Based on cycle &amp; cavities</div>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs space-y-1">
@@ -774,7 +822,7 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs space-y-1">
-          <span className="text-slate-500 font-medium text-[11px] block truncate">Masterbatch & Color</span>
+          <span className="text-slate-500 font-medium text-[11px] block truncate">Masterbatch &amp; Color</span>
           <div className="text-xl font-extrabold text-purple-700 font-mono">
             {totalMasterbatchKg.toFixed(1)} <span className="text-xs text-slate-500">KG</span>
           </div>

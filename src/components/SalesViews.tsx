@@ -52,7 +52,9 @@ import {
   INITIAL_E_WAY_BILLS,
   INITIAL_GATE_PASSES,
   INITIAL_COMPLIANCE_EXCEPTIONS,
+  mapMonthlyPlanToSalesOrder,
 } from '../data/salesOrderDeliveryData';
+import { adminEventBus } from '../services/adminService';
 
 import {
   PlasticSalesOrder,
@@ -193,12 +195,23 @@ export const SalesViews: React.FC<SalesProps> = ({
   const handleSaveOrder = (newOrder: PlasticSalesOrder) => {
     setPlasticSalesOrders((prev) => [newOrder, ...(prev || []).filter((o) => o.id !== newOrder.id)]);
     setSalesSubNav('list');
+    adminEventBus.emit('SALES_ORDER_CREATED', newOrder);
     showToast(`Sales Order ${newOrder.id} successfully saved & confirmed.`);
   };
 
   const handleSaveMonthlyPlan = (newPlan: MonthlyPlanOrder) => {
-    setMonthlyPlans((prev) => [newPlan, ...prev]);
-    showToast(`Monthly Plan Order ${newPlan.id} successfully committed.`);
+    // 1. Add to Monthly Plans list
+    setMonthlyPlans((prev) => [newPlan, ...(prev || []).filter((p) => p.id !== newPlan.id)]);
+
+    // 2. Add to Sales Order Register under Monthly Plan Orders tab
+    const matchingSo = mapMonthlyPlanToSalesOrder(newPlan);
+    setPlasticSalesOrders((prev) => [matchingSo, ...(prev || []).filter((o) => o.id !== matchingSo.id)]);
+
+    // 3. Broadcast events to all modules (Manufacturing, SCM, Procurement, Finance)
+    adminEventBus.emit('MONTHLY_PLAN_CREATED', newPlan);
+    adminEventBus.emit('SALES_ORDER_CREATED', matchingSo);
+
+    showToast(`Monthly Plan Order ${newPlan.id} successfully committed to SO Register & S&OP Schedule.`);
   };
 
   const handleSaveDelivery = (
@@ -207,6 +220,7 @@ export const SalesViews: React.FC<SalesProps> = ({
     newEwb?: EWayBillRecord,
     newGatePass?: GatePassRecord
   ) => {
+    // 1. Save Delivery Challan, E-Invoice, E-Way Bill & Gate Pass
     setDeliveries((prev) => [newDeliv, ...prev]);
     if (newEInv) {
       setEInvoices((prev) => [newEInv, ...prev.filter((x) => x.invoiceNumber !== newEInv.invoiceNumber)]);
@@ -217,9 +231,123 @@ export const SalesViews: React.FC<SalesProps> = ({
     if (newGatePass) {
       setGatePasses((prev) => [newGatePass, ...prev.filter((x) => x.gatePassNumber !== newGatePass.gatePassNumber)]);
     }
+
+    // 2. Task 2: Deduct dispatched quantities from warehouse FG batch stock
+    setBatches((prevBatches) => {
+      return prevBatches.map((batch) => {
+        const itemDelivered = newDeliv.items.find((it) => it.itemCode === batch.itemCode);
+        if (itemDelivered) {
+          const qtyToMinus = itemDelivered.dispatchQty;
+          return {
+            ...batch,
+            availableQty: Math.max(0, batch.availableQty - qtyToMinus),
+            allocatedQty: Math.max(0, batch.allocatedQty - qtyToMinus),
+          };
+        }
+        return batch;
+      });
+    });
+
+    // 3. Task 2: Deduct dispatched quantities from Monthly Plans & update remaining balance
+    setMonthlyPlans((prevPlans) => {
+      return prevPlans.map((plan) => {
+        let planModified = false;
+        let addedDeliveredQty = 0;
+
+        const updatedItems = plan.items.map((planItem) => {
+          const matchedDelivItem = newDeliv.items.find((di) => di.itemCode === planItem.itemCode);
+          if (matchedDelivItem && (plan.customer === newDeliv.customer || !newDeliv.customer || plan.id === newDeliv.salesOrderId)) {
+            planModified = true;
+            const newDelivered = (planItem.deliveredQty || 0) + matchedDelivItem.dispatchQty;
+            const newInvoiced = (planItem.invoicedQty || 0) + matchedDelivItem.dispatchQty;
+            const newRemaining = Math.max(0, planItem.plannedQty - newDelivered);
+            addedDeliveredQty += matchedDelivItem.dispatchQty;
+            return {
+              ...planItem,
+              deliveredQty: newDelivered,
+              invoicedQty: newInvoiced,
+              remainingQty: newRemaining,
+            };
+          }
+          return planItem;
+        });
+
+        if (planModified) {
+          const newTotalSupplied = (plan.totalDailySuppliedQty || 0) + addedDeliveredQty;
+          const newRemainingPlan = Math.max(0, (plan.remainingPlanQty || plan.totalPlannedQty) - addedDeliveredQty);
+          return {
+            ...plan,
+            items: updatedItems,
+            totalDailySuppliedQty: newTotalSupplied,
+            remainingPlanQty: newRemainingPlan,
+            status: newRemainingPlan <= 0 ? ('Fully Supplied' as const) : ('Partially Supplied' as const),
+            auditTrail: [
+              ...(plan.auditTrail || []),
+              {
+                action: `Dispatched & Invoiced: ${addedDeliveredQty.toLocaleString()} PCS (Invoice: ${newEInv?.invoiceNumber || newDeliv.invoiceNumber || newDeliv.id})`,
+                user: 'Invoice & Dispatch Automation Engine',
+                timestamp: new Date().toISOString().replace('T', ' ').slice(0, 16),
+                note: `Remaining Monthly Demand Balance: ${newRemainingPlan.toLocaleString()} PCS`,
+              },
+            ],
+          };
+        }
+        return plan;
+      });
+    });
+
+    // 4. Task 2: Deduct dispatched quantities from Sales Orders (Daily & Monthly Plan Orders)
+    setPlasticSalesOrders((prevOrders) => {
+      return prevOrders.map((so) => {
+        const isDirectSo = so.id === newDeliv.salesOrderId || so.customerPoNumber === newDeliv.salesOrderId;
+        const isMatchingPlanOrder = so.orderType === 'Monthly Plan Order' && (so.customer === newDeliv.customer || so.id === newDeliv.salesOrderId);
+
+        if (isDirectSo || isMatchingPlanOrder) {
+          let orderTotalDelivered = 0;
+          const updatedLines = so.lines.map((line) => {
+            const delivItem = newDeliv.items.find((di) => di.itemCode === line.itemCode);
+            if (delivItem) {
+              const newDelivered = (line.deliveredQty || 0) + delivItem.dispatchQty;
+              const newInvoiced = (line.invoicedQty || 0) + delivItem.dispatchQty;
+              const newRemaining = Math.max(0, line.orderedQty - newDelivered);
+              orderTotalDelivered += newDelivered;
+              return {
+                ...line,
+                deliveredQty: newDelivered,
+                invoicedQty: newInvoiced,
+                remainingQty: newRemaining,
+                status: newRemaining <= 0 ? ('Dispatched' as const) : ('Allocated' as const),
+              };
+            }
+            return line;
+          });
+
+          const totalOrdered = so.lines.reduce((s, l) => s + (l.orderedQty || 0), 0);
+          const allDelivered = updatedLines.every((l) => l.remainingQty <= 0);
+
+          return {
+            ...so,
+            lines: updatedLines,
+            deliveredValue: Math.round(((orderTotalDelivered || 1) / (totalOrdered || 1)) * so.totalOrderValue),
+            invoicedValue: Math.round(((orderTotalDelivered || 1) / (totalOrdered || 1)) * so.totalOrderValue),
+            remainingValue: Math.max(0, so.totalOrderValue - Math.round(((orderTotalDelivered || 1) / (totalOrdered || 1)) * so.totalOrderValue)),
+            deliveryStatus: allDelivered ? ('Fully Delivered' as const) : ('Partially Delivered' as const),
+            invoiceStatus: allDelivered ? ('Fully Invoiced' as const) : ('Partially Invoiced' as const),
+            status: allDelivered ? ('Delivered' as const) : ('Partially Delivered' as const),
+          };
+        }
+        return so;
+      });
+    });
+
+    // 5. Broadcast global inventory & invoice events
+    adminEventBus.emit('INVOICE_CREATED', newEInv || { invoiceNumber: newDeliv.invoiceNumber, deliveryId: newDeliv.id });
+    adminEventBus.emit('STOCK_UPDATED', { source: 'Invoice/Dispatch', deliveryId: newDeliv.id });
+    adminEventBus.emit('MONTHLY_PLAN_UPDATED', { deliveryId: newDeliv.id });
+
     setSelectedDelivery(null);
     setDispatchSubNav('challans');
-    showToast(`Delivery Challan ${newDeliv.id} created. All-in-One E-Invoice, E-Way Bill & Gate Pass generated!`);
+    showToast(`Delivery Challan ${newDeliv.id} & Tax Invoice generated! Warehouse stock deducted and Monthly Plan updated.`);
     onNavigate('deliveryChallans');
   };
 

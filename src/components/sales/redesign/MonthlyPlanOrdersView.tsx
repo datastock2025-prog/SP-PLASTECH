@@ -296,6 +296,11 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
   const [activeTab, setActiveTab] = useState<string>('All Plans');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Synchronize internal state when propPlans updates from parent
+  useEffect(() => {
+    setPlans(propPlans);
+  }, [propPlans]);
+
   // Dynamically load all created plants from Master Data & Admin Service and track plant creation events
   const [createdPlants, setCreatedPlants] = useState<Array<{ id: string; code?: string; name: string; location?: string }>>(() => {
     return masterDataGovernanceService.getPlants();

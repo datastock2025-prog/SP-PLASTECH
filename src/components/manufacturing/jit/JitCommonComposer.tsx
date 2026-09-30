@@ -14,6 +14,8 @@ import {
   Fingerprint,
   Lock,
   ShieldCheck,
+  Target,
+  Zap,
 } from 'lucide-react';
 import { MachineMaster, ItemMaster, BomMaster, AuthUser } from '../../../types';
 import { MoldMaster } from '../../../data/manufacturingData';
@@ -21,6 +23,7 @@ import { PlannedMachineJob, JitShift, StoreInventoryNode } from './jitTypes';
 import { JitItemAutocomplete } from './JitItemAutocomplete';
 import { JitOperatorAutocomplete } from './JitOperatorAutocomplete';
 import { useAuthContext } from '../../../shared/components/RequireAuth';
+import { INITIAL_MONTHLY_PLANS, INITIAL_PLASTIC_SALES_ORDERS } from '../../../data/salesOrderDeliveryData';
 import {
   calculatePcsFromHours,
   calculateHoursFromPcs,
@@ -166,6 +169,65 @@ export const JitCommonComposer: React.FC<Props> = ({
 
   // Day load percentage (assuming 24h day)
   const dayLoadPct = Math.min(100, Math.round((plannedHours / 24) * 100));
+
+  // Derived Target Month Name from planDate (e.g. "2026-09-15" -> "September 2026")
+  const monthPeriodName = useMemo(() => {
+    try {
+      const d = new Date(planDate || Date.now());
+      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      return `${months[d.getMonth()]} ${d.getFullYear()}`;
+    } catch {
+      return 'September 2026';
+    }
+  }, [planDate]);
+
+  // Read monthly SO demand for selected SKU for the target month
+  const itemMonthlySoQty = useMemo(() => {
+    if (!selectedItemCode) return 0;
+    let totalSoQty = 0;
+
+    // Check INITIAL_MONTHLY_PLANS
+    INITIAL_MONTHLY_PLANS.forEach((p) => {
+      if (p.monthPeriod === monthPeriodName || !p.monthPeriod) {
+        const item = p.items.find((it) => it.itemCode === selectedItemCode);
+        if (item) totalSoQty += item.plannedQty || 0;
+      }
+    });
+
+    // Also check INITIAL_PLASTIC_SALES_ORDERS
+    INITIAL_PLASTIC_SALES_ORDERS.forEach((so) => {
+      if (so.orderType === 'Monthly Plan Order' && (so.monthlyPlanPeriod === monthPeriodName || !so.monthlyPlanPeriod)) {
+        const line = so.lines.find((l) => l.itemCode === selectedItemCode);
+        if (line && !INITIAL_MONTHLY_PLANS.some((p) => p.id === so.id)) {
+          totalSoQty += line.orderedQty || 0;
+        }
+      }
+    });
+
+    return totalSoQty;
+  }, [selectedItemCode, monthPeriodName]);
+
+  // Scheduled this month in work orders & jobs
+  const itemScheduledThisMonth = useMemo(() => {
+    if (!selectedItemCode) return 0;
+    let sum = 0;
+    try {
+      const savedJobsRaw = localStorage.getItem('sp_jit_production_jobs');
+      if (savedJobsRaw) {
+        const savedJobs = JSON.parse(savedJobsRaw);
+        if (Array.isArray(savedJobs)) {
+          savedJobs.forEach((j: any) => {
+            if (j.itemCode === selectedItemCode && (j.planDate || '').startsWith(planDate.slice(0, 7))) {
+              sum += j.calculatedPcs || 0;
+            }
+          });
+        }
+      }
+    } catch {}
+    return sum;
+  }, [selectedItemCode, planDate]);
+
+  const itemRemainingSoQty = Math.max(0, itemMonthlySoQty - itemScheduledThisMonth);
 
   // Explode estimated recipe demands for preview with Plant-specific store
   const lines = bom?.lines || [];
@@ -653,6 +715,46 @@ export const JitCommonComposer: React.FC<Props> = ({
               </span>
             </div>
           </div>
+
+          {/* Task 1: Monthly Sales Order Demand Context Box */}
+          {selectedItemCode && (
+            <div className="bg-gradient-to-br from-blue-50/90 via-indigo-50/60 to-slate-50 border border-indigo-200/90 rounded-xl p-3 text-xs space-y-2 shadow-2xs animate-fade-in">
+              <div className="flex items-center justify-between">
+                <span className="font-black text-indigo-950 flex items-center gap-1.5 text-[11px]">
+                  <Target className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Monthly SO Commitment ({monthPeriodName}):</span>
+                </span>
+                <span className="font-mono font-black text-xs text-indigo-700 bg-white px-2 py-0.5 rounded-md border border-indigo-200 shadow-2xs">
+                  {itemMonthlySoQty.toLocaleString()} PCS
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-indigo-100 text-[11px]">
+                <div>
+                  <span className="text-slate-500 text-[10px] block">Scheduled This Month:</span>
+                  <span className="font-bold text-slate-800 font-mono">{itemScheduledThisMonth.toLocaleString()} PCS</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-[10px] block">Unscheduled SO Balance:</span>
+                  <span className={`font-black font-mono ${itemRemainingSoQty > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                    {itemRemainingSoQty.toLocaleString()} PCS
+                  </span>
+                </div>
+              </div>
+
+              {itemRemainingSoQty > 0 && (
+                <button
+                  type="button"
+                  onClick={() => handleTotalQtyChange(itemRemainingSoQty)}
+                  className="w-full mt-1 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                  title="Click to automatically fill the remaining monthly SO demand as the target run quantity"
+                >
+                  <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+                  <span>Load Remaining Monthly SO Demand ({itemRemainingSoQty.toLocaleString()} PCS)</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 2. MOLD TOOLING & CAVITIES (md:col-span-3) */}

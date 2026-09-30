@@ -182,8 +182,117 @@ export const INITIAL_ORDER_RELATIONSHIPS: OrderRelationship[] = [
   },
 ];
 
-// Sales Orders (Independent Daily Orders + Contract releases)
+// Helper function to map a Monthly Plan Order to a PlasticSalesOrder in SO Register
+export const mapMonthlyPlanToSalesOrder = (plan: MonthlyPlanOrder): PlasticSalesOrder => {
+  const isPimpri = plan.plant?.includes('Pimpri') || plan.plant?.includes('Plant 1');
+  const city = isPimpri ? 'Pune' : 'Chakan';
+  const deliveredVal = Math.round((plan.totalDailySuppliedQty / (plan.totalPlannedQty || 1)) * plan.totalPlannedValue * 1.18);
+  const remainingVal = Math.round((plan.remainingPlanQty / (plan.totalPlannedQty || 1)) * plan.totalPlannedValue * 1.18);
+  const isFullyDelivered = plan.remainingPlanQty <= 0 && plan.totalDailySuppliedQty >= plan.totalPlannedQty;
+
+  return {
+    id: plan.id,
+    orderType: 'Monthly Plan Order',
+    customer: plan.customer,
+    customerGstin: plan.customerGstin || '27AAACG0943A1ZX',
+    customerPoNumber: `PO-${plan.id}`,
+    customerPoDate: plan.createdDate || '2026-09-01',
+    orderDate: plan.createdDate || '2026-09-01',
+    requiredDeliveryDate: plan.createdDate ? `${plan.createdDate.slice(0, 7)}-30` : '2026-09-30',
+    monthlyPlanPeriod: plan.monthPeriod,
+    monthlyPlanRef: plan.id,
+    linkType: 'Manually Mapped',
+    salesperson: 'Central S&OP Demand Planning',
+    currency: 'INR',
+    paymentTerms: 'Net 30 Days',
+    priceList: 'Central Price Master',
+    plant: plan.plant || 'Plant 1 - Pimpri Auto-Hub',
+    fgStore: plan.fgStore || 'FG-Automotive Cell',
+    billingAddress: {
+      line1: 'Corporate Headquarters / Central Works',
+      city,
+      state: 'Maharashtra',
+      pincode: '411018',
+      gstin: plan.customerGstin || '27AAACG0943A1ZX',
+      placeOfSupply: '27-Maharashtra',
+    },
+    shippingAddress: {
+      line1: 'Central Receiving Bay 1',
+      city,
+      state: 'Maharashtra',
+      pincode: '411018',
+      gstin: plan.customerGstin || '27AAACG0943A1ZX',
+      dispatchPoint: `${plan.plant || 'Plant 1'} Dispatch Dock`,
+    },
+    status: isFullyDelivered ? 'Delivered' : 'Confirmed',
+    creditStatus: 'Approved',
+    creditLimit: 15000000,
+    currentExposure: 0,
+    availableCredit: 15000000,
+    deliveryStatus: plan.totalDailySuppliedQty > 0 ? (isFullyDelivered ? 'Fully Delivered' : 'Partially Delivered') : 'Not Started',
+    invoiceStatus: plan.totalDailySuppliedQty > 0 ? (isFullyDelivered ? 'Fully Invoiced' : 'Partially Invoiced') : 'Uninvoiced',
+    eInvoiceStatus: 'Not Required',
+    eWayBillStatus: 'Not Required',
+    taxableAmount: plan.totalPlannedValue,
+    cgstTotal: Math.round(plan.totalPlannedValue * 0.09),
+    sgstTotal: Math.round(plan.totalPlannedValue * 0.09),
+    igstTotal: 0,
+    cessTotal: 0,
+    freightAmount: 0,
+    packingAmount: 0,
+    totalOrderValue: Math.round(plan.totalPlannedValue * 1.18),
+    deliveredValue: deliveredVal,
+    invoicedValue: deliveredVal,
+    remainingValue: remainingVal,
+    transportMode: 'Road',
+    transporterName: 'VRL Logistics Ltd',
+    transporterGstin: '29AABCV1234F1Z1',
+    incoterms: 'DAP - Delivered At Place',
+    deliveryTerms: 'Monthly Schedule JIT Deliveries',
+    packagingInstructions: 'Standard corrugated master cartons',
+    eInvoiceRequired: true,
+    eWayBillRequired: true,
+    lines: (plan.items || []).map((it, idx) => ({
+      lineNumber: idx + 1,
+      itemCode: it.itemCode,
+      itemName: it.itemName,
+      customerItemCode: it.customerItemCode,
+      hsn: it.hsn || '39269099',
+      orderedQty: it.plannedQty,
+      allocatedQty: it.deliveredQty || 0,
+      pickedQty: it.deliveredQty || 0,
+      packedQty: it.deliveredQty || 0,
+      deliveredQty: it.deliveredQty || 0,
+      invoicedQty: it.invoicedQty || 0,
+      remainingQty: it.remainingQty !== undefined ? it.remainingQty : Math.max(0, it.plannedQty - (it.deliveredQty || 0)),
+      uom: it.uom || 'PCS',
+      plant: it.plant || plan.plant || 'Plant 1 - Pimpri Auto-Hub',
+      fgStore: it.fgStore || plan.fgStore || 'FG-Automotive Cell',
+      requestedDeliveryDate: plan.createdDate ? `${plan.createdDate.slice(0, 7)}-30` : '2026-09-30',
+      availableStock: 10000,
+      reservedStock: 0,
+      shortageQty: 0,
+      status: (it.remainingQty || 0) <= 0 ? 'Dispatched' : 'In Stock',
+      unitPrice: it.rate || 50,
+      discountPct: 0,
+      taxableValue: (it.plannedQty || 0) * (it.rate || 50),
+      gstRatePct: 18,
+      cgstAmount: Math.round((it.plannedQty || 0) * (it.rate || 50) * 0.09),
+      sgstAmount: Math.round((it.plannedQty || 0) * (it.rate || 50) * 0.09),
+      igstAmount: 0,
+      cessAmount: 0,
+      totalValue: Math.round((it.plannedQty || 0) * (it.rate || 50) * 1.18),
+    })),
+    auditTrail: plan.auditTrail || [
+      { action: 'Monthly Master Plan Committed', user: 'Central S&OP Demand Planning', timestamp: new Date().toISOString().slice(0, 16).replace('T', ' ') }
+    ],
+  };
+};
+
+// Sales Orders (Independent Daily Orders + Monthly Plan Orders + Contract releases)
 export const INITIAL_PLASTIC_SALES_ORDERS: PlasticSalesOrder[] = [
+  // Initial Monthly Plans as Master Sales Orders (Visible in SO Register under Monthly Plan Orders)
+  ...INITIAL_MONTHLY_PLANS.map(mapMonthlyPlanToSalesOrder),
   {
     id: 'SO-5001',
     orderType: 'Daily Sales Order',

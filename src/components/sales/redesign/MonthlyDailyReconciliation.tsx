@@ -44,19 +44,43 @@ export const MonthlyDailyReconciliation: React.FC<MonthlyDailyReconciliationProp
   const [mappingReason, setMappingReason] = useState('JIT Call-Off synchronization against September forecast');
   const [mappingType, setMappingType] = useState('Reconciliation Only');
 
-  // Customer options
-  const customers = Array.from(new Set(monthlyPlans.map((p) => p.customer)));
+  // Customer options (include 'All Customers' option)
+  const customers = useMemo(() => ['All Customers', ...Array.from(new Set(monthlyPlans.map((p) => p.customer)))], [monthlyPlans]);
 
-  // Filtered monthly plans
-  const filteredPlans = monthlyPlans.filter(
-    (p) => p.customer === selectedCustomer && p.monthPeriod === selectedPeriod
-  );
+  // Filtered monthly plans for selected customer / period
+  const filteredPlans = useMemo(() => {
+    return monthlyPlans.filter((p) => {
+      const matchCust = selectedCustomer === 'All Customers' || p.customer === selectedCustomer;
+      const matchPeriod = p.monthPeriod === selectedPeriod;
+      return matchCust && matchPeriod;
+    });
+  }, [monthlyPlans, selectedCustomer, selectedPeriod]);
+
   const activePlan = monthlyPlans.find((p) => p.id === selectedPlanId) || filteredPlans[0];
 
+  // Month-end SO vs Dispatch vs Invoiced Totals across all plans in selected period
+  const monthPeriodTotals = useMemo(() => {
+    const plansForPeriod = monthlyPlans.filter((p) => p.monthPeriod === selectedPeriod);
+    const totalPlanned = plansForPeriod.reduce((sum, p) => sum + (p.totalPlannedQty || 0), 0);
+    const totalDispatched = plansForPeriod.reduce((sum, p) => sum + (p.totalDailySuppliedQty || 0), 0);
+    const totalRemaining = plansForPeriod.reduce((sum, p) => sum + (p.remainingPlanQty || 0), 0);
+    const totalVal = plansForPeriod.reduce((sum, p) => sum + (p.totalPlannedValue || 0), 0);
+    const fulfillPct = totalPlanned > 0 ? Math.min(100, Math.round((totalDispatched / totalPlanned) * 100)) : 0;
+
+    return {
+      totalPlanned,
+      totalDispatched,
+      totalRemaining,
+      totalVal,
+      fulfillPct,
+      planCount: plansForPeriod.length,
+    };
+  }, [monthlyPlans, selectedPeriod]);
+
   // Filtered daily orders for customer
-  const filteredDailyOrders = dailyOrders.filter(
-    (d) => d.customer === selectedCustomer
-  );
+  const filteredDailyOrders = useMemo(() => {
+    return dailyOrders.filter((d) => selectedCustomer === 'All Customers' || d.customer === selectedCustomer);
+  }, [dailyOrders, selectedCustomer]);
 
   // Toggle selection
   const handleToggleSo = (soId: string) => {
@@ -128,23 +152,81 @@ export const MonthlyDailyReconciliation: React.FC<MonthlyDailyReconciliationProp
             </h1>
           </div>
           <p className="text-xs text-gray-500 mt-0.5">
-            Manual reconciliation bridge between broad monthly commitments and independent daily dispatches.
+            Month-end audit and reconciliation between sales commitments (SO) and actual factory dispatches.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={() => showToast('AI Auto-Suggestion: Mapped SO-5001 to PLN-2026-09-01 based on customer and part codes.')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5 text-indigo-600" /> Auto-Suggest Mappings
           </button>
           <button
-            onClick={() => showToast('Exported Reconciliation Audit Report (PDF).')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-xs font-semibold"
+            onClick={() => showToast(`Exported Month-End SO vs Dispatch Reconciliation Report (${selectedPeriod}).`)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-xs font-semibold cursor-pointer"
           >
-            <Download className="w-3.5 h-3.5 text-gray-600" /> Export Audit
+            <Download className="w-3.5 h-3.5 text-gray-600" /> Export Month-End Audit
           </button>
+        </div>
+      </div>
+
+      {/* Task 2: Month-End Executive Reconciliation KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-2xs space-y-1">
+          <div className="text-[11px] text-gray-500 font-medium flex items-center justify-between">
+            <span>Total Monthly Planned SO</span>
+            <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded font-bold">{selectedPeriod}</span>
+          </div>
+          <div className="text-xl font-black text-gray-900 font-mono">
+            {monthPeriodTotals.totalPlanned.toLocaleString()} <span className="text-xs font-normal text-gray-500">PCS</span>
+          </div>
+          <div className="text-[11px] text-gray-500">
+            Valuation: <strong>₹{(monthPeriodTotals.totalVal / 100000).toFixed(2)} Lakhs</strong> ({monthPeriodTotals.planCount} Customer Plans)
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-2xs space-y-1">
+          <div className="text-[11px] text-gray-500 font-medium flex items-center justify-between">
+            <span>Actual Dispatched &amp; Invoiced</span>
+            <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-bold">{monthPeriodTotals.fulfillPct}% Fulfilled</span>
+          </div>
+          <div className="text-xl font-black text-emerald-700 font-mono">
+            {monthPeriodTotals.totalDispatched.toLocaleString()} <span className="text-xs font-normal text-gray-500">PCS</span>
+          </div>
+          <div className="w-full bg-gray-100 rounded-full h-1.5 mt-1 overflow-hidden">
+            <div
+              className="bg-emerald-600 h-1.5 rounded-full"
+              style={{ width: `${monthPeriodTotals.fulfillPct}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-2xs space-y-1">
+          <div className="text-[11px] text-gray-500 font-medium flex items-center justify-between">
+            <span>Remaining SO Demand Balance</span>
+            <span className="text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded font-bold">Unfulfilled</span>
+          </div>
+          <div className="text-xl font-black text-amber-700 font-mono">
+            {monthPeriodTotals.totalRemaining.toLocaleString()} <span className="text-xs font-normal text-gray-500">PCS</span>
+          </div>
+          <div className="text-[11px] text-gray-500">
+            Pending Dispatch Call-Offs: {Math.round((monthPeriodTotals.totalRemaining / (monthPeriodTotals.totalPlanned || 1)) * 100)}%
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-2xs space-y-1">
+          <div className="text-[11px] text-gray-500 font-medium flex items-center justify-between">
+            <span>Month-End Recon Status</span>
+            <span className="text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded font-bold">Audit Live</span>
+          </div>
+          <div className="text-base font-black text-indigo-900 font-mono pt-1">
+            {monthPeriodTotals.totalRemaining === 0 ? '✓ 100% Fully Dispatched' : `⚠️ In-Progress (${monthPeriodTotals.totalRemaining.toLocaleString()} PCS Bal)`}
+          </div>
+          <div className="text-[11px] text-indigo-700">
+            Linked SO Mappings: <strong>{relationships.length} active mappings</strong>
+          </div>
         </div>
       </div>
 
@@ -172,6 +254,7 @@ export const MonthlyDailyReconciliation: React.FC<MonthlyDailyReconciliationProp
           >
             <option value="September 2026">September 2026</option>
             <option value="October 2026">October 2026</option>
+            <option value="November 2026">November 2026</option>
           </select>
         </div>
 
