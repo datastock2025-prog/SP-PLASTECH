@@ -603,7 +603,20 @@ export const SalesViews: React.FC<SalesProps> = ({
           <MonthlyPlanOrdersView
             monthlyPlans={monthlyPlans}
             dailyOrders={plasticSalesOrders}
-            onNavigate={onNavigate}
+            onNavigate={(targetView, param) => {
+              if (targetView === 'soWizard' || targetView === 'soCreate') {
+                if (param?.defaultOrderType) {
+                  setWizardDefaultType(param.defaultOrderType);
+                } else {
+                  setWizardDefaultType('Monthly Plan Order');
+                }
+                setSalesSubNav('wizard');
+              } else if (targetView === 'purchaseReqList' || targetView === 'prList' || targetView === 'purchaseRequisitions') {
+                onNavigate('purchaseReqList', param);
+              } else {
+                onNavigate(targetView, param);
+              }
+            }}
             onCreatePlan={handleSaveMonthlyPlan}
             initialCreateOpen={isCreatePlanModalOpen}
             onCloseCreateModal={() => setIsCreatePlanModalOpen(false)}

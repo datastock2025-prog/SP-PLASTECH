@@ -47,7 +47,8 @@ import {
   PlasticSalesOrder,
 } from '../../../types/salesOrderDeliveryTypes';
 import { addPurchaseRequisition } from '../../../data/procurementData';
-import { adminEventBus } from '../../../services/adminService';
+import { adminService, adminEventBus } from '../../../services/adminService';
+import { masterDataGovernanceService } from '../../../services/masterDataGovernanceService';
 import { PurchaseRequisition } from '../../../types/procurement';
 
 interface MonthlyPlanOrdersViewProps {
@@ -276,27 +277,98 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
   const [activeTab, setActiveTab] = useState<string>('All Plans');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Task-3: Plant-wise Scope Switcher (Purchase Manager can see All Plants; Plant Units see relative plan)
-  const [selectedPlantScope, setSelectedPlantScope] = useState<string>('All Plants');
+  // Dynamically load all created plants from Master Data & Admin Service and track plant creation events
+  const [createdPlants, setCreatedPlants] = useState<Array<{ id: string; code?: string; name: string; location?: string }>>(() => {
+    return masterDataGovernanceService.getPlants();
+  });
+
+  useEffect(() => {
+    const refreshPlants = () => {
+      const govPlants = masterDataGovernanceService.getPlants();
+      adminService.getPlants().then((live) => {
+        const map = new Map<string, { id: string; code?: string; name: string; location?: string }>();
+        govPlants.forEach((p) => map.set(p.code || p.id, p));
+        (live || []).forEach((p) => map.set(p.code || p.id, { id: p.id, code: p.code, name: p.name, location: p.location }));
+        setCreatedPlants(Array.from(map.values()));
+      }).catch(() => {
+        setCreatedPlants(govPlants);
+      });
+    };
+
+    refreshPlants();
+    adminEventBus.on('PLANT_CREATED', refreshPlants);
+    adminEventBus.on('PLANT_UPDATED', refreshPlants);
+    adminEventBus.on('PLANT_DELETED', refreshPlants);
+    adminEventBus.on('PLANT_MASTER_SAVED', refreshPlants);
+    adminEventBus.on('CATALOG_RELOADED', refreshPlants);
+    return () => {
+      adminEventBus.off('PLANT_CREATED', refreshPlants);
+      adminEventBus.off('PLANT_UPDATED', refreshPlants);
+      adminEventBus.off('PLANT_DELETED', refreshPlants);
+      adminEventBus.off('PLANT_MASTER_SAVED', refreshPlants);
+      adminEventBus.off('CATALOG_RELOADED', refreshPlants);
+    };
+  }, []);
+
+  // Operational View Scope Options: "All Units" + All Created Manufacturing Plants
+  const plantScopeOptions = useMemo(() => {
+    const options: Array<{ id: string; label: string; shortName: string; code?: string }> = [
+      { id: 'All Plants', label: '🏭 All Units (Central SCM / Purchase Manager View)', shortName: 'All Units' },
+    ];
+
+    const seen = new Set<string>();
+    createdPlants.forEach((p) => {
+      const id = p.name || p.code || p.id;
+      const key = (p.name || p.code || p.id).toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        options.push({
+          id,
+          label: `🏢 ${p.name || p.code}${p.location ? ` (${p.location})` : ''}`,
+          shortName: p.name || p.code || id,
+          code: p.code || p.id,
+        });
+      }
+    });
+
+    // Also include any plant listed in existing monthly plans
+    (propPlans || []).forEach((plan) => {
+      if (plan.plant && !seen.has(plan.plant.toLowerCase())) {
+        seen.add(plan.plant.toLowerCase());
+        options.push({
+          id: plan.plant,
+          label: `🏢 ${plan.plant}`,
+          shortName: plan.plant,
+          code: plan.plant,
+        });
+      }
+    });
+
+    return options;
+  }, [createdPlants, propPlans]);
+
+  // Login plant awareness: if user is assigned to e.g. Plant 1, scope initializes to that plant
+  const [selectedPlantScope, setSelectedPlantScope] = useState<string>(() => {
+    const activeStored = localStorage.getItem('sp_active_plant');
+    if (activeStored && activeStored !== 'PLANT-01' && activeStored !== 'ALL') {
+      return activeStored;
+    }
+    // Check if logged-in plant is Plant 1 / specific
+    if (activeStored === 'PLANT-01') return 'Plant 1';
+    return 'All Plants';
+  });
+
   const [isPlantScopeDropdownOpen, setIsPlantScopeDropdownOpen] = useState<boolean>(false);
   const [plantScopeSearch, setPlantScopeSearch] = useState<string>('');
 
-  const plantScopeOptions = [
-    { id: 'All Plants', label: '🏭 All Manufacturing Plants (Central Purchase Manager View)', shortName: 'All Plants' },
-    { id: 'Plant 1', label: '🏢 Plant 1 - Pimpri Auto-Hub', shortName: 'Plant 1 - Pimpri' },
-    { id: 'Plant 2', label: '🏢 Plant 2 - Chakan Packaging Plant', shortName: 'Plant 2 - Chakan' },
-    { id: 'Plant 3', label: '🏢 Plant 3 - Chennai Unit (Sanand EV)', shortName: 'Plant 3 - Chennai' },
-  ];
-
-  // Task-3: Plant-Wise Consolidated PR & BOM Shortage Engine Modal State
-  const [isConsolidatedPrModalOpen, setIsConsolidatedPrModalOpen] = useState<boolean>(false);
-  const [selectedConsolidatedPrPlant, setSelectedConsolidatedPrPlant] = useState<{
+  // Task-3: Streamlined Sales PR Modal State (Sales raises PR with need qty -> Procurement receives & explodes BOM)
+  const [isSalesPrModalOpen, setIsSalesPrModalOpen] = useState<boolean>(false);
+  const [selectedSalesPrPlan, setSelectedSalesPrPlan] = useState<{
     planId: string;
     monthPeriod: string;
     plantName: string;
     items: ConsolidatedPlanItem[];
   } | null>(null);
-  const [activePrDrilldownTab, setActivePrDrilldownTab] = useState<'overview' | 'bom' | 'preview'>('bom');
 
   // View Mode: 'master' | 'monthDetail' | 'duplicateWorkbench'
   const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(null);
@@ -348,6 +420,7 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
   const [dupSelectedMonth, setDupSelectedMonth] = useState('October');
   const [dupSelectedYear, setDupSelectedYear] = useState('2026');
   const [dupNotes, setDupNotes] = useState('');
+  const [customAdjustmentPct, setCustomAdjustmentPct] = useState<string>('2');
   const [dupItems, setDupItems] = useState<
     Array<{
       id: string;
@@ -488,33 +561,67 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
   const overallRemainingTally = overallPlannedQty - overallDispatchedQty;
   const overallPlannedValue = monthMasterPlans.reduce((sum, p) => sum + p.totalPlannedValue, 0);
 
-  // Filter Master Monthly Plans
+  // Filter Master Monthly Plans and scope strictly to selected plant if chosen
   const filteredMasterPlans = useMemo(() => {
-    return monthMasterPlans.filter((plan) => {
-      if (
-        selectedPlantScope !== 'All Plants' &&
-        !plan.plants.some((p) => p.toLowerCase().includes(selectedPlantScope.toLowerCase()))
-      ) {
-        return false;
-      }
+    return monthMasterPlans
+      .map((plan) => {
+        if (selectedPlantScope === 'All Plants') return plan;
 
-      if (activeTab === 'Partially Supplied' && plan.status !== 'Partially Supplied') return false;
-      if (activeTab === 'Fully Supplied' && plan.status !== 'Fully Supplied') return false;
-      if (activeTab === 'Active' && plan.status !== 'Active') return false;
+        const scopeLower = selectedPlantScope.toLowerCase();
+        // Match items by plant name, code, or identifier
+        const matchingItems = plan.items.filter((it) => {
+          const itemPlant = (it.plant || '').toLowerCase();
+          return (
+            itemPlant.includes(scopeLower) ||
+            scopeLower.includes(itemPlant) ||
+            (scopeLower.includes('plant 1') && itemPlant.includes('plant 1')) ||
+            (scopeLower.includes('plant 2') && itemPlant.includes('plant 2')) ||
+            (scopeLower.includes('plant 3') && itemPlant.includes('plant 3')) ||
+            (scopeLower.includes('plant 4') && itemPlant.includes('plant 4'))
+          );
+        });
 
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase();
-        const matchId = plan.planId.toLowerCase().includes(q);
-        const matchPeriod = plan.monthPeriod.toLowerCase().includes(q);
-        const matchCust = plan.customers.some((c) => c.toLowerCase().includes(q));
-        const matchPlant = plan.plants.some((p) => p.toLowerCase().includes(q));
-        const matchItem = plan.items.some(
-          (i) => i.itemCode.toLowerCase().includes(q) || i.itemName.toLowerCase().includes(q)
-        );
-        if (!matchId && !matchPeriod && !matchCust && !matchPlant && !matchItem) return false;
-      }
-      return true;
-    });
+        if (matchingItems.length === 0) return null;
+
+        const totalPlanned = matchingItems.reduce((s, it) => s + it.plannedQty, 0);
+        const totalDispatched = matchingItems.reduce((s, it) => s + it.deliveredQty, 0);
+        const totalVal = matchingItems.reduce((s, it) => s + it.totalValue, 0);
+        const pendingBal = totalPlanned - totalDispatched;
+        const matchingPlants = Array.from(new Set(matchingItems.map((i) => i.plant)));
+        const matchingCustomers = Array.from(new Set(matchingItems.map((i) => i.customer)));
+
+        return {
+          ...plan,
+          customers: matchingCustomers,
+          plants: matchingPlants,
+          totalPlannedQty: totalPlanned,
+          totalDispatchedQty: totalDispatched,
+          pendingBalanceQty: pendingBal,
+          totalPlannedValue: totalVal,
+          totalItemsCount: matchingItems.length,
+          items: matchingItems,
+        };
+      })
+      .filter((plan): plan is MonthMasterPlan => {
+        if (!plan) return false;
+
+        if (activeTab === 'Partially Supplied' && plan.status !== 'Partially Supplied') return false;
+        if (activeTab === 'Fully Supplied' && plan.status !== 'Fully Supplied') return false;
+        if (activeTab === 'Active' && plan.status !== 'Active') return false;
+
+        if (searchQuery) {
+          const q = searchQuery.toLowerCase();
+          const matchId = plan.planId.toLowerCase().includes(q);
+          const matchPeriod = plan.monthPeriod.toLowerCase().includes(q);
+          const matchCust = plan.customers.some((c) => c.toLowerCase().includes(q));
+          const matchPlant = plan.plants.some((p) => p.toLowerCase().includes(q));
+          const matchItem = plan.items.some(
+            (i) => i.itemCode.toLowerCase().includes(q) || i.itemName.toLowerCase().includes(q)
+          );
+          if (!matchId && !matchPeriod && !matchCust && !matchPlant && !matchItem) return false;
+        }
+        return true;
+      });
   }, [monthMasterPlans, activeTab, searchQuery, selectedPlantScope]);
 
   // Master Pagination
@@ -1166,21 +1273,52 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
             <span className="text-[11px] font-semibold text-slate-500">Quick Adjust:</span>
             <button
               onClick={() => handleApplyGrowthPercentage(5)}
-              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-200 text-[11px] font-semibold transition"
+              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-200 text-[11px] font-semibold transition cursor-pointer"
               title="Add 5% growth to all planned quantities"
             >
               +5% Forecast
             </button>
             <button
               onClick={() => handleApplyGrowthPercentage(10)}
-              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-200 text-[11px] font-semibold transition"
+              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-200 text-[11px] font-semibold transition cursor-pointer"
               title="Add 10% growth to all planned quantities"
             >
               +10% Forecast
             </button>
+
+            {/* Task-2: Custom % Input Box Option */}
+            <div className="flex items-center gap-1 bg-slate-100/90 px-2 py-0.5 rounded-lg border border-slate-300">
+              <span className="text-[10px] font-semibold text-slate-500">Custom:</span>
+              <input
+                type="number"
+                step="0.5"
+                placeholder="2"
+                value={customAdjustmentPct}
+                onChange={(e) => setCustomAdjustmentPct(e.target.value)}
+                className="w-12 px-1.5 py-0.5 bg-white border border-slate-300 rounded text-center text-xs font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
+                title="Enter custom percentage value to adjust (e.g. 2 for 2%)"
+              />
+              <span className="text-[11px] font-bold text-slate-600">%</span>
+              <button
+                type="button"
+                onClick={() => {
+                  const val = parseFloat(customAdjustmentPct);
+                  if (!isNaN(val)) {
+                    handleApplyGrowthPercentage(val);
+                  } else {
+                    handleApplyGrowthPercentage(2);
+                  }
+                }}
+                className="px-2 py-0.5 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded text-[11px] font-bold transition shadow-2xs cursor-pointer"
+                title={`Adjust all planned quantities by ${customAdjustmentPct || 2}%`}
+              >
+                Adjust
+              </button>
+            </div>
+
             <button
               onClick={handleCopyPrevDispatchedAll}
-              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-200 text-[11px] font-semibold transition"
+              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-200 text-[11px] font-semibold transition cursor-pointer"
               title="Set new planned quantities to previous month dispatched amounts"
             >
               Match Actuals
@@ -1771,11 +1909,12 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
 
             <div className="flex items-center gap-2 shrink-0">
               <button
-                onClick={() => setIsCreateModalOpen(true)}
+                onClick={() => onNavigate('soWizard', { defaultOrderType: 'Monthly Plan Order' })}
                 className="px-3.5 py-1.5 bg-[#0F8B8D] hover:bg-[#0d797b] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                title="Create Monthly Plan via 6-Step Sales Order Wizard"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Create Monthly Plan</span>
+                <span>+ Create Monthly Plan</span>
               </button>
               <button
                 onClick={() => onNavigate('purchaseReqList')}
@@ -2014,22 +2153,21 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
                               <span>+ Order</span>
                             </button>
 
-                            {/* Task-3: Consolidated Plant PR Drilldown (BOM Explosion & Net Need Stock) */}
+                            {/* Task-3: Raise PR with required demand quantities for Procurement */}
                             <button
                               onClick={() => {
-                                setSelectedConsolidatedPrPlant({
+                                setSelectedSalesPrPlan({
                                   planId: mPlan.planId,
                                   monthPeriod: mPlan.monthPeriod,
                                   plantName: mPlan.plants[0] || 'Plant 1 - Pimpri Auto-Hub',
                                   items: mPlan.items,
                                 });
-                                setActivePrDrilldownTab('bom');
-                                setIsConsolidatedPrModalOpen(true);
+                                setIsSalesPrModalOpen(true);
                               }}
                               className="px-2 py-1 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-md text-[11px] font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer"
-                              title="Explode BOM and Raise PR for this Plant & Plan"
+                              title="Raise Purchase Requisition for Procurement with required finished goods demand"
                             >
-                              <Sparkles className="w-3 h-3" />
+                              <Send className="w-3 h-3" />
                               <span>Raise PR</span>
                             </button>
 
@@ -2096,34 +2234,34 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
         </div>
       )}
 
-      {/* Task-3: Consolidated Plant BOM Explosion, Inventory Shortage & PR Generation Modal */}
-      {isConsolidatedPrModalOpen && selectedConsolidatedPrPlant && (
+      {/* Streamlined Sales PR Modal: Sales raises PR with demand qty -> Procurement receives & explodes BOM */}
+      {isSalesPrModalOpen && selectedSalesPrPlan && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden text-xs">
-            {/* Header Banner */}
-            <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-[#14213D] via-[#1c2d52] to-[#0F8B8D] text-white flex items-center justify-between">
-              <div className="flex items-center gap-3">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden text-xs">
+            {/* Header */}
+            <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-[#14213D] to-[#0F8B8D] text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
                 <div className="p-2 bg-white/10 rounded-xl">
-                  <Factory className="w-5 h-5 text-teal-300" />
+                  <Send className="w-5 h-5 text-teal-300" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-bold tracking-tight">
-                      Consolidated Plant BOM Material Explosion &amp; PR Shortage Engine
+                      Raise Purchase Requisition to Procurement
                     </h3>
                     <span className="px-2 py-0.5 rounded bg-teal-500/30 text-teal-200 border border-teal-400/40 text-[10px] font-mono font-bold">
-                      {selectedConsolidatedPrPlant.planId}
+                      {selectedSalesPrPlan.planId}
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-300 mt-0.5">
-                    Plant: <b>{selectedConsolidatedPrPlant.plantName}</b> &bull; Month: <b>{selectedConsolidatedPrPlant.monthPeriod}</b> &bull; Connected to Item Masters &amp; BOM Catalog
+                    Plant: <b>{selectedSalesPrPlan.plantName}</b> &bull; Month: <b>{selectedSalesPrPlan.monthPeriod}</b>
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => {
-                  setIsConsolidatedPrModalOpen(false);
-                  setSelectedConsolidatedPrPlant(null);
+                  setIsSalesPrModalOpen(false);
+                  setSelectedSalesPrPlan(null);
                 }}
                 className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition"
               >
@@ -2131,366 +2269,169 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
               </button>
             </div>
 
-            {/* Modal Tabs */}
-            <div className="flex items-center justify-between border-b border-gray-200 px-5 bg-slate-50 text-xs">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setActivePrDrilldownTab('bom')}
-                  className={`py-3 px-3 font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
-                    activePrDrilldownTab === 'bom'
-                      ? 'border-[#0F8B8D] text-[#0F8B8D]'
-                      : 'border-transparent text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>BOM Explosion &amp; Live Shortage Analysis</span>
-                </button>
-
-                <button
-                  onClick={() => setActivePrDrilldownTab('overview')}
-                  className={`py-3 px-3 font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
-                    activePrDrilldownTab === 'overview'
-                      ? 'border-[#0F8B8D] text-[#0F8B8D]'
-                      : 'border-transparent text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Package className="w-3.5 h-3.5" />
-                  <span>Planned Finished Goods ({selectedConsolidatedPrPlant.items.length} SKUs)</span>
-                </button>
-
-                <button
-                  onClick={() => setActivePrDrilldownTab('preview')}
-                  className={`py-3 px-3 font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
-                    activePrDrilldownTab === 'preview'
-                      ? 'border-[#0F8B8D] text-[#0F8B8D]'
-                      : 'border-transparent text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>PR Authorization &amp; Justification</span>
-                </button>
-              </div>
-
-              <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">
-                Single consolidated row &bull; Explodes all items into net shortage
-              </span>
-            </div>
-
             {/* Modal Body */}
             <div className="p-5 overflow-y-auto flex-1 space-y-4">
-              {(() => {
-                const exploded = computePlantBomExplosion(
-                  selectedConsolidatedPrPlant.plantName,
-                  selectedConsolidatedPrPlant.items
-                );
-                const grossKg = exploded.reduce((s, it) => s + (it.uom === 'KG' ? it.grossRequiredKg : 0), 0);
-                const stockKg = exploded.reduce((s, it) => s + (it.uom === 'KG' ? it.currentStockKg : 0), 0);
-                const netKg = exploded.reduce((s, it) => s + (it.uom === 'KG' ? it.netNeedKg : 0), 0);
-                const totalCost = exploded.reduce((s, it) => s + it.totalCost, 0);
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                <div className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                  Monthly Demand Commitment Overview
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-500 block uppercase font-bold">Total Finished Goods</span>
+                    <span className="text-base font-bold text-slate-900">
+                      {selectedSalesPrPlan.items.reduce((s, it) => s + (it.plannedQty || 0), 0).toLocaleString()} PCS
+                    </span>
+                  </div>
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200">
+                    <span className="text-[10px] text-slate-500 block uppercase font-bold">Total SKUs</span>
+                    <span className="text-base font-bold text-indigo-700">
+                      {selectedSalesPrPlan.items.length} Product Lines
+                    </span>
+                  </div>
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200 col-span-2 sm:col-span-1">
+                    <span className="text-[10px] text-slate-500 block uppercase font-bold">Committed Value</span>
+                    <span className="text-base font-bold text-[#0F8B8D]">
+                      ₹{(selectedSalesPrPlan.items.reduce((s, it) => s + it.totalValue, 0) / 100000).toFixed(2)} Lakhs
+                    </span>
+                  </div>
+                </div>
+              </div>
 
-                return (
-                  <>
-                    {/* Tab 1: Planned Finished Goods */}
-                    {activePrDrilldownTab === 'overview' && (
-                      <div className="space-y-3">
-                        <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl flex items-center justify-between text-xs text-blue-950">
-                          <span>
-                            Showing planned finished goods output committed for <b>{selectedConsolidatedPrPlant.plantName}</b>.
-                          </span>
-                          <span className="font-bold">
-                            Total Planned Output:{' '}
-                            {selectedConsolidatedPrPlant.items
-                              .reduce((s, i) => s + (i.plannedQty || 0), 0)
-                              .toLocaleString()}{' '}
-                            PCS
-                          </span>
-                        </div>
+              {/* FG Demand Lines Table */}
+              <div>
+                <div className="text-xs font-bold text-slate-700 mb-2 flex items-center justify-between">
+                  <span>Committed Finished Goods Demand Lines</span>
+                  <span className="text-[11px] text-slate-500 font-normal">
+                    (Procurement team will explode BOM &amp; allocate vendor quotas)
+                  </span>
+                </div>
+                <div className="border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50 text-slate-700 font-bold uppercase text-[10px] border-b border-slate-200 sticky top-0">
+                      <tr>
+                        <th className="p-2.5">Item Code &amp; Description</th>
+                        <th className="p-2.5">Customer</th>
+                        <th className="p-2.5 text-right">Required Qty</th>
+                        <th className="p-2.5 text-right">Master Rate</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {selectedSalesPrPlan.items.map((it) => (
+                        <tr key={it.id} className="hover:bg-slate-50">
+                          <td className="p-2.5">
+                            <div className="font-bold text-slate-900 font-mono text-[11px]">{it.itemCode}</div>
+                            <div className="text-[11px] text-slate-600">{it.itemName}</div>
+                          </td>
+                          <td className="p-2.5 text-slate-700">{it.customer}</td>
+                          <td className="p-2.5 text-right font-bold text-slate-900">
+                            {it.plannedQty.toLocaleString()} {it.uom}
+                          </td>
+                          <td className="p-2.5 text-right font-mono text-slate-700">₹{it.rate.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
-                        <div className="border border-slate-200 rounded-xl overflow-hidden">
-                          <table className="w-full text-left">
-                            <thead className="bg-slate-50 text-slate-700 font-bold uppercase text-[10px] border-b border-slate-200">
-                              <tr>
-                                <th className="p-2.5">Item Code</th>
-                                <th className="p-2.5">Finished Good Description</th>
-                                <th className="p-2.5">Customer</th>
-                                <th className="p-2.5 text-right">Planned Qty</th>
-                                <th className="p-2.5 text-right">Dispatched</th>
-                                <th className="p-2.5 text-right">Pending Balance</th>
-                                <th className="p-2.5 text-right">Unit Rate</th>
-                                <th className="p-2.5 text-right">Total Value</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {selectedConsolidatedPrPlant.items.map((it) => (
-                                <tr key={it.id} className="hover:bg-slate-50">
-                                  <td className="p-2.5 font-mono font-bold text-slate-900">{it.itemCode}</td>
-                                  <td className="p-2.5 font-semibold text-slate-800">{it.itemName}</td>
-                                  <td className="p-2.5 text-slate-600">{it.customer}</td>
-                                  <td className="p-2.5 text-right font-bold text-slate-900">
-                                    {it.plannedQty.toLocaleString()} {it.uom}
-                                  </td>
-                                  <td className="p-2.5 text-right font-medium text-emerald-700">
-                                    {it.deliveredQty.toLocaleString()}
-                                  </td>
-                                  <td className="p-2.5 text-right font-bold font-mono text-amber-800">
-                                    {it.remainingQty.toLocaleString()}
-                                  </td>
-                                  <td className="p-2.5 text-right text-slate-700">₹{it.rate.toFixed(2)}</td>
-                                  <td className="p-2.5 text-right font-bold text-slate-900">
-                                    ₹{it.totalValue.toLocaleString()}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-xs flex items-start gap-2">
+                <Info className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold">Next in Procurement Workflow:</span>
+                  <p className="text-[11px] text-blue-800 mt-0.5">
+                    Upon submission, this PR will land in the <b>Procurement PR Register</b> where purchase officers can view the live BOM explosion, shortage analysis, safety buffers, and select from recommended approved suppliers.
+                  </p>
+                </div>
+              </div>
+            </div>
 
-                    {/* Tab 2: BOM Material Explosion & Inventory Shortage */}
-                    {activePrDrilldownTab === 'bom' && (
-                      <div className="space-y-4">
-                        {/* Summary Metrics */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                            <div className="text-[10px] font-bold text-slate-500 uppercase">Gross Raw Material</div>
-                            <div className="text-lg font-bold text-slate-900 mt-0.5">{grossKg.toLocaleString()} KG</div>
-                            <div className="text-[10px] text-slate-400">Total BOM explosion requirement</div>
-                          </div>
+            {/* Footer */}
+            <div className="p-4 border-t border-gray-200 bg-slate-50 flex items-center justify-between">
+              <button
+                onClick={() => {
+                  setIsSalesPrModalOpen(false);
+                  setSelectedSalesPrPlan(null);
+                }}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg font-semibold transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const prNumber = `PR-2026-${Math.floor(100 + Math.random() * 900)}`;
+                  const totalPieces = selectedSalesPrPlan.items.reduce((s, it) => s + (it.plannedQty || 0), 0);
+                  const totalValue = selectedSalesPrPlan.items.reduce((s, it) => s + it.totalValue, 0);
 
-                          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                            <div className="text-[10px] font-bold text-slate-500 uppercase">Current Plant Stock</div>
-                            <div className="text-lg font-bold text-emerald-700 mt-0.5">{stockKg.toLocaleString()} KG</div>
-                            <div className="text-[10px] text-emerald-600">On-hand warehouse free stock</div>
-                          </div>
+                  const newPR: PurchaseRequisition = {
+                    id: prNumber,
+                    prNumber: prNumber,
+                    requestDate: new Date().toISOString().slice(0, 10),
+                    requestedBy: 'Sales Operations (Monthly Plan Commitment)',
+                    department: 'Sales & Demand Planning',
+                    plantWarehouse: `${selectedSalesPrPlan.plantName} Central Store`,
+                    requiredDate: new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10),
+                    priority: 'High',
+                    source: 'Monthly Plan Order',
+                    currency: 'INR (₹)',
+                    estimatedTotal: totalValue * 0.65, // Raw Material BOM estimate
+                    budgetAllocated: Math.round(totalValue * 0.8),
+                    budgetRemaining: Math.round(totalValue * 0.4),
+                    budgetExceeded: false,
+                    status: 'pending_approval',
+                    approvalStatus: 'pending',
+                    currentApprover: 'K. Ramanathan (Procurement VP)',
+                    justification: `Monthly sales demand requisition raised from Master Plan ${selectedSalesPrPlan.planId} (${selectedSalesPrPlan.monthPeriod}) for ${selectedSalesPrPlan.plantName}. Total ${totalPieces.toLocaleString()} finished goods committed.`,
+                    notes: `Contains ${selectedSalesPrPlan.items.length} finished goods line items. Procurement team to run BOM explosion and supplier quota allocation.`,
+                    lines: selectedSalesPrPlan.items.map((it, idx) => ({
+                      id: `PRL-${Math.floor(100 + Math.random() * 900)}-${idx + 1}`,
+                      lineNo: idx + 1,
+                      itemCode: it.itemCode,
+                      itemName: it.itemName,
+                      itemCategory: 'Finished Goods Demand',
+                      description: `Demand call-off for ${selectedSalesPrPlan.planId} (${it.customer})`,
+                      quantity: it.plannedQty,
+                      uom: it.uom || 'PCS',
+                      requiredDate: new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10),
+                      estimatedUnitPrice: it.rate,
+                      estimatedTotal: it.totalValue,
+                      salesOrderRef: selectedSalesPrPlan.planId,
+                      status: 'pending',
+                    })),
+                    approvalHistory: [
+                      {
+                        step: 1,
+                        role: 'Sales Operations Manager',
+                        user: 'Sales Operations',
+                        action: 'Approved',
+                        date: new Date().toISOString().slice(0, 10),
+                        comment: `Committed monthly demand submitted for ${selectedSalesPrPlan.monthPeriod}`,
+                      },
+                      {
+                        step: 2,
+                        role: 'Procurement Sourcing Lead',
+                        user: 'Procurement Team',
+                        action: 'Pending',
+                        comment: 'Pending BOM material explosion and supplier selection',
+                      },
+                    ],
+                  };
 
-                          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
-                            <div className="text-[10px] font-bold text-amber-800 uppercase">Net Shortage to Buy</div>
-                            <div className="text-lg font-bold text-amber-900 mt-0.5">{netKg.toLocaleString()} KG</div>
-                            <div className="text-[10px] text-amber-700">Gross &minus; Stock + Safety Buffer</div>
-                          </div>
+                  addPurchaseRequisition(newPR);
+                  adminEventBus.emit('PR_SAVED', newPR);
+                  adminEventBus.emit('PR_CREATED', newPR);
+                  adminEventBus.emit('PR_SUBMITTED_FOR_APPROVAL', newPR);
 
-                          <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl">
-                            <div className="text-[10px] font-bold text-teal-800 uppercase">Est. PR Budget Value</div>
-                            <div className="text-lg font-bold text-[#0F8B8D] mt-0.5">₹{(totalCost / 100000).toFixed(2)} Lakhs</div>
-                            <div className="text-[10px] text-teal-700">Based on approved vendor rates</div>
-                          </div>
-                        </div>
-
-                        {/* Exploded BOM Lines Table */}
-                        <div className="border border-slate-200 rounded-xl overflow-hidden">
-                          <table className="w-full text-left">
-                            <thead className="bg-slate-50 text-slate-700 font-bold uppercase text-[10px] border-b border-slate-200">
-                              <tr>
-                                <th className="p-2.5">Raw Material Code &amp; Name</th>
-                                <th className="p-2.5">Category</th>
-                                <th className="p-2.5 text-right">Gross Needed</th>
-                                <th className="p-2.5 text-right">Current Stock</th>
-                                <th className="p-2.5 text-right">Buffer</th>
-                                <th className="p-2.5 text-right font-bold text-amber-900">Net Need (PR Qty)</th>
-                                <th className="p-2.5">Suggested Approved Vendor</th>
-                                <th className="p-2.5 text-right">Unit Rate</th>
-                                <th className="p-2.5 text-right">Total Est. (₹)</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {exploded.map((mat) => (
-                                <tr key={mat.rawItemCode} className="hover:bg-slate-50">
-                                  <td className="p-2.5">
-                                    <div className="font-bold text-slate-900 font-mono text-[11px]">{mat.rawItemCode}</div>
-                                    <div className="text-[11px] text-slate-600 font-medium">{mat.rawItemName}</div>
-                                  </td>
-                                  <td className="p-2.5 text-slate-600">
-                                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-semibold">
-                                      {mat.category}
-                                    </span>
-                                  </td>
-                                  <td className="p-2.5 text-right font-semibold text-slate-800">
-                                    {mat.grossRequiredKg.toLocaleString()} {mat.uom}
-                                  </td>
-                                  <td className="p-2.5 text-right font-medium text-emerald-700">
-                                    {mat.currentStockKg.toLocaleString()} {mat.uom}
-                                  </td>
-                                  <td className="p-2.5 text-right text-slate-500">
-                                    {mat.safetyBufferKg.toLocaleString()} {mat.uom}
-                                  </td>
-                                  <td className="p-2.5 text-right font-bold font-mono">
-                                    <span
-                                      className={`px-2 py-0.5 rounded font-bold ${
-                                        mat.netNeedKg > 0
-                                          ? 'bg-amber-100 text-amber-900 border border-amber-200'
-                                          : 'bg-emerald-100 text-emerald-800'
-                                      }`}
-                                    >
-                                      {mat.netNeedKg.toLocaleString()} {mat.uom}
-                                    </span>
-                                  </td>
-                                  <td className="p-2.5 text-slate-800">
-                                    <div className="font-bold text-slate-900">{mat.suggestedSupplierName}</div>
-                                    <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
-                                      <span>Lead Time: <b>{mat.leadTimeDays}d</b></span>
-                                      <span>&bull;</span>
-                                      <span className="text-emerald-700 font-semibold">Score: {mat.supplierRating}%</span>
-                                    </div>
-                                  </td>
-                                  <td className="p-2.5 text-right font-semibold text-slate-800">
-                                    ₹{mat.unitPrice.toFixed(2)}
-                                  </td>
-                                  <td className="p-2.5 text-right font-bold text-slate-900 font-mono">
-                                    ₹{mat.totalCost.toLocaleString()}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Tab 3: PR Authorization & Justification */}
-                    {activePrDrilldownTab === 'preview' && (
-                      <div className="space-y-4">
-                        <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                          <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wide">
-                            Requisition Header &amp; Compliance Details
-                          </h4>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div>
-                              <span className="text-slate-500 block text-[11px]">Requisition Source</span>
-                              <span className="font-semibold text-slate-900">Monthly Plan Order ({selectedConsolidatedPrPlant.planId})</span>
-                            </div>
-                            <div>
-                              <span className="text-slate-500 block text-[11px]">Receiving Plant &amp; Store</span>
-                              <span className="font-semibold text-slate-900">{selectedConsolidatedPrPlant.plantName} Central Store</span>
-                            </div>
-                            <div>
-                              <span className="text-slate-500 block text-[11px]">Target Delivery Date</span>
-                              <span className="font-semibold text-slate-900">{new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10)}</span>
-                            </div>
-                          </div>
-
-                          <div>
-                            <span className="text-slate-500 block text-[11px] mb-1">Operational Justification</span>
-                            <p className="p-2.5 bg-white border border-slate-200 rounded-lg text-slate-700 text-xs">
-                              Automated BOM material replenishment generated for {selectedConsolidatedPrPlant.monthPeriod} commitments under Master Plan ID {selectedConsolidatedPrPlant.planId}. Ensures buffer levels and avoids plant production bottleneck.
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Approval Stage */}
-                        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                            <span className="font-bold text-emerald-950">
-                              Multi-tier Approval: Department Verification &rarr; Plant Budget Sign-off &rarr; Central Procurement VP
-                            </span>
-                          </div>
-                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-200 text-emerald-900 font-bold text-[10px]">
-                            Ready to Dispatch
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Modal Footer Actions */}
-                    <div className="p-4 border-t border-gray-200 bg-slate-50 flex items-center justify-between">
-                      <div className="text-slate-600 text-xs">
-                        Total {exploded.length} raw material lines &bull; Est. Budget:{' '}
-                        <b className="text-slate-900 font-mono">₹{(totalCost / 100000).toFixed(2)} Lakhs</b>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            setIsConsolidatedPrModalOpen(false);
-                            setSelectedConsolidatedPrPlant(null);
-                          }}
-                          className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg font-semibold transition cursor-pointer"
-                        >
-                          Close
-                        </button>
-                        <button
-                          onClick={() => {
-                            const prNumber = `PR-2026-${Math.floor(100 + Math.random() * 900)}`;
-                            const newPR: PurchaseRequisition = {
-                              id: prNumber,
-                              prNumber: prNumber,
-                              requestDate: new Date().toISOString().slice(0, 10),
-                              requestedBy: `${selectedConsolidatedPrPlant.plantName} Store & Planning Manager`,
-                              department: 'Store & Procurement',
-                              plantWarehouse: `${selectedConsolidatedPrPlant.plantName} Central Store`,
-                              requiredDate: new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10),
-                              priority: 'High',
-                              source: 'Monthly Plan Order',
-                              currency: 'INR (₹)',
-                              estimatedTotal: totalCost,
-                              budgetAllocated: Math.round(totalCost * 1.3),
-                              budgetRemaining: Math.round(totalCost * 0.3),
-                              budgetExceeded: false,
-                              status: 'pending_approval',
-                              approvalStatus: 'pending',
-                              currentApprover: 'K. Ramanathan (Procurement VP)',
-                              justification: `Automated BOM raw material requisition exploded from Monthly Master Plan ${selectedConsolidatedPrPlant.planId} (${selectedConsolidatedPrPlant.monthPeriod}) for ${selectedConsolidatedPrPlant.plantName}.`,
-                              notes: `BOM Explosion generated for ${exploded.length} critical raw materials to support committed monthly output.`,
-                              lines: exploded
-                                .filter((m) => m.netNeedKg > 0)
-                                .map((m, idx) => ({
-                                  id: `PRL-${Math.floor(100 + Math.random() * 900)}-${idx + 1}`,
-                                  lineNo: idx + 1,
-                                  itemCode: m.rawItemCode,
-                                  itemName: m.rawItemName,
-                                  itemCategory: m.category,
-                                  description: `BOM exploded raw material requirement for ${selectedConsolidatedPrPlant.planId} (${selectedConsolidatedPrPlant.plantName})`,
-                                  quantity: m.netNeedKg,
-                                  uom: m.uom,
-                                  requiredDate: new Date(Date.now() + 8 * 86400000).toISOString().slice(0, 10),
-                                  suggestedSupplierId: m.suggestedSupplierId,
-                                  suggestedSupplierName: m.suggestedSupplierName,
-                                  estimatedUnitPrice: m.unitPrice,
-                                  estimatedTotal: m.totalCost,
-                                  salesOrderRef: selectedConsolidatedPrPlant.planId,
-                                  status: 'pending',
-                                })),
-                              approvalHistory: [
-                                {
-                                  step: 1,
-                                  role: `${selectedConsolidatedPrPlant.plantName} Plant Head`,
-                                  user: 'Plant Operations Manager',
-                                  action: 'Approved',
-                                  date: new Date().toISOString().slice(0, 10),
-                                  comment: `Automated BOM explosion validated for ${selectedConsolidatedPrPlant.planId} demand requirements.`,
-                                },
-                                {
-                                  step: 2,
-                                  role: 'Purchase Manager',
-                                  user: 'Purchase Manager (You)',
-                                  action: 'Pending',
-                                  comment: 'Awaiting procurement rate & supplier confirmation',
-                                },
-                              ],
-                            };
-
-                            addPurchaseRequisition(newPR);
-                            adminEventBus.emit('PR_SAVED', newPR);
-                            adminEventBus.emit('PR_CREATED', newPR);
-                            adminEventBus.emit('PR_SUBMITTED_FOR_APPROVAL', newPR);
-
-                            showToast(
-                              `✓ Generated Purchase Requisition ${prNumber} for ${selectedConsolidatedPrPlant.plantName} (${newPR.lines.length} BOM lines recorded)!`
-                            );
-                            setIsConsolidatedPrModalOpen(false);
-                            setSelectedConsolidatedPrPlant(null);
-                          }}
-                          className="px-5 py-2 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <Send className="w-3.5 h-3.5" />
-                          <span>Generate &amp; Submit Purchase Requisition (PR)</span>
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
+                  showToast(
+                    `✓ Purchase Requisition ${prNumber} raised successfully and sent to Procurement for BOM explosion!`
+                  );
+                  setIsSalesPrModalOpen(false);
+                  setSelectedSalesPrPlan(null);
+                }}
+                className="px-5 py-2 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>Confirm &amp; Send to Procurement</span>
+              </button>
             </div>
           </div>
         </div>

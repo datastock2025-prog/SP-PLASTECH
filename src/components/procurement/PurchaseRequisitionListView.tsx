@@ -13,10 +13,17 @@ import {
   Calendar,
   Layers,
   ChevronRight,
+  Factory,
+  Package,
+  ShieldCheck,
+  X,
+  Send,
+  Building2,
 } from 'lucide-react';
 import { PurchaseRequisition } from '../../types/procurement';
 import { ProcurementStatusBadge } from './ProcurementStatusBadge';
 import { PaginationBar } from '../common/PaginationBar';
+import { computePlantBomExplosion } from '../../services/procurement/bomExplosionService';
 
 interface Props {
   prs: PurchaseRequisition[];
@@ -37,6 +44,11 @@ export const PurchaseRequisitionListView: React.FC<Props> = ({
   const [selectedSource, setSelectedSource] = useState<string>('All');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  // Task-3: BOM Explosion & Supplier Intelligence Modal state in Procurement
+  const [selectedPrForBom, setSelectedPrForBom] = useState<PurchaseRequisition | null>(null);
+  const [isBomModalOpen, setIsBomModalOpen] = useState<boolean>(false);
+  const [activeBomTab, setActiveBomTab] = useState<'bom' | 'suppliers' | 'preview'>('bom');
 
   const filteredPrs = useMemo(() => {
     return (prs || []).filter((pr) => {
@@ -214,9 +226,16 @@ export const PurchaseRequisitionListView: React.FC<Props> = ({
 
                     {/* Source */}
                     <td className="py-3 px-3">
-                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-semibold">
-                        {pr.source}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-semibold">
+                          {pr.source}
+                        </span>
+                        {(pr.source === 'Monthly Plan Order' || (pr.lines && pr.lines.length > 0)) && (
+                          <span className="px-1.5 py-0.2 rounded bg-teal-50 text-teal-700 border border-teal-200 text-[9px] font-bold">
+                            BOM Linked
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Lines Summary */}
@@ -266,19 +285,33 @@ export const PurchaseRequisitionListView: React.FC<Props> = ({
                     {/* Actions */}
                     <td className="py-3 px-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
+                        {/* Task-3: BOM Explosion & Supplier Suggestion Action */}
+                        <button
+                          onClick={() => {
+                            setSelectedPrForBom(pr);
+                            setActiveBomTab('bom');
+                            setIsBomModalOpen(true);
+                          }}
+                          className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded text-[11px] font-bold flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                          title="View Linked BOM Material Explosion & Approved Supplier Suggestions"
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          <span>BOM &amp; Vendors</span>
+                        </button>
+
                         <button
                           onClick={() => {
                             showToast(`Opening PO creation wizard with lines from ${pr.prNumber}`);
                             onNavigate('poList', { openCreateModal: true, sourcePr: pr.prNumber, pr: pr });
                           }}
-                          className="px-2.5 py-1 bg-[#0F8B8D] text-white rounded-lg text-[11px] font-semibold hover:bg-[#0d797b] transition shadow-2xs"
+                          className="px-2.5 py-1 bg-[#0F8B8D] text-white rounded-lg text-[11px] font-semibold hover:bg-[#0d797b] transition shadow-2xs cursor-pointer"
                         >
                           + Issue PO
                         </button>
                         {pr.status === 'pending_approval' && (
                           <button
                             onClick={() => onNavigate('prDetail', { id: pr.id })}
-                            className="px-2 py-1 bg-amber-600 text-white rounded text-[11px] font-semibold hover:bg-amber-700"
+                            className="px-2 py-1 bg-blue-600 text-white rounded text-[11px] font-semibold hover:bg-blue-700"
                           >
                             Review & Approve
                           </button>
@@ -311,6 +344,313 @@ export const PurchaseRequisitionListView: React.FC<Props> = ({
           itemName="requisitions"
         />
       </div>
+
+      {/* Task-3: Procurement BOM Material Explosion & Supplier Suggestion Intelligence Screen */}
+      {isBomModalOpen && selectedPrForBom && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in text-xs">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-[#14213D] via-[#1c2d52] to-[#0F8B8D] text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/10 rounded-xl">
+                  <Factory className="w-5 h-5 text-teal-300" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold tracking-tight">
+                      BOM Material Explosion &amp; Supplier Suggestion Engine
+                    </h3>
+                    <span className="px-2 py-0.5 rounded bg-teal-500/30 text-teal-200 border border-teal-400/40 text-[10px] font-mono font-bold">
+                      {selectedPrForBom.prNumber}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-0.5">
+                    Plant: <b>{selectedPrForBom.plantWarehouse || 'Plant 1 Central Store'}</b> &bull; Source: <b>{selectedPrForBom.source}</b> &bull; Requester: <b>{selectedPrForBom.requestedBy}</b>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsBomModalOpen(false);
+                  setSelectedPrForBom(null);
+                }}
+                className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 bg-slate-50 text-xs">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setActiveBomTab('bom')}
+                  className={`py-3 px-3 font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
+                    activeBomTab === 'bom'
+                      ? 'border-[#0F8B8D] text-[#0F8B8D]'
+                      : 'border-transparent text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>BOM Explosion &amp; Shortage Analysis</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveBomTab('suppliers')}
+                  className={`py-3 px-3 font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
+                    activeBomTab === 'suppliers'
+                      ? 'border-[#0F8B8D] text-[#0F8B8D]'
+                      : 'border-transparent text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Package className="w-3.5 h-3.5" />
+                  <span>Suggested Approved Vendors</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveBomTab('preview')}
+                  className={`py-3 px-3 font-bold border-b-2 transition flex items-center gap-1.5 cursor-pointer ${
+                    activeBomTab === 'preview'
+                      ? 'border-[#0F8B8D] text-[#0F8B8D]'
+                      : 'border-transparent text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>PR Authorization &amp; Justification</span>
+                </button>
+              </div>
+
+              <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">
+                Live Inventory &bull; Multi-level MRP Shortage &bull; Vendor Intelligence
+              </span>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto flex-1 space-y-4">
+              {(() => {
+                const exploded = computePlantBomExplosion(
+                  selectedPrForBom.plantWarehouse || 'Plant 1',
+                  selectedPrForBom.lines || []
+                );
+                const grossKg = exploded.reduce((s, it) => s + (it.uom === 'KG' ? it.grossRequiredKg : 0), 0);
+                const stockKg = exploded.reduce((s, it) => s + (it.uom === 'KG' ? it.currentStockKg : 0), 0);
+                const netKg = exploded.reduce((s, it) => s + (it.uom === 'KG' ? it.netNeedKg : 0), 0);
+                const totalCost = exploded.reduce((s, it) => s + it.totalCost, 0);
+
+                return (
+                  <>
+                    {/* Summary KPI Cards */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase">Gross Raw Material</div>
+                        <div className="text-lg font-bold text-slate-900 mt-0.5">{grossKg.toLocaleString()} KG</div>
+                        <div className="text-[10px] text-slate-400">Total BOM formulation requirement</div>
+                      </div>
+
+                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase">Current Plant Stock</div>
+                        <div className="text-lg font-bold text-emerald-700 mt-0.5">{stockKg.toLocaleString()} KG</div>
+                        <div className="text-[10px] text-emerald-600">On-hand warehouse free stock</div>
+                      </div>
+
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                        <div className="text-[10px] font-bold text-amber-800 uppercase">Net Shortage to Buy</div>
+                        <div className="text-lg font-bold text-amber-900 mt-0.5">{netKg.toLocaleString()} KG</div>
+                        <div className="text-[10px] text-amber-700">Gross &minus; Stock + Safety Buffer</div>
+                      </div>
+
+                      <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl">
+                        <div className="text-[10px] font-bold text-teal-800 uppercase">Est. Purchase Budget</div>
+                        <div className="text-lg font-bold text-[#0F8B8D] mt-0.5">₹{(totalCost / 100000).toFixed(2)} Lakhs</div>
+                        <div className="text-[10px] text-teal-700">Based on approved vendor rates</div>
+                      </div>
+                    </div>
+
+                    {/* Tab 1: Exploded BOM Lines Table */}
+                    {activeBomTab === 'bom' && (
+                      <div className="border border-slate-200 rounded-xl overflow-hidden">
+                        <table className="w-full text-left">
+                          <thead className="bg-slate-50 text-slate-700 font-bold uppercase text-[10px] border-b border-slate-200">
+                            <tr>
+                              <th className="p-2.5">Raw Material Code &amp; Name</th>
+                              <th className="p-2.5">Category</th>
+                              <th className="p-2.5 text-right">Gross Needed</th>
+                              <th className="p-2.5 text-right">Current Stock</th>
+                              <th className="p-2.5 text-right">Buffer</th>
+                              <th className="p-2.5 text-right font-bold text-amber-900">Net Need (PR Qty)</th>
+                              <th className="p-2.5">Suggested Vendor</th>
+                              <th className="p-2.5 text-right">Unit Rate</th>
+                              <th className="p-2.5 text-right">Total Est. (₹)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {exploded.map((mat) => (
+                              <tr key={mat.rawItemCode} className="hover:bg-slate-50">
+                                <td className="p-2.5">
+                                  <div className="font-bold text-slate-900 font-mono text-[11px]">{mat.rawItemCode}</div>
+                                  <div className="text-[11px] text-slate-600 font-medium">{mat.rawItemName}</div>
+                                </td>
+                                <td className="p-2.5 text-slate-600">
+                                  <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-semibold">
+                                    {mat.category}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 text-right font-semibold text-slate-800">
+                                  {mat.grossRequiredKg.toLocaleString()} {mat.uom}
+                                </td>
+                                <td className="p-2.5 text-right font-medium text-emerald-700">
+                                  {mat.currentStockKg.toLocaleString()} {mat.uom}
+                                </td>
+                                <td className="p-2.5 text-right text-slate-500">
+                                  {mat.safetyBufferKg.toLocaleString()} {mat.uom}
+                                </td>
+                                <td className="p-2.5 text-right font-bold font-mono">
+                                  <span
+                                    className={`px-2 py-0.5 rounded font-bold ${
+                                      mat.netNeedKg > 0
+                                        ? 'bg-amber-100 text-amber-900 border border-amber-200'
+                                        : 'bg-emerald-100 text-emerald-800'
+                                    }`}
+                                  >
+                                    {mat.netNeedKg.toLocaleString()} {mat.uom}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 text-slate-800">
+                                  <div className="font-bold text-slate-900">{mat.suggestedSupplierName}</div>
+                                  <div className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
+                                    <span>Lead Time: <b>{mat.leadTimeDays}d</b></span>
+                                    <span>&bull;</span>
+                                    <span className="text-emerald-700 font-semibold">Score: {mat.supplierRating}%</span>
+                                  </div>
+                                </td>
+                                <td className="p-2.5 text-right font-semibold text-slate-800">
+                                  ₹{mat.unitPrice.toFixed(2)}
+                                </td>
+                                <td className="p-2.5 text-right font-bold text-slate-900 font-mono">
+                                  ₹{mat.totalCost.toLocaleString()}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* Tab 2: Vendor Suggestions Intelligence */}
+                    {activeBomTab === 'suppliers' && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {exploded.map((mat) => (
+                          <div key={mat.rawItemCode} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="font-mono font-bold text-slate-900 text-xs">{mat.rawItemCode}</span>
+                              <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                                Approved Vendor
+                              </span>
+                            </div>
+                            <div className="text-xs text-slate-700 font-semibold">{mat.rawItemName}</div>
+                            
+                            <div className="p-2.5 bg-white border border-slate-200 rounded-lg space-y-1">
+                              <div className="font-bold text-[#14213D] flex items-center justify-between">
+                                <span>{mat.suggestedSupplierName}</span>
+                                <span className="text-emerald-700 font-mono">{mat.supplierRating}% Rating</span>
+                              </div>
+                              <div className="text-[11px] text-slate-500 flex items-center justify-between">
+                                <span>Lead Time: <b>{mat.leadTimeDays} days</b></span>
+                                <span>Unit Rate: <b>₹{mat.unitPrice.toFixed(2)}/{mat.uom}</b></span>
+                              </div>
+                              {mat.secondarySupplierName && (
+                                <div className="text-[10px] text-slate-400 pt-1 border-t border-slate-100">
+                                  Secondary Backup: {mat.secondarySupplierName}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center justify-between text-[11px] pt-1">
+                              <span className="text-slate-600">
+                                Required Shortage: <b>{mat.netNeedKg.toLocaleString()} {mat.uom}</b>
+                              </span>
+                              <span className="font-bold text-slate-900 font-mono">
+                                Total: ₹{mat.totalCost.toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Tab 3: Compliance & Justification */}
+                    {activeBomTab === 'preview' && (
+                      <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                        <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wide">
+                          Requisition Audit &amp; Material Traceability
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <span className="text-slate-500 block text-[11px]">Requisition Source</span>
+                            <span className="font-semibold text-slate-900">{selectedPrForBom.source}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block text-[11px]">Receiving Store</span>
+                            <span className="font-semibold text-slate-900">{selectedPrForBom.plantWarehouse}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block text-[11px]">Target Delivery Date</span>
+                            <span className="font-semibold text-slate-900">{selectedPrForBom.requiredDate}</span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <span className="text-slate-500 block text-[11px] mb-1">Operational Justification</span>
+                          <p className="p-2.5 bg-white border border-slate-200 rounded-lg text-slate-700 text-xs">
+                            {selectedPrForBom.justification || 'Automated multi-level BOM explosion and raw material replenishment generated to prevent plant bottleneck.'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Footer */}
+                    <div className="p-3 border-t border-gray-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="text-slate-600 text-xs">
+                        Total {exploded.length} raw material formulation lines &bull; Est. Budget:{' '}
+                        <b className="text-slate-900 font-mono">₹{(totalCost / 100000).toFixed(2)} Lakhs</b>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setIsBomModalOpen(false);
+                            setSelectedPrForBom(null);
+                          }}
+                          className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg font-semibold transition cursor-pointer"
+                        >
+                          Close
+                        </button>
+                        <button
+                          onClick={() => {
+                            setIsBomModalOpen(false);
+                            showToast(`Opening Purchase Order creation with recommended vendor ${exploded[0]?.suggestedSupplierName}`);
+                            onNavigate('poList', {
+                              openCreateModal: true,
+                              sourcePr: selectedPrForBom.prNumber,
+                              pr: selectedPrForBom,
+                              suggestedSupplierId: exploded[0]?.suggestedSupplierId,
+                              suggestedSupplierName: exploded[0]?.suggestedSupplierName,
+                            });
+                          }}
+                          className="px-4 py-2 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>+ Issue PO with Suggested Vendors</span>
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -42,6 +42,10 @@ class AdminEventBus {
     };
   }
 
+  off(event: string, callback: (payload?: any) => void) {
+    this.eventHandlers.get(event)?.delete(callback);
+  }
+
   emit(event: string, payload?: any) {
     this.listeners.forEach((l) => {
       try {
