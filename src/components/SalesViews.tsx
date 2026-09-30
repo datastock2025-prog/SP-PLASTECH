@@ -147,8 +147,7 @@ export const SalesViews: React.FC<SalesProps> = ({
   const [selectedPlasticSoId, setSelectedPlasticSoId] = useState<string>(selectedId || 'SO-5001');
   const [selectedDelivery, setSelectedDelivery] = useState<DeliveryNoteChallan | null>(null);
   const [isFgStockModalOpen, setIsFgStockModalOpen] = useState(false);
-  const [isCreatePlanModalOpen, setIsCreatePlanModalOpen] = useState(false);
-  const [wizardDefaultType, setWizardDefaultType] = useState<'Daily Sales Order' | 'Monthly Plan Order' | 'Blanket/Contract Order'>('Daily Sales Order');
+  const [wizardDefaultType, setWizardDefaultType] = useState<'Daily Sales Order' | 'Monthly Plan Order' | 'Blanket/Contract Order'>('Monthly Plan Order');
 
   // Synchronize internal views with route view prop
   useEffect(() => {
@@ -708,9 +707,9 @@ export const SalesViews: React.FC<SalesProps> = ({
               onNavigate('soDetail', { id: orderId });
             }}
             onCreateOrder={(type) => {
-              setWizardDefaultType(type || 'Daily Sales Order');
+              setWizardDefaultType(type || 'Monthly Plan Order');
               setSalesSubNav('wizard');
-              onNavigate('soWizard', { defaultOrderType: type || 'Daily Sales Order' });
+              onNavigate('soWizard', { defaultOrderType: type || 'Monthly Plan Order' });
             }}
             onNavigate={onNavigate}
             showToast={showToast}

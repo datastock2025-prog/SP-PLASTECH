@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Building,
   Search,
@@ -19,9 +19,19 @@ import {
   MapPin,
   Edit,
   DollarSign,
+  FileCheck,
+  History,
+  Trash2,
 } from 'lucide-react';
 import { Customer, SalesOrder, SalesQuotation } from '../../types';
 import { PaginationBar } from '../common/PaginationBar';
+import {
+  customerMasterService,
+  EnrichedCustomerRecord,
+} from '../../services/customerMasterService';
+import { CustomerOnboardingWizardModal } from './CustomerOnboardingWizardModal';
+import { CustomerPoAmendmentModal } from './CustomerPoAmendmentModal';
+import { adminEventBus } from '../../services/adminService';
 
 interface Props {
   customers: Customer[];
@@ -52,18 +62,43 @@ export const CustomerMasterListView: React.FC<Props> = ({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
 
-  // Metrics
-  const totalCustomers = customers.length;
-  const activeCustomers = customers.filter((c) => c.status === 'active').length;
-  const totalCreditSanctioned = customers.reduce((sum, c) => sum + (c.creditLimit || 0), 0);
-  const totalOverdue = customers.reduce((sum, c) => sum + (c.overdueAmount || 0), 0);
+  // Live Enriched Customers from CustomerMasterService
+  const [liveCustomers, setLiveCustomers] = useState<EnrichedCustomerRecord[]>(() =>
+    customerMasterService.getCustomersSync()
+  );
 
-  const filteredCustomers = customers.filter((c) => {
+  useEffect(() => {
+    const handleUpdate = () => {
+      setLiveCustomers(customerMasterService.getCustomersSync());
+    };
+    adminEventBus.on('CUSTOMER_SAVED', handleUpdate);
+    adminEventBus.on('CUSTOMER_DELETED', handleUpdate);
+    return () => {
+      adminEventBus.off('CUSTOMER_SAVED', handleUpdate);
+      adminEventBus.off('CUSTOMER_DELETED', handleUpdate);
+    };
+  }, []);
+
+  // Wizard & PO Modal state
+  const [isOnboardingWizardOpen, setIsOnboardingWizardOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<EnrichedCustomerRecord | null>(null);
+  const [isPoModalOpen, setIsPoModalOpen] = useState(false);
+  const [selectedCustomerForPo, setSelectedCustomerForPo] =
+    useState<EnrichedCustomerRecord | null>(null);
+
+  // Metrics
+  const totalCustomers = liveCustomers.length;
+  const activeCustomers = liveCustomers.filter((c) => c.status === 'active').length;
+  const totalCreditSanctioned = liveCustomers.reduce((sum, c) => sum + (c.creditLimit || 0), 0);
+  const totalOverdue = liveCustomers.reduce((sum, c) => sum + (c.overdueAmount || 0), 0);
+
+  const filteredCustomers = liveCustomers.filter((c) => {
     const matchSearch =
       c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.code.toLowerCase().includes(search.toLowerCase()) ||
-      c.contact.toLowerCase().includes(search.toLowerCase()) ||
-      (c.gstin && c.gstin.toLowerCase().includes(search.toLowerCase()));
+      (c.contactPerson && c.contactPerson.toLowerCase().includes(search.toLowerCase())) ||
+      (c.gstin && c.gstin.toLowerCase().includes(search.toLowerCase())) ||
+      (c.poNumber && c.poNumber.toLowerCase().includes(search.toLowerCase()));
 
     const matchSegment = segmentFilter === 'all' || c.segment === segmentFilter;
     const matchRisk = riskFilter === 'all' || (c.riskRating && c.riskRating === riskFilter);
@@ -77,231 +112,11 @@ export const CustomerMasterListView: React.FC<Props> = ({
     currentPage * pageSize
   );
 
-  // Handle Register Customer Drawer
-  const handleOpenRegisterCustomerDrawer = () => {
-    if (!openDrawer) return;
-
-    let code = `CUST-${String(customers.length + 1).padStart(3, '0')}`;
-    let name = '';
-    let segment = 'Automotive OEM Tier 1';
-    let contact = '';
-    let email = '';
-    let phone = '';
-    let creditLimit = 1500000;
-    let paymentTerms = 'Net 30 Days';
-    let gstin = '';
-    let pan = '';
-    let billingAddress = '';
-    let riskRating: any = 'AA';
-    let accountManager = 'Ananya Rao';
-
-    openDrawer(
-      'Register New Customer & Corporate Account',
-      <div className="space-y-4 text-xs">
-        <div className="p-3 bg-teal-50 border border-teal-200 rounded-lg text-teal-900 font-medium">
-          Customer Master Registration &middot; Credit Risk &amp; KYC Verification
-        </div>
-
-        <div className="grid grid-cols-3 gap-3">
-          <div>
-            <label className="font-bold text-[#14213D] block mb-1">Customer Code</label>
-            <input
-              type="text"
-              defaultValue={code}
-              onChange={(e) => (code = e.target.value)}
-              className="w-full p-2 border border-[#E4E0D6] rounded-lg bg-[#F6F4EF] font-mono font-bold text-[#0F8B8D]"
-            />
-          </div>
-          <div className="col-span-2">
-            <label className="font-bold text-[#14213D] block mb-1">Company / Legal Name *</label>
-            <input
-              type="text"
-              placeholder="e.g. Maruti Polymer Components Ltd"
-              onChange={(e) => (name = e.target.value)}
-              className="w-full p-2 border border-[#E4E0D6] rounded-lg bg-white"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="font-bold text-[#14213D] block mb-1">Industry Segment</label>
-            <select
-              defaultValue={segment}
-              onChange={(e) => (segment = e.target.value)}
-              className="w-full p-2 border border-[#E4E0D6] rounded-lg bg-white"
-            >
-              <option value="Automotive OEM Tier 1">Automotive OEM Tier 1</option>
-              <option value="Retail & Packaging">Retail & Packaging</option>
-              <option value="FMCG Packaging">FMCG Packaging</option>
-              <option value="Agriculture / Irrigation">Agriculture / Irrigation</option>
-              <option value="Consumer Plastics / Houseware">Consumer Plastics / Houseware</option>
-              <option value="Medical & Healthcare">Medical & Healthcare</option>
-              <option value="Electronics Enclosures">Electronics Enclosures</option>
-            </select>
-          </div>
-          <div>
-            <label className="font-bold text-[#14213D] block mb-1">Assigned Account Manager</label>
-            <select
-              defaultValue={accountManager}
-              onChange={(e) => (accountManager = e.target.value)}
-              className="w-full p-2 border border-[#E4E0D6] rounded-lg bg-white"
-            >
-              <option value="Ananya Rao">Ananya Rao (Key Accounts)</option>
-              <option value="Vikram Das">Vikram Das (Industrial / FMCG)</option>
-              <option value="Rahul Verma">Rahul Verma (Automotive &amp; Medical)</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="font-bold text-[#14213D] block mb-1">GSTIN Number</label>
-            <input
-              type="text"
-              placeholder="e.g. 27AABCM8899K1Z4"
-              onChange={(e) => (gstin = e.target.value)}
-              className="w-full p-2 border border-[#E4E0D6] rounded-lg bg-white font-mono uppercase"
-            />
-          </div>
-          <div>
-            <label className="font-bold text-[#14213D] block mb-1">PAN Number</label>
-            <input
-              type="text"
-              placeholder="e.g. AABCM8899K"
-              onChange={(e) => (pan = e.target.value)}
-              className="w-full p-2 border border-[#E4E0D6] rounded-lg bg-white font-mono uppercase"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-3">
-          <div>
-            <label className="font-bold text-[#14213D] block mb-1">Credit Limit (₹)</label>
-            <input
-              type="number"
-              defaultValue={creditLimit}
-              onChange={(e) => (creditLimit = parseInt(e.target.value) || 1000000)}
-              className="w-full p-2 border border-[#E4E0D6] rounded-lg bg-white font-mono"
-            />
-          </div>
-          <div>
-            <label className="font-bold text-[#14213D] block mb-1">Payment Terms</label>
-            <select
-              defaultValue={paymentTerms}
-              onChange={(e) => (paymentTerms = e.target.value)}
-              className="w-full p-2 border border-[#E4E0D6] rounded-lg bg-white"
-            >
-              <option value="Advance 100%">Advance 100%</option>
-              <option value="Net 15 Days">Net 15 Days</option>
-              <option value="Net 30 Days">Net 30 Days</option>
-              <option value="Net 45 Days">Net 45 Days</option>
-              <option value="Net 60 Days">Net 60 Days</option>
-              <option value="LC at Sight">LC at Sight</option>
-            </select>
-          </div>
-          <div>
-            <label className="font-bold text-[#14213D] block mb-1">Initial Risk Rating</label>
-            <select
-              defaultValue={riskRating}
-              onChange={(e) => (riskRating = e.target.value)}
-              className="w-full p-2 border border-[#E4E0D6] rounded-lg bg-white font-mono"
-            >
-              <option value="AAA">AAA - Bluechip</option>
-              <option value="AA">AA - Stable</option>
-              <option value="A">A - Standard</option>
-              <option value="BBB">BBB - Moderate</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="border-t border-[#E4E0D6] pt-3">
-          <div className="font-bold text-[#14213D] mb-2">Primary Procurement Contact</div>
-          <div className="grid grid-cols-3 gap-2">
-            <div>
-              <label className="text-[11px] text-slate-500 block mb-1">Contact Person *</label>
-              <input
-                type="text"
-                placeholder="e.g. Ramesh Iyer"
-                onChange={(e) => (contact = e.target.value)}
-                className="w-full p-2 border border-[#E4E0D6] rounded-lg bg-white"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] text-slate-500 block mb-1">Email *</label>
-              <input
-                type="email"
-                placeholder="buyer@domain.example"
-                onChange={(e) => (email = e.target.value)}
-                className="w-full p-2 border border-[#E4E0D6] rounded-lg bg-white"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] text-slate-500 block mb-1">Phone *</label>
-              <input
-                type="tel"
-                placeholder="+91 98..."
-                onChange={(e) => (phone = e.target.value)}
-                className="w-full p-2 border border-[#E4E0D6] rounded-lg bg-white"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <label className="font-bold text-[#14213D] block mb-1">Registered Billing Address</label>
-          <textarea
-            rows={2}
-            placeholder="Plot / Industrial Area, City, State, PIN"
-            onChange={(e) => (billingAddress = e.target.value)}
-            className="w-full p-2 border border-[#E4E0D6] rounded-lg bg-white"
-          />
-        </div>
-      </div>,
-      <div className="flex items-center justify-end gap-2">
-        <button
-          onClick={() => closeDrawer && closeDrawer()}
-          className="px-3 py-1.5 rounded-lg border border-[#E4E0D6] text-xs font-semibold text-slate-600 hover:bg-slate-50"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={() => {
-            if (!name.trim()) {
-              showToast('Please enter company name');
-              return;
-            }
-            const newCustomer: Customer = {
-              code,
-              name,
-              segment,
-              contact: contact || 'Key Buyer',
-              email: email || `contact@${name.toLowerCase().replace(/[^a-z]/g, '')}.example`,
-              phone: phone || '+91 98000 00000',
-              status: 'active',
-              creditLimit,
-              paymentTerms,
-              gstin: gstin || '27AAACP9999P1Z1',
-              pan: pan || 'AAACP9999P',
-              billingAddress: billingAddress || 'Industrial Area, India',
-              shippingAddresses: [billingAddress || 'Industrial Area, India'],
-              riskRating,
-              accountManager,
-              creditStatus: 'good_standing',
-              creditUsed: 0,
-              overdueAmount: 0,
-            };
-
-            if (onCreateCustomer) onCreateCustomer(newCustomer);
-            if (closeDrawer) closeDrawer();
-            showToast(`Customer ${newCustomer.name} (${newCustomer.code}) registered successfully`);
-          }}
-          className="px-4 py-1.5 rounded-lg bg-[#0F8B8D] text-white text-xs font-semibold hover:bg-[#0d7a7c]"
-        >
-          Register Customer
-        </button>
-      </div>
-    );
+  const handleDeleteCustomer = (c: EnrichedCustomerRecord) => {
+    if (window.confirm(`Are you sure you want to deactivate Customer ${c.name} (${c.code})?`)) {
+      customerMasterService.deleteCustomer(c.code);
+      showToast(`✓ Deactivated Customer ${c.name} (${c.code})`);
+    }
   };
 
   return (
@@ -321,27 +136,30 @@ export const CustomerMasterListView: React.FC<Props> = ({
             Customer Directory &amp; Master Accounts
           </h1>
           <p className="text-xs text-[#6B7280] mt-0.5">
-            Manage corporate client accounts, credit limits, authorized contacts, payment terms, and 360&deg; relationship history.
+            Manage corporate client accounts, PO governance &amp; LIFO version traceability, contracted rates, payment terms, and 360&deg; relationship history.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={() => showToast('Exporting customer accounts data...')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E4E0D6] bg-[#F6F4EF] hover:bg-[#E4E0D6] text-xs font-semibold text-[#14213D]"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E4E0D6] bg-[#F6F4EF] hover:bg-[#E4E0D6] text-xs font-semibold text-[#14213D] cursor-pointer"
           >
             <Download className="w-3.5 h-3.5 text-slate-500" /> Export CSV
           </button>
           <button
-            onClick={handleOpenRegisterCustomerDrawer}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#0F8B8D] hover:bg-[#0d7a7c] text-white text-xs font-semibold shadow-xs"
+            onClick={() => {
+              setEditingCustomer(null);
+              setIsOnboardingWizardOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#0F8B8D] hover:bg-[#0d7a7c] text-white text-xs font-bold shadow-xs cursor-pointer"
           >
-            <Plus className="w-3.5 h-3.5" /> + New Customer
+            <Plus className="w-3.5 h-3.5" /> + Onboard New Customer (Wizard)
           </button>
         </div>
       </div>
 
-      {/* KPI Stats for Enterprise 100,000+ Scale */}
+      {/* KPI Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-xl border border-[#E4E0D6] shadow-xs">
           <div className="text-[11px] text-[#6B7280] font-semibold uppercase tracking-wider flex items-center justify-between">
@@ -349,10 +167,10 @@ export const CustomerMasterListView: React.FC<Props> = ({
             <Building className="w-4 h-4 text-[#0F8B8D]" />
           </div>
           <div className="text-2xl font-bold font-['Space_Grotesk'] text-[#14213D] mt-1">
-            {totalCustomers > 100 ? totalCustomers.toLocaleString() : '100,000+'}
+            {totalCustomers.toLocaleString()}
           </div>
           <div className="text-[11px] text-emerald-600 font-medium mt-1">
-            {activeCustomers > 100 ? activeCustomers.toLocaleString() : '98,420'} Active Corporate Accounts
+            {activeCustomers.toLocaleString()} Active Corporate Accounts
           </div>
         </div>
 
@@ -376,7 +194,7 @@ export const CustomerMasterListView: React.FC<Props> = ({
             ₹{(totalOverdue / 100000).toFixed(2)} Lakhs
           </div>
           <div className="text-[11px] text-red-600 font-medium mt-1">
-            {customers.filter((c) => (c.overdueAmount || 0) > 0).length} accounts with overdue aging
+            {liveCustomers.filter((c) => (c.overdueAmount || 0) > 0).length} accounts with overdue aging
           </div>
         </div>
 
@@ -386,13 +204,13 @@ export const CustomerMasterListView: React.FC<Props> = ({
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-2xl font-bold font-['Space_Grotesk'] text-emerald-700 mt-1">
-            {customers.filter((c) => c.riskRating === 'AAA' || c.riskRating === 'AA').length > 5 ? customers.filter((c) => c.riskRating === 'AAA' || c.riskRating === 'AA').length : '18,450'}
+            {liveCustomers.filter((c) => c.riskRating === 'AAA' || c.riskRating === 'AA').length}
           </div>
           <div className="text-[11px] text-emerald-600 font-medium mt-1">High-volume institutional clients</div>
         </div>
       </div>
 
-      {/* Filter & Search Bar with Fast 100,000+ Indexing */}
+      {/* Filter & Search Bar */}
       <div className="bg-white p-3.5 rounded-xl border border-[#E4E0D6] flex flex-col md:flex-row items-center justify-between gap-3 shadow-xs">
         <div className="relative w-full md:max-w-lg">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#9AA5C4]" />
@@ -403,7 +221,7 @@ export const CustomerMasterListView: React.FC<Props> = ({
               setSearch(e.target.value);
               setCurrentPage(1);
             }}
-            placeholder="Search across 100,000+ customers by Name, Code (CUST-001...), GSTIN, PAN, or Contact..."
+            placeholder="Search across customers by Name, Code, PO #, GSTIN, or Contact..."
             className="w-full pl-9 pr-8 py-2 rounded-xl border border-[#E4E0D6] text-xs bg-[#F6F4EF] focus:bg-white focus:outline-none focus:border-[#0F8B8D] transition"
           />
           {search && (
@@ -430,11 +248,10 @@ export const CustomerMasterListView: React.FC<Props> = ({
           >
             <option value="all">All Segments</option>
             <option value="Automotive OEM Tier 1">Automotive OEM Tier 1</option>
-            <option value="Retail & Packaging">Retail & Packaging</option>
-            <option value="FMCG Packaging">FMCG Packaging</option>
-            <option value="Agriculture / Irrigation">Agriculture / Irrigation</option>
-            <option value="Consumer Plastics / Houseware">Consumer Plastics</option>
-            <option value="Medical & Healthcare">Medical & Healthcare</option>
+            <option value="FMCG Rigid Packaging">FMCG Rigid Packaging</option>
+            <option value="Retail & Packaging">Retail &amp; Packaging</option>
+            <option value="Electronics Enclosures">Electronics Enclosures</option>
+            <option value="Industrial Components">Industrial Components</option>
           </select>
 
           <select
@@ -459,32 +276,33 @@ export const CustomerMasterListView: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Slider-Free Customers Table */}
+      {/* Customer Master Table with Full CRUD & PO Traceability */}
       <div className="bg-white rounded-xl border border-[#E4E0D6] shadow-sm overflow-hidden">
         <table className="w-full text-xs text-left border-collapse table-fixed">
           <colgroup>
-            <col className="w-[28%]" />
+            <col className="w-[26%]" />
             <col className="w-[18%]" />
             <col className="w-[18%]" />
-            <col className="w-[12%]" />
-            <col className="w-[12%]" />
-            <col className="w-[12%]" />
+            <col className="w-[14%]" />
+            <col className="w-[10%]" />
+            <col className="w-[14%]" />
           </colgroup>
           <thead>
             <tr className="bg-[#14213D] text-[#EDEFF7] font-semibold text-[11px]">
               <th className="py-3 px-4">Customer Code &amp; Legal Name</th>
-              <th className="py-3 px-3">Industry Segment</th>
-              <th className="py-3 px-3">Credit Limit &amp; Usage</th>
-              <th className="py-3 px-3">Payment Terms</th>
+              <th className="py-3 px-3">Active PO &amp; LIFO Revision</th>
+              <th className="py-3 px-3">Credit Limit &amp; Terms</th>
+              <th className="py-3 px-3">State &amp; GSTIN</th>
               <th className="py-3 px-3 text-center">Status &amp; Risk</th>
-              <th className="py-3 px-4 text-right">Actions</th>
+              <th className="py-3 px-4 text-right">Admin CRUD Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E4E0D6]">
             {pagedCustomers.map((c) => {
               const limit = c.creditLimit || 1500000;
-              const used = c.creditUsed || Math.round(limit * 0.55);
+              const used = c.currentBalance || Math.round(limit * 0.45);
               const usedPct = ((used / limit) * 100).toFixed(0);
+              const poInfo = customerMasterService.getLatestPoForCustomer(c.code);
 
               return (
                 <tr
@@ -494,7 +312,7 @@ export const CustomerMasterListView: React.FC<Props> = ({
                 >
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-[#14213D] text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+                      <div className="w-8 h-8 rounded-lg bg-[#14213D] text-white flex items-center justify-center font-bold text-xs flex-shrink-0 font-mono">
                         {c.code.replace('CUST-', '')}
                       </div>
                       <div className="truncate">
@@ -502,42 +320,45 @@ export const CustomerMasterListView: React.FC<Props> = ({
                           {c.name}
                         </div>
                         <div className="text-[10px] text-slate-400 font-mono truncate">
-                          {c.code} &middot; GST: {c.gstin || '27AABCM8899K1Z4'}
+                          {c.code} &middot; {c.segment || 'OEM Partner'}
                         </div>
                       </div>
                     </div>
                   </td>
+
                   <td className="py-3 px-3">
-                    <span className="inline-block px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-[10px] font-medium text-slate-700 truncate max-w-full">
-                      {c.segment}
-                    </span>
-                    <div className="text-[10px] text-slate-400 mt-0.5">{c.accountManager || 'Key Accounts'}</div>
+                    <div className="font-mono font-bold text-slate-900 truncate flex items-center gap-1">
+                      <FileCheck className="w-3.5 h-3.5 text-[#0F8B8D]" />
+                      <span>{poInfo.poNumber || 'No PO'}</span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                      <span className="font-mono text-teal-700 bg-teal-50 px-1 py-0.2 rounded font-bold border border-teal-200">
+                        {poInfo.version || 'v1.0'}
+                      </span>
+                      <span>({poInfo.poDate || c.poDate || '2026-09-01'})</span>
+                    </div>
                   </td>
+
                   <td className="py-3 px-3">
                     <div className="flex justify-between text-[11px] mb-1 font-mono">
                       <span className="font-bold text-[#14213D]">
-                        ₹{(used / 100000).toFixed(1)}L / ₹{(limit / 100000).toFixed(1)}L
+                        ₹{(limit / 100000).toFixed(1)}L Limit
                       </span>
-                      <span
-                        className={`font-semibold ${
-                          parseInt(usedPct) > 85 ? 'text-red-600' : 'text-slate-600'
-                        }`}
-                      >
-                        {usedPct}%
-                      </span>
+                      <span className="text-slate-500 font-semibold">{c.paymentTerms || 'Net 30 Days'}</span>
                     </div>
                     <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
                       <div
-                        className={`h-full rounded-full ${
-                          parseInt(usedPct) > 85 ? 'bg-red-500' : 'bg-[#0F8B8D]'
-                        }`}
+                        className="h-full rounded-full bg-[#0F8B8D]"
                         style={{ width: `${Math.min(100, parseInt(usedPct))}%` }}
                       />
                     </div>
                   </td>
-                  <td className="py-3 px-3 text-slate-700 font-medium truncate">
-                    {c.paymentTerms || 'Net 30 Days'}
+
+                  <td className="py-3 px-3 text-slate-700">
+                    <div className="font-semibold text-slate-900 truncate">{c.state || 'Maharashtra'}</div>
+                    <div className="text-[10px] font-mono text-slate-400 truncate">{c.gstin || '27AAACT2727Q1ZW'}</div>
                   </td>
+
                   <td className="py-3 px-3 text-center">
                     <div className="flex items-center justify-center gap-1.5 flex-wrap">
                       <span
@@ -546,34 +367,52 @@ export const CustomerMasterListView: React.FC<Props> = ({
                             ? 'bg-emerald-100 text-emerald-800'
                             : c.riskRating === 'A'
                             ? 'bg-blue-100 text-blue-800'
-                            : c.riskRating === 'BBB'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-red-100 text-red-800'
+                            : 'bg-amber-100 text-amber-800'
                         }`}
                       >
                         {c.riskRating || 'AA'}
                       </span>
-                      <span
-                        className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
-                          c.creditStatus === 'credit_blocked'
-                            ? 'bg-red-100 text-red-800'
-                            : c.creditStatus === 'near_limit'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-emerald-100 text-emerald-800'
-                        }`}
-                      >
-                        {c.creditStatus === 'credit_blocked' ? 'Blocked' : 'Active'}
+                      <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-emerald-100 text-emerald-800">
+                        Active
                       </span>
                     </div>
                   </td>
+
                   <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={() => onNavigate('customerDetail', { id: c.code })}
-                      className="px-2.5 py-1 rounded bg-[#F6F4EF] hover:bg-[#E4E0D6] text-[11px] font-semibold text-[#14213D] inline-flex items-center gap-1"
-                    >
-                      <span>360&deg;</span>
-                      <ChevronRight className="w-3 h-3" />
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      {/* Edit Customer Master Wizard */}
+                      <button
+                        title="Edit Customer Master via Wizard"
+                        onClick={() => {
+                          setEditingCustomer(c);
+                          setIsOnboardingWizardOpen(true);
+                        }}
+                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-[#0F8B8D] cursor-pointer"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Amend PO & Version History */}
+                      <button
+                        title="Amend PO & LIFO Version Traceability"
+                        onClick={() => {
+                          setSelectedCustomerForPo(c);
+                          setIsPoModalOpen(true);
+                        }}
+                        className="p-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <History className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Delete / Deactivate */}
+                      <button
+                        title="Deactivate Customer"
+                        onClick={() => handleDeleteCustomer(c)}
+                        className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -593,6 +432,39 @@ export const CustomerMasterListView: React.FC<Props> = ({
           itemName="customers"
         />
       </div>
+
+      {/* Customer Onboarding & Master Edit 5-Step Wizard Modal */}
+      {isOnboardingWizardOpen && (
+        <CustomerOnboardingWizardModal
+          isOpen={isOnboardingWizardOpen}
+          onClose={() => {
+            setIsOnboardingWizardOpen(false);
+            setEditingCustomer(null);
+          }}
+          initialCustomer={editingCustomer}
+          onCustomerSaved={(saved) => {
+            showToast(`✓ Customer ${saved.name} (${saved.code}) saved successfully!`);
+          }}
+          showToast={showToast}
+        />
+      )}
+
+      {/* PO Amendment & Version History Traceability Modal */}
+      {isPoModalOpen && selectedCustomerForPo && (
+        <CustomerPoAmendmentModal
+          isOpen={isPoModalOpen}
+          onClose={() => {
+            setIsPoModalOpen(false);
+            setSelectedCustomerForPo(null);
+          }}
+          customer={selectedCustomerForPo}
+          onPoUpdated={(updated) => {
+            showToast(`✓ PO updated for ${updated.name}`);
+          }}
+          showToast={showToast}
+        />
+      )}
     </div>
   );
 };
+
