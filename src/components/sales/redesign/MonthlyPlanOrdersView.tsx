@@ -42,6 +42,7 @@ import {
   ShoppingBag,
   Trash2,
   ShieldCheck,
+  ArrowUpDown,
 } from 'lucide-react';
 import {
   MonthlyPlanOrder,
@@ -51,6 +52,7 @@ import { addPurchaseRequisition, INITIAL_PURCHASE_REQUISITIONS, getStoredPRs } f
 import { adminService, adminEventBus } from '../../../services/adminService';
 import { masterDataGovernanceService } from '../../../services/masterDataGovernanceService';
 import { PurchaseRequisition } from '../../../types/procurement';
+import { PaginationBar } from '../../common/PaginationBar';
 
 interface MonthlyPlanOrdersViewProps {
   monthlyPlans: MonthlyPlanOrder[];
@@ -295,6 +297,15 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
   const [plans, setPlans] = useState<MonthlyPlanOrder[]>(propPlans);
   const [activeTab, setActiveTab] = useState<string>('All Plans');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Task-1: Enterprise-Level Unit Plan Breakdown Grid State (Search, Filters, Sort & Pagination)
+  const [unitGridSearch, setUnitGridSearch] = useState<string>('');
+  const [unitGridPlantFilter, setUnitGridPlantFilter] = useState<string>('all');
+  const [unitGridStatusFilter, setUnitGridStatusFilter] = useState<string>('all');
+  const [unitGridPage, setUnitGridPage] = useState<number>(1);
+  const [unitGridPageSize, setUnitGridPageSize] = useState<number>(10);
+  const [unitGridSortKey, setUnitGridSortKey] = useState<string>('unitPlanId');
+  const [unitGridSortAsc, setUnitGridSortAsc] = useState<boolean>(true);
 
   // Synchronize internal state when propPlans updates from parent
   useEffect(() => {
@@ -2010,185 +2021,365 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
             </div>
           </div>
 
-          {/* Task-2: Plant-wise Unit Sub-Plans Grid (Each unit has unique Unit Plan ID e.g. PLN-2026-09-U1) */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden text-xs">
-            <div className="p-3.5 bg-gradient-to-r from-slate-50 to-indigo-50/40 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Factory className="w-4 h-4 text-[#0F8B8D]" />
-                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
-                  Manufacturing Plants &amp; Unique Unit Plan Breakdown ({currentSelectedMonthPlan.plantUnits?.length || 0} Units)
-                </h3>
-              </div>
-              <span className="text-[11px] text-slate-500 font-medium">
-                Unique Unit Plan IDs for isolated requisitioning &amp; production dispatch
-              </span>
-            </div>
+          {/* Task-1 & 2: Plant-wise Unit Sub-Plans Enterprise Grid with Search, Filters, Sort & Pagination */}
+          {(() => {
+            const raw = currentSelectedMonthPlan.plantUnits || [];
+            const q = unitGridSearch.toLowerCase().trim();
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50 text-slate-700 font-bold uppercase tracking-wider text-[10px] border-b border-gray-200">
-                  <tr>
-                    <th className="py-2.5 px-3">Unit Plan ID</th>
-                    <th className="py-2.5 px-3">Manufacturing Plant</th>
-                    <th className="py-2.5 px-3">Enrolled Customers</th>
-                    <th className="py-2.5 px-3 text-right">Planned Qty</th>
-                    <th className="py-2.5 px-3 text-right">Dispatched</th>
-                    <th className="py-2.5 px-3 text-right">Balance (Tally)</th>
-                    <th className="py-2.5 px-3 text-right">Plan Value</th>
-                    <th className="py-2.5 px-3 text-center">Status</th>
-                    <th className="py-2.5 px-3 text-right">Unit Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {(currentSelectedMonthPlan.plantUnits || []).map((unit) => (
-                    <tr key={unit.unitPlanId} className="hover:bg-teal-50/30 transition-colors">
-                      {/* Unit Plan ID */}
-                      <td className="py-3 px-3 font-mono font-bold">
-                        <span className="px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200 text-[11px] font-bold inline-flex items-center gap-1">
-                          <Layers className="w-3 h-3 text-[#0F8B8D]" />
-                          {unit.unitPlanId}
-                        </span>
-                      </td>
+            const filtered = raw.filter((u) => {
+              const matchSearch =
+                !q ||
+                u.unitPlanId.toLowerCase().includes(q) ||
+                u.plantName.toLowerCase().includes(q) ||
+                u.customers.some((c) => c.toLowerCase().includes(q));
 
-                      {/* Plant Name */}
-                      <td className="py-3 px-3 font-semibold text-slate-900">
-                        <div className="flex items-center gap-1.5">
-                          <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{unit.plantName}</span>
-                        </div>
-                      </td>
+              const matchPlant =
+                unitGridPlantFilter === 'all' ||
+                u.plantName.toLowerCase().includes(unitGridPlantFilter.toLowerCase());
 
-                      {/* Customers */}
-                      <td className="py-3 px-3 text-slate-700">
-                        <div className="truncate max-w-[200px]" title={unit.customers.join(', ')}>
-                          {unit.customers.join(', ')}
-                        </div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">
-                          {unit.totalItemsCount} Planned Product Lines
-                        </div>
-                      </td>
+              const matchStatus =
+                unitGridStatusFilter === 'all' || u.status === unitGridStatusFilter;
 
-                      {/* Planned Qty */}
-                      <td className="py-3 px-3 text-right font-bold text-slate-900">
-                        {unit.totalPlannedQty.toLocaleString()} <span className="text-[10px] text-slate-400 font-normal">PCS</span>
-                      </td>
+              return matchSearch && matchPlant && matchStatus;
+            });
 
-                      {/* Dispatched */}
-                      <td className="py-3 px-3 text-right font-semibold text-emerald-700">
-                        {unit.totalDispatchedQty.toLocaleString()}
-                      </td>
+            const sorted = [...filtered].sort((a: any, b: any) => {
+              const valA = a[unitGridSortKey];
+              const valB = b[unitGridSortKey];
 
-                      {/* Balance (Tally) */}
-                      <td className="py-3 px-3 text-right font-bold font-mono">
-                        <span
-                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold inline-block ${
-                            unit.pendingBalanceQty <= 0
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-amber-100 text-amber-900'
-                          }`}
+              if (typeof valA === 'string') {
+                return unitGridSortAsc
+                  ? valA.localeCompare(valB)
+                  : valB.localeCompare(valA);
+              }
+              return unitGridSortAsc ? (valA || 0) - (valB || 0) : (valB || 0) - (valA || 0);
+            });
+
+            const totalUnitPages = Math.ceil(sorted.length / unitGridPageSize) || 1;
+            const startIdx = (unitGridPage - 1) * unitGridPageSize;
+            const pagedUnits = sorted.slice(startIdx, startIdx + unitGridPageSize);
+
+            const handleSort = (key: string) => {
+              if (unitGridSortKey === key) {
+                setUnitGridSortAsc(!unitGridSortAsc);
+              } else {
+                setUnitGridSortKey(key);
+                setUnitGridSortAsc(true);
+              }
+            };
+
+            return (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden text-xs">
+                {/* Enterprise Header with Title, Stats & Filter Controls */}
+                <div className="p-3.5 bg-gradient-to-r from-slate-50 to-indigo-50/40 border-b border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Factory className="w-4 h-4 text-[#0F8B8D]" />
+                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+                      Manufacturing Plants &amp; Unique Unit Plan Breakdown ({sorted.length} of {raw.length} Units)
+                    </h3>
+                  </div>
+
+                  {/* Filter & Search Bar */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="Search Unit ID, plant, customer..."
+                        value={unitGridSearch}
+                        onChange={(e) => {
+                          setUnitGridSearch(e.target.value);
+                          setUnitGridPage(1);
+                        }}
+                        className="pl-8 pr-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs w-48 focus:ring-1 focus:ring-[#0F8B8D] focus:outline-none font-medium"
+                      />
+                      {unitGridSearch && (
+                        <button
+                          onClick={() => setUnitGridSearch('')}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                         >
-                          {unit.pendingBalanceQty.toLocaleString()} PCS
-                        </span>
-                      </td>
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
 
-                      {/* Plan Value */}
-                      <td className="py-3 px-3 text-right font-bold text-slate-900">
-                        ₹{(unit.totalPlannedValue / 100000).toFixed(2)}L
-                      </td>
+                    <select
+                      value={unitGridPlantFilter}
+                      onChange={(e) => {
+                        setUnitGridPlantFilter(e.target.value);
+                        setUnitGridPage(1);
+                      }}
+                      className="px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-[#0F8B8D] focus:outline-none"
+                    >
+                      <option value="all">All Manufacturing Plants</option>
+                      {createdPlants.map((p) => (
+                        <option key={p.id} value={p.name}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
 
-                      {/* Status */}
-                      <td className="py-3 px-3 text-center">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                            unit.status === 'Fully Supplied'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : unit.status === 'Partially Supplied'
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}
+                    <select
+                      value={unitGridStatusFilter}
+                      onChange={(e) => {
+                        setUnitGridStatusFilter(e.target.value);
+                        setUnitGridPage(1);
+                      }}
+                      className="px-2.5 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-[#0F8B8D] focus:outline-none"
+                    >
+                      <option value="all">All Supply Statuses</option>
+                      <option value="Partially Supplied">Partially Supplied</option>
+                      <option value="Fully Supplied">Fully Supplied</option>
+                      <option value="Active">Active</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50 text-slate-700 font-bold uppercase tracking-wider text-[10px] border-b border-gray-200">
+                      <tr>
+                        <th
+                          className="py-2.5 px-3 cursor-pointer hover:bg-slate-100 transition select-none"
+                          onClick={() => handleSort('unitPlanId')}
                         >
-                          {unit.status}
-                        </span>
-                      </td>
+                          <div className="flex items-center gap-1">
+                            <span>Unit Plan ID</span>
+                            <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                          </div>
+                        </th>
+                        <th
+                          className="py-2.5 px-3 cursor-pointer hover:bg-slate-100 transition select-none"
+                          onClick={() => handleSort('plantName')}
+                        >
+                          <div className="flex items-center gap-1">
+                            <span>Manufacturing Plant</span>
+                            <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                          </div>
+                        </th>
+                        <th className="py-2.5 px-3">Enrolled Customers</th>
+                        <th
+                          className="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition select-none"
+                          onClick={() => handleSort('totalPlannedQty')}
+                        >
+                          <div className="flex items-center justify-end gap-1">
+                            <span>Planned Qty</span>
+                            <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                          </div>
+                        </th>
+                        <th
+                          className="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition select-none"
+                          onClick={() => handleSort('totalDispatchedQty')}
+                        >
+                          <div className="flex items-center justify-end gap-1">
+                            <span>Dispatched</span>
+                            <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                          </div>
+                        </th>
+                        <th
+                          className="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition select-none"
+                          onClick={() => handleSort('pendingBalanceQty')}
+                        >
+                          <div className="flex items-center justify-end gap-1">
+                            <span>Balance (Tally)</span>
+                            <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                          </div>
+                        </th>
+                        <th
+                          className="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition select-none"
+                          onClick={() => handleSort('totalPlannedValue')}
+                        >
+                          <div className="flex items-center justify-end gap-1">
+                            <span>Plan Value</span>
+                            <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                          </div>
+                        </th>
+                        <th
+                          className="py-2.5 px-3 text-center cursor-pointer hover:bg-slate-100 transition select-none"
+                          onClick={() => handleSort('status')}
+                        >
+                          <div className="flex items-center justify-center gap-1">
+                            <span>Status</span>
+                            <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                          </div>
+                        </th>
+                        <th className="py-2.5 px-3 text-right">Unit Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {pagedUnits.length === 0 ? (
+                        <tr>
+                          <td colSpan={9} className="py-8 text-center text-slate-400">
+                            No unit sub-plans match the current search or filters.
+                          </td>
+                        </tr>
+                      ) : (
+                        pagedUnits.map((unit) => (
+                          <tr key={unit.unitPlanId} className="hover:bg-teal-50/30 transition-colors">
+                            {/* Unit Plan ID */}
+                            <td className="py-3 px-3 font-mono font-bold">
+                              <span className="px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200 text-[11px] font-bold inline-flex items-center gap-1">
+                                <Layers className="w-3 h-3 text-[#0F8B8D]" />
+                                {unit.unitPlanId}
+                              </span>
+                            </td>
 
-                      {/* Unit Actions: Dynamic PR Status & Down-Grid Workbench Trigger */}
-                      <td className="py-3 px-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {(() => {
-                            const prState = getUnitPrState(unit.unitPlanId, unit.monthPeriod);
-                            if (prState && !prState.isExpired) {
-                              return (
-                                <button
-                                  onClick={(e) => handleOpenRaisePrForUnit(unit, e)}
-                                  className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-[11px] font-bold flex items-center gap-1 shadow-2xs transition cursor-pointer"
-                                  title={`PR ${prState.prNumber} is currently In Progress (1 Month Validity). Click to open Down-Grid CRUD Workbench.`}
-                                >
-                                  <Clock className="w-3 h-3 animate-spin" />
-                                  <span>In Progress ({prState.prNumber})</span>
-                                </button>
-                              );
-                            } else if (prState && prState.isExpired) {
-                              return (
-                                <button
-                                  onClick={(e) => handleOpenRaisePrForUnit(unit, e)}
-                                  className="px-2.5 py-1 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-md text-[11px] font-bold flex items-center gap-1 shadow-2xs transition cursor-pointer"
-                                  title={`Previous PR for ${unit.unitPlanId} expired after 1 Month Validity. Click to Re-Raise Monthly PR.`}
-                                >
-                                  <RefreshCw className="w-3 h-3" />
-                                  <span>Re-Raise PR</span>
-                                </button>
-                              );
-                            }
-                            return (
-                              <button
-                                onClick={(e) => handleOpenRaisePrForUnit(unit, e)}
-                                className="px-2.5 py-1 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-md text-[11px] font-bold flex items-center gap-1 shadow-2xs transition cursor-pointer"
-                                title={`Open Down-Grid In-Place CRUD Workbench to Raise PR for ${unit.plantName} (${unit.unitPlanId})`}
+                            {/* Plant Name */}
+                            <td className="py-3 px-3 font-semibold text-slate-900">
+                              <div className="flex items-center gap-1.5">
+                                <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                                <span>{unit.plantName}</span>
+                              </div>
+                            </td>
+
+                            {/* Customers */}
+                            <td className="py-3 px-3 text-slate-700">
+                              <div className="truncate max-w-[200px]" title={unit.customers.join(', ')}>
+                                {unit.customers.join(', ')}
+                              </div>
+                              <div className="text-[10px] text-slate-400 mt-0.5">
+                                {unit.totalItemsCount} Planned Product Lines
+                              </div>
+                            </td>
+
+                            {/* Planned Qty */}
+                            <td className="py-3 px-3 text-right font-bold text-slate-900">
+                              {unit.totalPlannedQty.toLocaleString()} <span className="text-[10px] text-slate-400 font-normal">PCS</span>
+                            </td>
+
+                            {/* Dispatched */}
+                            <td className="py-3 px-3 text-right font-semibold text-emerald-700">
+                              {unit.totalDispatchedQty.toLocaleString()}
+                            </td>
+
+                            {/* Balance (Tally) */}
+                            <td className="py-3 px-3 text-right font-bold font-mono">
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold inline-block ${
+                                  unit.pendingBalanceQty <= 0
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : 'bg-amber-100 text-amber-900'
+                                }`}
                               >
-                                <Send className="w-3 h-3" />
-                                <span>Raise PR</span>
-                              </button>
-                            );
-                          })()}
+                                {unit.pendingBalanceQty.toLocaleString()} PCS
+                              </span>
+                            </td>
 
-                          {/* + Order button for unit */}
-                          <button
-                            onClick={() => {
-                              onNavigate('soWizard', {
-                                linkedPlanId: unit.unitPlanId,
-                                monthPeriod: unit.monthPeriod,
-                                customer: unit.customers[0],
-                                plant: unit.plantName,
-                                defaultOrderType: 'Daily Sales Order',
-                              });
-                            }}
-                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[11px] font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer"
-                            title={`Create Order linked to ${unit.unitPlanId}`}
-                          >
-                            <Plus className="w-3 h-3" />
-                            <span>+ Order</span>
-                          </button>
+                            {/* Plan Value */}
+                            <td className="py-3 px-3 text-right font-bold text-slate-900">
+                              ₹{(unit.totalPlannedValue / 100000).toFixed(2)}L
+                            </td>
 
-                          {/* Quick filter SKUs */}
-                          <button
-                            onClick={() => {
-                              setItemPlantFilter(unit.plantName);
-                              setItemPage(1);
-                              showToast(`Filtered lines for ${unit.plantName}`);
-                            }}
-                            className="p-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md border border-slate-200 transition cursor-pointer"
-                            title="Filter SKU lines below for this plant"
-                          >
-                            <Filter className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                            {/* Status */}
+                            <td className="py-3 px-3 text-center">
+                              <span
+                                className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  unit.status === 'Fully Supplied'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : unit.status === 'Partially Supplied'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-amber-100 text-amber-800'
+                                }`}
+                              >
+                                {unit.status}
+                              </span>
+                            </td>
+
+                            {/* Unit Actions: Dynamic PR Status & Down-Grid Workbench Trigger */}
+                            <td className="py-3 px-3 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {(() => {
+                                  const prState = getUnitPrState(unit.unitPlanId, unit.monthPeriod);
+                                  if (prState && !prState.isExpired) {
+                                    return (
+                                      <button
+                                        onClick={(e) => handleOpenRaisePrForUnit(unit, e)}
+                                        className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-[11px] font-bold flex items-center gap-1 shadow-2xs transition cursor-pointer"
+                                        title={`PR ${prState.prNumber} is currently In Progress (1 Month Validity). Click to open Down-Grid CRUD Workbench.`}
+                                      >
+                                        <Clock className="w-3 h-3 animate-spin" />
+                                        <span>In Progress ({prState.prNumber})</span>
+                                      </button>
+                                    );
+                                  } else if (prState && prState.isExpired) {
+                                    return (
+                                      <button
+                                        onClick={(e) => handleOpenRaisePrForUnit(unit, e)}
+                                        className="px-2.5 py-1 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-md text-[11px] font-bold flex items-center gap-1 shadow-2xs transition cursor-pointer"
+                                        title={`Previous PR for ${unit.unitPlanId} expired after 1 Month Validity. Click to Re-Raise Monthly PR.`}
+                                      >
+                                        <RefreshCw className="w-3 h-3" />
+                                        <span>Re-Raise PR</span>
+                                      </button>
+                                    );
+                                  }
+                                  return (
+                                    <button
+                                      onClick={(e) => handleOpenRaisePrForUnit(unit, e)}
+                                      className="px-2.5 py-1 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-md text-[11px] font-bold flex items-center gap-1 shadow-2xs transition cursor-pointer"
+                                      title={`Open Down-Grid In-Place CRUD Workbench to Raise PR for ${unit.plantName} (${unit.unitPlanId})`}
+                                    >
+                                      <Send className="w-3 h-3" />
+                                      <span>Raise PR</span>
+                                    </button>
+                                  );
+                                })()}
+
+                                {/* + Order button for unit */}
+                                <button
+                                  onClick={() => {
+                                    onNavigate('soWizard', {
+                                      linkedPlanId: unit.unitPlanId,
+                                      monthPeriod: unit.monthPeriod,
+                                      customer: unit.customers[0],
+                                      plant: unit.plantName,
+                                      defaultOrderType: 'Daily Sales Order',
+                                    });
+                                  }}
+                                  className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[11px] font-semibold flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                                  title={`Create Order linked to ${unit.unitPlanId}`}
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  <span>+ Order</span>
+                                </button>
+
+                                {/* Quick filter SKUs */}
+                                <button
+                                  onClick={() => {
+                                    setItemPlantFilter(unit.plantName);
+                                    setItemPage(1);
+                                    showToast(`Filtered lines for ${unit.plantName}`);
+                                  }}
+                                  className="p-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md border border-slate-200 transition cursor-pointer"
+                                  title="Filter SKU lines below for this plant"
+                                >
+                                  <Filter className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Bar */}
+                <PaginationBar
+                  currentPage={unitGridPage}
+                  totalPages={totalUnitPages}
+                  pageSize={unitGridPageSize}
+                  totalItems={sorted.length}
+                  onPageChange={setUnitGridPage}
+                  onPageSizeChange={(sz) => {
+                    setUnitGridPageSize(sz);
+                    setUnitGridPage(1);
+                  }}
+                  itemName="unit sub-plans"
+                />
+              </div>
+            );
+          })()}
 
           <div id="down-grid-workbench-anchor" className="scroll-mt-6 space-y-4">
             {/* View Mode Tabs: Master Sales Line Items vs In-Grid Unit PR Workbench */}
