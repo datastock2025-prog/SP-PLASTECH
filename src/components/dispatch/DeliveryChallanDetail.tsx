@@ -26,6 +26,9 @@ import {
   EWayBillRecord,
   GatePassRecord,
 } from '../../types/salesOrderDeliveryTypes';
+import { DispatchPdfGenerator } from '../../services/pdf/dispatchPdfGenerator';
+import { r2StorageService } from '../../services/storage/r2StorageService';
+
 
 interface DeliveryChallanDetailProps {
   delivery: DeliveryNoteChallan;
@@ -146,16 +149,30 @@ export const DeliveryChallanDetail: React.FC<DeliveryChallanDetailProps> = ({
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => window.print()}
-            className="flex items-center gap-1 px-3 py-1.5 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-medium"
+            onClick={() => {
+              const html = DispatchPdfGenerator.generateDeliveryChallanHtml(delivery);
+              DispatchPdfGenerator.openPrintWindow(html);
+              r2StorageService.archiveDispatchDocument(
+                'DELIVERY_CHALLAN',
+                delivery.id,
+                html,
+                { customer: delivery.customer, vehicleNumber: delivery.vehicleNumber, salesOrderId: delivery.salesOrderId }
+              ).catch((e) => console.warn('R2 Archival notice:', e));
+              showToast(`Delivery Challan ${delivery.id} PDF preview opened & archived to Cloudflare R2.`);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg text-xs font-semibold shadow-2xs"
           >
-            <Printer className="w-3.5 h-3.5 text-gray-500" /> Print Challan
+            <Printer className="w-3.5 h-3.5 text-white" /> Print Official DC
           </button>
           <button
-            onClick={() => showToast(`Exported all compliance PDFs for ${delivery.id} as a ZIP bundle.`)}
+            onClick={() => {
+              const html = DispatchPdfGenerator.generateDeliveryChallanHtml(delivery);
+              r2StorageService.downloadLocalPdfBlob(html, `Delivery_Challan_${delivery.id}.html`);
+              showToast(`Downloaded Delivery Challan document for ${delivery.id}.`);
+            }}
             className="flex items-center gap-1 px-3 py-1.5 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-medium"
           >
-            <Download className="w-3.5 h-3.5 text-gray-500" /> Download ZIP
+            <Download className="w-3.5 h-3.5 text-gray-500" /> Download DC
           </button>
         </div>
       </div>

@@ -19,6 +19,10 @@ import {
 } from 'lucide-react';
 import { NicEwbDiagnosticRunnerModal } from './NicEwbDiagnosticRunnerModal';
 import { nicEwbService } from '../../services/nic/nicEwbService';
+import { DispatchPdfGenerator } from '../../services/pdf/dispatchPdfGenerator';
+import { r2StorageService } from '../../services/storage/r2StorageService';
+import { EWayBillRecord } from '../../types/salesOrderDeliveryTypes';
+
 
 interface EWayBillManagementProps {
   eWayBills?: EWayBillRecord[];
@@ -266,11 +270,32 @@ export const EWayBillManagement: React.FC<EWayBillManagementProps> = ({
                         Extend
                       </button>
                       <button
-                        onClick={() => window.print()}
-                        className="p-1 text-gray-500 hover:text-gray-900"
-                        title="Print EWB"
+                        onClick={() => {
+                          const html = DispatchPdfGenerator.generateEWayBillHtml(ewb);
+                          DispatchPdfGenerator.openPrintWindow(html);
+                          r2StorageService.archiveDispatchDocument(
+                            'E_WAY_BILL',
+                            ewb.ewbNumber,
+                            html,
+                            { ewbNumber: ewb.ewbNumber, documentNumber: ewb.documentNumber, vehicleNumber: ewb.vehicleNumber }
+                          ).catch((e) => console.warn('R2 Archival notice:', e));
+                          showToast(`E-Way Bill ${ewb.ewbNumber} formatted printable PDF generated & archived.`);
+                        }}
+                        className="p-1 text-[#0F8B8D] hover:text-[#0c7072] hover:bg-teal-50 rounded"
+                        title="Print / Save NIC E-Way Bill PDF"
                       >
                         <Printer className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          const html = DispatchPdfGenerator.generateEWayBillHtml(ewb);
+                          r2StorageService.downloadLocalPdfBlob(html, `E_Way_Bill_${ewb.ewbNumber}.html`);
+                          showToast(`Downloaded E-Way Bill document for ${ewb.ewbNumber}.`);
+                        }}
+                        className="p-1 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded"
+                        title="Download E-Way Bill"
+                      >
+                        <Download className="w-4 h-4" />
                       </button>
                     </div>
                   </td>

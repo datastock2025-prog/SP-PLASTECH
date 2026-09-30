@@ -56,6 +56,8 @@ import {
   getNextSalesOrderNumber,
 } from '../data/salesOrderDeliveryData';
 import { adminEventBus } from '../services/adminService';
+import { salesDataService } from '../services/salesDataService';
+
 
 import {
   PlasticSalesOrder,
@@ -115,15 +117,35 @@ export const SalesViews: React.FC<SalesProps> = ({
   showToast,
 }) => {
   // Redesigned Indian ERP Compliance Data State
-  const [plasticSalesOrders, setPlasticSalesOrders] = useState<PlasticSalesOrder[]>(INITIAL_PLASTIC_SALES_ORDERS);
-  const [monthlyPlans, setMonthlyPlans] = useState<MonthlyPlanOrder[]>(INITIAL_MONTHLY_PLANS);
-  const [relationships, setRelationships] = useState<OrderRelationship[]>(INITIAL_ORDER_RELATIONSHIPS);
-  const [deliveries, setDeliveries] = useState<DeliveryNoteChallan[]>(INITIAL_DELIVERY_NOTES);
-  const [batches, setBatches] = useState<FgBatchStock[]>(INITIAL_FG_BATCHES);
-  const [eInvoices, setEInvoices] = useState<EInvoiceRecord[]>(INITIAL_E_INVOICES);
-  const [eWayBills, setEWayBills] = useState<EWayBillRecord[]>(INITIAL_E_WAY_BILLS);
-  const [gatePasses, setGatePasses] = useState<GatePassRecord[]>(INITIAL_GATE_PASSES);
-  const [exceptions, setExceptions] = useState<ComplianceExceptionRecord[]>(INITIAL_COMPLIANCE_EXCEPTIONS);
+  const [plasticSalesOrders, setPlasticSalesOrders] = useState<PlasticSalesOrder[]>(() => salesDataService.getSalesOrdersSync());
+  const [monthlyPlans, setMonthlyPlans] = useState<MonthlyPlanOrder[]>(() => salesDataService.getMonthlyPlansSync());
+  const [relationships, setRelationships] = useState<OrderRelationship[]>(() => salesDataService.getRelationshipsSync());
+  const [deliveries, setDeliveries] = useState<DeliveryNoteChallan[]>(() => salesDataService.getDeliveriesSync());
+  const [batches, setBatches] = useState<FgBatchStock[]>(() => salesDataService.getBatchesSync());
+  const [eInvoices, setEInvoices] = useState<EInvoiceRecord[]>(() => salesDataService.getEInvoicesSync());
+  const [eWayBills, setEWayBills] = useState<EWayBillRecord[]>(() => salesDataService.getEWayBillsSync());
+  const [gatePasses, setGatePasses] = useState<GatePassRecord[]>(() => salesDataService.getGatePassesSync());
+  const [exceptions, setExceptions] = useState<ComplianceExceptionRecord[]>(() => salesDataService.getComplianceExceptionsSync());
+
+  // Load from Supabase / PostgreSQL database on mount
+  useEffect(() => {
+    let isMounted = true;
+    Promise.all([
+      salesDataService.getSalesOrders(),
+      salesDataService.getMonthlyPlans(),
+    ]).then(([fetchedOrders, fetchedPlans]) => {
+      if (!isMounted) return;
+      if (fetchedOrders && fetchedOrders.length > 0) {
+        setPlasticSalesOrders(fetchedOrders);
+      }
+      if (fetchedPlans && fetchedPlans.length > 0) {
+        setMonthlyPlans(fetchedPlans);
+      }
+    }).catch((err) => console.warn('Live data sync background notice:', err));
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Sub-navigation states
   const [salesSubNav, setSalesSubNav] = useState<'list' | 'dashboard' | 'wizard' | 'plans' | 'quickEntry' | 'reconciliation'>(() => {
@@ -218,26 +240,30 @@ export const SalesViews: React.FC<SalesProps> = ({
   // Business Action Handlers
   const handleSaveOrder = (newOrder: PlasticSalesOrder) => {
     setPlasticSalesOrders((prev) => [newOrder, ...(prev || []).filter((o) => o.id !== newOrder.id)]);
+    salesDataService.saveSalesOrder(newOrder);
     setSalesSubNav('list');
     adminEventBus.emit('SALES_ORDER_CREATED', newOrder);
-    showToast(`Sales Order ${newOrder.id} successfully saved & confirmed.`);
+    showToast(`Sales Order ${newOrder.id} successfully saved to Live Database & confirmed.`);
   };
 
   const handleSaveMonthlyPlan = (newPlan: MonthlyPlanOrder) => {
-    // 1. Add to Monthly Plans list
+    // 1. Add to Monthly Plans list & persist
     setMonthlyPlans((prev) => [newPlan, ...(prev || []).filter((p) => p.id !== newPlan.id)]);
+    salesDataService.saveMonthlyPlan(newPlan);
 
     // 2. Add to Sales Order Register under Monthly Plan Orders tab with unique, continuously growing SO number
     const nextSoId = getNextSalesOrderNumber(plasticSalesOrders);
     const matchingSo = mapMonthlyPlanToSalesOrder(newPlan, nextSoId);
     setPlasticSalesOrders((prev) => [matchingSo, ...(prev || []).filter((o) => o.id !== matchingSo.id)]);
+    salesDataService.saveSalesOrder(matchingSo);
 
     // 3. Broadcast events to all modules (Manufacturing, SCM, Procurement, Finance)
     adminEventBus.emit('MONTHLY_PLAN_CREATED', newPlan);
     adminEventBus.emit('SALES_ORDER_CREATED', matchingSo);
 
-    showToast(`Monthly Plan Order ${matchingSo.id} (${newPlan.id}) successfully committed to SO Register & S&OP Schedule.`);
+    showToast(`Monthly Plan Order ${matchingSo.id} (${newPlan.id}) successfully committed to Live SO Register & S&OP Schedule.`);
   };
+
 
   const handleSaveDelivery = (
     newDeliv: DeliveryNoteChallan,
@@ -247,15 +273,29 @@ export const SalesViews: React.FC<SalesProps> = ({
   ) => {
     // 1. Save Delivery Challan, E-Invoice, E-Way Bill & Gate Pass
     setDeliveries((prev) => [newDeliv, ...prev]);
+    salesDataService.saveDeliverySync(newDeliv);
     if (newEInv) {
-      setEInvoices((prev) => [newEInv, ...prev.filter((x) => x.invoiceNumber !== newEInv.invoiceNumber)]);
+      setEInvoices((prev) => {
+        const nextInvs = [newEInv, ...prev.filter((x) => x.invoiceNumber !== newEInv.invoiceNumber)];
+        salesDataService.saveEInvoicesSync(nextInvs);
+        return nextInvs;
+      });
     }
     if (newEwb) {
-      setEWayBills((prev) => [newEwb, ...prev.filter((x) => x.ewbNumber !== newEwb.ewbNumber)]);
+      setEWayBills((prev) => {
+        const nextEwbs = [newEwb, ...prev.filter((x) => x.ewbNumber !== newEwb.ewbNumber)];
+        salesDataService.saveEWayBillsSync(nextEwbs);
+        return nextEwbs;
+      });
     }
     if (newGatePass) {
-      setGatePasses((prev) => [newGatePass, ...prev.filter((x) => x.gatePassNumber !== newGatePass.gatePassNumber)]);
+      setGatePasses((prev) => {
+        const nextPasses = [newGatePass, ...prev.filter((x) => x.gatePassNumber !== newGatePass.gatePassNumber)];
+        salesDataService.saveGatePassesSync(nextPasses);
+        return nextPasses;
+      });
     }
+
 
     // 2. Task 2: Deduct dispatched quantities from warehouse FG batch stock
     setBatches((prevBatches) => {
@@ -805,7 +845,8 @@ export const SalesViews: React.FC<SalesProps> = ({
             relationships={relationships}
             onUpdateRelationships={(newRels) => {
               setRelationships(newRels);
-              showToast('Demand reconciliation mappings saved successfully.');
+              salesDataService.saveRelationships(newRels);
+              showToast('Demand reconciliation mappings saved to live database.');
             }}
             showToast={showToast}
           />

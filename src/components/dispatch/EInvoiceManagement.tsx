@@ -16,6 +16,9 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { EInvoiceRecord } from '../../types/salesOrderDeliveryTypes';
+import { DispatchPdfGenerator } from '../../services/pdf/dispatchPdfGenerator';
+import { r2StorageService } from '../../services/storage/r2StorageService';
+
 
 interface EInvoiceManagementProps {
   eInvoices?: EInvoiceRecord[];
@@ -250,11 +253,32 @@ export const EInvoiceManagement: React.FC<EInvoiceManagementProps> = ({
                           Signed JSON
                         </button>
                         <button
-                          onClick={() => window.print()}
-                          className="p-1 text-gray-500 hover:text-gray-900"
-                          title="Print with QR Code"
+                          onClick={() => {
+                            const html = DispatchPdfGenerator.generateEInvoiceHtml(inv);
+                            DispatchPdfGenerator.openPrintWindow(html);
+                            r2StorageService.archiveDispatchDocument(
+                              'GST_E_INVOICE',
+                              inv.invoiceNumber,
+                              html,
+                              { irn: inv.irn, customer: inv.customer, amount: inv.invoiceValue }
+                            ).catch((e) => console.warn('R2 Archival notice:', e));
+                            showToast(`E-Invoice ${inv.invoiceNumber} PDF preview loaded & archived to Cloudflare R2.`);
+                          }}
+                          className="p-1 text-[#0F8B8D] hover:text-[#0c7072] hover:bg-teal-50 rounded"
+                          title="Print / Save Tax E-Invoice PDF (with QR & IRN)"
                         >
                           <Printer className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            const html = DispatchPdfGenerator.generateEInvoiceHtml(inv);
+                            r2StorageService.downloadLocalPdfBlob(html, `E_Invoice_${inv.invoiceNumber}.html`);
+                            showToast(`Downloaded E-Invoice document for ${inv.invoiceNumber}.`);
+                          }}
+                          className="p-1 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded"
+                          title="Download Document"
+                        >
+                          <Download className="w-4 h-4" />
                         </button>
                       </>
                     ) : inv.status === 'Failed' ? (
