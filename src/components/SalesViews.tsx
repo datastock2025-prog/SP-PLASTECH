@@ -159,6 +159,7 @@ export const SalesViews: React.FC<SalesProps> = ({
   const [selectedPlasticSoId, setSelectedPlasticSoId] = useState<string>(selectedId || 'SO-5001');
   const [selectedDelivery, setSelectedDelivery] = useState<DeliveryNoteChallan | null>(null);
   const [isFgStockModalOpen, setIsFgStockModalOpen] = useState(false);
+  const [isCreatePlanModalOpen, setIsCreatePlanModalOpen] = useState(false);
   const [wizardDefaultType, setWizardDefaultType] = useState<'Daily Sales Order' | 'Monthly Plan Order' | 'Blanket/Contract Order'>('Monthly Plan Order');
 
   // Synchronize internal views with route view prop

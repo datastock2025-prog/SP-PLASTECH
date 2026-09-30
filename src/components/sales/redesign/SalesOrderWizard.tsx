@@ -263,6 +263,19 @@ export const SalesOrderWizard: React.FC<SalesOrderWizardProps> = ({
   // Customer Onboarding & PO Amendment Modals
   const [isOnboardingWizardOpen, setIsOnboardingWizardOpen] = useState(false);
   const [isPoAmendmentModalOpen, setIsPoAmendmentModalOpen] = useState(false);
+  const [isRegisterPoModalOpen, setIsRegisterPoModalOpen] = useState(false);
+  const [newPoNumberInput, setNewPoNumberInput] = useState('');
+  const [newPoDateInput, setNewPoDateInput] = useState(new Date().toISOString().slice(0, 10));
+
+  const handleSaveRegisteredPo = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPoNumberInput.trim()) return;
+    setCustomerPoNumber(newPoNumberInput.trim());
+    setCustomerPoDate(newPoDateInput);
+    setCustomerPoVersion('Rev 01');
+    setIsRegisterPoModalOpen(false);
+    showToast(`✓ PO Registered: ${newPoNumberInput.trim()} for ${customer}`);
+  };
 
   const [plant, setPlant] = useState(
     initialOrder?.plant || 'Plant 1 - Pimpri Auto-Hub'
