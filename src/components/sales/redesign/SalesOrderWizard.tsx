@@ -2437,6 +2437,7 @@ export const SalesOrderWizard: React.FC<SalesOrderWizardProps> = ({
             }
           }
           onClose={() => setIsPoAmendmentModalOpen(false)}
+          showToast={showToast}
           onSuccess={(updatedCust) => {
             setSelectedCustomerMaster(updatedCust);
             setCustomerPoNumber(updatedCust.activePoNumber || '');

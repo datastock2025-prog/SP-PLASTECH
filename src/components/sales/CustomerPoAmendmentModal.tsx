@@ -18,28 +18,30 @@ import {
 } from '../../services/customerMasterService';
 
 interface Props {
-  isOpen: boolean;
+  isOpen?: boolean;
   onClose: () => void;
-  customer: EnrichedCustomerRecord;
-  onPoUpdated: (updatedCustomer: EnrichedCustomerRecord) => void;
-  showToast: (msg: string) => void;
+  customer: any;
+  onPoUpdated?: (updatedCustomer: any) => void;
+  onSuccess?: (updatedCustomer: any) => void;
+  showToast?: (msg: string) => void;
 }
 
 export const CustomerPoAmendmentModal: React.FC<Props> = ({
-  isOpen,
+  isOpen = true,
   onClose,
   customer,
   onPoUpdated,
+  onSuccess,
   showToast,
 }) => {
-  const [poNumber, setPoNumber] = useState(
-    customer.poNumber || `PO-${customer.code}-2026-01`
-  );
-  const [poDate, setPoDate] = useState(
-    customer.poDate || new Date().toISOString().slice(0, 10)
-  );
+  const effectivePoNumber = customer?.activePoNumber || customer?.poNumber || `PO-${customer?.code || 'CUST'}-2026-01`;
+  const effectivePoDate = customer?.activePoDate || customer?.poDate || new Date().toISOString().slice(0, 10);
+  const effectiveVersions = customer?.poVersions || [];
+
+  const [poNumber, setPoNumber] = useState(effectivePoNumber);
+  const [poDate, setPoDate] = useState(effectivePoDate);
   const [version, setVersion] = useState(
-    `Rev 0${(customer.poVersions?.length || 0) + 1} (${new Date().toLocaleString('default', { month: 'short' })} Release)`
+    customer?.activePoVersion || `Rev 0${effectiveVersions.length + 1} (${new Date().toLocaleString('default', { month: 'short' })} Release)`
   );
   const [changeReason, setChangeReason] = useState('Monthly Schedule Release & Volume Extension');
   const [changedBy, setChangedBy] = useState('Commercial Operations Lead');
@@ -73,8 +75,9 @@ export const CustomerPoAmendmentModal: React.FC<Props> = ({
     });
 
     if (updated) {
-      onPoUpdated(updated);
-      showToast(`✓ PO Version ${version} saved successfully for ${customer.name}`);
+      if (onPoUpdated) onPoUpdated(updated);
+      if (onSuccess) onSuccess(updated);
+      if (showToast) showToast(`✓ PO Version ${version} saved successfully for ${customer.name}`);
       onClose();
     }
   };
