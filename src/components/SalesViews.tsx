@@ -53,6 +53,7 @@ import {
   INITIAL_GATE_PASSES,
   INITIAL_COMPLIANCE_EXCEPTIONS,
   mapMonthlyPlanToSalesOrder,
+  getNextSalesOrderNumber,
 } from '../data/salesOrderDeliveryData';
 import { adminEventBus } from '../services/adminService';
 
@@ -203,15 +204,16 @@ export const SalesViews: React.FC<SalesProps> = ({
     // 1. Add to Monthly Plans list
     setMonthlyPlans((prev) => [newPlan, ...(prev || []).filter((p) => p.id !== newPlan.id)]);
 
-    // 2. Add to Sales Order Register under Monthly Plan Orders tab
-    const matchingSo = mapMonthlyPlanToSalesOrder(newPlan);
+    // 2. Add to Sales Order Register under Monthly Plan Orders tab with unique, continuously growing SO number
+    const nextSoId = getNextSalesOrderNumber(plasticSalesOrders);
+    const matchingSo = mapMonthlyPlanToSalesOrder(newPlan, nextSoId);
     setPlasticSalesOrders((prev) => [matchingSo, ...(prev || []).filter((o) => o.id !== matchingSo.id)]);
 
     // 3. Broadcast events to all modules (Manufacturing, SCM, Procurement, Finance)
     adminEventBus.emit('MONTHLY_PLAN_CREATED', newPlan);
     adminEventBus.emit('SALES_ORDER_CREATED', matchingSo);
 
-    showToast(`Monthly Plan Order ${newPlan.id} successfully committed to SO Register & S&OP Schedule.`);
+    showToast(`Monthly Plan Order ${matchingSo.id} (${newPlan.id}) successfully committed to SO Register & S&OP Schedule.`);
   };
 
   const handleSaveDelivery = (

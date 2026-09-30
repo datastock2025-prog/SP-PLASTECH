@@ -182,20 +182,29 @@ export const INITIAL_ORDER_RELATIONSHIPS: OrderRelationship[] = [
   },
 ];
 
-// Helper function to map a Monthly Plan Order to a PlasticSalesOrder in SO Register
-export const mapMonthlyPlanToSalesOrder = (plan: MonthlyPlanOrder): PlasticSalesOrder => {
+// Helper function to map a Monthly Plan Order to a PlasticSalesOrder in SO Register with sequential SO-XXXX number
+export const mapMonthlyPlanToSalesOrder = (plan: MonthlyPlanOrder, customSoId?: string): PlasticSalesOrder => {
   const isPimpri = plan.plant?.includes('Pimpri') || plan.plant?.includes('Plant 1');
   const city = isPimpri ? 'Pune' : 'Chakan';
   const deliveredVal = Math.round((plan.totalDailySuppliedQty / (plan.totalPlannedQty || 1)) * plan.totalPlannedValue * 1.18);
   const remainingVal = Math.round((plan.remainingPlanQty / (plan.totalPlannedQty || 1)) * plan.totalPlannedValue * 1.18);
   const isFullyDelivered = plan.remainingPlanQty <= 0 && plan.totalDailySuppliedQty >= plan.totalPlannedQty;
 
+  const planNum = plan.id.split('-').pop() || '1';
+  const numericPart = parseInt(planNum, 10) || 1;
+  const generatedId = customSoId || `SO-${5004 + numericPart}`;
+
+  // Find customer PO reference if present in line items or generate clean PO reference
+  const firstItemCode = plan.items[0]?.customerItemCode || '';
+  const poPrefix = firstItemCode.split('-')[0] || plan.customer.split(' ')[0].toUpperCase();
+  const customerPoNumber = `PO-${poPrefix}-2026-90${numericPart}`;
+
   return {
-    id: plan.id,
+    id: generatedId,
     orderType: 'Monthly Plan Order',
     customer: plan.customer,
     customerGstin: plan.customerGstin || '27AAACG0943A1ZX',
-    customerPoNumber: `PO-${plan.id}`,
+    customerPoNumber,
     customerPoDate: plan.createdDate || '2026-09-01',
     orderDate: plan.createdDate || '2026-09-01',
     requiredDeliveryDate: plan.createdDate ? `${plan.createdDate.slice(0, 7)}-30` : '2026-09-30',
@@ -289,10 +298,22 @@ export const mapMonthlyPlanToSalesOrder = (plan: MonthlyPlanOrder): PlasticSales
   };
 };
 
+export const getNextSalesOrderNumber = (existingOrders: PlasticSalesOrder[]): string => {
+  let maxNum = 5000;
+  (existingOrders || []).forEach((o) => {
+    const m = o.id.match(/^SO-(\d+)$/i);
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (n > maxNum) maxNum = n;
+    }
+  });
+  return `SO-${maxNum + 1}`;
+};
+
 // Sales Orders (Independent Daily Orders + Monthly Plan Orders + Contract releases)
 export const INITIAL_PLASTIC_SALES_ORDERS: PlasticSalesOrder[] = [
   // Initial Monthly Plans as Master Sales Orders (Visible in SO Register under Monthly Plan Orders)
-  ...INITIAL_MONTHLY_PLANS.map(mapMonthlyPlanToSalesOrder),
+  ...INITIAL_MONTHLY_PLANS.map((p, idx) => mapMonthlyPlanToSalesOrder(p, `SO-${5005 + idx}`)),
   {
     id: 'SO-5001',
     orderType: 'Daily Sales Order',
