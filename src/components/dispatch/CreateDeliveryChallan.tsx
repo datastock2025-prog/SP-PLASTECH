@@ -45,6 +45,7 @@ import {
 import { INITIAL_FG_BATCHES } from '../../data/salesOrderDeliveryData';
 import { nicEwbService } from '../../services/nic/nicEwbService';
 import { NicEwbGenerationPayload } from '../../types/nicEwbTypes';
+import { NicEwbDiagnosticRunnerModal } from './NicEwbDiagnosticRunnerModal';
 import { customerMasterService, ContractedCustomerLine } from '../../services/customerMasterService';
 import { salesDataService } from '../../services/salesDataService';
 import { getWarehouseStock } from '../../utils/warehouseSync';
