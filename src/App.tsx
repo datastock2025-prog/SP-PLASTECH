@@ -383,13 +383,6 @@ export const App: React.FC = () => {
   const [quotations, setQuotations] = useState<Quotation[]>(initialQuotations);
   const [rmas, setRmas] = useState<ReturnMerchandise[]>(INITIAL_RMAS);
 
-  // Sync workOrders with localStorage whenever it changes
-  useEffect(() => {
-    try {
-      localStorage.setItem('reboot_work_orders', JSON.stringify(workOrders));
-    } catch {}
-  }, [workOrders]);
-
   // Sync Item Master & Core Entities with Live Database Store & Cross-Browser Mesh
   useEffect(() => {
     itemService.getItems().then((fetched) => {

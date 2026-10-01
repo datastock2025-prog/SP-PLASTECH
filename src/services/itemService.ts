@@ -1,4 +1,5 @@
 import { ItemMaster } from '../types';
+import { supabase } from '../shared/supabaseClient';
 import { apiClient } from '../shared/api/client';
 import { adminEventBus } from './adminService';
 import { universalSyncManager } from './realtime/UniversalSyncManager';
@@ -79,15 +80,27 @@ class ItemService {
 
   public async getItems(): Promise<ItemMaster[]> {
     try {
+      const { data, error } = await supabase
+        .from('items')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        this.cache = data.filter((i: ItemMaster) => !DUMMY_CODES.has(i.code));
+        saveLocalItems(this.cache);
+        return this.cache;
+      }
+    } catch {}
+
+    try {
       const res = await apiClient.get<any>('/items');
       if (res && res.data && Array.isArray(res.data.items) && res.data.items.length > 0) {
         this.cache = res.data.items.filter((i: ItemMaster) => !DUMMY_CODES.has(i.code));
         saveLocalItems(this.cache);
         return this.cache;
       }
-    } catch {
-      // Fallback to local cache
-    }
+    } catch {}
+
     if (!this.cache || this.cache.length === 0) {
       this.cache = loadLocalItems();
     }

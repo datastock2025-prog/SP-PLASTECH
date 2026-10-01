@@ -5,10 +5,10 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 // Connected to Local Podman Kong Gateway & PostgreSQL
 // ============================================================================
 
-// Default fallback tokens (matching containers/kong.yml credentials)
-const DEFAULT_SUPABASE_URL = 'http://localhost:8000';
+// Default fallback tokens for secure Cloudflare / Web connectivity
+const DEFAULT_SUPABASE_URL = 'https://gqrelwvmeoqvfnanoutz.supabase.co';
 const DEFAULT_ANON_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlYm9vdC1kZXYiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTYwMDAwMDAwMCwiZXhwIjoxOTAwMDAwMDAwfQ.reboot_dev_anon_secure_token_key_2026';
+  'sb_publishable_RN013pGcuejquwnEeW-n3Q_Ly2qVu2R';
 
 const supabaseUrl =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) ||

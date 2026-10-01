@@ -138,16 +138,8 @@ export const SalesViews: React.FC<SalesProps> = ({
         salesDataService.getMonthlyPlans(),
       ]).then(([fetchedOrders, fetchedPlans]) => {
         if (!isMounted) return;
-        if (fetchedOrders && fetchedOrders.length > 0) {
-          setPlasticSalesOrders(fetchedOrders);
-        } else {
-          setPlasticSalesOrders(salesDataService.getSalesOrdersSync());
-        }
-        if (fetchedPlans && fetchedPlans.length > 0) {
-          setMonthlyPlans(fetchedPlans);
-        } else {
-          setMonthlyPlans(salesDataService.getMonthlyPlansSync());
-        }
+        setPlasticSalesOrders(fetchedOrders || []);
+        setMonthlyPlans(fetchedPlans || []);
       }).catch((err) => console.warn('Live data sync background notice:', err));
     };
 

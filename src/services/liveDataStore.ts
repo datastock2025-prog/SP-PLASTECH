@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { supabase } from '../shared/supabaseClient';
 import { adminEventBus } from './adminService';
 import { universalSyncManager } from './realtime/UniversalSyncManager';
 import {
@@ -185,6 +186,17 @@ class LiveDataStore {
   // --------------------------------------------------------------------------
   public async getWorkOrders(): Promise<WorkOrder[]> {
     try {
+      const { data, error } = await supabase
+        .from('work_orders')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data as WorkOrder[];
+      }
+    } catch {}
+
+    try {
       const res = await this.api.get('/work-orders');
       const data = res.data?.data || res.data;
       return Array.isArray(data) ? data : [];
@@ -194,6 +206,16 @@ class LiveDataStore {
   }
 
   public async saveWorkOrder(wo: WorkOrder): Promise<WorkOrder> {
+    try {
+      await supabase.from('work_orders').upsert({
+        id: wo.id,
+        item_code: wo.itemCode,
+        machine_id: wo.machineId,
+        status: wo.status,
+        updated_at: new Date().toISOString(),
+      });
+    } catch {}
+
     try {
       const res = await this.api.post('/work-orders', wo);
       const saved = res.data?.data || wo;
@@ -212,6 +234,17 @@ class LiveDataStore {
   // --------------------------------------------------------------------------
   public async getPurchaseOrders(): Promise<PurchaseOrder[]> {
     try {
+      const { data, error } = await supabase
+        .from('purchase_orders')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data as PurchaseOrder[];
+      }
+    } catch {}
+
+    try {
       const res = await this.api.get('/purchase-orders');
       const data = res.data?.data || res.data;
       return Array.isArray(data) ? data : [];
@@ -224,6 +257,17 @@ class LiveDataStore {
   // 6. Sales Orders (Live DB)
   // --------------------------------------------------------------------------
   public async getSalesOrders(): Promise<SalesOrder[]> {
+    try {
+      const { data, error } = await supabase
+        .from('sales_orders')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data as unknown as SalesOrder[];
+      }
+    } catch {}
+
     try {
       const res = await this.api.get('/sales-orders');
       const data = res.data?.data || res.data;

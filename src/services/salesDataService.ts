@@ -37,17 +37,21 @@ const GATE_PASSES_CACHE_KEY = 'sp_plastech_live_gate_passes_v2';
 const FG_BATCHES_CACHE_KEY = 'sp_plastech_live_fg_batches_v2';
 
 class SalesDataService {
+  private inMemoryOrders: PlasticSalesOrder[] | null = null;
+  private inMemoryPlans: MonthlyPlanOrder[] | null = null;
+
   constructor() {
     // Listen for cross-browser sync events from other browsers/tabs
     if (typeof window !== 'undefined') {
       adminEventBus.on('SALES_ORDERS_SYNCED', (event: any) => {
         if (event?.data) {
           const incoming = event.data;
-          const current = this.getSalesOrdersSync();
+          const current = this.inMemoryOrders || this.getSalesOrdersSync();
           const exists = current.some((o) => o.id === incoming.id);
           const updated = exists
             ? current.map((o) => (o.id === incoming.id ? { ...o, ...incoming } : o))
             : [incoming, ...current];
+          this.inMemoryOrders = updated;
           this.setSalesOrdersCache(updated);
           adminEventBus.emit('SALES_ORDER_CREATED', incoming);
         }
@@ -56,34 +60,43 @@ class SalesDataService {
       adminEventBus.on('MONTHLY_PLANS_SYNCED', (event: any) => {
         if (event?.data) {
           const incoming = event.data;
-          const current = this.getMonthlyPlansSync();
+          const current = this.inMemoryPlans || this.getMonthlyPlansSync();
           const exists = current.some((p) => p.id === incoming.id);
           const updated = exists
             ? current.map((p) => (p.id === incoming.id ? { ...p, ...incoming } : p))
             : [incoming, ...current];
+          this.inMemoryPlans = updated;
           this.setMonthlyPlansCache(updated);
           adminEventBus.emit('MONTHLY_PLAN_CREATED', incoming);
         }
       });
     }
   }
+
   // ==========================================================================
-  // 1. SALES ORDERS CRUD & DB PERSISTENCE
+  // 1. SALES ORDERS CRUD & DB PERSISTENCE (DATABASE-FIRST)
   // ==========================================================================
   public getSalesOrdersSync(): PlasticSalesOrder[] {
+    if (this.inMemoryOrders !== null) {
+      return this.inMemoryOrders;
+    }
     try {
       const stored = localStorage.getItem(SALES_ORDERS_CACHE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          this.inMemoryOrders = parsed;
+          return parsed;
+        }
       }
     } catch (e) {
       console.warn('Error reading cached sales orders:', e);
     }
-    return INITIAL_PLASTIC_SALES_ORDERS;
+    return [];
   }
 
   public saveSalesOrdersSync(orders: PlasticSalesOrder[]) {
+    this.inMemoryOrders = orders;
     try {
       localStorage.setItem(SALES_ORDERS_CACHE_KEY, JSON.stringify(orders));
     } catch (e) {
@@ -92,6 +105,7 @@ class SalesDataService {
   }
 
   public saveMonthlyPlansSync(plans: MonthlyPlanOrder[]) {
+    this.inMemoryPlans = plans;
     try {
       localStorage.setItem(MONTHLY_PLANS_CACHE_KEY, JSON.stringify(plans));
     } catch (e) {
@@ -106,7 +120,7 @@ class SalesDataService {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!error && data) {
+      if (!error && Array.isArray(data) && data.length > 0) {
         const mapped: PlasticSalesOrder[] = data.map((d: any) => ({
           id: d.id,
           linkType: d.link_type || 'STANDARD',
@@ -162,19 +176,21 @@ class SalesDataService {
           auditTrail: typeof d.audit_trail === 'string' ? JSON.parse(d.audit_trail) : d.audit_trail || [],
         }));
 
+        this.inMemoryOrders = mapped;
         this.setSalesOrdersCache(mapped);
         return mapped;
       }
     } catch (err) {
-      console.warn('Supabase sales_orders query skipped/fallback:', err);
+      console.warn('Supabase sales_orders query fallback:', err);
     }
     return this.getSalesOrdersSync();
   }
 
   public async saveSalesOrder(order: PlasticSalesOrder): Promise<PlasticSalesOrder> {
     // 1. Update memory & Local Cache
-    const current = this.getSalesOrdersSync();
+    const current = this.inMemoryOrders || this.getSalesOrdersSync();
     const updated = [order, ...current.filter((o) => o.id !== order.id)];
+    this.inMemoryOrders = updated;
     this.setSalesOrdersCache(updated);
 
     // 2. Persist to DB
@@ -234,20 +250,26 @@ class SalesDataService {
     }
   }
 
-  // ==========================================================================
-  // 2. MONTHLY PLANS CRUD & DB PERSISTENCE
-  // ==========================================================================
+  // ==========================================
+  // 2. MONTHLY PLANS CRUD & DB PERSISTENCE (DATABASE-FIRST)
+  // ==========================================
   public getMonthlyPlansSync(): MonthlyPlanOrder[] {
+    if (this.inMemoryPlans !== null) {
+      return this.inMemoryPlans;
+    }
     try {
       const stored = localStorage.getItem(MONTHLY_PLANS_CACHE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          this.inMemoryPlans = parsed;
+          return parsed;
+        }
       }
     } catch (e) {
       console.warn('Error reading cached monthly plans:', e);
     }
-    return INITIAL_MONTHLY_PLANS;
+    return [];
   }
 
   public async getMonthlyPlans(): Promise<MonthlyPlanOrder[]> {
@@ -257,7 +279,7 @@ class SalesDataService {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!error && data) {
+      if (!error && Array.isArray(data) && data.length > 0) {
         const mapped: MonthlyPlanOrder[] = data.map((d: any) => ({
           id: d.id,
           customer: d.customer,
@@ -280,18 +302,20 @@ class SalesDataService {
           auditTrail: typeof d.audit_trail === 'string' ? JSON.parse(d.audit_trail) : d.audit_trail || [],
         }));
 
+        this.inMemoryPlans = mapped;
         this.setMonthlyPlansCache(mapped);
         return mapped;
       }
     } catch (err) {
-      console.warn('Supabase monthly_plan_orders query skipped/fallback:', err);
+      console.warn('Supabase monthly_plan_orders query fallback:', err);
     }
     return this.getMonthlyPlansSync();
   }
 
   public async saveMonthlyPlan(plan: MonthlyPlanOrder): Promise<MonthlyPlanOrder> {
-    const current = this.getMonthlyPlansSync();
+    const current = this.inMemoryPlans || this.getMonthlyPlansSync();
     const updated = [plan, ...current.filter((p) => p.id !== plan.id)];
+    this.inMemoryPlans = updated;
     this.setMonthlyPlansCache(updated);
 
     try {
