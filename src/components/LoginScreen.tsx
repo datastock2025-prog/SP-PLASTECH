@@ -119,7 +119,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, lastLoggedOut
         return;
       }
 
-      // 2. Instant In-Memory Cached Directory Check & Live DB Fallback Check
+      // 2. Instant In-Memory Cached Directory Check & Fast Live DB Fallback Check
       let allUsers = adminService.getCachedUsers();
       let matchedUser = allUsers.find(
         (u) =>
@@ -129,19 +129,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, lastLoggedOut
             (u.username && u.username.toLowerCase() === identifier))
       );
 
-      // If not in cache, query Supabase Live DB directly
+      // If not in cache, query Supabase Live DB with a fast timeout
       if (!matchedUser) {
-        const liveUsers = await adminService.getUsers();
-        if (Array.isArray(liveUsers)) {
-          allUsers = liveUsers;
-          matchedUser = liveUsers.find(
-            (u) =>
-              u.status === 'Active' &&
-              (u.email.toLowerCase() === identifier ||
-                (u.id && u.id.toLowerCase() === identifier) ||
-                (u.username && u.username.toLowerCase() === identifier))
-          );
-        }
+        try {
+          const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 500));
+          const liveUsers = await Promise.race([adminService.getUsers(), timeoutPromise]);
+          if (Array.isArray(liveUsers)) {
+            matchedUser = liveUsers.find(
+              (u) =>
+                u.status === 'Active' &&
+                (u.email.toLowerCase() === identifier ||
+                  (u.id && u.id.toLowerCase() === identifier) ||
+                  (u.username && u.username.toLowerCase() === identifier))
+            );
+          }
+        } catch {}
       }
 
       if (matchedUser) {
