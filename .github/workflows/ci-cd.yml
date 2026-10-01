@@ -193,14 +193,3 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy dist --project-name=sp-plastech --branch=main
-        continue-on-error: true
-
-      - name: Fallback Cloudflare Pages Deploy Action
-        if: failure()
-        uses: cloudflare/pages-action@v1
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: 'sp-plastech'
-          directory: 'dist'
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
