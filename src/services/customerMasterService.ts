@@ -79,6 +79,41 @@ const DEFAULT_ENRICHMENTS: Record<string, Partial<EnrichedCustomerRecord>> = {
         notes: 'Annual Tier-1 Supplier PO setup.',
       },
     ],
+    contractedLines: [
+      {
+        itemCode: 'FG-708027010001',
+        itemName: 'ARMPAD INSERT - 50MM(HFRL)',
+        customerPartNumber: '708027010001',
+        unitPrice: 55.0,
+        hsn: '39269099',
+        gstRatePct: 18,
+        uom: 'PCS',
+        polymerGrade: 'PP-HFRL',
+        mouldCode: 'M-TM-ARM-01',
+      },
+      {
+        itemCode: 'FG-AUTO-012',
+        itemName: 'ABS Dashboard Trim Bezel (Matte Black)',
+        customerPartNumber: 'TATA-7890-DSB',
+        unitPrice: 55.0,
+        hsn: '39269099',
+        gstRatePct: 18,
+        uom: 'PCS',
+        polymerGrade: 'ABS Injection Grade',
+        mouldCode: 'M-TM-DSB-02',
+      },
+      {
+        itemCode: 'FG-AUTO-045',
+        itemName: 'PP Air Duct Housing - Front Left',
+        customerPartNumber: 'TATA-4412-ADH',
+        unitPrice: 42.0,
+        hsn: '39269099',
+        gstRatePct: 18,
+        uom: 'PCS',
+        polymerGrade: 'PP Copolymer 30% GF',
+        mouldCode: 'M-TM-ADH-01',
+      },
+    ],
     priceList: 'Tier-1 Automotive OEM Matrix 2026',
     freightTerms: 'Paid & Billed',
     freightAmount: 4500,
@@ -107,6 +142,30 @@ const DEFAULT_ENRICHMENTS: Record<string, Partial<EnrichedCustomerRecord>> = {
         notes: 'Additional 8,000 PCS approved by Bajaj procurement head.',
       },
     ],
+    contractedLines: [
+      {
+        itemCode: 'FG-MOTO-088',
+        itemName: 'Nylon Front Fork Guard (UV Stabilized)',
+        customerPartNumber: 'BAJ-CWL-900',
+        unitPrice: 76.0,
+        hsn: '39269099',
+        gstRatePct: 18,
+        uom: 'PCS',
+        polymerGrade: 'PA66 UV Heat Resistant',
+        mouldCode: 'M-BAJ-FRK-01',
+      },
+      {
+        itemCode: 'FG-MOTO-091',
+        itemName: 'Nylon-6 Reinforced Rear Mudguard Cowl',
+        customerPartNumber: 'BAJ-FND-104',
+        unitPrice: 95.0,
+        hsn: '39269099',
+        gstRatePct: 18,
+        uom: 'PCS',
+        polymerGrade: 'PA6 Mineral Filled',
+        mouldCode: 'M-BAJ-MDG-02',
+      },
+    ],
     priceList: 'Tier-1 Automotive OEM Matrix 2026',
     paymentTerms: 'Net 30 Days RTGS',
     packagingType: 'Heavy-Duty Corrugated Master Carton',
@@ -130,6 +189,30 @@ const DEFAULT_ENRICHMENTS: Record<string, Partial<EnrichedCustomerRecord>> = {
         changedBy: 'Amit Joshi',
         changedAt: '2026-09-09 11:20',
         notes: '28mm Flip-Top Parachute Blue Cap batch release.',
+      },
+    ],
+    contractedLines: [
+      {
+        itemCode: 'FG-FLIP-28',
+        itemName: '28mm PP Flip-Top Dispenser Cap (Parachute Blue)',
+        customerPartNumber: 'MAR-CAP-28B',
+        unitPrice: 15.5,
+        hsn: '39235010',
+        gstRatePct: 18,
+        uom: 'PCS',
+        polymerGrade: 'PP Random Copolymer Food Grade',
+        mouldCode: 'M-MAR-CAP-32C',
+      },
+      {
+        itemCode: 'FG-CTN-500',
+        itemName: '500ml HDPE Heavy-Duty Chemical Bottle',
+        customerPartNumber: 'MAR-BTL-500H',
+        unitPrice: 24.0,
+        hsn: '39233090',
+        gstRatePct: 18,
+        uom: 'PCS',
+        polymerGrade: 'HDPE Blow Molding Grade',
+        mouldCode: 'M-MAR-BTL-01',
       },
     ],
     priceList: 'FMCG Rigid Packaging List',
@@ -349,6 +432,28 @@ class CustomerMasterService {
     return false;
   }
 
+  public getContractedLinesForCustomer(customerNameOrCode: string): ContractedCustomerLine[] {
+    const cust = this.getCustomerByCodeOrName(customerNameOrCode);
+    if (!cust) return [];
+    if (cust.contractedLines && cust.contractedLines.length > 0) {
+      return cust.contractedLines;
+    }
+    // Default fallback line for any standard customer
+    return [
+      {
+        itemCode: `FG-${cust.code}-01`,
+        itemName: `${cust.name.split(' ')[0]} Molded Component Line`,
+        customerPartNumber: `${cust.code}-PRT-01`,
+        unitPrice: 55.0,
+        hsn: '39269099',
+        gstRatePct: 18,
+        uom: 'PCS',
+        polymerGrade: 'PP Injection Molded Grade',
+        mouldCode: 'M-01',
+      },
+    ];
+  }
+
   public generateNextCustomerCode(): string {
     const list = this.getCustomersSync();
     let maxNum = 118;
@@ -364,3 +469,4 @@ class CustomerMasterService {
 }
 
 export const customerMasterService = new CustomerMasterService();
+

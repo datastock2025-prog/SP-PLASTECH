@@ -372,12 +372,105 @@ export class DispatchPdfGenerator {
     };
   }
 
+  // Helper shortcuts returning string HTML
+  public static generateEInvoiceHtml(inv: EInvoiceRecord, delivery?: DeliveryNoteChallan | null): string {
+    return this.generateEInvoicePdf(inv, delivery).htmlContent;
+  }
+
+  public static generateEWayBillHtml(ewb: EWayBillRecord): string {
+    return this.generateEWayBillPdf(ewb).htmlContent;
+  }
+
+  public static generateDeliveryChallanHtml(dc: DeliveryNoteChallan): string {
+    return this.generateDeliveryChallanPdf(dc).htmlContent;
+  }
+
+  // ==========================================================================
+  // 4. SECURITY GATE PASS PDF & HTML
+  // ==========================================================================
+  public static generateGatePassPdf(gp: GatePassRecord, delivery?: DeliveryNoteChallan | null): GeneratedPdfDocument {
+    const fileName = `Security_Gate_Pass_${gp.gatePassNumber}.html`;
+
+    const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Security Gate Pass - ${gp.gatePassNumber}</title>
+  <style>
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; padding: 24px; color: #1e293b; background: #fff; font-size: 12px; }
+    .header { border-bottom: 2px solid #14213D; padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+    .title { font-size: 18px; font-weight: bold; color: #14213D; }
+    .box { border: 1px solid #cbd5e1; border-radius: 6px; padding: 12px; margin-bottom: 12px; }
+    .box-header { font-size: 11px; font-weight: bold; background: #f1f5f9; padding: 6px 10px; margin: -12px -12px 10px -12px; border-bottom: 1px solid #cbd5e1; border-radius: 5px 5px 0 0; text-transform: uppercase; color: #334155; }
+    .row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; }
+    .row label { color: #64748b; font-weight: 600; width: 160px; }
+    .row span { font-weight: 600; color: #0f172a; flex: 1; }
+    .stamp-box { border: 2px dashed #059669; background: #ecfdf5; border-radius: 8px; padding: 12px; text-align: center; color: #059669; font-weight: bold; }
+    @media print { .no-print { display: none; } body { padding: 0; } }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="margin-bottom: 16px; text-align: right;">
+    <button onclick="window.print()" style="background: #14213D; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer;">
+      🖨️ Print / Save Gate Pass
+    </button>
+  </div>
+
+  <div class="header">
+    <div>
+      <div class="title">SP PLASTECH ENTERPRISE PVT LTD</div>
+      <div style="font-size: 12px; font-weight: bold; color: #0F8B8D; margin-top: 2px;">SECURITY OUTWARD GATE PASS (FORM SEC-04)</div>
+    </div>
+    <div style="font-size: 14px; font-family: monospace; font-weight: bold; border: 2px solid #14213D; padding: 6px 12px; border-radius: 6px; background: #f8fafc;">
+      PASS #: ${gp.gatePassNumber}
+    </div>
+  </div>
+
+  <div class="box">
+    <div class="box-header">1. Movement &amp; Vehicle Authorization</div>
+    <div class="row"><label>Vehicle Number:</label><span style="font-family: monospace; font-size: 13px; font-weight: bold;">${gp.vehicleNumber}</span></div>
+    <div class="row"><label>Driver Name &amp; Phone:</label><span>${gp.driverName} &bull; ${gp.driverPhone || 'N/A'}</span></div>
+    <div class="row"><label>Transporter:</label><span>${gp.transporter}</span></div>
+    <div class="row"><label>Outward Time:</label><span>${gp.outwardTime || new Date().toLocaleString()}</span></div>
+    <div class="row"><label>Purpose:</label><span>${gp.purpose || 'Customer Sales Dispatch Delivery'}</span></div>
+  </div>
+
+  <div class="box">
+    <div class="box-header">2. Dispatch &amp; Consignment References</div>
+    <div class="row"><label>Customer / Consignee:</label><span>${gp.customer}</span></div>
+    <div class="row"><label>Delivery Challan #:</label><span>${gp.deliveryId}</span></div>
+    <div class="row"><label>Tax Invoice #:</label><span>${gp.invoiceNumber || 'INV-2026-9001'}</span></div>
+    <div class="row"><label>Total Package Count:</label><span>${gp.totalBoxes || (delivery ? delivery.totalBoxes : 12)} Master Boxes / Crates</span></div>
+  </div>
+
+  <div class="stamp-box">
+    SECURITY OUTWARD CLEARED &bull; BOOM BARRIER RELEASED<br />
+    <span style="font-size: 10px; font-weight: normal; color: #065f46;">Officer: ${gp.securityOfficer || 'Security Main Gate'} &bull; Status: ${gp.status.toUpperCase()}</span>
+  </div>
+</body>
+</html>`;
+
+    return {
+      documentType: 'Gate Pass',
+      documentNumber: gp.gatePassNumber,
+      referenceId: gp.deliveryId,
+      fileName,
+      htmlContent,
+    };
+  }
+
+  public static generateGatePassHtml(gp: GatePassRecord, delivery?: DeliveryNoteChallan | null): string {
+    return this.generateGatePassPdf(gp, delivery).htmlContent;
+  }
+
   // Direct trigger to open high-fidelity printable view in new browser window
-  public static openPrintWindow(doc: GeneratedPdfDocument) {
+  public static openPrintWindow(docOrHtml: GeneratedPdfDocument | string) {
+    const html = typeof docOrHtml === 'string' ? docOrHtml : docOrHtml.htmlContent;
     const win = window.open('', '_blank');
     if (win) {
-      win.document.write(doc.htmlContent);
+      win.document.write(html);
       win.document.close();
     }
   }
 }
+

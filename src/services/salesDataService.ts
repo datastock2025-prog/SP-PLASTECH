@@ -25,13 +25,13 @@ import {
 import { adminEventBus, adminService } from './adminService';
 import { customerMasterService, CustomerPoVersion } from './customerMasterService';
 
-const SALES_ORDERS_CACHE_KEY = 'sp_plastech_live_sales_orders_v1';
-const MONTHLY_PLANS_CACHE_KEY = 'sp_plastech_live_monthly_plans_v1';
-const RELATIONSHIPS_CACHE_KEY = 'sp_plastech_live_relationships_v1';
-const DELIVERIES_CACHE_KEY = 'sp_plastech_live_deliveries_v1';
-const E_INVOICES_CACHE_KEY = 'sp_plastech_live_e_invoices_v1';
-const E_WAY_BILLS_CACHE_KEY = 'sp_plastech_live_e_way_bills_v1';
-const GATE_PASSES_CACHE_KEY = 'sp_plastech_live_gate_passes_v1';
+const SALES_ORDERS_CACHE_KEY = 'sp_plastech_live_sales_orders_v2';
+const MONTHLY_PLANS_CACHE_KEY = 'sp_plastech_live_monthly_plans_v2';
+const RELATIONSHIPS_CACHE_KEY = 'sp_plastech_live_relationships_v2';
+const DELIVERIES_CACHE_KEY = 'sp_plastech_live_deliveries_v2';
+const E_INVOICES_CACHE_KEY = 'sp_plastech_live_e_invoices_v2';
+const E_WAY_BILLS_CACHE_KEY = 'sp_plastech_live_e_way_bills_v2';
+const GATE_PASSES_CACHE_KEY = 'sp_plastech_live_gate_passes_v2';
 
 class SalesDataService {
   // ==========================================================================
@@ -42,7 +42,7 @@ class SalesDataService {
       const stored = localStorage.getItem(SALES_ORDERS_CACHE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
       console.warn('Error reading cached sales orders:', e);
@@ -57,7 +57,7 @@ class SalesDataService {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         const mapped: PlasticSalesOrder[] = data.map((d: any) => ({
           id: d.id,
           orderType: d.order_type,
@@ -189,7 +189,7 @@ class SalesDataService {
       const stored = localStorage.getItem(MONTHLY_PLANS_CACHE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
       console.warn('Error reading cached monthly plans:', e);
@@ -204,7 +204,7 @@ class SalesDataService {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         const mapped: MonthlyPlanOrder[] = data.map((d: any) => ({
           id: d.id,
           planNumber: d.plan_number,
@@ -278,7 +278,7 @@ class SalesDataService {
       const stored = localStorage.getItem(RELATIONSHIPS_CACHE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
       console.warn('Error reading cached relationships:', e);
@@ -326,7 +326,7 @@ class SalesDataService {
       const stored = localStorage.getItem(DELIVERIES_CACHE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
       console.warn('Error reading cached deliveries:', e);
@@ -354,7 +354,7 @@ class SalesDataService {
       const stored = localStorage.getItem(E_INVOICES_CACHE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
       console.warn('Error reading cached e-invoices:', e);
@@ -375,7 +375,7 @@ class SalesDataService {
       const stored = localStorage.getItem(E_WAY_BILLS_CACHE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
       console.warn('Error reading cached e-way bills:', e);
@@ -396,7 +396,7 @@ class SalesDataService {
       const stored = localStorage.getItem(GATE_PASSES_CACHE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
       console.warn('Error reading cached gate passes:', e);

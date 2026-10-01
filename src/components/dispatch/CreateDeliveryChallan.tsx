@@ -46,6 +46,7 @@ import { INITIAL_FG_BATCHES } from '../../data/salesOrderDeliveryData';
 import { nicEwbService } from '../../services/nic/nicEwbService';
 import { NicEwbGenerationPayload } from '../../types/nicEwbTypes';
 import { NicEwbDiagnosticRunnerModal } from './NicEwbDiagnosticRunnerModal';
+import { customerMasterService, ContractedCustomerLine } from '../../services/customerMasterService';
 
 // Standard Finished Goods Master Catalog for adding ad-hoc or catalog items
 export interface CatalogItem {
@@ -150,6 +151,8 @@ export interface EditableChallanItem {
   hsn: string;
   orderedQty?: number;
   remainingQty?: number;
+  monthlyScheduleQty?: number;
+  remainingMonthlyQty?: number;
   availableStock: number;
   dispatchQty: number;
   uom: string;
@@ -190,29 +193,71 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
   const [selectedSoId, setSelectedSoId] = useState(preSelectedSoId || salesOrders[0]?.id || '');
   const activeSo = salesOrders.find((s) => s.id === selectedSoId) || salesOrders[0];
 
-  // Step 2: Line Items List (supports dynamic additions & modifications)
+  // Store & Plant Selection for Live Stock Resolution
+  const [selectedPlant, setSelectedPlant] = useState(activeSo?.plant || 'Plant 1 - Pimpri Auto-Hub');
+  const [selectedFgStore, setSelectedFgStore] = useState(activeSo?.fgStore || 'FG-Automotive Cell');
+
+  // Helper to resolve available stock dynamically from warehouse store batches
+  const getStockForStore = (itemCode: string, store: string, plant: string): number => {
+    const matchingBatches = INITIAL_FG_BATCHES.filter(
+      (b) => b.itemCode === itemCode && (b.fgStore === store || b.plant === plant)
+    );
+    if (matchingBatches.length > 0) {
+      return matchingBatches.reduce((sum, b) => sum + (b.availableQty || 0), 0);
+    }
+    if (store.includes('Automotive')) return 8200;
+    if (store.includes('Main Warehouse')) return 20000;
+    if (store.includes('Export Hub')) return 6500;
+    if (store.includes('Packaging')) return 12000;
+    return 5000;
+  };
+
+  // Step 2: Line Items List (supports dynamic additions & modifications with Monthly Plan Quotas)
   const [items, setItems] = useState<EditableChallanItem[]>(() => {
     if (!activeSo) return [];
-    return activeSo.lines.map((l, idx) => ({
-      id: `so-line-${l.itemCode}-${idx}`,
-      soLineNumber: idx + 1,
-      itemCode: l.itemCode,
-      itemName: l.itemName,
-      hsn: l.hsn || '39269099',
-      orderedQty: l.orderedQty,
-      remainingQty: l.remainingQty,
-      availableStock: l.availableStock || 5000,
-      dispatchQty: l.remainingQty > 0 ? l.remainingQty : l.orderedQty,
-      uom: l.uom || 'PCS',
-      unitPrice: l.unitPrice || 50,
-      taxRatePct: l.gstRatePct || 18,
-      batchLot: `B-2026-${l.itemCode.replace('FG-', '')}-01`,
-      locationCode: 'LOC-A1-04',
-      binCode: 'BIN-08',
-      coaNumber: `COA-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-      isCustomAdded: false,
-    }));
+    const isMonthly = activeSo.orderType === 'Monthly Plan Order' || !!activeSo.monthlyPlanRef || activeSo.linkType === 'Linked';
+    return activeSo.lines.map((l, idx) => {
+      const mQty = isMonthly ? (l.orderedQty || 5000) : undefined;
+      const remMQty = isMonthly ? (l.remainingQty !== undefined ? l.remainingQty : l.orderedQty) : undefined;
+      const storeStock = getStockForStore(l.itemCode, activeSo.fgStore || 'FG-Automotive Cell', activeSo.plant || 'Plant 1 - Pimpri Auto-Hub');
+      return {
+        id: `so-line-${l.itemCode}-${idx}`,
+        soLineNumber: idx + 1,
+        itemCode: l.itemCode,
+        itemName: l.itemName,
+        hsn: l.hsn || '39269099',
+        orderedQty: l.orderedQty,
+        remainingQty: l.remainingQty,
+        monthlyScheduleQty: mQty,
+        remainingMonthlyQty: remMQty,
+        availableStock: storeStock,
+        dispatchQty: l.remainingQty > 0 ? l.remainingQty : l.orderedQty,
+        uom: l.uom || 'PCS',
+        unitPrice: l.unitPrice || 50,
+        taxRatePct: l.gstRatePct || 18,
+        batchLot: `B-2026-${l.itemCode.replace('FG-', '')}-01`,
+        locationCode: 'LOC-A1-04',
+        binCode: 'BIN-08',
+        coaNumber: `COA-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+        isCustomAdded: false,
+      };
+    });
   });
+
+  // Re-calculate stock when user updates FG store or plant
+  const handleStoreChange = (newStore: string, newPlant?: string) => {
+    const plantToUse = newPlant || selectedPlant;
+    setSelectedFgStore(newStore);
+    if (newPlant) setSelectedPlant(newPlant);
+
+    setItems((prev) =>
+      prev.map((it) => ({
+        ...it,
+        availableStock: getStockForStore(it.itemCode, newStore, plantToUse),
+      }))
+    );
+    showToast(`Updated available stock for store ${newStore}`);
+  };
 
   // Packaging & Weight
   const [packageCount, setPackageCount] = useState(120);
@@ -239,20 +284,55 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
   const [autoGatePass, setAutoGatePass] = useState(true);
   const [transportReason, setTransportReason] = useState('Supply of Finished Goods under Sales Contract');
 
-  // Add Item Modal State
+  // Add Item Modal State (Restricted to Customer PO Contract Lines)
   const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState('');
-  const [selectedCatalogItem, setSelectedCatalogItem] = useState<CatalogItem | null>(FINISHED_GOODS_CATALOG[0]);
+  const [selectedContractItem, setSelectedContractItem] = useState<any | null>(null);
   const [newItemQty, setNewItemQty] = useState(500);
-  const [newItemRate, setNewItemRate] = useState(FINISHED_GOODS_CATALOG[0].standardRate);
+  const [newItemRate, setNewItemRate] = useState(55);
   const [newItemTaxRate, setNewItemTaxRate] = useState(18);
   const [newItemBatch, setNewItemBatch] = useState('B-2026-AUTO-01');
   const [newItemLocation, setNewItemLocation] = useState('LOC-A1-04');
-  const [customItemMode, setCustomItemMode] = useState(false);
-  const [customItemCode, setCustomItemCode] = useState('');
-  const [customItemName, setCustomItemName] = useState('');
-  const [customItemHsn, setCustomItemHsn] = useState('39269099');
-  const [customItemUom, setCustomItemUom] = useState('PCS');
+
+  // Customer PO Contracted Lines
+  const customerContractedLines = useMemo(() => {
+    if (!activeSo) return [];
+    const masterLines = customerMasterService.getContractedLinesForCustomer(activeSo.customer || '');
+    const soLines = (activeSo.lines || []).map((l) => ({
+      itemCode: l.itemCode,
+      itemName: l.itemName,
+      customerPartNumber: l.customerItemCode || l.itemCode,
+      unitPrice: l.unitPrice || 50,
+      hsn: l.hsn || '39269099',
+      gstRatePct: l.gstRatePct || 18,
+      uom: l.uom || 'PCS',
+      polymerGrade: l.polymerGrade || '',
+      mouldCode: l.mouldCode || '',
+    }));
+
+    const map = new Map<string, any>();
+    [...soLines, ...masterLines].forEach((cl) => {
+      if (!map.has(cl.itemCode)) {
+        map.set(cl.itemCode, cl);
+      }
+    });
+    return Array.from(map.values());
+  }, [activeSo]);
+
+  // Filtered Customer PO items only
+  const filteredCustomerLines = useMemo(() => {
+    if (!catalogSearch) return customerContractedLines;
+    const q = catalogSearch.trim().toLowerCase();
+    const poNum = (activeSo?.customerPoNumber || '').toLowerCase();
+    return customerContractedLines.filter(
+      (c) =>
+        c.itemCode.toLowerCase().includes(q) ||
+        c.itemName.toLowerCase().includes(q) ||
+        (c.customerPartNumber && c.customerPartNumber.toLowerCase().includes(q)) ||
+        (c.hsn && c.hsn.includes(q)) ||
+        poNum.includes(q)
+    );
+  }, [customerContractedLines, catalogSearch, activeSo]);
 
   // Batch Selection Dropdown helper
   const [activeBatchModalItemId, setActiveBatchModalItemId] = useState<string | null>(null);
@@ -270,30 +350,41 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
   } | null>(null);
   const [activeDossierTab, setActiveDossierTab] = useState<'challan' | 'eInvoice' | 'eWayBill' | 'gatePass'>('challan');
 
-  // When SO changes, re-load SO lines but retain any custom lines added
+  // When SO changes, re-load SO lines with dynamic stock and monthly plan quotas
   const handleSoChange = (soId: string) => {
     setSelectedSoId(soId);
     const newSo = salesOrders.find((s) => s.id === soId);
     if (newSo) {
-      const soLines: EditableChallanItem[] = newSo.lines.map((l, idx) => ({
-        id: `so-line-${l.itemCode}-${idx}`,
-        soLineNumber: idx + 1,
-        itemCode: l.itemCode,
-        itemName: l.itemName,
-        hsn: l.hsn || '39269099',
-        orderedQty: l.orderedQty,
-        remainingQty: l.remainingQty,
-        availableStock: l.availableStock || 5000,
-        dispatchQty: l.remainingQty > 0 ? l.remainingQty : l.orderedQty,
-        uom: l.uom || 'PCS',
-        unitPrice: l.unitPrice || 50,
-        taxRatePct: l.gstRatePct || 18,
-        batchLot: `B-2026-${l.itemCode.replace('FG-', '')}-01`,
-        locationCode: 'LOC-A1-04',
-        binCode: 'BIN-08',
-        coaNumber: `COA-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-        isCustomAdded: false,
-      }));
+      const isMonthly = newSo.orderType === 'Monthly Plan Order' || !!newSo.monthlyPlanRef || newSo.linkType === 'Linked';
+      if (newSo.plant) setSelectedPlant(newSo.plant);
+      if (newSo.fgStore) setSelectedFgStore(newSo.fgStore);
+
+      const soLines: EditableChallanItem[] = newSo.lines.map((l, idx) => {
+        const mQty = isMonthly ? (l.orderedQty || 5000) : undefined;
+        const remMQty = isMonthly ? (l.remainingQty !== undefined ? l.remainingQty : l.orderedQty) : undefined;
+        const storeStock = getStockForStore(l.itemCode, newSo.fgStore || selectedFgStore, newSo.plant || selectedPlant);
+        return {
+          id: `so-line-${l.itemCode}-${idx}`,
+          soLineNumber: idx + 1,
+          itemCode: l.itemCode,
+          itemName: l.itemName,
+          hsn: l.hsn || '39269099',
+          orderedQty: l.orderedQty,
+          remainingQty: l.remainingQty,
+          monthlyScheduleQty: mQty,
+          remainingMonthlyQty: remMQty,
+          availableStock: storeStock,
+          dispatchQty: l.remainingQty > 0 ? l.remainingQty : l.orderedQty,
+          uom: l.uom || 'PCS',
+          unitPrice: l.unitPrice || 50,
+          taxRatePct: l.gstRatePct || 18,
+          batchLot: `B-2026-${l.itemCode.replace('FG-', '')}-01`,
+          locationCode: 'LOC-A1-04',
+          binCode: 'BIN-08',
+          coaNumber: `COA-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+          isCustomAdded: false,
+        };
+      });
       setItems(soLines);
     }
   };
@@ -361,79 +452,67 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
   };
 
   const handleAddItemFromModal = () => {
-    if (customItemMode) {
-      if (!customItemName.trim()) {
-        showToast('Please enter an item name.');
-        return;
-      }
-      const code = customItemCode.trim() || `FG-CUST-${Math.floor(100 + Math.random() * 900)}`;
+    if (!selectedContractItem) {
+      showToast('Please select a customer PO contracted line item.');
+      return;
+    }
+
+    const storeStock = getStockForStore(selectedContractItem.itemCode, selectedFgStore, selectedPlant);
+    const isMonthly = activeSo?.orderType === 'Monthly Plan Order' || !!activeSo?.monthlyPlanRef || activeSo?.linkType === 'Linked';
+
+    const existing = items.find((i) => i.itemCode === selectedContractItem.itemCode);
+    if (existing) {
+      handleUpdateItemQty(existing.id, existing.dispatchQty + newItemQty);
+      showToast(`Updated dispatch quantity for ${selectedContractItem.itemName}`);
+    } else {
       const newItem: EditableChallanItem = {
-        id: `custom-item-${Date.now()}`,
+        id: `contract-${selectedContractItem.itemCode}-${Date.now()}`,
         soLineNumber: items.length + 1,
-        itemCode: code,
-        itemName: customItemName.trim(),
-        hsn: customItemHsn || '39269099',
-        availableStock: 10000,
+        itemCode: selectedContractItem.itemCode,
+        itemName: selectedContractItem.itemName,
+        hsn: selectedContractItem.hsn || '39269099',
+        orderedQty: newItemQty,
+        remainingQty: newItemQty,
+        monthlyScheduleQty: isMonthly ? newItemQty : undefined,
+        remainingMonthlyQty: isMonthly ? newItemQty : undefined,
+        availableStock: storeStock,
         dispatchQty: newItemQty,
-        uom: customItemUom || 'PCS',
-        unitPrice: newItemRate,
-        taxRatePct: newItemTaxRate,
-        batchLot: newItemBatch || `B-2026-${code.replace('FG-', '')}-01`,
+        uom: selectedContractItem.uom || 'PCS',
+        unitPrice: newItemRate || selectedContractItem.unitPrice || 50,
+        taxRatePct: newItemTaxRate || selectedContractItem.gstRatePct || 18,
+        batchLot: newItemBatch || `B-2026-${selectedContractItem.itemCode.replace('FG-', '')}-01`,
         locationCode: newItemLocation || 'LOC-A1-04',
         binCode: 'BIN-01',
         coaNumber: `COA-2026-${Math.floor(1000 + Math.random() * 9000)}`,
         isCustomAdded: true,
       };
       setItems((prev) => [...prev, newItem]);
-      showToast(`Added ${newItem.itemName} (${newItem.dispatchQty} ${newItem.uom})`);
-    } else if (selectedCatalogItem) {
-      // Check if already in list
-      const existing = items.find((i) => i.itemCode === selectedCatalogItem.itemCode);
-      if (existing) {
-        handleUpdateItemQty(existing.id, existing.dispatchQty + newItemQty);
-        showToast(`Updated quantity for ${selectedCatalogItem.itemName}`);
-      } else {
-        const newItem: EditableChallanItem = {
-          id: `catalog-${selectedCatalogItem.itemCode}-${Date.now()}`,
-          soLineNumber: items.length + 1,
-          itemCode: selectedCatalogItem.itemCode,
-          itemName: selectedCatalogItem.itemName,
-          hsn: selectedCatalogItem.hsn,
-          availableStock: 8000,
-          dispatchQty: newItemQty,
-          uom: selectedCatalogItem.uom,
-          unitPrice: newItemRate || selectedCatalogItem.standardRate,
-          taxRatePct: newItemTaxRate,
-          batchLot: newItemBatch || `${selectedCatalogItem.defaultBatchPrefix}-01`,
-          locationCode: newItemLocation || 'LOC-A1-04',
-          binCode: selectedCatalogItem.defaultBin,
-          coaNumber: `COA-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-          isCustomAdded: true,
-        };
-        setItems((prev) => [...prev, newItem]);
-        showToast(`Added ${newItem.itemName} to challan.`);
-      }
+      showToast(`Added ${newItem.itemName} under PO ${activeSo?.customerPoNumber || ''}`);
     }
     setIsAddItemModalOpen(false);
   };
 
-  // Filter catalog items
-  const filteredCatalog = useMemo(() => {
-    if (!catalogSearch) return FINISHED_GOODS_CATALOG;
-    const q = catalogSearch.toLowerCase();
-    return FINISHED_GOODS_CATALOG.filter(
-      (c) =>
-        c.itemCode.toLowerCase().includes(q) ||
-        c.itemName.toLowerCase().includes(q) ||
-        c.hsn.includes(q) ||
-        c.category.toLowerCase().includes(q)
+  // Check Monthly Plan Quota Exceeded
+  const isMonthlyOrder = activeSo?.orderType === 'Monthly Plan Order' || !!activeSo?.monthlyPlanRef || activeSo?.linkType === 'Linked';
+  const invalidPlanItems = useMemo(() => {
+    if (!isMonthlyOrder) return [];
+    return items.filter(
+      (it) => it.monthlyScheduleQty && it.dispatchQty > (it.remainingMonthlyQty ?? it.monthlyScheduleQty)
     );
-  }, [catalogSearch]);
+  }, [items, isMonthlyOrder]);
 
   // THE MASTER FUNCTION: "ONE FINAL CLICK" ALL-IN-ONE DISPATCH GENERATION
   const executeAllInOneDispatch = async (mode: 'all-in-one' | 'standard' | 'note-only') => {
     if (items.length === 0 || calculatedTaxable <= 0) {
       showToast('Cannot dispatch: At least 1 item with quantity > 0 is required.');
+      return;
+    }
+
+    // Monthly Planned Schedule Validation
+    if (invalidPlanItems.length > 0) {
+      showToast(
+        `Dispatch blocked: Quantity for ${invalidPlanItems[0].itemName} (${invalidPlanItems[0].dispatchQty} ${invalidPlanItems[0].uom}) exceeds monthly planned quota (${invalidPlanItems[0].monthlyScheduleQty} ${invalidPlanItems[0].uom}). Please create a Daily Sales Order for additional quantity.`
+      );
       return;
     }
 
@@ -900,22 +979,40 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-teal-50/50 rounded-xl border border-teal-200">
             <div>
-              <span className="text-teal-900 font-bold text-xs">Origin Dispatch Plant</span>
-              <div className="text-sm font-semibold text-gray-900 mt-0.5">{activeSo?.plant || 'Plant 1 - Pimpri Auto-Hub'}</div>
-              <div className="text-[11px] text-gray-500">GSTIN: 27AABCP1122D1Z4</div>
+              <label className="text-teal-900 font-bold text-xs block mb-1">Origin Dispatch Plant *</label>
+              <select
+                value={selectedPlant}
+                onChange={(e) => handleStoreChange(selectedFgStore, e.target.value)}
+                className="w-full text-xs font-semibold text-gray-900 bg-white border border-teal-300 rounded-lg p-2 focus:ring-1 focus:ring-teal-500"
+              >
+                <option value="Plant 1 - Pimpri Auto-Hub">Plant 1 - Pimpri Auto-Hub</option>
+                <option value="Plant 2 - Chakan Packaging Plant">Plant 2 - Chakan Packaging Plant</option>
+                <option value="Plant 3 - Sanand Component Unit">Plant 3 - Sanand Component Unit</option>
+              </select>
+              <div className="text-[10px] text-gray-500 mt-1">GSTIN: 27AABCP1122D1Z4</div>
             </div>
             <div>
-              <span className="text-teal-900 font-bold text-xs">Origin FG Warehouse Store</span>
-              <div className="text-sm font-semibold text-gray-900 mt-0.5">{activeSo?.fgStore || 'FG-Automotive Cell'}</div>
-              <div className="text-[11px] text-gray-500">Primary High-Bay Pallet Store</div>
+              <label className="text-teal-900 font-bold text-xs block mb-1">Origin FG Warehouse Store *</label>
+              <select
+                value={selectedFgStore}
+                onChange={(e) => handleStoreChange(e.target.value, selectedPlant)}
+                className="w-full text-xs font-semibold text-gray-900 bg-white border border-teal-300 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 font-mono"
+              >
+                <option value="FG-Automotive Cell">FG-Automotive Cell</option>
+                <option value="FG-Main Warehouse">FG-Main Warehouse</option>
+                <option value="FG-Export Hub">FG-Export Hub</option>
+                <option value="FG-Bulk-Storage">FG-Bulk-Storage</option>
+                <option value="FG-Cleanroom-Dock">FG-Cleanroom-Dock</option>
+              </select>
+              <div className="text-[10px] text-teal-700 mt-1">Stock dynamically re-calculated from this store</div>
             </div>
             <div>
               <span className="text-teal-900 font-bold text-xs">Customer Credit Status</span>
-              <div className="text-emerald-700 font-bold text-sm mt-0.5 flex items-center gap-1.5">
+              <div className="text-emerald-700 font-bold text-sm mt-1.5 flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4" />
                 <span>APPROVED (₹{(((activeSo?.availableCredit || 0)) / 100000).toFixed(1)}L Avail)</span>
               </div>
-              <div className="text-[11px] text-gray-500">Zero Overdue Invoices</div>
+              <div className="text-[11px] text-gray-500 mt-0.5">PO: {activeSo?.customerPoNumber || 'Direct PO'}</div>
             </div>
           </div>
         </div>
@@ -933,22 +1030,29 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                   {items.length} {items.length === 1 ? 'Item' : 'Items'} Listed
                 </span>
+                {isMonthlyOrder && (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                    Monthly Plan Order Quotas Active
+                  </span>
+                )}
               </div>
               <p className="text-xs text-gray-500 mt-0.5">
-                Configure dispatch quantities, assign inspected batches with COA, or add extra items to this consignment.
+                Stock fetched live from <strong className="text-gray-800">{selectedFgStore}</strong>. Dispatch quantity is validated against the monthly planned schedule.
               </p>
             </div>
 
             {/* THE REQUESTED "+ ADD ITEM" BUTTON */}
             <button
               onClick={() => {
-                setCustomItemMode(false);
-                setSelectedCatalogItem(FINISHED_GOODS_CATALOG[0]);
+                if (customerContractedLines.length > 0) {
+                  setSelectedContractItem(customerContractedLines[0]);
+                  setNewItemRate(customerContractedLines[0].unitPrice || 50);
+                  setNewItemTaxRate(customerContractedLines[0].gstRatePct || 18);
+                  setNewItemBatch(`B-2026-${customerContractedLines[0].itemCode.replace('FG-', '')}-01`);
+                }
                 setNewItemQty(500);
-                setNewItemRate(FINISHED_GOODS_CATALOG[0].standardRate);
-                setNewItemTaxRate(18);
-                setNewItemBatch('B-2026-ABS-01');
                 setNewItemLocation('LOC-A1-04');
+                setCatalogSearch('');
                 setIsAddItemModalOpen(true);
               }}
               className="flex items-center gap-2 px-4 py-2 bg-[#0F8B8D] hover:bg-[#0c7274] text-white rounded-xl text-xs font-bold shadow-sm transition-colors"
@@ -958,6 +1062,22 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
             </button>
           </div>
 
+          {/* Validation Banner if Monthly Plan quota exceeded */}
+          {invalidPlanItems.length > 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-start gap-2.5 text-xs text-amber-900 animate-in fade-in duration-100">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">Monthly Planned Quota Warning: </span>
+                <span>
+                  Dispatch quantity for {invalidPlanItems.map((i) => `${i.itemName} (${i.dispatchQty} > ${i.monthlyScheduleQty} ${i.uom})`).join(', ')} exceeds the monthly planned schedule.
+                </span>
+                <p className="mt-0.5 font-medium text-amber-800">
+                  To dispatch surplus/excess quantity beyond the monthly plan, please raise a separate <strong>Daily Sales Order</strong>.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Items Table */}
           <div className="border border-gray-200 rounded-xl overflow-hidden shadow-2xs">
             <table className="w-full text-left text-xs">
@@ -966,8 +1086,9 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
                   <th className="p-3">#</th>
                   <th className="p-3">Item Code &amp; Description</th>
                   <th className="p-3">HSN Code</th>
-                  <th className="p-3 text-right">Available</th>
-                  <th className="p-3 text-right w-32">Dispatch Qty</th>
+                  <th className="p-3 text-right">Store Stock ({selectedFgStore.split('-')[1] || 'FG'})</th>
+                  <th className="p-3 text-right">Monthly Schedule Qty</th>
+                  <th className="p-3 text-right w-36">Dispatch Qty</th>
                   <th className="p-3">Batch / FEFO / COA</th>
                   <th className="p-3 text-right">Rate (₹)</th>
                   <th className="p-3 text-right">Taxable (₹)</th>
@@ -977,8 +1098,10 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
               <tbody className="divide-y divide-gray-100">
                 {items.map((it, idx) => {
                   const lineTaxable = (it.dispatchQty || 0) * (it.unitPrice || 0);
+                  const isOverQuota = isMonthlyOrder && it.monthlyScheduleQty && it.dispatchQty > (it.remainingMonthlyQty ?? it.monthlyScheduleQty);
+
                   return (
-                    <tr key={it.id} className="hover:bg-gray-50/70 transition-colors">
+                    <tr key={it.id} className={`hover:bg-gray-50/70 transition-colors ${isOverQuota ? 'bg-amber-50/30' : ''}`}>
                       <td className="p-3 font-mono text-gray-400 font-semibold">{idx + 1}</td>
                       <td className="p-3">
                         <div className="font-bold text-gray-900">{it.itemName}</div>
@@ -996,16 +1119,37 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
                         {it.availableStock.toLocaleString()} {it.uom}
                       </td>
                       <td className="p-3 text-right">
+                        {it.monthlyScheduleQty !== undefined ? (
+                          <div>
+                            <div className="font-mono font-bold text-purple-900">
+                              {it.monthlyScheduleQty.toLocaleString()} {it.uom}
+                            </div>
+                            <div className="text-[10px] text-purple-600 font-mono">
+                              {it.remainingMonthlyQty?.toLocaleString()} rem
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-gray-400 font-medium">Daily Direct</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <input
                             type="number"
                             min="1"
                             value={it.dispatchQty}
                             onChange={(e) => handleUpdateItemQty(it.id, Number(e.target.value))}
-                            className="w-24 text-right border border-gray-300 rounded p-1.5 font-bold font-mono text-gray-900 focus:ring-1 focus:ring-teal-500 outline-hidden"
+                            className={`w-24 text-right border rounded p-1.5 font-bold font-mono text-gray-900 focus:ring-1 focus:ring-teal-500 outline-hidden ${
+                              isOverQuota ? 'border-amber-400 bg-amber-50 text-amber-900' : 'border-gray-300'
+                            }`}
                           />
                           <span className="text-[10px] text-gray-400 font-medium">{it.uom}</span>
                         </div>
+                        {isOverQuota && (
+                          <div className="text-[9px] text-amber-800 font-semibold mt-1 text-right">
+                            Exceeds plan ({it.monthlyScheduleQty})
+                          </div>
+                        )}
                       </td>
                       <td className="p-3">
                         <div className="flex items-center gap-2">
@@ -1511,7 +1655,15 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
               Step {currentStep} of 5
             </span>
             <button
-              onClick={() => setCurrentStep(Math.min(5, currentStep + 1))}
+              onClick={() => {
+                if (currentStep === 2 && invalidPlanItems.length > 0) {
+                  showToast(
+                    `Dispatch blocked: Quantity for ${invalidPlanItems[0].itemName} (${invalidPlanItems[0].dispatchQty} ${invalidPlanItems[0].uom}) exceeds monthly planned schedule quota (${invalidPlanItems[0].monthlyScheduleQty} ${invalidPlanItems[0].uom}). Please create a Daily Sales Order for excess quantity.`
+                  );
+                  return;
+                }
+                setCurrentStep(Math.min(5, currentStep + 1));
+              }}
               className="flex items-center gap-1.5 px-5 py-2 bg-[#14213D] hover:bg-[#1f335e] text-white rounded-xl text-xs font-semibold shadow-xs"
             >
               <span>Next Step</span>
@@ -1522,7 +1674,7 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
       )}
 
       {/* ========================================================= */}
-      {/* MODAL 1: ADD ITEM DIALOG (Requested "+ Add Item" Feature) */}
+      {/* MODAL 1: ADD ITEM DIALOG (Restricted to Customer PO Contract) */}
       {/* ========================================================= */}
       {isAddItemModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
@@ -1533,9 +1685,9 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
                   <Plus className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-gray-900">Add Dispatch Line Item</h3>
+                  <h3 className="text-sm font-bold text-gray-900">Add Customer Contracted PO Line Item</h3>
                   <p className="text-[11px] text-gray-500">
-                    Add finished goods from master catalog or custom consignment line.
+                    Showing authorized lines under PO <strong className="text-gray-800">{activeSo?.customerPoNumber || 'Direct PO'}</strong> &bull; {activeSo?.customer}
                   </p>
                 </div>
               </div>
@@ -1547,110 +1699,70 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
               </button>
             </div>
 
-            {/* Toggle Mode: Catalog vs Custom Item */}
-            <div className="flex items-center p-1 bg-gray-100 rounded-lg text-xs font-semibold">
-              <button
-                onClick={() => setCustomItemMode(false)}
-                className={`flex-1 py-1.5 rounded-md transition-colors ${
-                  !customItemMode ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-800'
-                }`}
-              >
-                Select from Product Master Catalog
-              </button>
-              <button
-                onClick={() => setCustomItemMode(true)}
-                className={`flex-1 py-1.5 rounded-md transition-colors ${
-                  customItemMode ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-500 hover:text-gray-800'
-                }`}
-              >
-                Enter Custom Part / Tooling / Sample
-              </button>
+            {/* Restricted Info Banner */}
+            <div className="p-2.5 bg-blue-50/80 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-center gap-2">
+              <FileCheck className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>
+                Compliance Policy: Only items contracted under Customer <strong>{activeSo?.customer}</strong> (PO: {activeSo?.customerPoNumber}) can be added to this dispatch note.
+              </span>
             </div>
 
-            {!customItemMode ? (
-              <div className="space-y-3">
-                {/* Search in catalog */}
-                <div className="relative">
-                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search product code, name, HSN, category..."
-                    value={catalogSearch}
-                    onChange={(e) => setCatalogSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-1 focus:ring-teal-500 outline-hidden"
-                  />
-                </div>
+            <div className="space-y-3">
+              {/* Search in Customer & PO line items */}
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder={`Search PO (${activeSo?.customerPoNumber || ''}), item code, customer part #, description...`}
+                  value={catalogSearch}
+                  onChange={(e) => setCatalogSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-1 focus:ring-teal-500 outline-hidden bg-slate-50 focus:bg-white"
+                />
+              </div>
 
-                {/* Catalog Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1">
-                  {filteredCatalog.map((cat) => {
-                    const isSelected = selectedCatalogItem?.itemCode === cat.itemCode;
+              {/* Customer PO Lines Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto p-1">
+                {filteredCustomerLines.length === 0 ? (
+                  <div className="col-span-2 py-8 text-center text-gray-400 text-xs">
+                    <p className="font-semibold text-gray-600">No authorized PO line items matching your query.</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">Only contracted items for {activeSo?.customer} can be dispatched.</p>
+                  </div>
+                ) : (
+                  filteredCustomerLines.map((cat) => {
+                    const isSelected = selectedContractItem?.itemCode === cat.itemCode;
+                    const storeAvail = getStockForStore(cat.itemCode, selectedFgStore, selectedPlant);
                     return (
                       <div
                         key={cat.itemCode}
                         onClick={() => {
-                          setSelectedCatalogItem(cat);
-                          setNewItemRate(cat.standardRate);
-                          setNewItemBatch(`${cat.defaultBatchPrefix}-01`);
+                          setSelectedContractItem(cat);
+                          setNewItemRate(cat.unitPrice || 50);
+                          setNewItemTaxRate(cat.gstRatePct || 18);
+                          setNewItemBatch(`B-2026-${cat.itemCode.replace('FG-', '')}-01`);
                         }}
                         className={`p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
                           isSelected
-                            ? 'border-teal-600 bg-teal-50/50 shadow-xs'
+                            ? 'border-teal-600 bg-teal-50/60 shadow-xs ring-1 ring-teal-500'
                             : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                         }`}
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-mono font-bold text-gray-800 text-[11px]">{cat.itemCode}</span>
                           <span className="text-[10px] text-teal-800 font-semibold bg-teal-100/60 px-1.5 py-0.5 rounded">
-                            ₹{cat.standardRate} / {cat.uom}
+                            ₹{cat.unitPrice} / {cat.uom || 'PCS'}
                           </span>
                         </div>
                         <div className="font-semibold text-gray-900 mt-1 truncate">{cat.itemName}</div>
-                        <div className="text-[10px] text-gray-400 mt-0.5">
-                          HSN: {cat.hsn} &bull; {cat.category}
+                        <div className="flex items-center justify-between text-[10px] text-gray-500 mt-1">
+                          <span>Cust Part: {cat.customerPartNumber || cat.itemCode}</span>
+                          <span className="font-semibold text-emerald-700 font-mono">Stock: {storeAvail.toLocaleString()}</span>
                         </div>
                       </div>
                     );
-                  })}
-                </div>
+                  })
+                )}
               </div>
-            ) : (
-              <div className="space-y-3 text-xs">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-bold text-gray-700 block mb-1">Item Code</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. FG-SMP-991"
-                      value={customItemCode}
-                      onChange={(e) => setCustomItemCode(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg p-2 font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-gray-700 block mb-1">HSN Code</label>
-                    <input
-                      type="text"
-                      placeholder="39269099"
-                      value={customItemHsn}
-                      onChange={(e) => setCustomItemHsn(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg p-2 font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="font-bold text-gray-700 block mb-1">Item Description / Name *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Custom Injection Mold Trial Sample (Natural)"
-                    value={customItemName}
-                    onChange={(e) => setCustomItemName(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg p-2"
-                  />
-                </div>
-              </div>
-            )}
+            </div>
 
             {/* Quantity, Rate, Batch details */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-gray-100 text-xs">

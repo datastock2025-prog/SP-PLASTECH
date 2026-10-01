@@ -756,12 +756,56 @@ export const SalesOrderList: React.FC<SalesOrderListProps> = ({
           <tbody className="divide-y divide-gray-100 font-sans">
             {paginatedOrders.length === 0 ? (
               <tr>
-                <td colSpan={9} className="py-12 text-center text-gray-400">
-                  <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-2 text-slate-400">
-                    <Search className="w-5 h-5" />
+                <td colSpan={9} className="py-14 text-center">
+                  <div className="max-w-md mx-auto space-y-3">
+                    <div className="w-12 h-12 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-center mx-auto text-[#0F8B8D]">
+                      <Package className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-800 text-sm">
+                        {orders.length === 0 ? 'No live sales orders in register' : 'No matching sales orders found'}
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1">
+                        {orders.length === 0
+                          ? 'This production grid operates strictly on live database entries. Create your first Sales Order or import a monthly plan to begin dispatch workflows.'
+                          : 'Try clearing your search terms or resetting the selected filters above.'}
+                      </p>
+                    </div>
+                    {orders.length === 0 ? (
+                      <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+                        <button
+                          onClick={() => onCreateOrder('Daily Sales Order')}
+                          className="flex items-center gap-1.5 px-3.5 py-2 bg-[#0F8B8D] hover:bg-[#0c7274] text-white rounded-xl text-xs font-bold shadow-xs transition"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>+ Create Daily Sales Order</span>
+                        </button>
+                        <button
+                          onClick={() => onCreateOrder('Monthly Plan Order')}
+                          className="flex items-center gap-1.5 px-3.5 py-2 bg-[#14213D] hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-xs transition"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>+ Add Monthly Plan Order</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setSearchQuery('');
+                          setSelectedCustomer('All');
+                          setSelectedOrderType('All');
+                          setSelectedPlant('All');
+                          setSelectedFgStore('All');
+                          setSelectedEInvoiceStatus('All');
+                          setSelectedEwbStatus('All');
+                          setSelectedLinkType('All');
+                        }}
+                        className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold"
+                      >
+                        Reset All Filters
+                      </button>
+                    )}
                   </div>
-                  <div className="font-semibold text-slate-700 text-xs">No sales orders found</div>
-                  <p className="text-[11px] text-slate-400 mt-0.5">Try resetting search query or active filter criteria.</p>
                 </td>
               </tr>
             ) : (
