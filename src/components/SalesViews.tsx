@@ -57,6 +57,7 @@ import {
 } from '../data/salesOrderDeliveryData';
 import { adminEventBus } from '../services/adminService';
 import { salesDataService } from '../services/salesDataService';
+import { recordOutwardDispatchInventoryMovement } from '../utils/warehouseSync';
 
 
 import {
@@ -297,42 +298,54 @@ export const SalesViews: React.FC<SalesProps> = ({
     }
 
 
-    // 2. Task 2: Deduct dispatched quantities from warehouse FG batch stock
-    setBatches((prevBatches) => {
-      return prevBatches.map((batch) => {
-        const itemDelivered = newDeliv.items.find((it) => it.itemCode === batch.itemCode);
-        if (itemDelivered) {
-          const qtyToMinus = itemDelivered.dispatchQty;
-          return {
-            ...batch,
-            availableQty: Math.max(0, batch.availableQty - qtyToMinus),
-            allocatedQty: Math.max(0, batch.allocatedQty - qtyToMinus),
-          };
-        }
-        return batch;
-      });
+    // 2. Task 1: Deduct dispatched quantities from warehouse FG batch stock and Warehouse Inventory Stock / Movement Ledger
+    const dispatchItemsForStock = newDeliv.items.map((it) => ({
+      itemCode: it.itemCode,
+      itemName: it.itemName,
+      batchLot: it.batchLot,
+      fgStore: it.fgStore || newDeliv.fgStore,
+      qty: it.deliveredQty ?? (it as any).dispatchQty ?? it.requestedQty ?? 0,
+      uom: it.uom,
+      plant: it.plant || newDeliv.plant,
+    }));
+    const updatedBatches = salesDataService.deductStockForDispatch(dispatchItemsForStock);
+    setBatches(updatedBatches);
+
+    recordOutwardDispatchInventoryMovement({
+      deliveryId: newDeliv.id,
+      invoiceNumber: newEInv?.invoiceNumber || newDeliv.invoiceNumber,
+      customer: newDeliv.customer,
+      customerGstin: newDeliv.customerGstin,
+      plant: newDeliv.plant,
+      fgStore: newDeliv.fgStore,
+      items: dispatchItemsForStock,
+      authorizedBy: 'Dispatch Compliance Manager',
+      notes: `1-Click Dispatch & Invoice generation for ${newDeliv.customer}.`,
     });
 
-    // 3. Task 2: Deduct dispatched quantities from Monthly Plans & update remaining balance
+    // 3. Task 2 & Task 4: Deduct dispatched quantities from Monthly Plans & update remaining balance
     setMonthlyPlans((prevPlans) => {
-      return prevPlans.map((plan) => {
+      const nextPlans = prevPlans.map((plan) => {
         let planModified = false;
         let addedDeliveredQty = 0;
 
         const updatedItems = plan.items.map((planItem) => {
           const matchedDelivItem = newDeliv.items.find((di) => di.itemCode === planItem.itemCode);
           if (matchedDelivItem && (plan.customer === newDeliv.customer || !newDeliv.customer || plan.id === newDeliv.salesOrderId)) {
-            planModified = true;
-            const newDelivered = (planItem.deliveredQty || 0) + matchedDelivItem.dispatchQty;
-            const newInvoiced = (planItem.invoicedQty || 0) + matchedDelivItem.dispatchQty;
-            const newRemaining = Math.max(0, planItem.plannedQty - newDelivered);
-            addedDeliveredQty += matchedDelivItem.dispatchQty;
-            return {
-              ...planItem,
-              deliveredQty: newDelivered,
-              invoicedQty: newInvoiced,
-              remainingQty: newRemaining,
-            };
+            const itemQty = matchedDelivItem.deliveredQty ?? (matchedDelivItem as any).dispatchQty ?? matchedDelivItem.requestedQty ?? 0;
+            if (itemQty > 0) {
+              planModified = true;
+              const newDelivered = (planItem.deliveredQty || 0) + itemQty;
+              const newInvoiced = (planItem.invoicedQty || 0) + itemQty;
+              const newRemaining = Math.max(0, planItem.plannedQty - newDelivered);
+              addedDeliveredQty += itemQty;
+              return {
+                ...planItem,
+                deliveredQty: newDelivered,
+                invoicedQty: newInvoiced,
+                remainingQty: newRemaining,
+              };
+            }
           }
           return planItem;
         });
@@ -359,11 +372,13 @@ export const SalesViews: React.FC<SalesProps> = ({
         }
         return plan;
       });
+      salesDataService.saveMonthlyPlansSync(nextPlans);
+      return nextPlans;
     });
 
-    // 4. Task 2: Deduct dispatched quantities from Sales Orders (Daily & Monthly Plan Orders)
+    // 4. Task 2 & Task 4: Update delivered quantities on Sales Orders (Daily & Monthly Plan Orders)
     setPlasticSalesOrders((prevOrders) => {
-      return prevOrders.map((so) => {
+      const nextOrders = prevOrders.map((so) => {
         const isDirectSo = so.id === newDeliv.salesOrderId || so.customerPoNumber === newDeliv.salesOrderId;
         const isMatchingPlanOrder = so.orderType === 'Monthly Plan Order' && (so.customer === newDeliv.customer || so.id === newDeliv.salesOrderId);
 
@@ -372,8 +387,9 @@ export const SalesViews: React.FC<SalesProps> = ({
           const updatedLines = so.lines.map((line) => {
             const delivItem = newDeliv.items.find((di) => di.itemCode === line.itemCode);
             if (delivItem) {
-              const newDelivered = (line.deliveredQty || 0) + delivItem.dispatchQty;
-              const newInvoiced = (line.invoicedQty || 0) + delivItem.dispatchQty;
+              const itemQty = delivItem.deliveredQty ?? (delivItem as any).dispatchQty ?? delivItem.requestedQty ?? 0;
+              const newDelivered = (line.deliveredQty || 0) + itemQty;
+              const newInvoiced = (line.invoicedQty || 0) + itemQty;
               const newRemaining = Math.max(0, line.orderedQty - newDelivered);
               orderTotalDelivered += newDelivered;
               return {
@@ -384,6 +400,7 @@ export const SalesViews: React.FC<SalesProps> = ({
                 status: newRemaining <= 0 ? ('Dispatched' as const) : ('Allocated' as const),
               };
             }
+            orderTotalDelivered += (line.deliveredQty || 0);
             return line;
           });
 
@@ -393,9 +410,9 @@ export const SalesViews: React.FC<SalesProps> = ({
           return {
             ...so,
             lines: updatedLines,
-            deliveredValue: Math.round(((orderTotalDelivered || 1) / (totalOrdered || 1)) * so.totalOrderValue),
-            invoicedValue: Math.round(((orderTotalDelivered || 1) / (totalOrdered || 1)) * so.totalOrderValue),
-            remainingValue: Math.max(0, so.totalOrderValue - Math.round(((orderTotalDelivered || 1) / (totalOrdered || 1)) * so.totalOrderValue)),
+            deliveredValue: Math.round(((orderTotalDelivered || 0) / (totalOrdered || 1)) * so.totalOrderValue),
+            invoicedValue: Math.round(((orderTotalDelivered || 0) / (totalOrdered || 1)) * so.totalOrderValue),
+            remainingValue: Math.max(0, so.totalOrderValue - Math.round(((orderTotalDelivered || 0) / (totalOrdered || 1)) * so.totalOrderValue)),
             deliveryStatus: allDelivered ? ('Fully Delivered' as const) : ('Partially Delivered' as const),
             invoiceStatus: allDelivered ? ('Fully Invoiced' as const) : ('Partially Invoiced' as const),
             status: allDelivered ? ('Delivered' as const) : ('Partially Delivered' as const),
@@ -403,6 +420,8 @@ export const SalesViews: React.FC<SalesProps> = ({
         }
         return so;
       });
+      salesDataService.saveSalesOrdersSync(nextOrders);
+      return nextOrders;
     });
 
     // 5. Broadcast global inventory & invoice events

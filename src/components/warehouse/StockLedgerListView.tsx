@@ -779,6 +779,7 @@ export const StockLedgerListView: React.FC<Props> = ({
                 <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-semibold text-[11px]">
                   <th className="py-3 px-4">Item SKU / Code</th>
                   <th className="py-3 px-4">Description &amp; Store</th>
+                  <th className="py-3 px-4">Plant / Unit</th>
                   <th className="py-3 px-4">Category</th>
                   <th className="py-3 px-4 text-right">On Hand</th>
                   <th className="py-3 px-4 text-right">Allocated</th>
@@ -831,6 +832,12 @@ export const StockLedgerListView: React.FC<Props> = ({
                         </div>
                       </td>
                       <td className="py-3 px-4">
+                        <div className="flex items-center gap-1.5 font-semibold text-slate-700 text-xs">
+                          <Factory className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="truncate max-w-[140px]">{item.plant || 'Plant 1 - Pimpri Auto-Hub'}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700">
                           {item.category}
                         </span>
@@ -879,7 +886,7 @@ export const StockLedgerListView: React.FC<Props> = ({
                 })}
                 {paginatedOverviewItems.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400">
+                    <td colSpan={11} className="py-12 text-center text-slate-400">
                       <Package className="w-8 h-8 mx-auto mb-2 text-slate-300 opacity-60" />
                       <div className="font-semibold text-slate-600 text-xs">No stock items in this store location</div>
                       <div className="text-[11px] text-slate-400 mt-0.5">Stock entries will populate automatically when production shift output is saved or GRN putaway is completed.</div>

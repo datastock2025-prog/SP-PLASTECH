@@ -30,6 +30,8 @@ import {
   EInvoiceRecord,
   EWayBillRecord,
 } from '../../../types/salesOrderDeliveryTypes';
+import { r2StorageService } from '../../../services/storage/r2StorageService';
+import { UploadCloud } from 'lucide-react';
 
 interface SalesOrderDetailProps {
   order: PlasticSalesOrder;
@@ -57,6 +59,22 @@ export const SalesOrderDetail: React.FC<SalesOrderDetailProps> = ({
   // 10 Functional Tabs
   const [activeTab, setActiveTab] = useState<string>('Overview');
   const [showJsonModal, setShowJsonModal] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [customDocs, setCustomDocs] = useState<Array<{ name: string; size: string; date: string; type: string }>>([]);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const newDoc = {
+      name: file.name,
+      size: `${Math.round(file.size / 1024)} KB`,
+      date: new Date().toISOString().slice(0, 10),
+      type: 'Uploaded Attachment',
+    };
+    setCustomDocs((prev) => [newDoc, ...prev]);
+    showToast(`✓ Uploaded "${file.name}" to Order Documents.`);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   // Associated records
   const orderDeliveries = deliveries.filter((d) => d.salesOrderId === order.id);
@@ -558,64 +576,79 @@ export const SalesOrderDetail: React.FC<SalesOrderDetailProps> = ({
       )}
 
       {/* TAB 4: STOCK & ALLOCATION */}
-      {activeTab === 'Stock & Allocation' && (
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-4 text-xs">
-          <div className="flex items-center justify-between border-b pb-3">
-            <div>
-              <h3 className="text-sm font-bold text-gray-900">Finished Goods Batches & FEFO Picking Matrix</h3>
-              <p className="text-xs text-gray-500">
-                Live batch allocation sorted by First Expiry First Out (FEFO) with QC Certificate verification.
-              </p>
-            </div>
-            <button
-              onClick={() => showToast('Stock refreshed from plant warehouse MES.')}
-              className="flex items-center gap-1 px-2.5 py-1.5 border rounded-lg hover:bg-gray-50 text-gray-700 font-semibold"
-            >
-              <RefreshCw className="w-3 h-3 text-gray-500" /> Refresh Stock
-            </button>
-          </div>
+      {activeTab === 'Stock & Allocation' && (() => {
+        const orderSkus = (order.lines || []).map((l) => l.itemCode);
+        const allocatedBatches = batches.filter((b) => orderSkus.includes(b.itemCode));
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-gray-100 text-gray-600 text-[11px] uppercase tracking-wider">
-                <tr>
-                  <th className="p-2.5">Batch #</th>
-                  <th className="p-2.5">Item Name</th>
-                  <th className="p-2.5">Location / Bin</th>
-                  <th className="p-2.5 text-right">Available</th>
-                  <th className="p-2.5 text-right">Reserved</th>
-                  <th className="p-2.5">Mfg / Expiry Date</th>
-                  <th className="p-2.5">COA Status</th>
-                  <th className="p-2.5">QC Status</th>
-                  <th className="p-2.5 text-center">FEFO Rank</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {batches.map((b) => (
-                  <tr key={b.batchNumber} className="hover:bg-gray-50">
-                    <td className="p-2.5 font-mono font-bold text-gray-900">{b.batchNumber}</td>
-                    <td className="p-2.5 font-semibold text-gray-800">{b.itemName}</td>
-                    <td className="p-2.5 font-mono text-gray-600">{b.locationCode} &bull; {b.binCode}</td>
-                    <td className="p-2.5 text-right font-bold text-gray-900">{b.availableQty.toLocaleString()}</td>
-                    <td className="p-2.5 text-right text-gray-500">{b.reservedQty.toLocaleString()}</td>
-                    <td className="p-2.5">
-                      <div>{b.mfgDate}</div>
-                      <div className="text-[10px] text-gray-400">Exp: {b.expiryDate}</div>
-                    </td>
-                    <td className="p-2.5 font-semibold text-emerald-700">{b.coaStatus}</td>
-                    <td className="p-2.5">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                        {b.qualityStatus}
-                      </span>
-                    </td>
-                    <td className="p-2.5 text-center font-bold font-mono text-[#0F8B8D]">#{b.fefoRank}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        return (
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-4 text-xs">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Finished Goods Batches & FEFO Picking Matrix</h3>
+                <p className="text-xs text-gray-500">
+                  Live batch allocation for order SKUs ({orderSkus.join(', ')}) sorted by First Expiry First Out (FEFO).
+                </p>
+              </div>
+              <button
+                onClick={() => showToast('Stock refreshed from plant warehouse MES.')}
+                className="flex items-center gap-1 px-2.5 py-1.5 border rounded-lg hover:bg-gray-50 text-gray-700 font-semibold"
+              >
+                <RefreshCw className="w-3 h-3 text-gray-500" /> Refresh Stock
+              </button>
+            </div>
+
+            {allocatedBatches.length === 0 ? (
+              <div className="p-8 text-center bg-gray-50/60 rounded-xl border border-dashed border-gray-200 space-y-2">
+                <Package className="w-8 h-8 text-gray-400 mx-auto" />
+                <div className="font-bold text-gray-700 text-sm">No Batches Allocated for this Order's SKUs</div>
+                <p className="text-gray-400 text-xs max-w-md mx-auto">
+                  Finished goods batches will be assigned during Outward Delivery Note generation or dynamically populated upon MES injection molding completion.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-gray-100 text-gray-600 text-[11px] uppercase tracking-wider">
+                    <tr>
+                      <th className="p-2.5">Batch #</th>
+                      <th className="p-2.5">Item Name</th>
+                      <th className="p-2.5">Location / Bin</th>
+                      <th className="p-2.5 text-right">Available</th>
+                      <th className="p-2.5 text-right">Reserved</th>
+                      <th className="p-2.5">Mfg / Expiry Date</th>
+                      <th className="p-2.5">COA Status</th>
+                      <th className="p-2.5">QC Status</th>
+                      <th className="p-2.5 text-center">FEFO Rank</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {allocatedBatches.map((b) => (
+                      <tr key={b.batchNumber} className="hover:bg-gray-50">
+                        <td className="p-2.5 font-mono font-bold text-gray-900">{b.batchNumber}</td>
+                        <td className="p-2.5 font-semibold text-gray-800">{b.itemName}</td>
+                        <td className="p-2.5 font-mono text-gray-600">{b.locationCode} &bull; {b.binCode}</td>
+                        <td className="p-2.5 text-right font-bold text-gray-900">{b.availableQty.toLocaleString()}</td>
+                        <td className="p-2.5 text-right text-gray-500">{b.reservedQty.toLocaleString()}</td>
+                        <td className="p-2.5">
+                          <div>{b.mfgDate}</div>
+                          <div className="text-[10px] text-gray-400">Exp: {b.expiryDate}</div>
+                        </td>
+                        <td className="p-2.5 font-semibold text-emerald-700">{b.coaStatus}</td>
+                        <td className="p-2.5">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                            {b.qualityStatus}
+                          </span>
+                        </td>
+                        <td className="p-2.5 text-center font-bold font-mono text-[#0F8B8D]">#{b.fefoRank}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* TAB 5: DELIVERIES */}
       {activeTab === 'Deliveries' && (
@@ -823,34 +856,76 @@ export const SalesOrderDetail: React.FC<SalesOrderDetailProps> = ({
               <h3 className="text-sm font-bold text-gray-900">Associated Commercial & Dispatch Documents</h3>
               <p className="text-xs text-gray-500">Repository of customer PO, tax invoices, EWBs, and gate passes.</p>
             </div>
-            <button
-              onClick={() => showToast('File upload prompt opened.')}
-              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg font-semibold"
-            >
-              Upload Document
-            </button>
+            <div>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                className="hidden"
+                accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="px-3 py-1.5 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg font-semibold flex items-center gap-1.5 shadow-2xs"
+              >
+                <UploadCloud className="w-3.5 h-3.5" /> Upload Document
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             {[
-              { name: `Customer PO (${order.customerPoNumber || 'PO-2026'})`, type: 'Customer PO', size: '240 KB', date: order.orderDate },
-              { name: `Sales Order Confirmation (${order.id})`, type: 'Internal SO', size: '180 KB', date: order.orderDate },
-              { name: `Delivery Note Challan (DN-4001)`, type: 'Delivery Note', size: '310 KB', date: '2026-09-11' },
-              { name: `Tax Invoice (INV-2026-09-001)`, type: 'E-Invoice PDF', size: '420 KB', date: '2026-09-11' },
-              { name: `E-Way Bill 241088492019`, type: 'EWB Printout', size: '150 KB', date: '2026-09-11' },
-              { name: `Certificate of Analysis (COA-2026-0891)`, type: 'Quality Certificate', size: '540 KB', date: '2026-09-10' },
+              {
+                name: `Customer PO (${order.customerPoNumber || 'PO-2026'})`,
+                type: 'Customer PO',
+                size: '240 KB',
+                onDownload: () => {
+                  const poHtml = `<!DOCTYPE html><html><head><title>Customer PO ${order.customerPoNumber}</title><style>body{font-family:Arial;padding:20px;}</style></head><body><h2>CUSTOMER PURCHASE ORDER</h2><p><b>PO Number:</b> ${order.customerPoNumber}</p><p><b>Customer:</b> ${order.customer}</p><p><b>Date:</b> ${order.orderDate}</p><p><b>Total Value:</b> ₹${order.totalOrderValue.toLocaleString()}</p></body></html>`;
+                  r2StorageService.downloadLocalPdfBlob(poHtml, `Customer_PO_${order.customerPoNumber || 'PO'}.html`);
+                  showToast(`✓ Downloaded Customer PO document.`);
+                },
+              },
+              {
+                name: `Sales Order Confirmation (${order.id})`,
+                type: 'Internal SO',
+                size: '180 KB',
+                onDownload: () => {
+                  const soHtml = `<!DOCTYPE html><html><head><title>SO Confirmation ${order.id}</title><style>body{font-family:Arial;padding:20px;}</style></head><body><h2>SALES ORDER CONFIRMATION</h2><p><b>Order ID:</b> ${order.id}</p><p><b>Customer:</b> ${order.customer}</p><p><b>Total Ordered:</b> ${totalQty.toLocaleString()} PCS</p><p><b>Total Value:</b> ₹${order.totalOrderValue.toLocaleString()}</p></body></html>`;
+                  r2StorageService.downloadLocalPdfBlob(soHtml, `SO_Confirmation_${order.id}.html`);
+                  showToast(`✓ Downloaded Sales Order Confirmation document.`);
+                },
+              },
+              ...orderDeliveries.map((d) => ({
+                name: `Delivery Note (${d.id})`,
+                type: 'Delivery Challan',
+                size: '310 KB',
+                onDownload: () => {
+                  r2StorageService.downloadLocalPdfBlob(`<!DOCTYPE html><html><body><h2>Delivery Challan ${d.id}</h2><p>Vehicle: ${d.vehicleNumber}</p></body></html>`, `Delivery_Challan_${d.id}.html`);
+                  showToast(`✓ Downloaded Delivery Note ${d.id}.`);
+                },
+              })),
+              ...customDocs.map((doc) => ({
+                name: doc.name,
+                type: doc.type,
+                size: doc.size,
+                onDownload: () => {
+                  r2StorageService.downloadLocalPdfBlob(`<!DOCTYPE html><html><body><h3>Uploaded Document: ${doc.name}</h3><p>Date: ${doc.date}</p></body></html>`, doc.name);
+                  showToast(`✓ Downloaded ${doc.name}.`);
+                },
+              })),
             ].map((doc, idx) => (
-              <div key={idx} className="p-3 rounded-lg border border-gray-200 bg-gray-50/50 flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div key={idx} className="p-3 rounded-lg border border-gray-200 bg-gray-50/50 flex items-center justify-between hover:bg-gray-100/70 transition">
+                <div className="flex items-center gap-2 min-w-0">
                   <FileText className="w-4 h-4 text-indigo-600 shrink-0" />
-                  <div>
-                    <div className="font-semibold text-gray-900 truncate max-w-[180px]">{doc.name}</div>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-gray-900 truncate max-w-[180px]" title={doc.name}>{doc.name}</div>
                     <div className="text-[10px] text-gray-400">{doc.type} &bull; {doc.size}</div>
                   </div>
                 </div>
                 <button
-                  onClick={() => showToast(`Downloading ${doc.name}...`)}
-                  className="p-1 text-gray-400 hover:text-gray-800"
+                  onClick={doc.onDownload}
+                  className="p-1.5 text-gray-400 hover:text-teal-700 hover:bg-white rounded-lg transition cursor-pointer"
+                  title={`Download ${doc.name}`}
                 >
                   <Download className="w-3.5 h-3.5" />
                 </button>

@@ -33,6 +33,8 @@ const E_INVOICES_CACHE_KEY = 'sp_plastech_live_e_invoices_v2';
 const E_WAY_BILLS_CACHE_KEY = 'sp_plastech_live_e_way_bills_v2';
 const GATE_PASSES_CACHE_KEY = 'sp_plastech_live_gate_passes_v2';
 
+const FG_BATCHES_CACHE_KEY = 'sp_plastech_live_fg_batches_v2';
+
 class SalesDataService {
   // ==========================================================================
   // 1. SALES ORDERS CRUD & DB PERSISTENCE
@@ -48,6 +50,22 @@ class SalesDataService {
       console.warn('Error reading cached sales orders:', e);
     }
     return INITIAL_PLASTIC_SALES_ORDERS;
+  }
+
+  public saveSalesOrdersSync(orders: PlasticSalesOrder[]) {
+    try {
+      localStorage.setItem(SALES_ORDERS_CACHE_KEY, JSON.stringify(orders));
+    } catch (e) {
+      console.warn('Error saving sales orders to cache:', e);
+    }
+  }
+
+  public saveMonthlyPlansSync(plans: MonthlyPlanOrder[]) {
+    try {
+      localStorage.setItem(MONTHLY_PLANS_CACHE_KEY, JSON.stringify(plans));
+    } catch (e) {
+      console.warn('Error saving monthly plans to cache:', e);
+    }
   }
 
   public async getSalesOrders(): Promise<PlasticSalesOrder[]> {
@@ -413,7 +431,95 @@ class SalesDataService {
   }
 
   public getBatchesSync(): FgBatchStock[] {
+    try {
+      const stored = localStorage.getItem(FG_BATCHES_CACHE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Error reading cached FG batches:', e);
+    }
     return INITIAL_FG_BATCHES;
+  }
+
+  public saveBatchesSync(batches: FgBatchStock[]) {
+    try {
+      localStorage.setItem(FG_BATCHES_CACHE_KEY, JSON.stringify(batches));
+    } catch (e) {
+      console.warn('Error caching FG batches:', e);
+    }
+  }
+
+  /**
+   * Task-2: Deducts live inventory quantities upon successful outward dispatch
+   */
+  public deductStockForDispatch(
+    delivItems: Array<{ itemCode: string; batchLot?: string; fgStore?: string; qty: number }>
+  ): FgBatchStock[] {
+    const currentBatches = this.getBatchesSync();
+    const updatedBatches = currentBatches.map((b) => {
+      const matched = delivItems.find(
+        (di) =>
+          di.itemCode === b.itemCode &&
+          (!di.batchLot || di.batchLot === b.batchNumber || di.batchLot.includes(b.batchNumber))
+      );
+      if (matched) {
+        const newAvailable = Math.max(0, b.availableQty - matched.qty);
+        const newPickable = Math.max(0, b.pickableQty - matched.qty);
+        return {
+          ...b,
+          availableQty: newAvailable,
+          pickableQty: newPickable,
+        };
+      }
+      return b;
+    });
+
+    this.saveBatchesSync(updatedBatches);
+    adminEventBus.emit('INVENTORY_STOCK_DEDUCTED', { items: delivItems });
+    return updatedBatches;
+  }
+
+  /**
+   * Task-2: Holds stock and emits alert notification to designated dispatcher/supervisor if dispatch fails/held
+   */
+  public holdStockForFailedDispatch(
+    delivItems: Array<{ itemCode: string; batchLot?: string; fgStore?: string; qty: number }>,
+    reason: string,
+    targetUser: string = 'Dispatch Supervisor / Plant Quality Lead'
+  ): FgBatchStock[] {
+    const currentBatches = this.getBatchesSync();
+    const updatedBatches = currentBatches.map((b) => {
+      const matched = delivItems.find(
+        (di) =>
+          di.itemCode === b.itemCode &&
+          (!di.batchLot || di.batchLot === b.batchNumber || di.batchLot.includes(b.batchNumber))
+      );
+      if (matched) {
+        const newAvailable = Math.max(0, b.availableQty - matched.qty);
+        const newReserved = b.reservedQty + matched.qty;
+        return {
+          ...b,
+          availableQty: newAvailable,
+          reservedQty: newReserved,
+          qualityStatus: 'Quality Hold' as const,
+        };
+      }
+      return b;
+    });
+
+    this.saveBatchesSync(updatedBatches);
+
+    // Emit alert notification to target user
+    adminEventBus.emit('DISPATCH_COMPLIANCE_HOLD', {
+      items: delivItems,
+      reason,
+      targetUser,
+      timestamp: new Date().toISOString(),
+    });
+
+    return updatedBatches;
   }
 
   public getComplianceExceptionsSync(): ComplianceExceptionRecord[] {

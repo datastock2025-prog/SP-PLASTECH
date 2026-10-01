@@ -1586,9 +1586,15 @@ export const SalesOrderWizard: React.FC<SalesOrderWizardProps> = ({
                       type="number"
                       value={line.unitPrice}
                       onChange={(e) => {
+                        const newPrice = Number(e.target.value);
                         const updated = [...lines];
-                        updated[idx].unitPrice = Number(e.target.value);
-                        updated[idx].taxableValue = updated[idx].orderedQty * Number(e.target.value);
+                        const l = updated[idx];
+                        l.unitPrice = newPrice;
+                        l.taxableValue = l.orderedQty * newPrice * (1 - (l.discountPct || 0) / 100);
+                        l.cgstAmount = isInterState ? 0 : l.taxableValue * 0.09;
+                        l.sgstAmount = isInterState ? 0 : l.taxableValue * 0.09;
+                        l.igstAmount = isInterState ? l.taxableValue * 0.18 : 0;
+                        l.totalValue = l.taxableValue + l.cgstAmount + l.sgstAmount + l.igstAmount;
                         setLines(updated);
                         setStepError(null);
                       }}

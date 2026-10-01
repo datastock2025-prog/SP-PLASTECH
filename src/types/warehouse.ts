@@ -87,6 +87,7 @@ export interface StockMovementLedgerEntry {
 
   authorizedBy: string;          // e.g. "Ramesh K. (Store In-Charge)"
   runningBalance: number;
+  plant?: string;                // e.g. "Plant 1 - Pimpri Auto-Hub", "Plant 2 - Chakan Complex"
   notes?: string;
 }
 
@@ -111,6 +112,7 @@ export interface InventoryStockItem {
   name: string;
   category: StoreCategoryType;
   storeType?: 'RM' | 'WIP' | 'ASM' | 'DFL' | 'CON' | 'PCK' | 'BOP' | 'FG';
+  plant?: string;                // e.g. "Plant 1 - Pimpri Auto-Hub", "Plant 2 - Chakan Complex"
   subCategory: string;
   resinGrade?: string;
   primaryWarehouse: string;

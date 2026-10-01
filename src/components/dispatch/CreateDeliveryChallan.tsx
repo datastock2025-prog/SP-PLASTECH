@@ -45,8 +45,9 @@ import {
 import { INITIAL_FG_BATCHES } from '../../data/salesOrderDeliveryData';
 import { nicEwbService } from '../../services/nic/nicEwbService';
 import { NicEwbGenerationPayload } from '../../types/nicEwbTypes';
-import { NicEwbDiagnosticRunnerModal } from './NicEwbDiagnosticRunnerModal';
 import { customerMasterService, ContractedCustomerLine } from '../../services/customerMasterService';
+import { salesDataService } from '../../services/salesDataService';
+import { getWarehouseStock } from '../../utils/warehouseSync';
 
 // Standard Finished Goods Master Catalog for adding ad-hoc or catalog items
 export interface CatalogItem {
@@ -197,19 +198,38 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
   const [selectedPlant, setSelectedPlant] = useState(activeSo?.plant || 'Plant 1 - Pimpri Auto-Hub');
   const [selectedFgStore, setSelectedFgStore] = useState(activeSo?.fgStore || 'FG-Automotive Cell');
 
-  // Helper to resolve available stock dynamically from warehouse store batches
+  // Helper to resolve available stock dynamically from warehouse store batches and inventory stock
   const getStockForStore = (itemCode: string, store: string, plant: string): number => {
-    const matchingBatches = INITIAL_FG_BATCHES.filter(
-      (b) => b.itemCode === itemCode && (b.fgStore === store || b.plant === plant)
-    );
-    if (matchingBatches.length > 0) {
-      return matchingBatches.reduce((sum, b) => sum + (b.availableQty || 0), 0);
-    }
-    if (store.includes('Automotive')) return 8200;
-    if (store.includes('Main Warehouse')) return 20000;
-    if (store.includes('Export Hub')) return 6500;
-    if (store.includes('Packaging')) return 12000;
-    return 5000;
+    const clean = (itemCode || '').trim().toLowerCase();
+    const raw = clean.replace(/^fg-/, '');
+
+    // 1. Check live FG batches from storage
+    try {
+      const batches = salesDataService.getBatchesSync();
+      const matchingBatches = batches.filter((b) => {
+        const bCode = (b.itemCode || '').toLowerCase();
+        const bRaw = bCode.replace(/^fg-/, '');
+        return (bCode === clean || bRaw === raw || bCode === raw);
+      });
+      if (matchingBatches.length > 0) {
+        return matchingBatches.reduce((sum, b) => sum + (b.availableQty || 0), 0);
+      }
+    } catch {}
+
+    // 2. Check live warehouse stock
+    try {
+      const whStock = getWarehouseStock();
+      const foundWh = whStock.find((s) => {
+        const sSku = (s.sku || '').toLowerCase();
+        const sRaw = sSku.replace(/^fg-/, '');
+        return (sSku === clean || sRaw === raw || sSku === raw);
+      });
+      if (foundWh) {
+        return foundWh.availableToPromise || foundWh.totalOnHand || 0;
+      }
+    } catch {}
+
+    return 0;
   };
 
   // Step 2: Line Items List (supports dynamic additions & modifications with Monthly Plan Quotas)
@@ -492,14 +512,21 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
     setIsAddItemModalOpen(false);
   };
 
-  // Check Monthly Plan Quota Exceeded
+  // Check Monthly Plan Quota Exceeded & Available Stock Exceeded
   const isMonthlyOrder = activeSo?.orderType === 'Monthly Plan Order' || !!activeSo?.monthlyPlanRef || activeSo?.linkType === 'Linked';
+  
   const invalidPlanItems = useMemo(() => {
     if (!isMonthlyOrder) return [];
     return items.filter(
-      (it) => it.monthlyScheduleQty && it.dispatchQty > (it.remainingMonthlyQty ?? it.monthlyScheduleQty)
+      (it) => it.monthlyScheduleQty !== undefined && Number(it.dispatchQty) > Number(it.remainingMonthlyQty !== undefined ? it.remainingMonthlyQty : it.monthlyScheduleQty)
     );
   }, [items, isMonthlyOrder]);
+
+  const invalidStockItems = useMemo(() => {
+    return items.filter(
+      (it) => (Number(it.dispatchQty) || 0) > (Number(it.availableStock) || 0)
+    );
+  }, [items]);
 
   // THE MASTER FUNCTION: "ONE FINAL CLICK" ALL-IN-ONE DISPATCH GENERATION
   const executeAllInOneDispatch = async (mode: 'all-in-one' | 'standard' | 'note-only') => {
@@ -508,11 +535,23 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
       return;
     }
 
-    // Monthly Planned Schedule Validation
-    if (invalidPlanItems.length > 0) {
+    // Task-1: Available Warehouse Stock Validation (Cannot dispatch more than stock)
+    if (invalidStockItems.length > 0) {
       showToast(
-        `Dispatch blocked: Quantity for ${invalidPlanItems[0].itemName} (${invalidPlanItems[0].dispatchQty} ${invalidPlanItems[0].uom}) exceeds monthly planned quota (${invalidPlanItems[0].monthlyScheduleQty} ${invalidPlanItems[0].uom}). Please create a Daily Sales Order for additional quantity.`
+        `Dispatch blocked: Quantity for ${invalidStockItems[0].itemName} (${Number(invalidStockItems[0].dispatchQty).toLocaleString()} ${invalidStockItems[0].uom}) exceeds available stock (${Number(invalidStockItems[0].availableStock).toLocaleString()} ${invalidStockItems[0].uom}) in ${selectedFgStore}. Please adjust dispatch quantity or replenish stock.`
       );
+      setCurrentStep(2);
+      return;
+    }
+
+    // Task-1: Monthly Planned Schedule Quota Validation
+    if (invalidPlanItems.length > 0) {
+      const excessItem = invalidPlanItems[0];
+      const quota = excessItem.remainingMonthlyQty ?? excessItem.monthlyScheduleQty ?? 0;
+      showToast(
+        `Dispatch blocked: Quantity for ${excessItem.itemName} (${Number(excessItem.dispatchQty).toLocaleString()} ${excessItem.uom}) exceeds monthly quota (${Number(quota).toLocaleString()} ${excessItem.uom} remaining). Please raise a Daily Sales Order for surplus quantity.`
+      );
+      setCurrentStep(2);
       return;
     }
 
@@ -1062,6 +1101,22 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
             </button>
           </div>
 
+          {/* Available Warehouse Stock Shortage Alert */}
+          {invalidStockItems.length > 0 && (
+            <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl flex items-start gap-2.5 text-xs text-rose-900 animate-in fade-in duration-100">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold">Store Stock Shortage Alert: </span>
+                <span>
+                  Dispatch quantity for {invalidStockItems.map((i) => `${i.itemName} (${Number(i.dispatchQty).toLocaleString()} > ${Number(i.availableStock).toLocaleString()} ${i.uom} available)`).join(', ')} exceeds physical store stock in {selectedFgStore}.
+                </span>
+                <p className="mt-0.5 font-medium text-rose-800">
+                  Please adjust dispatch quantity to match available stock or replenish stock into <strong>{selectedFgStore}</strong> before dispatching.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Validation Banner if Monthly Plan quota exceeded */}
           {invalidPlanItems.length > 0 && (
             <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-start gap-2.5 text-xs text-amber-900 animate-in fade-in duration-100">
@@ -1069,7 +1124,7 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
               <div>
                 <span className="font-bold">Monthly Planned Quota Warning: </span>
                 <span>
-                  Dispatch quantity for {invalidPlanItems.map((i) => `${i.itemName} (${i.dispatchQty} > ${i.monthlyScheduleQty} ${i.uom})`).join(', ')} exceeds the monthly planned schedule.
+                  Dispatch quantity for {invalidPlanItems.map((i) => `${i.itemName} (${Number(i.dispatchQty).toLocaleString()} > ${Number(i.remainingMonthlyQty ?? i.monthlyScheduleQty).toLocaleString()} ${i.uom} remaining)`).join(', ')} exceeds the monthly planned schedule ({invalidPlanItems.map(i => `${Number(i.remainingMonthlyQty ?? i.monthlyScheduleQty).toLocaleString()} ${i.uom} remaining of ${Number(i.monthlyScheduleQty).toLocaleString()} ${i.uom} plan`).join('; ')}).
                 </span>
                 <p className="mt-0.5 font-medium text-amber-800">
                   To dispatch surplus/excess quantity beyond the monthly plan, please raise a separate <strong>Daily Sales Order</strong>.
@@ -1087,7 +1142,9 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
                   <th className="p-3">Item Code &amp; Description</th>
                   <th className="p-3">HSN Code</th>
                   <th className="p-3 text-right">Store Stock ({selectedFgStore.split('-')[1] || 'FG'})</th>
-                  <th className="p-3 text-right">Monthly Schedule Qty</th>
+                  <th className="p-3 text-right" title="Monthly Planned Schedule and Remaining Unfulfilled Quota (rem = Monthly Plan Qty - Delivered)">
+                    Monthly Plan &amp; Rem Quota
+                  </th>
                   <th className="p-3 text-right w-36">Dispatch Qty</th>
                   <th className="p-3">Batch / FEFO / COA</th>
                   <th className="p-3 text-right">Rate (₹)</th>
@@ -1098,10 +1155,11 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
               <tbody className="divide-y divide-gray-100">
                 {items.map((it, idx) => {
                   const lineTaxable = (it.dispatchQty || 0) * (it.unitPrice || 0);
-                  const isOverQuota = isMonthlyOrder && it.monthlyScheduleQty && it.dispatchQty > (it.remainingMonthlyQty ?? it.monthlyScheduleQty);
+                  const isOverQuota = isMonthlyOrder && it.monthlyScheduleQty !== undefined && Number(it.dispatchQty) > Number(it.remainingMonthlyQty ?? it.monthlyScheduleQty);
+                  const isOverStock = Number(it.dispatchQty) > Number(it.availableStock);
 
                   return (
-                    <tr key={it.id} className={`hover:bg-gray-50/70 transition-colors ${isOverQuota ? 'bg-amber-50/30' : ''}`}>
+                    <tr key={it.id} className={`hover:bg-gray-50/70 transition-colors ${isOverStock ? 'bg-rose-50/40' : isOverQuota ? 'bg-amber-50/30' : ''}`}>
                       <td className="p-3 font-mono text-gray-400 font-semibold">{idx + 1}</td>
                       <td className="p-3">
                         <div className="font-bold text-gray-900">{it.itemName}</div>
@@ -1115,7 +1173,7 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
                         </div>
                       </td>
                       <td className="p-3 font-mono text-gray-600">{it.hsn}</td>
-                      <td className="p-3 text-right font-mono font-semibold text-emerald-700">
+                      <td className={`p-3 text-right font-mono font-semibold ${isOverStock ? 'text-rose-700 font-bold' : 'text-emerald-700'}`}>
                         {it.availableStock.toLocaleString()} {it.uom}
                       </td>
                       <td className="p-3 text-right">
@@ -1124,8 +1182,11 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
                             <div className="font-mono font-bold text-purple-900">
                               {it.monthlyScheduleQty.toLocaleString()} {it.uom}
                             </div>
-                            <div className="text-[10px] text-purple-600 font-mono">
-                              {it.remainingMonthlyQty?.toLocaleString()} rem
+                            <div
+                              className="text-[10px] text-purple-600 font-mono font-semibold"
+                              title="Remaining unfulfilled monthly quota (rem = Plan - Delivered)"
+                            >
+                              {it.remainingMonthlyQty?.toLocaleString()} rem needed
                             </div>
                           </div>
                         ) : (
@@ -1138,16 +1199,25 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
                             type="number"
                             min="1"
                             value={it.dispatchQty}
-                            onChange={(e) => handleUpdateItemQty(it.id, Number(e.target.value))}
+                            onChange={(e) => handleUpdateItemQty(it.id, Math.max(0, parseInt(e.target.value, 10) || 0))}
                             className={`w-24 text-right border rounded p-1.5 font-bold font-mono text-gray-900 focus:ring-1 focus:ring-teal-500 outline-hidden ${
-                              isOverQuota ? 'border-amber-400 bg-amber-50 text-amber-900' : 'border-gray-300'
+                              isOverStock
+                                ? 'border-rose-400 bg-rose-50 text-rose-900'
+                                : isOverQuota
+                                ? 'border-amber-400 bg-amber-50 text-amber-900'
+                                : 'border-gray-300'
                             }`}
                           />
                           <span className="text-[10px] text-gray-400 font-medium">{it.uom}</span>
                         </div>
-                        {isOverQuota && (
+                        {isOverStock && (
+                          <div className="text-[9px] text-rose-700 font-bold mt-1 text-right">
+                            Exceeds store stock ({it.availableStock.toLocaleString()})
+                          </div>
+                        )}
+                        {!isOverStock && isOverQuota && (
                           <div className="text-[9px] text-amber-800 font-semibold mt-1 text-right">
-                            Exceeds plan ({it.monthlyScheduleQty})
+                            Exceeds plan ({it.remainingMonthlyQty ?? it.monthlyScheduleQty})
                           </div>
                         )}
                       </td>
@@ -1656,11 +1726,21 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
             </span>
             <button
               onClick={() => {
-                if (currentStep === 2 && invalidPlanItems.length > 0) {
-                  showToast(
-                    `Dispatch blocked: Quantity for ${invalidPlanItems[0].itemName} (${invalidPlanItems[0].dispatchQty} ${invalidPlanItems[0].uom}) exceeds monthly planned schedule quota (${invalidPlanItems[0].monthlyScheduleQty} ${invalidPlanItems[0].uom}). Please create a Daily Sales Order for excess quantity.`
-                  );
-                  return;
+                if (currentStep === 2) {
+                  if (invalidStockItems.length > 0) {
+                    showToast(
+                      `Dispatch blocked: Quantity for ${invalidStockItems[0].itemName} (${invalidStockItems[0].dispatchQty} ${invalidStockItems[0].uom}) exceeds store stock (${invalidStockItems[0].availableStock} ${invalidStockItems[0].uom}) in ${selectedFgStore}. Please adjust dispatch quantity.`
+                    );
+                    return;
+                  }
+                  if (invalidPlanItems.length > 0) {
+                    const excessItem = invalidPlanItems[0];
+                    const quota = excessItem.remainingMonthlyQty ?? excessItem.monthlyScheduleQty ?? 0;
+                    showToast(
+                      `Dispatch blocked: Quantity for ${excessItem.itemName} (${excessItem.dispatchQty} ${excessItem.uom}) exceeds monthly quota (${quota} ${excessItem.uom} remaining). Please create a Daily Sales Order for excess quantity.`
+                    );
+                    return;
+                  }
                 }
                 setCurrentStep(Math.min(5, currentStep + 1));
               }}

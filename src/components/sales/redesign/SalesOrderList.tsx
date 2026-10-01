@@ -1031,38 +1031,54 @@ export const SalesOrderList: React.FC<SalesOrderListProps> = ({
                                   <tr>
                                     <th className="py-2 px-3">Item Code &amp; Description</th>
                                     <th className="py-2 px-3">HSN Code</th>
-                                    <th className="py-2 px-3 text-right">Ordered Qty</th>
-                                    <th className="py-2 px-3 text-right">Delivered Qty</th>
+                                    <th className="py-2 px-3 text-right">Ordered / Plan Qty</th>
+                                    <th className="py-2 px-3 text-right">Delivered So Far</th>
+                                    <th className="py-2 px-3 text-right" title="Remaining quantity needed to be dispatched">Remaining Needed (Rem)</th>
                                     <th className="py-2 px-3 text-right">Unit Price</th>
                                     <th className="py-2 px-3 text-right">Taxable Value</th>
                                     <th className="py-2 px-3 text-right">Line Total (₹)</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 font-mono">
-                                  {order.lines.map((line, lIdx) => (
-                                    <tr key={lIdx} className="hover:bg-slate-50">
-                                      <td className="py-2 px-3 font-sans">
-                                        <div className="font-bold text-slate-800">{line.itemName}</div>
-                                        <div className="text-[10px] text-slate-400 font-mono">{line.itemCode}</div>
-                                      </td>
-                                      <td className="py-2 px-3 text-slate-600">{line.hsn || '3923.30'}</td>
-                                      <td className="py-2 px-3 text-right font-bold text-slate-900">
-                                        {line.orderedQty.toLocaleString()} {line.uom}
-                                      </td>
-                                      <td className="py-2 px-3 text-right text-emerald-700">
-                                        {line.deliveredQty.toLocaleString()} {line.uom}
-                                      </td>
-                                      <td className="py-2 px-3 text-right text-slate-800">
-                                        ₹{line.unitPrice.toFixed(2)}
-                                      </td>
-                                      <td className="py-2 px-3 text-right text-slate-700">
-                                        ₹{line.taxableValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                      </td>
-                                      <td className="py-2 px-3 text-right font-bold text-emerald-700">
-                                        ₹{line.totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                      </td>
-                                    </tr>
-                                  ))}
+                                  {order.lines.map((line, lIdx) => {
+                                    const remNeeded = line.remainingQty !== undefined ? line.remainingQty : Math.max(0, line.orderedQty - (line.deliveredQty || 0));
+
+                                    return (
+                                      <tr key={lIdx} className="hover:bg-slate-50">
+                                        <td className="py-2 px-3 font-sans">
+                                          <div className="font-bold text-slate-800">{line.itemName}</div>
+                                          <div className="text-[10px] text-slate-400 font-mono">{line.itemCode}</div>
+                                        </td>
+                                        <td className="py-2 px-3 text-slate-600">{line.hsn || '3923.30'}</td>
+                                        <td className="py-2 px-3 text-right font-bold text-slate-900">
+                                          {line.orderedQty.toLocaleString()} {line.uom}
+                                        </td>
+                                        <td className="py-2 px-3 text-right font-bold text-emerald-700">
+                                          {line.deliveredQty.toLocaleString()} {line.uom}
+                                        </td>
+                                        <td className="py-2 px-3 text-right font-bold">
+                                          {remNeeded > 0 ? (
+                                            <span className="px-2 py-0.5 rounded font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                              {remNeeded.toLocaleString()} {line.uom}
+                                            </span>
+                                          ) : (
+                                            <span className="px-2 py-0.5 rounded font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                              0 (Fulfilled)
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="py-2 px-3 text-right text-slate-800">
+                                          ₹{line.unitPrice.toFixed(2)}
+                                        </td>
+                                        <td className="py-2 px-3 text-right text-slate-700">
+                                          ₹{line.taxableValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                        </td>
+                                        <td className="py-2 px-3 text-right font-bold text-emerald-700">
+                                          ₹{line.totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
                                 </tbody>
                               </table>
                             </div>

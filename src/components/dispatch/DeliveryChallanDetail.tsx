@@ -45,6 +45,189 @@ export const DeliveryChallanDetail: React.FC<DeliveryChallanDetailProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState('Overview');
   const [showJson, setShowJson] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [customUploadedDocs, setCustomUploadedDocs] = useState<Array<{ name: string; size: string; date: string; content?: string }>>([]);
+
+  const handleDownloadChallan = () => {
+    const html = DispatchPdfGenerator.generateDeliveryChallanHtml(delivery);
+    r2StorageService.downloadLocalPdfBlob(html, `Delivery_Challan_${delivery.id}.html`);
+    showToast(`✓ Downloaded Delivery Challan (${delivery.id}) to local machine.`);
+  };
+
+  const handleDownloadInvoice = () => {
+    const invRecord: EInvoiceRecord = {
+      invoiceNumber: delivery.invoiceNumber || `INV-2026-09-${delivery.id.replace('DN-', '')}`,
+      invoiceDate: delivery.invoiceDate || delivery.deliveryDate || '2026-09-15',
+      salesOrderNumber: delivery.salesOrderId,
+      deliveryId: delivery.id,
+      customer: delivery.customer,
+      customerGstin: delivery.customerGstin,
+      posState: delivery.placeOfSupply || 'Maharashtra',
+      posStateCode: '27',
+      taxableValue: delivery.taxableValue || 0,
+      cgstValue: delivery.cgstAmount || 0,
+      sgstValue: delivery.sgstAmount || 0,
+      igstValue: delivery.igstAmount || 0,
+      cessValue: 0,
+      totalValue: delivery.invoiceValue || 0,
+      status: 'Generated',
+      irn: delivery.irn || 'b78a994c1f9302194857dc820a45719bc40192e472093849102830fca1029148',
+      ackNo: delivery.ackNumber || '112026090014521',
+      ackDate: delivery.ackDate || '2026-09-15 12:00:00',
+      signedQrCode: 'NIC-QR-VALIDATED',
+      nicSyncStatus: 'Synced',
+      items: (delivery.items || []).map((it) => ({
+        itemCode: it.itemCode,
+        itemName: it.itemName,
+        hsn: it.hsn || '39269099',
+        qty: it.deliveredQty || it.orderedQty || 0,
+        rate: it.unitPrice || 50,
+        taxable: it.lineTotal || (it.deliveredQty || it.orderedQty || 0) * (it.unitPrice || 50),
+        taxRate: it.taxRatePct || 18,
+      })),
+    };
+    const doc = DispatchPdfGenerator.generateEInvoicePdf(invRecord, delivery);
+    r2StorageService.downloadDocumentLocally(doc);
+    showToast(`✓ Downloaded Tax E-Invoice (${invRecord.invoiceNumber}) to local machine.`);
+  };
+
+  const handleDownloadEwb = () => {
+    const ewbRecord: EWayBillRecord = {
+      ewbNumber: delivery.ewbNumber || '241088492019',
+      ewbDate: delivery.ewbDate || '2026-09-15 12:16:00',
+      documentNumber: delivery.invoiceNumber || delivery.id,
+      documentDate: delivery.deliveryDate || '2026-09-15',
+      documentType: 'Tax Invoice',
+      supplyType: 'Outward',
+      subSupplyType: 'Supply',
+      fromGstin: '27AABCP1122D1Z4',
+      fromLegalName: 'SP PLASTECH ENTERPRISE PVT LTD',
+      fromAddress: 'Sector 7, PCMC Auto Cluster, Pimpri',
+      fromPlace: 'Pune',
+      fromPincode: '411018',
+      fromState: 'Maharashtra',
+      fromStateCode: '27',
+      toGstin: delivery.customerGstin,
+      toLegalName: delivery.customer,
+      toAddress: delivery.shipToAddress || 'Customer Warehouse Hub',
+      toPlace: 'Pune',
+      toPincode: '411018',
+      toState: delivery.placeOfSupply || 'Maharashtra',
+      toStateCode: '27',
+      totalValue: delivery.invoiceValue || 0,
+      taxableAmount: delivery.taxableValue || 0,
+      cgstAmount: delivery.cgstAmount || 0,
+      sgstAmount: delivery.sgstAmount || 0,
+      igstAmount: delivery.igstAmount || 0,
+      cessAmount: 0,
+      transporterId: delivery.transporterIdGstin || '29AABCV2211C1Z0',
+      transporterName: delivery.transporterName || 'VRL Logistics Ltd',
+      transportMode: 'Road',
+      approxDistanceKm: delivery.estimatedDistanceKm || 140,
+      vehicleNumber: delivery.vehicleNumber || 'MH-14-GH-8821',
+      vehicleType: 'Regular',
+      validUntil: delivery.ewbValidUntil || '2026-09-18 23:59:59',
+      status: 'Generated',
+      partA: true,
+      partB: true,
+      qrCodeData: `EWB:${delivery.ewbNumber}|FROM:27AABCP1122D1Z4|TO:${delivery.customerGstin}|VAL:${delivery.invoiceValue}`,
+      items: (delivery.items || []).map((it) => ({
+        itemCode: it.itemCode,
+        itemName: it.itemName,
+        hsn: it.hsn || '39269099',
+        qty: it.deliveredQty || it.orderedQty || 0,
+        unit: it.uom || 'PCS',
+        taxableAmount: it.lineTotal || (it.deliveredQty || it.orderedQty || 0) * (it.unitPrice || 50),
+        taxRatePct: it.taxRatePct || 18,
+      })),
+    };
+    const doc = DispatchPdfGenerator.generateEWayBillPdf(ewbRecord);
+    r2StorageService.downloadDocumentLocally(doc);
+    showToast(`✓ Downloaded E-Way Bill (${ewbRecord.ewbNumber}) to local machine.`);
+  };
+
+  const handleDownloadGatePass = () => {
+    const gpRecord: GatePassRecord = {
+      gatePassNumber: delivery.gatePassNumber || 'GP-2026-0891',
+      issueDate: delivery.deliveryDate || '2026-09-15 11:30:00',
+      deliveryId: delivery.id,
+      invoiceNumber: delivery.invoiceNumber || 'INV-2026-09-001',
+      salesOrderId: delivery.salesOrderId,
+      customer: delivery.customer,
+      plant: delivery.plant,
+      gateNumber: 'Plant 1 Gate #2',
+      vehicleNumber: delivery.vehicleNumber,
+      driverName: delivery.driverName || 'Suresh Patil',
+      driverPhone: delivery.driverMobile || '+91 98220 19281',
+      driverLicenseNumber: 'MH-14-2015-009812',
+      transporterName: delivery.transporterName,
+      grossWeightKg: delivery.grossWeightKg || 5650,
+      tareWeightKg: delivery.tareWeightKg || 4200,
+      netWeightKg: delivery.netWeightKg || 1450,
+      sealNumber: delivery.sealNumber || 'SEAL-2026-9901',
+      packageCount: delivery.packageCount || 120,
+      packagingType: delivery.packagingType || 'Corrugated Boxes on Pallets',
+      securityOfficerName: 'S. Deshmukh (SEC-104)',
+      status: 'Verified',
+      qrCodeData: `GP:${delivery.gatePassNumber}|VEH:${delivery.vehicleNumber}|WT:${delivery.netWeightKg}`,
+    };
+    const doc = DispatchPdfGenerator.generateGatePassPdf(gpRecord);
+    r2StorageService.downloadDocumentLocally(doc);
+    showToast(`✓ Downloaded Security Gate Pass (${gpRecord.gatePassNumber}) to local machine.`);
+  };
+
+  const handleDownloadCoa = () => {
+    const item = delivery.items?.[0] || { itemName: 'Molded Finished Good', itemCode: 'FG-ITEM-01', batchLot: 'B-2026-01', coaNumber: 'COA-2026-8812' };
+    const coaHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Certificate of Analysis - ${item.coaNumber || 'COA-2026'}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 24px; color: #1e293b; }
+    .hdr { border-bottom: 2px solid #0F8B8D; padding-bottom: 12px; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; font-size: 11px; }
+    th { background: #14213D; color: #fff; }
+  </style>
+</head>
+<body>
+  <div class="hdr">
+    <h2>SP PLASTECH QUALITY CONTROL & TESTING LAB</h2>
+    <div>CERTIFICATE OF ANALYSIS (COA) - QA RELEASE</div>
+    <div><strong>COA Number:</strong> ${item.coaNumber || 'COA-2026-8812'} &bull; <strong>Batch:</strong> ${item.batchLot || 'B-2026-01'}</div>
+    <div><strong>Item:</strong> ${item.itemName} (${item.itemCode}) &bull; <strong>Customer:</strong> ${delivery.customer}</div>
+  </div>
+  <table>
+    <thead><tr><th>Parameter</th><th>Specification</th><th>Observed Result</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>Tensile Strength (MPa)</td><td>&ge; 45.0</td><td>48.2</td><td style="color:green;font-weight:bold;">PASS</td></tr>
+      <tr><td>Melt Flow Index (g/10min)</td><td>12.0 &plusmn; 1.5</td><td>12.3</td><td style="color:green;font-weight:bold;">PASS</td></tr>
+      <tr><td>Density (g/cm&sup3;)</td><td>0.905 - 0.915</td><td>0.910</td><td style="color:green;font-weight:bold;">PASS</td></tr>
+      <tr><td>Visual Appearance & Flash</td><td>Zero Flash, Matte Finish</td><td>Uniform Matte Black</td><td style="color:green;font-weight:bold;">PASS</td></tr>
+    </tbody>
+  </table>
+  <div style="margin-top:24px; font-size:11px;">
+    <strong>Certified by:</strong> Plant Quality Assurance Lead &bull; <strong>Inspection Date:</strong> ${delivery.deliveryDate || '2026-09-15'}
+  </div>
+</body>
+</html>`;
+    r2StorageService.downloadLocalPdfBlob(coaHtml, `COA_Certificate_${item.coaNumber || 'Batch'}.html`);
+    showToast(`✓ Downloaded Quality COA Certificate to local machine.`);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const newDoc = {
+      name: file.name,
+      size: `${Math.round(file.size / 1024)} KB`,
+      date: new Date().toISOString().slice(0, 10),
+    };
+    setCustomUploadedDocs((prev) => [newDoc, ...prev]);
+    showToast(`✓ Successfully uploaded "${file.name}" to consignment documents.`);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   if (!delivery) {
     return (
@@ -548,28 +731,61 @@ export const DeliveryChallanDetail: React.FC<DeliveryChallanDetailProps> = ({
       {/* TAB 7: DOCUMENTS */}
       {activeTab === 'Documents' && (
         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4 text-xs">
-          <h3 className="font-bold text-gray-900 uppercase tracking-wider text-[11px] border-b pb-2">
-            Dispatched Document Package
-          </h3>
+          <div className="flex items-center justify-between border-b pb-2">
+            <div>
+              <h3 className="font-bold text-gray-900 uppercase tracking-wider text-[11px]">
+                Dispatched Document Package
+              </h3>
+              <p className="text-[11px] text-gray-500">Official GST E-Invoices, EWBs, Challans, and Quality COA certificates.</p>
+            </div>
+            <div>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                className="hidden"
+                accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="px-3 py-1.5 bg-[#0F8B8D] hover:bg-[#0c7072] text-white rounded-lg font-semibold flex items-center gap-1.5 shadow-2xs"
+              >
+                <UploadCloud className="w-3.5 h-3.5" /> Upload Document
+              </button>
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[
-              { name: `Delivery Challan (${delivery.id})`, size: '280 KB' },
-              { name: `Commercial Invoice (${delivery.invoiceNumber})`, size: '410 KB' },
-              { name: `E-Way Bill (241088492019)`, size: '140 KB' },
-              { name: `Security Gate Pass (${delivery.gatePassNumber})`, size: '190 KB' },
-              { name: `COA Certificate Batch B-2026`, size: '520 KB' },
+              { name: `Delivery Challan (${delivery.id})`, size: '280 KB', type: 'Delivery Challan', onDownload: handleDownloadChallan },
+              { name: `Commercial Invoice (${delivery.invoiceNumber || 'INV-2026'})`, size: '410 KB', type: 'GST E-Invoice', onDownload: handleDownloadInvoice },
+              { name: `E-Way Bill (${delivery.ewbNumber || '241088492019'})`, size: '140 KB', type: 'EWB Pass', onDownload: handleDownloadEwb },
+              { name: `Security Gate Pass (${delivery.gatePassNumber || 'GP-2026'})`, size: '190 KB', type: 'Gate Pass', onDownload: handleDownloadGatePass },
+              { name: `COA Certificate (${delivery.items?.[0]?.coaNumber || 'COA-2026'})`, size: '520 KB', type: 'Quality Cert', onDownload: handleDownloadCoa },
+              ...customUploadedDocs.map((doc) => ({
+                name: doc.name,
+                size: doc.size,
+                type: 'Uploaded Document',
+                onDownload: () => {
+                  showToast(`✓ Downloading uploaded file ${doc.name}`);
+                  r2StorageService.downloadLocalPdfBlob(`<!DOCTYPE html><html><body><h3>Uploaded Document: ${doc.name}</h3><p>Date: ${doc.date}</p></body></html>`, doc.name);
+                },
+              })),
             ].map((doc, idx) => (
-              <div key={idx} className="p-3 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div key={idx} className="p-3 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-between hover:bg-gray-100/70 transition">
+                <div className="flex items-center gap-2 min-w-0">
                   <FileText className="w-4 h-4 text-indigo-600 shrink-0" />
-                  <div className="truncate max-w-[150px] font-semibold text-gray-900">{doc.name}</div>
+                  <div className="min-w-0">
+                    <div className="truncate max-w-[150px] font-semibold text-gray-900" title={doc.name}>{doc.name}</div>
+                    <div className="text-[10px] text-gray-400">{doc.type} &bull; {doc.size}</div>
+                  </div>
                 </div>
                 <button
-                  onClick={() => showToast(`Downloading ${doc.name}...`)}
-                  className="p-1 text-gray-500 hover:text-gray-900"
+                  onClick={doc.onDownload}
+                  className="p-1.5 text-gray-500 hover:text-teal-700 rounded-lg hover:bg-white transition cursor-pointer"
+                  title={`Download ${doc.name} to local machine`}
                 >
-                  <Download className="w-3.5 h-3.5" />
+                  <Download className="w-4 h-4" />
                 </button>
               </div>
             ))}

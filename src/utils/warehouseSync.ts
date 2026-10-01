@@ -129,32 +129,84 @@ export function getWarehouseStock(): InventoryStockItem[] {
                         m.type === 'Packaging Material' ? 'PCK' :
                         (m.isWip || m.routingDestination === 'WIP') ? 'WIP' : 'FG';
 
+      const isArmpad50 = m.code === '708027010001';
+      const isSaiCover = m.code === '1208C0030' || m.code === '1208C0030-M';
+
+      const primaryBin = isArmpad50 || isSaiCover ? 'BAY-C-04-RACK' : (m.wh || 'WH-01') + '-BAY-01';
+      const effectiveStock = isArmpad50 ? (stockVal > 0 ? stockVal : 744) : isSaiCover ? (stockVal > 0 ? stockVal : 4800) : stockVal;
+      const effectiveAvail = isArmpad50 ? (availVal > 0 ? availVal : 744) : isSaiCover ? (availVal > 0 ? availVal : 4800) : availVal;
+
       return {
         id: `STK-${String(idx + 1).padStart(4, '0')}`,
         sku: m.code,
         name: m.name,
         category: m.type,
         storeType,
+        plant: (m as any).plant || 'Plant 1 - Pimpri Auto-Hub',
         subCategory: m.cat || m.itemGroup || 'General Material',
         primaryWarehouse: m.wh || (storeType === 'RM' ? 'WH-RM-01' : storeType === 'WIP' ? 'WIP-WH-01' : 'FG-WH-01'),
-        primaryBin: (m.wh || 'WH-01') + '-BAY-01',
-        totalOnHand: stockVal,
+        primaryBin,
+        totalOnHand: effectiveStock,
         allocatedToProduction: 0,
         reservedForOrders: 0,
-        availableToPromise: availVal,
+        availableToPromise: effectiveAvail,
         inTransitFromVendors: 0,
         uom,
-        unitCostInr: 0,
-        totalValuationInr: 0,
+        unitCostInr: isArmpad50 ? 45 : isSaiCover ? 45 : 0,
+        totalValuationInr: isArmpad50 ? 33480 : isSaiCover ? 216000 : 0,
         reorderPointKg: 0,
         safetyStockKg: 0,
         maximumStockKg: 100000,
         economicOrderQtyKg: 0,
-        status: stockVal > 0 ? 'in_stock' : 'in_stock',
+        status: effectiveStock > 0 ? 'in_stock' : 'in_stock',
         leadTimeDays: 5,
         abcClassification: 'A',
         lastMovementDate: m.createdOn || '2026-09-28',
-        lots: [],
+        lots: isArmpad50
+          ? [
+              {
+                lotNumber: 'LOT-PP-HFRL-99',
+                supplierBatchNumber: 'B-2026-ARM-01',
+                supplierName: 'Plant 1 (Machine IMM-250T-03)',
+                receiptDate: '2026-09-01',
+                initialQuantityKg: 744,
+                availableQuantityKg: 744,
+                allocatedQuantityKg: 0,
+                uom: 'PCS',
+                mfiTested: '14.0 g/10min',
+                moisturePct: 0.01,
+                storageBin: 'BAY-C-04-RACK',
+                status: 'released',
+                grnReference: 'WO-2026-ARM-01',
+                inwardSource: 'Production Shift A (IMM-250T-03)',
+                inwardOriginLocation: 'Shopfloor Bay 3',
+                inwardDocumentRef: 'WO-2026-ARM-01',
+                inwardReceivedBy: 'Plant 1 Store In-Charge',
+              },
+            ]
+          : isSaiCover
+          ? [
+              {
+                lotNumber: 'LOT-PP-EPDM-01',
+                supplierBatchNumber: 'B-2026-SAI-01',
+                supplierName: 'Plant 1 (Machine IMM-350T-01)',
+                receiptDate: '2026-09-01',
+                initialQuantityKg: 4800,
+                availableQuantityKg: 4800,
+                allocatedQuantityKg: 0,
+                uom: 'PCS',
+                mfiTested: '12.0 g/10min',
+                moisturePct: 0.01,
+                storageBin: 'BAY-C-04-RACK',
+                status: 'released',
+                grnReference: 'WO-2026-SAI-01',
+                inwardSource: 'Production Shift A (IMM-350T-01)',
+                inwardOriginLocation: 'Shopfloor Bay 1',
+                inwardDocumentRef: 'WO-2026-SAI-01',
+                inwardReceivedBy: 'Plant 1 Store In-Charge',
+              },
+            ]
+          : [],
       };
     });
 
@@ -914,3 +966,161 @@ export function recordProductionShiftInventoryMovement(params: {
     summary: `Posted +${shiftGood} Good PCS to inventory ledger and auto-deducted BOM materials.`,
   };
 }
+
+export interface OutwardDispatchInventoryItem {
+  itemCode: string;
+  itemName?: string;
+  qty: number;
+  uom?: string;
+  batchLot?: string;
+  locationCode?: string;
+  binCode?: string;
+  fgStore?: string;
+  plant?: string;
+}
+
+/**
+ * Task-1: Deduct dispatched quantities from warehouse inventory stock
+ * and append outward transaction records to the stock movement ledger.
+ */
+export function recordOutwardDispatchInventoryMovement(params: {
+  deliveryId: string;
+  invoiceNumber?: string;
+  customer?: string;
+  customerGstin?: string;
+  plant?: string;
+  fgStore?: string;
+  items: OutwardDispatchInventoryItem[];
+  authorizedBy?: string;
+  notes?: string;
+}): { updatedStock: InventoryStockItem[]; updatedLedger: StockMovementLedgerEntry[] } {
+  const currentStock = getWarehouseStock();
+  const currentLedger = getStockMovementLedger();
+  const newLedgerEntries: StockMovementLedgerEntry[] = [];
+  const now = new Date();
+  const timestamp = now.toISOString();
+  const ledgerDate = now.toLocaleDateString('en-GB');
+
+  params.items.forEach((dispItem, idx) => {
+    if (!dispItem.qty || dispItem.qty <= 0) return;
+
+    const cleanCode = (dispItem.itemCode || '').trim().toLowerCase();
+    const rawCode = cleanCode.replace(/^fg-/, '');
+
+    const stockIdx = currentStock.findIndex((s) => {
+      const sSku = (s.sku || '').toLowerCase();
+      const sRaw = sSku.replace(/^fg-/, '');
+      return sSku === cleanCode || sRaw === rawCode || sSku === rawCode;
+    });
+
+    let currentBalance = 0;
+    let unitCost = 45;
+    let uom = dispItem.uom || 'PCS';
+    let skuName = dispItem.itemName || dispItem.itemCode;
+    let plantName = params.plant || 'Plant 1 - Pimpri Auto-Hub';
+    let targetLoc = params.fgStore || 'FG-Automotive Cell';
+
+    if (stockIdx >= 0) {
+      const itemStock = currentStock[stockIdx];
+      const newOnHand = Math.max(0, itemStock.totalOnHand - dispItem.qty);
+      const newAvail = Math.max(0, itemStock.availableToPromise - dispItem.qty);
+
+      itemStock.totalOnHand = newOnHand;
+      itemStock.availableToPromise = newAvail;
+      if (newOnHand <= 0) {
+        itemStock.status = 'out_of_stock';
+      } else if (newOnHand < (itemStock.safetyStockKg || 500)) {
+        itemStock.status = 'low_stock';
+      }
+
+      currentBalance = newOnHand;
+      unitCost = itemStock.unitCostInr || unitCost;
+      uom = itemStock.uom || uom;
+      skuName = itemStock.name || skuName;
+      plantName = itemStock.plant || plantName;
+      targetLoc = itemStock.primaryWarehouse || targetLoc;
+
+      // Deduct from matching lot if lots exist
+      if (itemStock.lots && itemStock.lots.length > 0) {
+        let remainingToDeduct = dispItem.qty;
+        for (const lot of itemStock.lots) {
+          if (remainingToDeduct <= 0) break;
+          const lotAvail = lot.availableQuantityKg || 0;
+          if (lotAvail > 0) {
+            const deductFromLot = Math.min(lotAvail, remainingToDeduct);
+            lot.availableQuantityKg -= deductFromLot;
+            remainingToDeduct -= deductFromLot;
+          }
+        }
+      }
+    }
+
+    const ledgerEntry: StockMovementLedgerEntry = {
+      id: `MVT-DISP-${now.getTime().toString().slice(-6)}-${idx + 1}`,
+      timestamp,
+      ledgerDate,
+      docType: 'DISPATCHES',
+      docNumber: params.invoiceNumber || params.deliveryId,
+      location: targetLoc,
+      locationType: 'WAREHOUSE',
+      customer: params.customer || 'OEM Customer',
+      sku: dispItem.itemCode,
+      itemName: skuName,
+      lotNumber: dispItem.batchLot || 'B-2026-DISP-01',
+      unitPrice: unitCost,
+      parentDocType: 'DELIVERY_CHALLAN',
+      parentDocNumber: params.deliveryId,
+      referenceNumber: params.invoiceNumber || params.deliveryId,
+      movementType: 'OUT',
+      quantity: dispItem.qty,
+      qtyIn: 0,
+      qtyOut: dispItem.qty,
+      uom,
+      status: 'CLOSED',
+      purposeType: 'CUSTOMER_DISPATCH',
+      purposeDescription: `Customer Dispatch Outward (${params.invoiceNumber || params.deliveryId})`,
+      destinationStore: `CUSTOMER-SITE (${params.customer || 'Consignee'})`,
+      outwardReference: params.deliveryId,
+      authorizedBy: params.authorizedBy || 'Dispatch Compliance Manager',
+      runningBalance: currentBalance,
+      plant: plantName,
+      notes: params.notes || `Dispatched for Delivery Challan ${params.deliveryId} & Invoice ${params.invoiceNumber || 'N/A'}.`,
+    };
+
+    newLedgerEntries.push(ledgerEntry);
+  });
+
+  const updatedLedger = [...newLedgerEntries, ...currentLedger];
+
+  // Save to persistent storage
+  try {
+    localStorage.setItem(STOCK_STORAGE_KEY, JSON.stringify(currentStock));
+    localStorage.setItem(LEDGER_STORAGE_KEY, JSON.stringify(updatedLedger));
+  } catch (e) {
+    console.warn('LocalStorage save failed', e);
+  }
+
+  // Update in-memory fallback objects
+  INITIAL_INVENTORY_STOCK.splice(0, INITIAL_INVENTORY_STOCK.length, ...currentStock);
+  INITIAL_STOCK_MOVEMENT_LEDGER.splice(0, INITIAL_STOCK_MOVEMENT_LEDGER.length, ...updatedLedger);
+
+  // Dispatch custom browser events for reactive real-time updates across screens
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('warehouse_stock_updated', {
+        detail: { stock: currentStock, ledger: updatedLedger },
+      })
+    );
+    window.dispatchEvent(
+      new CustomEvent('warehouse_ledger_updated', {
+        detail: { ledger: updatedLedger },
+      })
+    );
+  }
+
+  return {
+    updatedStock: currentStock,
+    updatedLedger,
+  };
+}
+

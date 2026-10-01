@@ -9,6 +9,7 @@ import {
   Building2,
   Truck,
   Package,
+  Factory,
   ArrowDownLeft,
   ArrowUpRight,
   ArrowUpDown,
@@ -423,6 +424,10 @@ export const ItemLotLedgerModal: React.FC<ItemLotLedgerModalProps> = ({
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 uppercase tracking-wide">
                 {resolveStoreType(item)} STORE
               </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1">
+                <Factory className="w-3 h-3 text-slate-500" />
+                <span>{item.plant || 'Plant 1 - Pimpri Auto-Hub'}</span>
+              </span>
               {isDemoScaleActive && (
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-300 animate-pulse flex items-center gap-1">
                   <Sparkles className="w-3 h-3 text-purple-600" />
@@ -515,9 +520,9 @@ export const ItemLotLedgerModal: React.FC<ItemLotLedgerModalProps> = ({
             </div>
 
             <div className="p-2.5 bg-white rounded-xl border border-slate-200 shadow-xs">
-              <div className="text-slate-500 font-medium">Unit Cost &bull; Primary Bin</div>
-              <div className="text-sm sm:text-base font-bold font-mono text-slate-800 mt-0.5 truncate">
-                ₹{item.unitCostInr} &bull; <span className="text-slate-600 font-normal">{item.primaryBin || 'RM-WH-01-BAY-B1'}</span>
+              <div className="text-slate-500 font-medium">Plant &bull; Primary Bin</div>
+              <div className="text-xs sm:text-sm font-bold font-mono text-slate-800 mt-0.5 truncate" title={`${item.plant || 'Plant 1 - Pimpri Auto-Hub'} • ${item.primaryBin || 'BAY-C-04-RACK'}`}>
+                {item.plant || 'Plant 1 - Pimpri Auto-Hub'} &bull; <span className="text-slate-600 font-normal">{item.primaryBin || 'BAY-C-04-RACK'}</span>
               </div>
             </div>
           </div>
