@@ -119,15 +119,30 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, lastLoggedOut
         return;
       }
 
-      // 2. Instant In-Memory Cached Directory Check (< 5ms response time)
-      const cachedUsers = adminService.getCachedUsers();
-      const matchedUser = cachedUsers.find(
+      // 2. Instant In-Memory Cached Directory Check & Live DB Fallback Check
+      let allUsers = adminService.getCachedUsers();
+      let matchedUser = allUsers.find(
         (u) =>
           u.status === 'Active' &&
           (u.email.toLowerCase() === identifier ||
             (u.id && u.id.toLowerCase() === identifier) ||
             (u.username && u.username.toLowerCase() === identifier))
       );
+
+      // If not in cache, query Supabase Live DB directly
+      if (!matchedUser) {
+        const liveUsers = await adminService.getUsers();
+        if (Array.isArray(liveUsers)) {
+          allUsers = liveUsers;
+          matchedUser = liveUsers.find(
+            (u) =>
+              u.status === 'Active' &&
+              (u.email.toLowerCase() === identifier ||
+                (u.id && u.id.toLowerCase() === identifier) ||
+                (u.username && u.username.toLowerCase() === identifier))
+          );
+        }
+      }
 
       if (matchedUser) {
         const isPasswordMatch =

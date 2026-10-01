@@ -349,7 +349,7 @@ export const App: React.FC = () => {
     return 0;
   });
 
-  // Primary Business Entities State
+  // Primary Business Entities State (Database-First Single Source of Truth)
   const [items, setItems] = useState<ItemMaster[]>(() => {
     try {
       return itemService.getItemsSync();
@@ -357,51 +357,82 @@ export const App: React.FC = () => {
       return [];
     }
   });
-  const [boms, setBoms] = useState<BomMaster[]>(INITIAL_BOMS);
-  const [machines, setMachines] = useState<MachineMaster[]>(initialMachines);
-  const [workOrders, setWorkOrders] = useState<WorkOrder[]>(() => {
-    try {
-      const saved = localStorage.getItem('reboot_work_orders');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          // Filter out legacy dummy work orders
-          return parsed.filter((w) => !['WO-1188', 'WO-1189', 'WO-1190', 'WO-1191', 'WO-1192', 'WO-1193'].includes(w.id));
-        }
-      }
-    } catch {}
-    return [];
-  });
-  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(initialPurchaseOrders);
-  const [salesOrders, setSalesOrders] = useState<SalesOrder[]>(initialSalesOrders);
-  const [accounts, setAccounts] = useState<Account[]>(initialAccounts);
-  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(initialJournalEntries);
-  const [ncrs, setNcrs] = useState<NonConformanceReport[]>(initialNcrs);
-  const [capas, setCapas] = useState<CapaReport[]>(initialCapas);
-  const [coas, setCoas] = useState<CertificateOfAnalysis[]>(initialCoas);
-  const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
-  const [quotations, setQuotations] = useState<Quotation[]>(initialQuotations);
-  const [rmas, setRmas] = useState<ReturnMerchandise[]>(INITIAL_RMAS);
+  const [boms, setBoms] = useState<BomMaster[]>([]);
+  const [machines, setMachines] = useState<MachineMaster[]>([]);
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+  const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [ncrs, setNcrs] = useState<NonConformanceReport[]>([]);
+  const [capas, setCapas] = useState<CapaReport[]>([]);
+  const [coas, setCoas] = useState<CertificateOfAnalysis[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [quotations, setQuotations] = useState<Quotation[]>([]);
+  const [rmas, setRmas] = useState<ReturnMerchandise[]>([]);
 
-  // Sync Item Master & Core Entities with Live Database Store & Cross-Browser Mesh
+  // Sync Item Master & All Core Entities with Live Database Store & Cross-Browser Mesh
   useEffect(() => {
+    // 1. Master Data & Operations
     itemService.getItems().then((fetched) => {
-      if (Array.isArray(fetched) && fetched.length > 0) setItems(fetched);
+      if (Array.isArray(fetched)) setItems(fetched);
     });
 
     liveDataStore.getWorkOrders().then((woList) => {
-      if (Array.isArray(woList) && woList.length > 0) {
+      if (Array.isArray(woList)) {
         const cleanList = woList.filter((w) => !['WO-1188', 'WO-1189', 'WO-1190', 'WO-1191', 'WO-1192', 'WO-1193'].includes(w.id));
-        if (cleanList.length > 0) setWorkOrders(cleanList);
+        setWorkOrders(cleanList);
       }
     });
 
     liveDataStore.getPurchaseOrders().then((poList) => {
-      if (Array.isArray(poList) && poList.length > 0) setPurchaseOrders(poList);
+      if (Array.isArray(poList)) setPurchaseOrders(poList);
     });
 
     liveDataStore.getSalesOrders().then((soList) => {
-      if (Array.isArray(soList) && soList.length > 0) setSalesOrders(soList);
+      if (Array.isArray(soList)) setSalesOrders(soList);
+    });
+
+    liveDataStore.getCustomers().then((custList) => {
+      if (Array.isArray(custList)) setCustomers(custList);
+    });
+
+    liveDataStore.getQuotations().then((qList) => {
+      if (Array.isArray(qList)) setQuotations(qList);
+    });
+
+    liveDataStore.getRmas().then((rmaList) => {
+      if (Array.isArray(rmaList)) setRmas(rmaList);
+    });
+
+    liveDataStore.getBoms().then((bomList) => {
+      if (Array.isArray(bomList)) setBoms(bomList);
+    });
+
+    liveDataStore.getMachines().then((mList) => {
+      if (Array.isArray(mList)) setMachines(mList);
+    });
+
+    // 2. Quality & Compliance
+    liveDataStore.getNcrs().then((ncrList) => {
+      if (Array.isArray(ncrList)) setNcrs(ncrList);
+    });
+
+    liveDataStore.getCapas().then((capaList) => {
+      if (Array.isArray(capaList)) setCapas(capaList);
+    });
+
+    liveDataStore.getCoas().then((coaList) => {
+      if (Array.isArray(coaList)) setCoas(coaList);
+    });
+
+    // 3. Finance & General Ledger
+    liveDataStore.getAccounts().then((accList) => {
+      if (Array.isArray(accList)) setAccounts(accList);
+    });
+
+    liveDataStore.getJournalEntries().then((jeList) => {
+      if (Array.isArray(jeList)) setJournalEntries(jeList);
     });
 
     // Cross-Browser / Multi-Tab Synchronization Listeners
@@ -423,19 +454,88 @@ export const App: React.FC = () => {
 
     const unsubWoSynced = adminEventBus.on('WORK_ORDERS_SYNCED', () => {
       liveDataStore.getWorkOrders().then((woList) => {
-        if (Array.isArray(woList) && woList.length > 0) setWorkOrders(woList);
+        if (Array.isArray(woList)) {
+          const cleanList = woList.filter((w) => !['WO-1188', 'WO-1189', 'WO-1190', 'WO-1191', 'WO-1192', 'WO-1193'].includes(w.id));
+          setWorkOrders(cleanList);
+        }
       });
     });
 
     const unsubPoSynced = adminEventBus.on('PURCHASE_ORDERS_SYNCED', () => {
       liveDataStore.getPurchaseOrders().then((poList) => {
-        if (Array.isArray(poList) && poList.length > 0) setPurchaseOrders(poList);
+        if (Array.isArray(poList)) setPurchaseOrders(poList);
+      });
+    });
+
+    const unsubSoSynced = adminEventBus.on('SALES_ORDERS_SYNCED', () => {
+      liveDataStore.getSalesOrders().then((soList) => {
+        if (Array.isArray(soList)) setSalesOrders(soList);
       });
     });
 
     const unsubItemsSynced = adminEventBus.on('ITEMS_SYNCED', () => {
       itemService.getItems().then((fetched) => {
-        if (Array.isArray(fetched) && fetched.length > 0) setItems(fetched);
+        if (Array.isArray(fetched)) setItems(fetched);
+      });
+    });
+
+    const unsubNcrsSynced = adminEventBus.on('QUALITY_NCRS_SYNCED', () => {
+      liveDataStore.getNcrs().then((ncrList) => {
+        if (Array.isArray(ncrList)) setNcrs(ncrList);
+      });
+    });
+
+    const unsubCapasSynced = adminEventBus.on('QUALITY_CAPAS_SYNCED', () => {
+      liveDataStore.getCapas().then((capaList) => {
+        if (Array.isArray(capaList)) setCapas(capaList);
+      });
+    });
+
+    const unsubCoasSynced = adminEventBus.on('QUALITY_COAS_SYNCED', () => {
+      liveDataStore.getCoas().then((coaList) => {
+        if (Array.isArray(coaList)) setCoas(coaList);
+      });
+    });
+
+    const unsubCustSynced = adminEventBus.on('CUSTOMERS_SYNCED', () => {
+      liveDataStore.getCustomers().then((custList) => {
+        if (Array.isArray(custList)) setCustomers(custList);
+      });
+    });
+
+    const unsubQuotesSynced = adminEventBus.on('QUOTATIONS_SYNCED', () => {
+      liveDataStore.getQuotations().then((qList) => {
+        if (Array.isArray(qList)) setQuotations(qList);
+      });
+    });
+
+    const unsubRmasSynced = adminEventBus.on('RMAS_SYNCED', () => {
+      liveDataStore.getRmas().then((rmaList) => {
+        if (Array.isArray(rmaList)) setRmas(rmaList);
+      });
+    });
+
+    const unsubBomsSynced = adminEventBus.on('BOMS_SYNCED', () => {
+      liveDataStore.getBoms().then((bomList) => {
+        if (Array.isArray(bomList)) setBoms(bomList);
+      });
+    });
+
+    const unsubMachinesSynced = adminEventBus.on('MACHINES_SYNCED', () => {
+      liveDataStore.getMachines().then((mList) => {
+        if (Array.isArray(mList)) setMachines(mList);
+      });
+    });
+
+    const unsubAccSynced = adminEventBus.on('ACCOUNTS_SYNCED', () => {
+      liveDataStore.getAccounts().then((accList) => {
+        if (Array.isArray(accList)) setAccounts(accList);
+      });
+    });
+
+    const unsubJeSynced = adminEventBus.on('JOURNAL_ENTRIES_SYNCED', () => {
+      liveDataStore.getJournalEntries().then((jeList) => {
+        if (Array.isArray(jeList)) setJournalEntries(jeList);
       });
     });
 
@@ -444,7 +544,18 @@ export const App: React.FC = () => {
       unsubDeleted?.();
       unsubWoSynced?.();
       unsubPoSynced?.();
+      unsubSoSynced?.();
       unsubItemsSynced?.();
+      unsubNcrsSynced?.();
+      unsubCapasSynced?.();
+      unsubCoasSynced?.();
+      unsubCustSynced?.();
+      unsubQuotesSynced?.();
+      unsubRmasSynced?.();
+      unsubBomsSynced?.();
+      unsubMachinesSynced?.();
+      unsubAccSynced?.();
+      unsubJeSynced?.();
     };
   }, []);
 
@@ -1538,12 +1649,14 @@ export const App: React.FC = () => {
               onNavigate={handleNavigate}
               onUpdateBom={(updated) => {
                 setBoms((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+                liveDataStore.saveBom(updated).catch(console.warn);
               }}
               onDeleteBom={(id) => {
                 setBoms((prev) => prev.filter((b) => b.id !== id));
               }}
               onCreateBom={(newBom) => {
                 setBoms((prev) => [newBom, ...prev]);
+                liveDataStore.saveBom(newBom).catch(console.warn);
               }}
               openDrawer={openDrawer}
               closeDrawer={closeDrawer}
@@ -1564,30 +1677,36 @@ export const App: React.FC = () => {
               onNavigate={handleNavigate}
               onUpdateItem={(updated) => {
                 setItems((prev) => prev.map((i) => (i.code === updated.code ? updated : i)));
+                itemService.saveItem(updated).catch(console.warn);
               }}
               onDeleteItem={(code) => {
                 setItems((prev) => prev.filter((i) => i.code !== code));
               }}
               onCreateItem={(newItem) => {
                 setItems((prev) => [newItem, ...prev]);
+                itemService.saveItem(newItem).catch(console.warn);
               }}
               onUpdateBom={(updated) => {
                 setBoms((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+                liveDataStore.saveBom(updated).catch(console.warn);
               }}
               onDeleteBom={(id) => {
                 setBoms((prev) => prev.filter((b) => b.id !== id));
               }}
               onCreateBom={(newBom) => {
                 setBoms((prev) => [newBom, ...prev]);
+                liveDataStore.saveBom(newBom).catch(console.warn);
               }}
               onUpdateMachine={(updated) => {
                 setMachines((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+                liveDataStore.saveMachine(updated).catch(console.warn);
               }}
               onDeleteMachine={(id) => {
                 setMachines((prev) => prev.filter((m) => m.id !== id));
               }}
               onCreateMachine={(newM) => {
                 setMachines((prev) => [newM, ...prev]);
+                liveDataStore.saveMachine(newM).catch(console.warn);
               }}
               openDrawer={openDrawer}
               closeDrawer={closeDrawer}
@@ -1637,6 +1756,7 @@ export const App: React.FC = () => {
               currentUser={currentUser}
               onUpdateItem={(updated) => {
                 setItems((prev) => prev.map((i) => (i.code === updated.code ? updated : i)));
+                itemService.saveItem(updated).catch(console.warn);
               }}
               onNavigate={handleNavigate}
               openDrawer={openDrawer}
@@ -1657,12 +1777,15 @@ export const App: React.FC = () => {
               onNavigate={handleNavigate}
               onUpdateItem={(updated) => {
                 setItems((prev) => prev.map((i) => (i.code === updated.code ? updated : i)));
+                itemService.saveItem(updated).catch(console.warn);
               }}
               onUpdatePO={(updated) => {
                 setPurchaseOrders((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+                liveDataStore.savePurchaseOrder(updated).catch(console.warn);
               }}
               onCreatePO={(newPO) => {
                 setPurchaseOrders((prev) => [newPO, ...prev]);
+                liveDataStore.savePurchaseOrder(newPO).catch(console.warn);
               }}
               openDrawer={openDrawer}
               closeDrawer={closeDrawer}
@@ -1682,27 +1805,35 @@ export const App: React.FC = () => {
               onNavigate={handleNavigate}
               onUpdateSO={(updated) => {
                 setSalesOrders((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+                liveDataStore.saveSalesOrder(updated).catch(console.warn);
               }}
               onCreateSO={(newSO) => {
                 setSalesOrders((prev) => [newSO, ...prev]);
+                liveDataStore.saveSalesOrder(newSO).catch(console.warn);
               }}
               onUpdateQuote={(updated) => {
                 setQuotations((prev) => prev.map((q) => (q.id === updated.id ? updated : q)));
+                liveDataStore.saveQuotation(updated).catch(console.warn);
               }}
               onCreateQuote={(newQ) => {
                 setQuotations((prev) => [newQ, ...prev]);
+                liveDataStore.saveQuotation(newQ).catch(console.warn);
               }}
               onUpdateRMA={(updated) => {
                 setRmas((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+                liveDataStore.saveRma(updated).catch(console.warn);
               }}
               onCreateRMA={(newRMA) => {
                 setRmas((prev) => [newRMA, ...prev]);
+                liveDataStore.saveRma(newRMA).catch(console.warn);
               }}
               onUpdateCustomer={(updated) => {
                 setCustomers((prev) => prev.map((c) => (c.code === updated.code ? updated : c)));
+                liveDataStore.saveCustomer(updated).catch(console.warn);
               }}
               onCreateCustomer={(newCust) => {
                 setCustomers((prev) => [newCust, ...prev]);
+                liveDataStore.saveCustomer(newCust).catch(console.warn);
               }}
               openDrawer={openDrawer}
               closeDrawer={closeDrawer}
@@ -1724,12 +1855,15 @@ export const App: React.FC = () => {
               onNavigate={handleNavigate}
               onUpdateAccount={(updated) => {
                 setAccounts((prev) => prev.map((a) => (a.code === updated.code ? updated : a)));
+                liveDataStore.saveAccount(updated).catch(console.warn);
               }}
               onCreateAccount={(newAcc) => {
                 setAccounts((prev) => [...prev, newAcc]);
+                liveDataStore.saveAccount(newAcc).catch(console.warn);
               }}
               onCreateJE={(newJE) => {
                 setJournalEntries((prev) => [newJE, ...prev]);
+                liveDataStore.saveJournalEntry(newJE).catch(console.warn);
               }}
               openDrawer={openDrawer}
               closeDrawer={closeDrawer}
@@ -1751,21 +1885,27 @@ export const App: React.FC = () => {
               onNavigate={handleNavigate}
               onUpdateNCR={(updated) => {
                 setNcrs((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
+                liveDataStore.saveNcr(updated).catch(console.warn);
               }}
               onCreateNCR={(newNCR) => {
                 setNcrs((prev) => [newNCR, ...prev]);
+                liveDataStore.saveNcr(newNCR).catch(console.warn);
               }}
               onUpdateCAPA={(updated) => {
                 setCapas((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+                liveDataStore.saveCapa(updated).catch(console.warn);
               }}
               onCreateCAPA={(newCAPA) => {
                 setCapas((prev) => [newCAPA, ...prev]);
+                liveDataStore.saveCapa(newCAPA).catch(console.warn);
               }}
               onUpdateCOA={(updated) => {
                 setCoas((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+                liveDataStore.saveCoa(updated).catch(console.warn);
               }}
               onCreateCOA={(newCOA) => {
                 setCoas((prev) => [newCOA, ...prev]);
+                liveDataStore.saveCoa(newCOA).catch(console.warn);
               }}
               openDrawer={openDrawer}
               closeDrawer={closeDrawer}

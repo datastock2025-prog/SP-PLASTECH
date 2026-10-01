@@ -9,7 +9,16 @@ export type SyncDomain =
   | 'ITEMS'
   | 'PURCHASE_ORDERS'
   | 'QUALITY_NCRS'
+  | 'QUALITY_CAPAS'
+  | 'QUALITY_COAS'
+  | 'CUSTOMERS'
+  | 'QUOTATIONS'
+  | 'RMAS'
+  | 'BOMS'
+  | 'MACHINES'
+  | 'ACCOUNTS'
   | 'JOURNAL_ENTRIES'
+  | 'USERS'
   | 'SYSTEM_SETTINGS';
 
 export interface SyncMessage<T = any> {
@@ -92,6 +101,36 @@ export class UniversalSyncManager {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'purchase_orders' },
           (payload) => this.handlePostgresEvent('PURCHASE_ORDERS', payload)
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'quality_ncrs' },
+          (payload) => this.handlePostgresEvent('QUALITY_NCRS', payload)
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'quality_capas' },
+          (payload) => this.handlePostgresEvent('QUALITY_CAPAS', payload)
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'quality_coas' },
+          (payload) => this.handlePostgresEvent('QUALITY_COAS', payload)
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'customers' },
+          (payload) => this.handlePostgresEvent('CUSTOMERS', payload)
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'quotations' },
+          (payload) => this.handlePostgresEvent('QUOTATIONS', payload)
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'users' },
+          (payload) => this.handlePostgresEvent('USERS', payload)
         )
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') {
