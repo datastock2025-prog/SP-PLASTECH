@@ -1,15 +1,22 @@
-name: SP PLASTECH ERP CI/CD & Production Build
+name: SP-PLASTECH ERP — Enterprise CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, master ]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build-and-test:
-    name: Build Frontend & Backend Services
+  # ==========================================
+  # 1. Frontend Quality & Static Analysis
+  # ==========================================
+  frontend-quality:
+    name: Typecheck & Static Analysis
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -24,20 +31,111 @@ jobs:
       - name: Install Frontend Dependencies
         run: npm ci
 
-      - name: Build Frontend Application
+      - name: Run TypeScript Strict Type Check (Zero Diagnostics)
+        run: npm run lint
+
+  # ==========================================
+  # 2. Frontend Production Build
+  # ==========================================
+  frontend-build:
+    name: Production Bundle Build (Vite)
+    runs-on: ubuntu-latest
+    needs: [frontend-quality]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Production Assets
+        run: npm run build
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+
+      - name: Verify Distribution Artifacts
+        run: |
+          test -d dist
+          test -f dist/index.html
+          echo "✓ Vite production bundle verified successfully."
+
+  # ==========================================
+  # 3. Core Enterprise Backend Build
+  # ==========================================
+  backend-build:
+    name: Backend Build & Prisma Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Backend Dependencies
+        working-directory: ./backend
+        run: npm install --no-audit --prefer-offline
+
+      - name: Generate Prisma Schema Client
+        working-directory: ./backend
+        run: npx prisma generate || true
+
+      - name: Compile Backend TypeScript
+        working-directory: ./backend
         run: npm run build
 
-      - name: Install & Build Core Enterprise Backend
-        run: |
-          cd backend
-          npm install --no-audit --prefer-offline
-          npx prisma generate || true
-          npm run build
+  # ==========================================
+  # 4. Playwright End-to-End Suite
+  # ==========================================
+  e2e-playwright:
+    name: Playwright E2E Test Suite (13 Tests)
+    runs-on: ubuntu-latest
+    needs: [frontend-quality]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium Browser & OS Dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright E2E Suite
+        run: npm run test:e2e
+        env:
+          CI: true
+
+      - name: Upload Playwright Test Report Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-report
+          path: playwright-report/
+          retention-days: 14
+
+  # ==========================================
+  # 5. Database Synchronization & Verification
+  # ==========================================
   sync-database:
     name: Verify & Synchronize Supabase Database
     runs-on: ubuntu-latest
-    needs: [build-and-test]
+    needs: [frontend-build, backend-build]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     env:
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://gqrelwvmeoqvfnanoutz.supabase.co' }}
       VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'sb_publishable_RN013pGcuejquwnEeW-n3Q_Ly2qVu2R' }}
@@ -56,3 +154,53 @@ jobs:
 
       - name: Run Supabase Database Synchronizer
         run: node scripts/syncPodmanAndSupabase.cjs
+
+  # ==========================================
+  # 6. Deploy Frontend to Cloudflare Pages
+  # ==========================================
+  deploy-cloudflare:
+    name: Deploy to Cloudflare Pages
+    runs-on: ubuntu-latest
+    needs: [frontend-build, sync-database]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Production Assets
+        run: npm run build
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://gqrelwvmeoqvfnanoutz.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'sb_publishable_RN013pGcuejquwnEeW-n3Q_Ly2qVu2R' }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL || 'http://localhost:3000' }}
+
+      - name: Deploy to Cloudflare Pages (Wrangler)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=sp-plastech --branch=main
+        continue-on-error: true
+
+      - name: Fallback Cloudflare Pages Deploy Action
+        if: failure()
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: 'sp-plastech'
+          directory: 'dist'
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}

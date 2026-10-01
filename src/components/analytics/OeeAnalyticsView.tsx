@@ -51,7 +51,7 @@ export const OeeAnalyticsView: React.FC<OeeAnalyticsViewProps> = ({
         analyticsApi.getLossPareto(filters),
       ]);
       setData(res);
-      setParetoData(paretoRes.paretoData);
+      setParetoData(Array.isArray(paretoRes) ? paretoRes : (paretoRes as any)?.paretoData || []);
     } catch {
       showToast('Failed to load OEE records');
     } finally {

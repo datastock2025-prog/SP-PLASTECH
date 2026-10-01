@@ -86,7 +86,7 @@ export const BulkWizardModal: React.FC<BulkWizardProps> = ({
   const [selectedMachineIds, setSelectedMachineIds] = useState<string[]>(() => {
     // Default to first 6 operational molding/extrusion machines
     const valid = machines
-      .filter((m) => m.status === 'operational' || m.status === 'idle')
+      .filter((m) => (m.status as string) === 'operational' || m.status === 'idle' || (m.status as string) === 'running')
       .slice(0, 6)
       .map((m) => m.id);
     return valid.length > 0 ? valid : machines.slice(0, 4).map((m) => m.id);
@@ -239,7 +239,7 @@ export const BulkWizardModal: React.FC<BulkWizardProps> = ({
         const shotWeight = bom?.standardCost ? bom.standardCost * 2 : 50;
         if (shotWeight > 60) {
           const bigMachine = machines.find(
-            (m) => selectedMachineIds.includes(m.id) && (m.tonnage || 0) >= 250
+            (m) => selectedMachineIds.includes(m.id) && Number(m.tonnage || 0) >= 250
           );
           if (bigMachine) machineId = bigMachine.id;
         }
@@ -370,7 +370,7 @@ export const BulkWizardModal: React.FC<BulkWizardProps> = ({
 
     // Check against live items stock for resin
     const resinItems = items.filter((i) => i.type === 'Raw Material' || i.category === 'Resin');
-    const availableResinStockKg = resinItems.reduce((acc, curr) => acc + (curr.stock || 0), 0);
+    const availableResinStockKg = resinItems.reduce((acc, curr) => acc + Number(curr.stock || 0), 0);
 
     const isStockSufficient = availableResinStockKg >= virginPolymerKg;
 
@@ -795,12 +795,12 @@ export const BulkWizardModal: React.FC<BulkWizardProps> = ({
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
-                      const allOp = machines.filter((m) => m.status === 'operational').map((m) => m.id);
+                      const allOp = machines.filter((m) => (m.status as string) === 'operational' || m.status === 'running').map((m) => m.id);
                       setSelectedMachineIds(allOp);
                     }}
                     className="px-2.5 py-1 text-[11px] font-bold rounded-lg border border-[#E4E0D6] bg-white hover:bg-[#F6F4EF] text-[#14213D]"
                   >
-                    Select All Operational ({machines.filter((m) => m.status === 'operational').length})
+                    Select All Operational ({machines.filter((m) => (m.status as string) === 'operational' || m.status === 'running').length})
                   </button>
                   <button
                     onClick={() => setSelectedMachineIds(machines.map((m) => m.id))}
@@ -824,7 +824,7 @@ export const BulkWizardModal: React.FC<BulkWizardProps> = ({
                   <div className="text-lg font-bold text-purple-700 font-mono mt-0.5">
                     {machines
                       .filter((m) => selectedMachineIds.includes(m.id))
-                      .reduce((acc, curr) => acc + (curr.tonnage || 200), 0)}{' '}
+                      .reduce((acc, curr) => acc + (Number(curr.tonnage) || 200), 0)}{' '}
                     <span className="text-xs text-[#6B7280]">Tons</span>
                   </div>
                 </div>
@@ -869,7 +869,7 @@ export const BulkWizardModal: React.FC<BulkWizardProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[380px] overflow-y-auto pr-1">
                 {filteredMachines.map((m) => {
                   const isSelected = selectedMachineIds.includes(m.id);
-                  const isOp = m.status === 'operational';
+                  const isOp = (m.status as string) === 'operational' || m.status === 'running';
                   return (
                     <div
                       key={m.id}

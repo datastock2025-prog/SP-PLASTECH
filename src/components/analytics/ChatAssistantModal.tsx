@@ -184,7 +184,7 @@ export const ChatAssistantModal: React.FC<ChatAssistantModalProps> = ({
                       : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none shadow-2xs'
                   }`}
                 >
-                  <ChatMessageRenderer content={msg.content} role={msg.role} metadata={msg.metadata} />
+                  <ChatMessageRenderer content={msg.content} role={msg.role === 'SYSTEM' ? 'ASSISTANT' : msg.role} metadata={msg.metadata} />
                 </div>
               </div>
             );

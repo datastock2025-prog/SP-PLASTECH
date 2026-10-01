@@ -33,6 +33,7 @@ import {
   MoreVertical,
   CalendarDays,
   SlidersHorizontal,
+  Lock,
 } from 'lucide-react';
 import {
   TransferType,

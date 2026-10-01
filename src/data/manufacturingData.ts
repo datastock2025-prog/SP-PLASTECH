@@ -14,9 +14,12 @@ export interface MoldMaster {
   purchaseCost: number;
   expectedLifeShots: number;
   currentShotCount: number;
+  currentShots?: number;
+  runnerType?: string;
+  tonnage?: string | number;
   shotsSinceLastPM: number;
   pmIntervalShots: number;
-  status: 'available' | 'in_use' | 'maintenance' | 'repair' | 'retired';
+  status: 'available' | 'in_use' | 'maintenance' | 'repair' | 'retired' | 'in_production';
   assignedMachine?: string;
   assignedWO?: string;
   storageLocation: string;

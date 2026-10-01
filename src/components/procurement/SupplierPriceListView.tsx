@@ -65,7 +65,7 @@ const safeFormatCurrency = (val: any): string => {
 export const SupplierPriceListView: React.FC<Props> = ({
   priceLists: propPriceLists = INITIAL_SUPPLIER_PRICE_LISTS,
   suppliers = [],
-  items = INITIAL_ITEMS,
+  items = itemService.getItemsSync(),
   onNavigate,
   onUpdatePriceList,
   onCreatePriceList,

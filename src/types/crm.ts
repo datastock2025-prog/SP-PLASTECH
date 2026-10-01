@@ -162,7 +162,7 @@ export interface Contact {
   accountId: string;
   accountName: string;
   designation: string;
-  department: 'Purchasing' | 'Engineering' | 'Quality' | 'Finance' | 'Production' | 'Logistics' | 'Executive Management';
+  department: 'Purchasing' | 'Engineering' | 'Quality' | 'Finance' | 'Production' | 'Logistics' | 'Executive Management' | 'Procurement / SCM' | 'Procurement' | string;
   contactType?: 'Decision Maker' | 'Influencer' | 'Technical Contact' | 'Buyer' | 'Quality Contact' | 'Finance Contact';
   phone: string;
   mobile: string;
@@ -194,9 +194,10 @@ export type ActivityType =
   | 'Video Conference'
   | 'Customer Plant Visit'
   | 'Sample Trial Visit'
-  | 'Commercial Negotiation';
+  | 'Commercial Negotiation'
+  | string;
 
-export type ActivityStatus = 'Pending' | 'In Progress' | 'Completed' | 'Overdue' | 'Canceled' | 'Planned';
+export type ActivityStatus = 'Pending' | 'In Progress' | 'Completed' | 'Overdue' | 'Canceled' | 'Planned' | string;
 
 export interface Activity {
   id: string;
@@ -213,9 +214,10 @@ export interface Activity {
   dueDate?: string;
   dueTime?: string;
   scheduledDate?: string;
-  priority: 'Low' | 'Medium' | 'High';
+  priority: 'Low' | 'Medium' | 'High' | 'Critical' | string;
   status: ActivityStatus;
   description: string;
+  outcome?: string;
   outcomeNotes?: string;
   createdBy?: string;
   createdAt?: string;
@@ -317,7 +319,7 @@ export interface Quotation {
   convertedSalesOrderId?: string;
 }
 
-export type SampleApprovalStatus = 'Pending' | 'Sample Dispatched' | 'Trial Passed' | 'Sample Approved' | 'Rejected' | 'Approved' | 'Sent to Customer';
+export type SampleApprovalStatus = 'Pending' | 'Sample Dispatched' | 'Trial Passed' | 'Sample Approved' | 'Rejected' | 'Approved' | 'Sent to Customer' | 'Under Testing' | string;
 
 export interface SampleRequest {
   id: string;
@@ -413,7 +415,23 @@ export interface CustomerComplaint {
 
 export type Complaint = CustomerComplaint;
 
-export type CustomerDocumentType = 'Customer Registration' | 'GST / Tax Certificate' | 'Purchase Order' | 'Master Sales Contract' | 'Technical 2D/3D Drawing' | 'Specification Sheet' | 'Packaging Artwork' | 'Label Artwork' | 'COA Requirement' | 'MSDS Requirement' | 'Sample Approval Certificate' | 'Quality Agreement' | 'NDA' | 'Customer Audit Report';
+export type CustomerDocumentType =
+  | 'Customer Registration'
+  | 'GST / Tax Certificate'
+  | 'Purchase Order'
+  | 'Master Sales Contract'
+  | 'Technical 2D/3D Drawing'
+  | 'Specification Sheet'
+  | 'Packaging Artwork'
+  | 'Label Artwork'
+  | 'COA Requirement'
+  | 'Certificate of Analysis (COA)'
+  | 'MSDS Requirement'
+  | 'Sample Approval Certificate'
+  | 'Quality Agreement'
+  | 'NDA'
+  | 'Customer Audit Report'
+  | string;
 
 export interface CustomerDocument {
   id: string;

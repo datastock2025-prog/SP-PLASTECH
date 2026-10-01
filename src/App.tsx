@@ -15,6 +15,7 @@ import { workspaceRbacService, normalizeRoleKey } from './services/workspaceRbac
 import { itemService } from './services/itemService';
 import { adminEventBus } from './services/adminService';
 import { liveDataStore } from './services/liveDataStore';
+import { universalSyncManager } from './services/realtime/UniversalSyncManager';
 import { SessionTimeoutModal, MfaVerificationModal, CookieConsentModal } from './security';
 import { UserProfilePreferencesView } from './components/profile/UserProfilePreferencesView';
 
@@ -389,27 +390,28 @@ export const App: React.FC = () => {
     } catch {}
   }, [workOrders]);
 
-  // Sync Item Master & Core Entities with Live Database Store
+  // Sync Item Master & Core Entities with Live Database Store & Cross-Browser Mesh
   useEffect(() => {
     itemService.getItems().then((fetched) => {
-      if (fetched && fetched.length > 0) setItems(fetched);
+      if (Array.isArray(fetched) && fetched.length > 0) setItems(fetched);
     });
 
     liveDataStore.getWorkOrders().then((woList) => {
-      if (woList && woList.length > 0) {
+      if (Array.isArray(woList) && woList.length > 0) {
         const cleanList = woList.filter((w) => !['WO-1188', 'WO-1189', 'WO-1190', 'WO-1191', 'WO-1192', 'WO-1193'].includes(w.id));
         if (cleanList.length > 0) setWorkOrders(cleanList);
       }
     });
 
     liveDataStore.getPurchaseOrders().then((poList) => {
-      if (poList && poList.length > 0) setPurchaseOrders(poList);
+      if (Array.isArray(poList) && poList.length > 0) setPurchaseOrders(poList);
     });
 
     liveDataStore.getSalesOrders().then((soList) => {
-      if (soList && soList.length > 0) setSalesOrders(soList);
+      if (Array.isArray(soList) && soList.length > 0) setSalesOrders(soList);
     });
 
+    // Cross-Browser / Multi-Tab Synchronization Listeners
     const unsubSaved = adminEventBus.on('ITEM_SAVED', (savedItem: ItemMaster) => {
       setItems((prev) => {
         const idx = prev.findIndex((i) => i.code === savedItem.code);
@@ -421,12 +423,35 @@ export const App: React.FC = () => {
         return [savedItem, ...prev];
       });
     });
+
     const unsubDeleted = adminEventBus.on('ITEM_DELETED', ({ code }: { code: string }) => {
       setItems((prev) => prev.filter((i) => i.code !== code));
     });
+
+    const unsubWoSynced = adminEventBus.on('WORK_ORDERS_SYNCED', () => {
+      liveDataStore.getWorkOrders().then((woList) => {
+        if (Array.isArray(woList) && woList.length > 0) setWorkOrders(woList);
+      });
+    });
+
+    const unsubPoSynced = adminEventBus.on('PURCHASE_ORDERS_SYNCED', () => {
+      liveDataStore.getPurchaseOrders().then((poList) => {
+        if (Array.isArray(poList) && poList.length > 0) setPurchaseOrders(poList);
+      });
+    });
+
+    const unsubItemsSynced = adminEventBus.on('ITEMS_SYNCED', () => {
+      itemService.getItems().then((fetched) => {
+        if (Array.isArray(fetched) && fetched.length > 0) setItems(fetched);
+      });
+    });
+
     return () => {
       unsubSaved?.();
       unsubDeleted?.();
+      unsubWoSynced?.();
+      unsubPoSynced?.();
+      unsubItemsSynced?.();
     };
   }, []);
 

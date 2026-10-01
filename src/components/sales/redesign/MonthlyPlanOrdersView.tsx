@@ -323,7 +323,7 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
       adminService.getPlants().then((live) => {
         const map = new Map<string, { id: string; code?: string; name: string; location?: string }>();
         govPlants.forEach((p) => map.set(p.code || p.id, p));
-        (live || []).forEach((p) => map.set(p.code || p.id, { id: p.id, code: p.code, name: p.name, location: p.location }));
+        (live || []).forEach((p: any) => map.set(p.code || p.id, { id: p.id, code: p.code || p.plantCode, name: p.name || p.plantName, location: p.location || p.city }));
         setCreatedPlants(Array.from(map.values()));
       }).catch(() => {
         setCreatedPlants(govPlants);

@@ -57,6 +57,7 @@ import { GlobalCommandPalette } from './common/GlobalCommandPalette';
 import { QuickActionModal } from './common/QuickActionModal';
 import { SecurityIndicators } from '../security';
 import { adminService, adminEventBus } from '../services/adminService';
+import { universalSyncManager } from '../services/realtime/UniversalSyncManager';
 
 export interface PlantEntity {
   id: string;
@@ -262,6 +263,14 @@ export const Topbar: React.FC<TopbarProps> = ({
   const [activeDensity, setActiveDensity] = useState<'compact' | 'standard' | 'comfortable'>(() => {
     return (localStorage.getItem('sp_density') as any) || 'standard';
   });
+
+  // Real-Time Cross-Browser Sync Status (Pass/Fail)
+  const [isSyncConnected, setIsSyncConnected] = useState<boolean>(() => universalSyncManager.getConnectionStatus());
+  useEffect(() => {
+    return universalSyncManager.onConnectionChange((connected) => {
+      setIsSyncConnected(connected);
+    });
+  }, []);
 
   const [pinnedActionIds, setPinnedActionIds] = useState<string[]>(() => {
     try {
@@ -1435,6 +1444,20 @@ export const Topbar: React.FC<TopbarProps> = ({
         {/* Security Indicators (TLS status, Inactivity Countdown, Session Manager) */}
         <div className="hidden lg:flex items-center">
           <SecurityIndicators />
+        </div>
+
+        {/* Real-Time Sync Status Circle Indicator (Green = Pass / Red = Fail) */}
+        <div 
+          className="flex items-center justify-center px-1"
+          title={isSyncConnected ? 'Real-Time Sync: Connected (Pass)' : 'Real-Time Sync: Disconnected (Fail)'}
+        >
+          <span 
+            className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
+              isSyncConnected 
+                ? 'bg-emerald-500 ring-2 ring-emerald-200 shadow-xs' 
+                : 'bg-rose-500 ring-2 ring-rose-200 shadow-xs'
+            }`} 
+          />
         </div>
 
         {/* 7. User Profile Menu & Role Switcher (STEP-9, STEP-10, Pages 9-10) */}

@@ -1,4 +1,4 @@
-import { InventoryStockItem, InventoryStockLot, StockMovementLedgerEntry } from '../types/warehouse';
+import { InventoryStockItem, InventoryStockLot, StockMovementLedgerEntry, StoreCategoryType } from '../types/warehouse';
 import { INITIAL_INVENTORY_STOCK, INITIAL_STOCK_MOVEMENT_LEDGER } from '../data/warehouseData';
 import { GrnPutawayTask } from '../types/grnTypes';
 import { WorkOrder, BomMaster, ItemMaster } from '../types';
@@ -122,12 +122,13 @@ export function getWarehouseStock(): InventoryStockItem[] {
     const liveStock: InventoryStockItem[] = DOCUMENT_ITEM_MASTER_CATALOG.map((m, idx) => {
       const stockVal = parseFloat(String(m.stock || '0').replace(/[^0-9.]/g, '')) || 0;
       const availVal = parseFloat(String(m.avail || '0').replace(/[^0-9.]/g, '')) || stockVal;
-      const uom = m.baseUOM || (m.type === 'Raw Material' || m.type === 'Regrind' ? 'KG' : m.type === 'Masterbatch' ? 'KG' : m.type === 'Packaging Material' ? 'BOX' : 'PCS');
-      const storeType = m.type === 'Raw Material' || m.type === 'Regrind' ? 'RM' :
-                        m.type === 'Masterbatch' ? 'MB' :
-                        m.type === 'Spare Part' ? 'SP' :
-                        m.type === 'Packaging Material' ? 'PCK' :
-                        (m.isWip || m.routingDestination === 'WIP') ? 'WIP' : 'FG';
+      const uom = m.baseUOM || (m.type === 'Raw Material' || (m.type as any) === 'Regrind' ? 'KG' : (m.type as any) === 'Masterbatch' ? 'KG' : (m.type as any) === 'Packaging Material' ? 'BOX' : 'PCS');
+      const storeType: 'RM' | 'WIP' | 'ASM' | 'DFL' | 'CON' | 'PCK' | 'BOP' | 'FG' =
+        m.type === 'Raw Material' || (m.type as any) === 'Regrind' ? 'RM' :
+        (m.type as any) === 'Masterbatch' ? 'RM' :
+        m.type === 'Spare Part' ? 'CON' :
+        m.type === 'Packaging' || (m.type as any) === 'Packaging Material' ? 'PCK' :
+        (m.isWip || (m as any).routingDestination === 'WIP') ? 'WIP' : 'FG';
 
       const isArmpad50 = m.code === '708027010001';
       const isSaiCover = m.code === '1208C0030' || m.code === '1208C0030-M';
@@ -136,11 +137,19 @@ export function getWarehouseStock(): InventoryStockItem[] {
       const effectiveStock = isArmpad50 ? (stockVal > 0 ? stockVal : 744) : isSaiCover ? (stockVal > 0 ? stockVal : 4800) : stockVal;
       const effectiveAvail = isArmpad50 ? (availVal > 0 ? availVal : 744) : isSaiCover ? (availVal > 0 ? availVal : 4800) : availVal;
 
+      const mappedCategory: StoreCategoryType =
+        m.type === 'Raw Material' ? 'Virgin Polymer' :
+        (m.type as any) === 'Regrind' ? 'Regrind Polymer' :
+        (m.type as any) === 'Masterbatch' ? 'Masterbatch' :
+        m.type === 'Packaging' || (m.type as any) === 'Packaging Material' ? 'Packaging Material' :
+        m.type === 'Finished Good' || (m.type as any) === 'Finished Goods' ? 'Molded Part (FG)' :
+        (m.isWip || (m as any).routingDestination === 'WIP') ? 'WIP Store' : 'Molded Part (FG)';
+
       return {
         id: `STK-${String(idx + 1).padStart(4, '0')}`,
         sku: m.code,
         name: m.name,
-        category: m.type,
+        category: mappedCategory,
         storeType,
         plant: (m as any).plant || 'Plant 1 - Pimpri Auto-Hub',
         subCategory: m.cat || m.itemGroup || 'General Material',

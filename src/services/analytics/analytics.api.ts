@@ -112,6 +112,20 @@ export class AnalyticsApi {
     }
   }
 
+  async getOeeMetrics(filters: any = {}): Promise<any> {
+    const res = await this.getOeeTelemetry(filters);
+    return res.records;
+  }
+
+  async getLossPareto(filters: any = {}): Promise<any> {
+    const res = await this.getOeeTelemetry(filters);
+    return res.lossPareto;
+  }
+
+  async getScmPerformance(filters: any = {}): Promise<any> {
+    return this.getScmKpis(filters);
+  }
+
   async getMaintenanceMetrics(filters: any = {}): Promise<MaintenanceMetricItem[]> {
     try {
       const { data } = await this.api.get('/analytics/maintenance/metrics', { params: filters });
@@ -139,7 +153,9 @@ export class AnalyticsApi {
     } catch {
       const newTmpl: DocumentTemplateItem = {
         id: `TMPL-${Date.now()}`,
+        templateCode: (templateData as any).templateCode || `TPL-${Date.now().toString().slice(-4)}`,
         templateName: templateData.templateName || 'Untitled Executive Template',
+        templateType: (templateData as any).templateType || 'STANDARD',
         description: templateData.description || 'Custom structured analytics brief',
         category: templateData.category || 'Custom',
         structure: templateData.structure || { sections: [] },

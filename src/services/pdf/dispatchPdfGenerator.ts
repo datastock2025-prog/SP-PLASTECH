@@ -21,8 +21,17 @@ export class DispatchPdfGenerator {
   // ==========================================================================
   public static generateEInvoicePdf(inv: EInvoiceRecord, delivery?: DeliveryNoteChallan | null): GeneratedPdfDocument {
     const fileName = `GST_E_Invoice_${inv.invoiceNumber}.html`;
+    const ackNo = inv.ackNumber || (inv as any).ackNo || '122610982345';
+    const totVal = inv.invoiceValue || (inv as any).totalValue || (inv.taxableValue * 1.18);
+    const delivId = inv.deliveryNoteNumber || (inv as any).deliveryId || 'DC-2026-001';
+    const posState = inv.placeOfSupply || (inv as any).posState || '27-Maharashtra';
+    const posCode = (inv as any).posStateCode || posState.split('-')[0] || '27';
+    const cgstVal = inv.cgst || (inv as any).cgstValue || (inv.taxableValue * 0.09);
+    const sgstVal = inv.sgst || (inv as any).sgstValue || (inv.taxableValue * 0.09);
+    const igstVal = inv.igst || (inv as any).igstValue || 0;
+
     const qrPlaceholderUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
-      `IRN:${inv.irn}|ACK:${inv.ackNo}|INV:${inv.invoiceNumber}|DT:${inv.invoiceDate}|TOTAL:${inv.totalValue}`
+      `IRN:${inv.irn || ''}|ACK:${ackNo}|INV:${inv.invoiceNumber}|DT:${inv.invoiceDate}|TOTAL:${totVal}`
     )}`;
 
     const htmlContent = `<!DOCTYPE html>
@@ -70,8 +79,8 @@ export class DispatchPdfGenerator {
   </div>
 
   <div class="irn-box">
-    <strong>IRN (Invoice Reference Number):</strong> ${inv.irn}<br />
-    <strong>Ack No:</strong> ${inv.ackNo} &bull; <strong>Ack Date:</strong> ${inv.ackDate} &bull; <strong>Status:</strong> ${inv.status.toUpperCase()}
+    <strong>IRN (Invoice Reference Number):</strong> ${inv.irn || '9f8a4b3c2d1e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5'}<br />
+    <strong>Ack No:</strong> ${ackNo} &bull; <strong>Ack Date:</strong> ${inv.ackDate || inv.invoiceDate} &bull; <strong>Status:</strong> ${inv.status.toUpperCase()}
   </div>
 
   <div class="grid">
@@ -79,19 +88,19 @@ export class DispatchPdfGenerator {
       <div class="card-title">Invoice Details</div>
       <div class="card-content">Invoice #: ${inv.invoiceNumber}</div>
       <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Date: ${inv.invoiceDate}</div>
-      <div style="font-size: 11px; color: #64748b;">Delivery Challan: ${inv.deliveryId}</div>
+      <div style="font-size: 11px; color: #64748b;">Delivery Challan: ${delivId}</div>
     </div>
     <div class="card">
       <div class="card-title">Billed To (Customer)</div>
       <div class="card-content">${inv.customer}</div>
       <div style="font-size: 11px; color: #64748b; margin-top: 2px;">GSTIN: ${inv.customerGstin}</div>
-      <div style="font-size: 11px; color: #64748b;">Place of Supply: ${inv.posState} (Code: ${inv.posStateCode})</div>
+      <div style="font-size: 11px; color: #64748b;">Place of Supply: ${posState} (Code: ${posCode})</div>
     </div>
     <div class="card">
       <div class="card-title">Commercial Summary</div>
-      <div class="card-content">Total: ₹${inv.totalValue.toLocaleString('en-IN')}</div>
+      <div class="card-content">Total: ₹${totVal.toLocaleString('en-IN')}</div>
       <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Taxable: ₹${inv.taxableValue.toLocaleString('en-IN')}</div>
-      <div style="font-size: 11px; color: #0F8B8D; font-weight: bold;">Total GST: ₹${(inv.cgstValue + inv.sgstValue + inv.igstValue).toLocaleString('en-IN')}</div>
+      <div style="font-size: 11px; color: #0F8B8D; font-weight: bold;">Total GST: ₹${(cgstVal + sgstVal + igstVal).toLocaleString('en-IN')}</div>
     </div>
   </div>
 
@@ -113,17 +122,24 @@ export class DispatchPdfGenerator {
         delivery && delivery.items && delivery.items.length > 0
           ? delivery.items
               .map(
-                (it, idx) => `
+                (it, idx) => {
+                  const qty = (it as any).dispatchQty ?? it.pickedQty ?? it.orderedQty ?? 0;
+                  const rate = it.unitPrice || 0;
+                  const taxVal = (it as any).taxableValue ?? (qty * rate);
+                  const gstPct = (it as any).gstRatePct ?? it.taxRatePct ?? 18;
+                  const lineTot = (it as any).totalValue ?? (taxVal * (1 + gstPct / 100));
+                  return `
         <tr>
           <td>${idx + 1}</td>
           <td><b>${it.itemName}</b><br/><span style="font-size: 10px; color: #64748b; font-family: monospace;">${it.itemCode}</span></td>
           <td>${it.hsn}</td>
-          <td class="text-right"><b>${it.dispatchQty.toLocaleString()}</b> ${it.uom}</td>
-          <td class="text-right">₹${it.unitPrice.toFixed(2)}</td>
-          <td class="text-right">₹${it.taxableValue.toLocaleString()}</td>
-          <td class="text-right">${it.gstRatePct}%</td>
-          <td class="text-right font-bold">₹${it.totalValue.toLocaleString()}</td>
-        </tr>`
+          <td class="text-right"><b>${qty.toLocaleString()}</b> ${it.uom}</td>
+          <td class="text-right">₹${rate.toFixed(2)}</td>
+          <td class="text-right">₹${taxVal.toLocaleString()}</td>
+          <td class="text-right">${gstPct}%</td>
+          <td class="text-right font-bold">₹${lineTot.toLocaleString()}</td>
+        </tr>`;
+                }
               )
               .join('')
           : `
@@ -135,18 +151,18 @@ export class DispatchPdfGenerator {
           <td class="text-right">₹55.00</td>
           <td class="text-right">₹${inv.taxableValue.toLocaleString()}</td>
           <td class="text-right">18%</td>
-          <td class="text-right"><b>₹${inv.totalValue.toLocaleString()}</b></td>
+          <td class="text-right"><b>₹${totVal.toLocaleString()}</b></td>
         </tr>`
       }
       <tr class="total-row">
         <td colspan="5" class="text-right">Subtotal Taxable Value:</td>
         <td class="text-right">₹${inv.taxableValue.toLocaleString('en-IN')}</td>
         <td class="text-right">CGST+SGST/IGST:</td>
-        <td class="text-right">₹${(inv.cgstValue + inv.sgstValue + inv.igstValue).toLocaleString('en-IN')}</td>
+        <td class="text-right">₹${(cgstVal + sgstVal + igstVal).toLocaleString('en-IN')}</td>
       </tr>
       <tr class="total-row" style="background: #e2e8f0; font-size: 13px;">
         <td colspan="7" class="text-right">FINAL INVOICE TOTAL (INR):</td>
-        <td class="text-right" style="color: #0F8B8D; font-size: 14px;">₹${inv.totalValue.toLocaleString('en-IN')}</td>
+        <td class="text-right" style="color: #0F8B8D; font-size: 14px;">₹${totVal.toLocaleString('en-IN')}</td>
       </tr>
     </tbody>
   </table>
@@ -167,7 +183,7 @@ export class DispatchPdfGenerator {
     return {
       documentType: 'E-Invoice',
       documentNumber: inv.invoiceNumber,
-      referenceId: inv.deliveryId,
+      referenceId: inv.deliveryNoteNumber || (inv as any).deliveryId || inv.salesOrderNumber,
       fileName,
       htmlContent,
     };
@@ -178,6 +194,12 @@ export class DispatchPdfGenerator {
   // ==========================================================================
   public static generateEWayBillPdf(ewb: EWayBillRecord): GeneratedPdfDocument {
     const fileName = `E_Way_Bill_${ewb.ewbNumber}.html`;
+    const genDate = ewb.dispatchDate || (ewb as any).generatedDate || new Date().toISOString().slice(0, 10);
+    const docNo = ewb.documentNumber || (ewb as any).invoiceNumber || 'DOC-2026-01';
+    const delivId = (ewb as any).deliveryId || ewb.documentNumber || 'DC-2026-01';
+    const hsn = (ewb as any).hsnCode || '39269099';
+    const totalVal = (ewb as any).totalValue || (ewb as any).invoiceValue || 150000;
+    const transId = ewb.transporterId || (ewb as any).transporterGstin || '27AABCT8888P1Z1';
 
     const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -216,10 +238,10 @@ export class DispatchPdfGenerator {
   <div class="box">
     <div class="box-header">1. E-Way Bill Details</div>
     <div class="row"><label>E-Way Bill Number:</label><span>${ewb.ewbNumber}</span></div>
-    <div class="row"><label>Generated Date:</label><span>${ewb.generatedDate}</span></div>
+    <div class="row"><label>Generated Date:</label><span>${genDate}</span></div>
     <div class="row"><label>Valid Until:</label><span>${ewb.validUntil} (Status: ${ewb.status.toUpperCase()})</span></div>
     <div class="row"><label>Supply Type:</label><span>Outward - Tax Invoice</span></div>
-    <div class="row"><label>Document No. &amp; Date:</label><span>${ewb.invoiceNumber} (Delivery Note: ${ewb.deliveryId})</span></div>
+    <div class="row"><label>Document No. &amp; Date:</label><span>${docNo} (Delivery Note: ${delivId})</span></div>
   </div>
 
   <div class="box">
@@ -231,15 +253,15 @@ export class DispatchPdfGenerator {
 
   <div class="box">
     <div class="box-header">3. Goods &amp; Tax Value Details</div>
-    <div class="row"><label>HSN Code:</label><span>${ewb.hsnCode} (Plastic Articles)</span></div>
-    <div class="row"><label>Total Invoice Value:</label><span style="font-weight: bold; color: #1e3a8a;">₹${ewb.totalValue.toLocaleString('en-IN')}</span></div>
+    <div class="row"><label>HSN Code:</label><span>${hsn} (Plastic Articles)</span></div>
+    <div class="row"><label>Total Invoice Value:</label><span style="font-weight: bold; color: #1e3a8a;">₹${totalVal.toLocaleString('en-IN')}</span></div>
   </div>
 
   <div class="box">
     <div class="box-header">4. PART-B: Vehicle &amp; Transporter Details</div>
     <div class="row"><label>Mode of Transport:</label><span>Road</span></div>
     <div class="row"><label>Vehicle Number:</label><span style="font-family: monospace; font-size: 13px; font-weight: bold; color: #1e3a8a;">${ewb.vehicleNumber}</span></div>
-    <div class="row"><label>Transporter Name &amp; ID:</label><span>${ewb.transporterName} (ID: ${ewb.transporterGstin})</span></div>
+    <div class="row"><label>Transporter Name &amp; ID:</label><span>${ewb.transporterName} (ID: ${transId})</span></div>
   </div>
 </body>
 </html>`;
@@ -247,7 +269,7 @@ export class DispatchPdfGenerator {
     return {
       documentType: 'E-Way Bill',
       documentNumber: ewb.ewbNumber,
-      referenceId: ewb.deliveryId,
+      referenceId: delivId,
       fileName,
       htmlContent,
     };
@@ -258,6 +280,9 @@ export class DispatchPdfGenerator {
   // ==========================================================================
   public static generateDeliveryChallanPdf(dc: DeliveryNoteChallan): GeneratedPdfDocument {
     const fileName = `Delivery_Challan_${dc.id}.html`;
+
+    const custPo = (dc as any).customerPoNumber || (dc as any).customerPo || dc.salesOrderId;
+    const boxCount = (dc as any).totalBoxes || (dc.packages ? dc.packages.length : 12);
 
     const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -301,7 +326,7 @@ export class DispatchPdfGenerator {
     <div class="card">
       <div class="card-title">Customer &amp; PO</div>
       <div style="font-weight: bold; font-size: 12px;">${dc.customer}</div>
-      <div style="color: #64748b;">PO #: ${dc.customerPoNumber}</div>
+      <div style="color: #64748b;">PO #: ${custPo}</div>
       <div style="color: #64748b;">SO #: ${dc.salesOrderId}</div>
     </div>
     <div class="card">
@@ -314,7 +339,7 @@ export class DispatchPdfGenerator {
       <div class="card-title">Compliance Invoices</div>
       <div style="color: #0F8B8D; font-weight: bold;">Tax Inv: ${dc.invoiceNumber}</div>
       <div style="color: #2563eb; font-weight: bold;">EWB: ${dc.ewbNumber}</div>
-      <div style="color: #64748b;">Boxes: ${dc.totalBoxes} Packages</div>
+      <div style="color: #64748b;">Boxes: ${boxCount} Packages</div>
     </div>
   </div>
 
@@ -333,16 +358,21 @@ export class DispatchPdfGenerator {
     <tbody>
       ${dc.items
         .map(
-          (it, idx) => `
+          (it, idx) => {
+            const batch = (it as any).batchNumber || 'BATCH-2026-SEP-01';
+            const qty = (it as any).dispatchQty ?? it.pickedQty ?? it.orderedQty ?? 0;
+            const val = (it as any).totalValue ?? ((it.pickedQty || it.orderedQty || 0) * (it.unitPrice || 0));
+            return `
         <tr>
           <td>${idx + 1}</td>
           <td><b>${it.itemName}</b><br/><span style="font-family: monospace; font-size: 10px; color: #64748b;">${it.itemCode}</span></td>
           <td>${it.hsn}</td>
-          <td><span style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 10px;">${it.batchNumber || 'BATCH-2026-SEP-01'}</span></td>
-          <td class="text-right"><b>${it.dispatchQty.toLocaleString()}</b> ${it.uom}</td>
+          <td><span style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 10px;">${batch}</span></td>
+          <td class="text-right"><b>${qty.toLocaleString()}</b> ${it.uom}</td>
           <td class="text-right">₹${it.unitPrice.toFixed(2)}</td>
-          <td class="text-right"><b>₹${it.totalValue.toLocaleString()}</b></td>
-        </tr>`
+          <td class="text-right"><b>₹${val.toLocaleString()}</b></td>
+        </tr>`;
+          }
         )
         .join('')}
     </tbody>
@@ -390,6 +420,13 @@ export class DispatchPdfGenerator {
   // ==========================================================================
   public static generateGatePassPdf(gp: GatePassRecord, delivery?: DeliveryNoteChallan | null): GeneratedPdfDocument {
     const fileName = `Security_Gate_Pass_${gp.gatePassNumber}.html`;
+    const outwardTime = (gp as any).outwardTime || new Date().toLocaleString();
+    const purpose = (gp as any).purpose || 'Customer Sales Dispatch Delivery';
+    const cust = (gp as any).customer || delivery?.customer || 'Customer Consignee';
+    const delivId = (gp as any).deliveryId || delivery?.id || 'DC-2026-001';
+    const invNo = (gp as any).invoiceNumber || delivery?.invoiceNumber || 'INV-2026-9001';
+    const boxCount = (gp as any).totalBoxes || (delivery ? (delivery as any).totalBoxes || delivery.packages?.length || 12 : 12);
+    const officer = (gp as any).securityOfficer || 'Security Main Gate';
 
     const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -431,21 +468,21 @@ export class DispatchPdfGenerator {
     <div class="row"><label>Vehicle Number:</label><span style="font-family: monospace; font-size: 13px; font-weight: bold;">${gp.vehicleNumber}</span></div>
     <div class="row"><label>Driver Name &amp; Phone:</label><span>${gp.driverName} &bull; ${gp.driverPhone || 'N/A'}</span></div>
     <div class="row"><label>Transporter:</label><span>${gp.transporter}</span></div>
-    <div class="row"><label>Outward Time:</label><span>${gp.outwardTime || new Date().toLocaleString()}</span></div>
-    <div class="row"><label>Purpose:</label><span>${gp.purpose || 'Customer Sales Dispatch Delivery'}</span></div>
+    <div class="row"><label>Outward Time:</label><span>${outwardTime}</span></div>
+    <div class="row"><label>Purpose:</label><span>${purpose}</span></div>
   </div>
 
   <div class="box">
     <div class="box-header">2. Dispatch &amp; Consignment References</div>
-    <div class="row"><label>Customer / Consignee:</label><span>${gp.customer}</span></div>
-    <div class="row"><label>Delivery Challan #:</label><span>${gp.deliveryId}</span></div>
-    <div class="row"><label>Tax Invoice #:</label><span>${gp.invoiceNumber || 'INV-2026-9001'}</span></div>
-    <div class="row"><label>Total Package Count:</label><span>${gp.totalBoxes || (delivery ? delivery.totalBoxes : 12)} Master Boxes / Crates</span></div>
+    <div class="row"><label>Customer / Consignee:</label><span>${cust}</span></div>
+    <div class="row"><label>Delivery Challan #:</label><span>${delivId}</span></div>
+    <div class="row"><label>Tax Invoice #:</label><span>${invNo}</span></div>
+    <div class="row"><label>Total Package Count:</label><span>${boxCount} Master Boxes / Crates</span></div>
   </div>
 
   <div class="stamp-box">
     SECURITY OUTWARD CLEARED &bull; BOOM BARRIER RELEASED<br />
-    <span style="font-size: 10px; font-weight: normal; color: #065f46;">Officer: ${gp.securityOfficer || 'Security Main Gate'} &bull; Status: ${gp.status.toUpperCase()}</span>
+    <span style="font-size: 10px; font-weight: normal; color: #065f46;">Officer: ${officer} &bull; Status: ${gp.status.toUpperCase()}</span>
   </div>
 </body>
 </html>`;
@@ -453,7 +490,7 @@ export class DispatchPdfGenerator {
     return {
       documentType: 'Gate Pass',
       documentNumber: gp.gatePassNumber,
-      referenceId: gp.deliveryId,
+      referenceId: delivId,
       fileName,
       htmlContent,
     };

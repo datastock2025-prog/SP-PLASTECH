@@ -108,7 +108,7 @@ class SupplierService {
 
   public async getSuppliers(): Promise<SupplierMaster[]> {
     try {
-      const res = await apiClient.get<any>('/api/procurement/suppliers');
+      const res = await apiClient.get<any>('/procurement/suppliers');
       if (res && res.data && Array.isArray(res.data.suppliers) && res.data.suppliers.length > 0) {
         this.cache = res.data.suppliers.filter((s: SupplierMaster) => !DUMMY_SUPPLIER_IDS.has(s.id));
         saveLocalSuppliers(this.cache);
@@ -133,7 +133,7 @@ class SupplierService {
 
     // Try backend API sync
     try {
-      await apiClient.post('/api/procurement/suppliers', enrichedSupplier);
+      await apiClient.post('/procurement/suppliers', enrichedSupplier);
     } catch {
       // Offline fallback
     }
@@ -167,7 +167,7 @@ class SupplierService {
     saveLocalSuppliers(this.cache);
 
     try {
-      await apiClient.post('/api/procurement/suppliers/bulk-sync', { suppliers: this.cache });
+      await apiClient.post('/procurement/suppliers/bulk-sync', { suppliers: this.cache });
     } catch {
       // Offline sync successful locally
     }

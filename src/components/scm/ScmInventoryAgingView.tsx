@@ -60,9 +60,9 @@ const AgingTableRow = memo(({
     <td className="p-3">
       <span
         className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-          rec.dispositionRecommendation === 'Scrap & Regrind'
+          (rec.dispositionRecommendation as string) === 'Scrap & Regrind' || (rec.dispositionRecommendation as string) === 'Return to Vendor'
             ? 'bg-rose-100 text-rose-800'
-            : rec.dispositionRecommendation === 'Reprocess'
+            : (rec.dispositionRecommendation as string) === 'Reprocess' || (rec.dispositionRecommendation as string) === 'Quality Recertification'
             ? 'bg-amber-100 text-amber-800'
             : 'bg-emerald-50 text-emerald-700'
         }`}

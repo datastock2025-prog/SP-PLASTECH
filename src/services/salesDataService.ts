@@ -1,4 +1,5 @@
 import { supabase } from '../shared/supabaseClient';
+import { universalSyncManager } from './realtime/UniversalSyncManager';
 import {
   PlasticSalesOrder,
   MonthlyPlanOrder,
@@ -36,6 +37,36 @@ const GATE_PASSES_CACHE_KEY = 'sp_plastech_live_gate_passes_v2';
 const FG_BATCHES_CACHE_KEY = 'sp_plastech_live_fg_batches_v2';
 
 class SalesDataService {
+  constructor() {
+    // Listen for cross-browser sync events from other browsers/tabs
+    if (typeof window !== 'undefined') {
+      adminEventBus.on('SALES_ORDERS_SYNCED', (event: any) => {
+        if (event?.data) {
+          const incoming = event.data;
+          const current = this.getSalesOrdersSync();
+          const exists = current.some((o) => o.id === incoming.id);
+          const updated = exists
+            ? current.map((o) => (o.id === incoming.id ? { ...o, ...incoming } : o))
+            : [incoming, ...current];
+          this.setSalesOrdersCache(updated);
+          adminEventBus.emit('SALES_ORDER_CREATED', incoming);
+        }
+      });
+
+      adminEventBus.on('MONTHLY_PLANS_SYNCED', (event: any) => {
+        if (event?.data) {
+          const incoming = event.data;
+          const current = this.getMonthlyPlansSync();
+          const exists = current.some((p) => p.id === incoming.id);
+          const updated = exists
+            ? current.map((p) => (p.id === incoming.id ? { ...p, ...incoming } : p))
+            : [incoming, ...current];
+          this.setMonthlyPlansCache(updated);
+          adminEventBus.emit('MONTHLY_PLAN_CREATED', incoming);
+        }
+      });
+    }
+  }
   // ==========================================================================
   // 1. SALES ORDERS CRUD & DB PERSISTENCE
   // ==========================================================================
@@ -78,6 +109,9 @@ class SalesDataService {
       if (!error && data) {
         const mapped: PlasticSalesOrder[] = data.map((d: any) => ({
           id: d.id,
+          linkType: d.link_type || 'STANDARD',
+          salesperson: d.salesperson || 'Commercial Sales Desk',
+          currency: d.currency || 'INR',
           orderType: d.order_type,
           customer: d.customer_name,
           customerGstin: d.customer_code,
@@ -186,8 +220,9 @@ class SalesDataService {
       console.warn('Failed to upsert sales_order to DB (cached locally):', e);
     }
 
-    // 3. Emit reactive event
+    // 3. Emit reactive event & broadcast to all connected browsers
     adminEventBus.emit('SALES_ORDER_CREATED', order);
+    universalSyncManager.broadcastMutation('SALES_ORDERS', 'INSERT', order);
     return order;
   }
 
@@ -225,19 +260,24 @@ class SalesDataService {
       if (!error && data) {
         const mapped: MonthlyPlanOrder[] = data.map((d: any) => ({
           id: d.id,
-          planNumber: d.plan_number,
-          monthPeriod: d.month_period,
           customer: d.customer,
-          customerCode: d.customer_code,
-          customerPoNumber: d.customer_po_number,
-          plantWarehouse: d.plant_warehouse,
-          status: d.status,
+          customerGstin: d.customer_gstin || d.customer_code || '27AABCT2727Q1ZW',
+          monthPeriod: d.month_period || 'September 2026',
+          planType: d.plan_type || 'Monthly supply plan',
+          consumptionMode: d.consumption_mode || 'Auto-consume, disabled by default',
+          billingMode: d.billing_mode || 'Non-billable plan',
+          status: d.status || 'Active',
+          plant: d.plant_warehouse || d.plant || 'Plant 1 - Pimpri Auto-Hub',
+          fgStore: d.fg_store || 'FG-WH-01',
+          createdDate: d.created_at?.slice(0, 10) || new Date().toISOString().slice(0, 10),
           totalPlannedQty: Number(d.total_planned_qty || 0),
           totalDailySuppliedQty: Number(d.total_daily_supplied_qty || 0),
           remainingPlanQty: Number(d.remaining_plan_qty || 0),
+          varianceQty: Number(d.variance_qty || 0),
+          variancePct: Number(d.variance_pct || 0),
           totalPlannedValue: Number(d.total_planned_value || 0),
           items: typeof d.items === 'string' ? JSON.parse(d.items) : d.items || [],
-          unitBreakdowns: typeof d.unit_breakdowns === 'string' ? JSON.parse(d.unit_breakdowns) : d.unit_breakdowns || [],
+          auditTrail: typeof d.audit_trail === 'string' ? JSON.parse(d.audit_trail) : d.audit_trail || [],
         }));
 
         this.setMonthlyPlansCache(mapped);
@@ -257,19 +297,19 @@ class SalesDataService {
     try {
       await supabase.from('monthly_plan_orders').upsert({
         id: plan.id,
-        plan_number: plan.planNumber || plan.id,
+        plan_number: plan.id,
         month_period: plan.monthPeriod,
         customer: plan.customer,
-        customer_code: plan.customerCode || 'CUST',
-        customer_po_number: plan.customerPoNumber,
-        plant_warehouse: plan.plantWarehouse,
+        customer_code: plan.customerGstin || 'CUST',
+        customer_po_number: (plan as any).customerPoNumber || plan.id,
+        plant_warehouse: plan.plant,
         status: plan.status,
         total_planned_qty: plan.totalPlannedQty,
         total_daily_supplied_qty: plan.totalDailySuppliedQty || 0,
         remaining_plan_qty: plan.remainingPlanQty,
         total_planned_value: plan.totalPlannedValue,
         items: plan.items,
-        unit_breakdowns: plan.unitBreakdowns || [],
+        unit_breakdowns: (plan as any).unitBreakdowns || [],
         updated_at: new Date().toISOString(),
       });
     } catch (e) {
@@ -277,6 +317,7 @@ class SalesDataService {
     }
 
     adminEventBus.emit('MONTHLY_PLAN_CREATED', plan);
+    universalSyncManager.broadcastMutation('MONTHLY_PLANS', 'INSERT', plan);
     return plan;
   }
 
@@ -361,6 +402,7 @@ class SalesDataService {
       console.warn('Error saving delivery cache:', e);
     }
     adminEventBus.emit('DELIVERY_CREATED', delivery);
+    universalSyncManager.broadcastMutation('DELIVERIES', 'INSERT', delivery);
     return updated;
   }
 

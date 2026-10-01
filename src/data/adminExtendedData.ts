@@ -32,7 +32,7 @@ export interface WorkflowRuleConfig {
     escalateAfterHours: number;
     escalateTo: string;
     requireComment: boolean;
-    notifyVia: ('Email' | 'WhatsApp' | 'InApp')[];
+    notifyVia: ('Email' | 'WhatsApp' | 'InApp' | 'SMS')[];
   }[];
 }
 

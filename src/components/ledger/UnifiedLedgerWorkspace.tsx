@@ -251,23 +251,24 @@ export const UnifiedLedgerWorkspace: React.FC = () => {
       </div>
 
       {/* Accounting Impact Drawer */}
-      <AccountingImpactDrawer
-        isOpen={isImpactDrawerOpen}
-        onClose={() => setIsImpactDrawerOpen(false)}
-        impact={accountingImpactData}
-        onOpenTraceDoc={handleTraceDoc}
-      />
+      {isImpactDrawerOpen && (
+        <AccountingImpactDrawer
+          impact={accountingImpactData}
+          onClose={() => setIsImpactDrawerOpen(false)}
+        />
+      )}
 
       {/* Document Drill-down Preview Drawer */}
-      <DocumentPreviewDrawer
-        isOpen={previewDocState.isOpen}
-        onClose={() => setPreviewDocState((prev) => ({ ...prev, isOpen: false }))}
-        docType={previewDocState.docType}
-        docNumber={previewDocState.docNumber}
-        data={previewDocState.data}
-        onOpenAccountingImpact={handleOpenAccountingImpact}
-        onOpenTrace={handleTraceDoc}
-      />
+      {previewDocState.isOpen && (
+        <DocumentPreviewDrawer
+          docType={previewDocState.docType}
+          docNumber={previewDocState.docNumber}
+          data={previewDocState.data}
+          onClose={() => setPreviewDocState((prev) => ({ ...prev, isOpen: false }))}
+          onViewAccountingImpact={() => handleOpenAccountingImpact(accountingImpactData || {} as any)}
+          onViewTrace={handleTraceDoc}
+        />
+      )}
 
       {/* Exception Resolution Modal */}
       <ExceptionResolutionModal

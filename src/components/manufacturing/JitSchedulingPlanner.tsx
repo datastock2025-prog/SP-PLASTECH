@@ -47,6 +47,8 @@ import {
   exportConsolidatedMatrixToExcel,
   exportSingleJobToExcel,
   exportSingleJobToCsv,
+  exportJitPlanToExcel,
+  exportJitPlanToCsv,
   generateUniqueWorkOrderId,
   generateUniqueScheduleNumber,
   getFormulaRecipeId,
@@ -55,7 +57,6 @@ import { JitCommonComposer } from './jit/JitCommonComposer';
 import { JitSingleScheduleGrid } from './jit/JitSingleScheduleGrid';
 import { JitConsolidatedScheduleWorkOrders } from './jit/JitConsolidatedScheduleWorkOrders';
 import { JitRecipeModal } from './jit/JitRecipeModal';
-import { JitStoreInventoryModal } from './jit/JitStoreInventoryModal';
 import { JitStoreFeasibilityView } from './jit/JitStoreFeasibilityView';
 
 interface Props {
@@ -478,7 +479,7 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
   const handleExportDateExcel = (targetDate: string, scheduleNumber?: string) => {
     const targetJobs = jobs.filter((j) => (j.planDate || planDate) === targetDate);
     const targetReqs = explodePlanRequirements(targetJobs, boms, items, stores);
-    exportJitPlanToExcel(targetDate, targetJobs, targetReqs, machines, stores);
+    exportJitPlanToExcel(targetDate, targetJobs, targetReqs, stores);
     showToast(`Downloaded ${scheduleNumber || 'JIT_Plan_' + targetDate.replace(/-/g, '')}.xlsx`);
   };
 
@@ -508,10 +509,11 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
       jobs.forEach((job) => {
         const datePrefix = planDate.replace(/-/g, '').slice(2);
         const woId = generateUniqueWorkOrderId(currentOrders, `WO-JIT-${datePrefix}`);
+        const p = (job.priority || '') as string;
         const woPriority: 'Low' | 'Medium' | 'High' =
-          job.priority === 'High' || job.priority === 'Critical'
+          p === 'High' || p === 'Critical' || p === 'Urgent'
             ? 'High'
-            : job.priority === 'Low'
+            : p === 'Low'
             ? 'Low'
             : 'Medium';
         const targetPlant = job.plant || plannerPlant || 'PLANT-01';
@@ -594,7 +596,7 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
 
   // Export handlers
   const handleExportExcel = () => {
-    exportJitPlanToExcel(planDate, jobs, materialRequirements, machines, stores);
+    exportJitPlanToExcel(planDate, jobs, materialRequirements, stores);
     showToast(`Downloaded JIT_Production_Plan_${planDate.replace(/-/g, '')}.xlsx`);
   };
 
@@ -761,7 +763,7 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
 
             <button
               type="button"
-              onClick={handleReleaseScheduleToShopfloor}
+              onClick={() => handleReleaseScheduleToShopfloor(false)}
               className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
             >
               <Send className="w-3.5 h-3.5" />

@@ -252,9 +252,10 @@ class RegrindMaterialService {
   ): WoScrapConsolidatedSummary[] {
     const entries = this.getEntriesSync();
 
-    return workOrders.map((wo) => {
-      const item = items.find((i) => i.code === wo.item);
-      const bom = boms.find((b) => b.id === wo.bomId || b.itemCode === wo.item);
+    return workOrders.map((woItem) => {
+      const wo = woItem as any;
+      const item = items.find((i) => i.code === wo.item) as any;
+      const bom = boms.find((b) => b.id === wo.bomId || (b as any).itemCode === wo.item) as any;
 
       const partWeightGrams = Number(item?.partWeightGrams || item?.netWeightGrams || 85.0);
       const runnerWeightGrams = Number(item?.runnerWeightGrams || 15.0);
@@ -273,7 +274,7 @@ class RegrindMaterialService {
       const runnerKg = Number((wo.runnerQty ?? (cycles * runnerWeightGrams) / 1000).toFixed(2));
 
       // Purging / Lumps in KG
-      const lumpsKg = Number((wo.lumpsQty ?? (rejectionQty > 0 ? (rejectionQty * partWeightGrams * 0.2) / 1000 : 2.5)).toFixed(2));
+      const lumpsKg = Number((wo.lumpsQty ?? wo.lumbesQty ?? (rejectionQty > 0 ? (rejectionQty * partWeightGrams * 0.2) / 1000 : 2.5)).toFixed(2));
 
       // Total Scrap in KG
       const totalScrapKg = Number((rejectionKg + runnerKg + lumpsKg).toFixed(2));
@@ -293,12 +294,12 @@ class RegrindMaterialService {
       const baseResin =
         item?.rawMaterialGrade ||
         item?.grade ||
-        (bom?.items?.find((bi) => (bi as any).type === 'raw_material' || bi.itemCode.startsWith('RM-'))?.itemName) ||
+        (bom?.items?.find((bi: any) => bi.type === 'raw_material' || bi.itemCode?.startsWith('RM-'))?.itemName) ||
         'Polypropylene Homopolymer (Grade H110FU)';
 
       const color =
         item?.color ||
-        (bom?.items?.find((bi) => bi.itemCode.startsWith('MB-') || bi.itemCode.includes('COL'))?.itemName) ||
+        (bom?.items?.find((bi: any) => bi.itemCode?.startsWith('MB-') || bi.itemCode?.includes('COL'))?.itemName) ||
         'Natural / Standard Tone';
 
       return {
@@ -320,7 +321,7 @@ class RegrindMaterialService {
         totalScrapKg,
         baseResin,
         color,
-        moldId: wo.moldId || (item as any)?.moldCode || 'M-104-ABS-2C',
+        moldId: wo.moldId || wo.mold || (item as any)?.moldCode || 'M-104-ABS-2C',
         bomId: wo.bomId || `BOM-${wo.item}`,
         mixingId: loggedEntries[0]?.mixingId || `MIX-${wo.id.replace('WO-', '')}`,
         rgLoggedKg,

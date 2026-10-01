@@ -123,6 +123,8 @@ export const QualityViews: React.FC<QualityProps> = ({
   if (view === 'incomingInspection') {
     return (
       <IncomingInspectionView
+        inspectionPlans={inspectionPlans}
+        ncrs={ncrs}
         onNavigate={onNavigate}
         onCreateNCR={onCreateNCR}
         openDrawer={openDrawer}
@@ -139,7 +141,6 @@ export const QualityViews: React.FC<QualityProps> = ({
     return (
       <SpcMonitorView
         onNavigate={onNavigate}
-        onCreateNCR={onCreateNCR}
         openDrawer={openDrawer}
         closeDrawer={closeDrawer}
         showToast={showToast}
@@ -153,6 +154,8 @@ export const QualityViews: React.FC<QualityProps> = ({
   if (view === 'finalInspection') {
     return (
       <FinalInspectionView
+        coas={coas}
+        ncrs={ncrs}
         onNavigate={onNavigate}
         onCreateNCR={onCreateNCR}
         onCreateCOA={onCreateCOA}

@@ -159,7 +159,7 @@ export const FixedBottomChatWidget: React.FC<FixedBottomChatWidgetProps> = ({
                           : 'bg-white border border-slate-200/90 text-slate-800 rounded-tl-none'
                       }`}
                     >
-                      <ChatMessageRenderer content={m.content} role={m.role} metadata={m.metadata} />
+                      <ChatMessageRenderer content={m.content} role={m.role === 'SYSTEM' ? 'ASSISTANT' : m.role} metadata={m.metadata} />
                     </div>
                   </div>
                 ))}

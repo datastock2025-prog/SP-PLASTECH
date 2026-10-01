@@ -30,15 +30,17 @@ import {
   HrOvertimeRequest,
   HrSafetyIncident,
   HrPpeIssueRecord,
+  HrShiftMaster,
 } from '../../types';
 
 interface HrCommandCenterProps {
   employees: HrEmployee[];
   attendance: HrAttendanceRecord[];
+  shifts?: HrShiftMaster[];
   leaves: HrLeaveRequest[];
-  overtime: HrOvertimeRequest[];
+  overtime?: HrOvertimeRequest[];
   incidents: HrSafetyIncident[];
-  ppeIssues: HrPpeIssueRecord[];
+  ppeIssues?: HrPpeIssueRecord[];
   onNavigate: (view: string, param?: any) => void;
   showToast: (msg: string) => void;
 }

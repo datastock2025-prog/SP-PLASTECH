@@ -92,7 +92,7 @@ export const MepViews: React.FC<MepViewsProps> = ({
           return {
             ...meter,
             activePowerKw: newKw,
-            currentL1L2L3: meter.currentL1L2L3.map((c) => +(c + (Math.random() - 0.5) * 1.2).toFixed(1)),
+            currentL1L2L3: meter.currentL1L2L3.map((c) => +(c + (Math.random() - 0.5) * 1.2).toFixed(1)) as [number, number, number],
           };
         })
       );

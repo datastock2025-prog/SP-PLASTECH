@@ -10,7 +10,7 @@ export type ItemType =
   | 'Packaging Material'
   | 'Spare Part'
   | 'Consumable';
-export type ItemStatus = 'active' | 'low' | 'hold' | 'blocked' | 'inactive';
+export type ItemStatus = 'active' | 'low' | 'hold' | 'blocked' | 'inactive' | 'rejected' | 'quarantined';
 export type ApprovalStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'released' | 'under_review' | 'obsolete' | 'waived';
 
 export interface ItemLot {
@@ -43,6 +43,8 @@ export interface ItemMaster {
   baseUOM: string;
   resinType?: string;
   polymerGrade?: string;
+  rawMaterialGrade?: string;
+  grade?: string;
   color?: string;
   masterbatchDosage?: string;
   packagingStandard?: string;
@@ -117,6 +119,12 @@ export interface ItemMaster {
     uploadedDate?: string;
     uploadedBy?: string;
   }>;
+  destinationStore?: string;
+  unitsPerPack?: string | number;
+  moistureLimit?: string;
+  hsnCode?: string;
+  alloc?: number | string;
+  category?: string;
 }
 
 export interface BomLine {
@@ -129,6 +137,7 @@ export interface BomLine {
   qty: number;
   uom: string;
   scrap: number;
+  scrapPct?: number;
   yield?: number;
   cost: number;
   extendedCost?: number;
@@ -149,7 +158,7 @@ export interface BomLine {
   status?: 'active' | 'inactive' | 'obsolete' | 'substitute_available';
 }
 
-export type BomType = 'Engineering BOM' | 'Manufacturing BOM' | 'Sales BOM' | 'Costing BOM' | 'Packaging BOM';
+export type BomType = 'Engineering BOM' | 'Manufacturing BOM' | 'Sales BOM' | 'Costing BOM' | 'Packaging BOM' | 'Pilot/Prototype BOM';
 export type PlasticProcessType = 'Injection Molding' | 'Extrusion' | 'Blow Molding' | 'Thermoforming' | 'Compounding & Blending' | 'Granulation & Regrind' | 'Assembly & Packaging';
 
 export interface BomApprovalHistory {
@@ -178,6 +187,8 @@ export interface BomDocument {
 
 export interface BomMaster {
   id: string;
+  name?: string;
+  itemCode?: string;
   parent: string;
   parentName: string;
   version: string;
@@ -190,6 +201,7 @@ export interface BomMaster {
   approvalStage?: 'Draft' | 'Engineering Review' | 'Production Review' | 'Quality Review' | 'Finance Review' | 'Approved' | 'Released';
   updated: string;
   createdDate?: string;
+  effectiveDate?: string;
   effectiveFrom?: string;
   effectiveTo?: string;
   baseUOM?: string;
@@ -219,6 +231,8 @@ export interface BomMaster {
   mfgCategory?: 'Discrete Manufacturing BOM' | 'Formula / Recipe BOM' | 'Assembly BOM' | 'Packaging BOM' | 'Secondary Operation BOM';
   secondaryOperations?: SecondaryOperationDetail[];
   routingResources?: RoutingResourceDetail[];
+  routings?: any[];
+  machineMoldReqs?: any;
   scrapConfig?: ScrapYieldConfig;
   qualityConfig?: QualitySpecConfig;
   packagingCost?: number;
@@ -521,6 +535,7 @@ export interface ItemCategoryNode {
 
 export interface MachineMaster {
   id: string;
+  code?: string;
   name: string;
   type: 'Injection Molding Machine' | 'Extrusion Line' | 'Blow Molding Machine' | 'Mold / Tooling' | 'Auxiliary Equipment';
   line: string;
@@ -535,6 +550,7 @@ export interface MachineMaster {
   shotCount?: number;
   expectedLifeShots?: number;
   cavityCount?: number;
+  hourlyRate?: number;
 }
 
 export interface RejectionBreakdownItem {
@@ -573,6 +589,7 @@ export interface WorkOrder {
   operator: string;
   downtimeMin: number;
   mold?: string;
+  moldId?: string;
   jitSeq?: number;
   shift?: string;
   planDate?: string;
@@ -680,10 +697,15 @@ export interface Supplier {
 export interface PurchaseOrder {
   id: string;
   supplier: string;
+  vendorName?: string;
+  buyerName?: string;
   orderDate: string;
   expectedDate: string;
+  status?: string;
   approval: ApprovalStatus;
   rejectReason?: string;
+  totalAmount?: number;
+  items?: any[];
   lines: Array<{
     item: string;
     name: string;
@@ -939,6 +961,7 @@ export interface CostCenter {
   budget: number;
   actual: number;
   allocBase: string;
+  rate?: number;
 }
 
 export interface CostRollup {
@@ -953,11 +976,17 @@ export interface CostRollup {
 }
 
 export interface ProductionVariance {
+  id?: string;
   woId: string;
   item: string;
-  type: string;
-  standard: number;
-  actual: number;
+  type?: string;
+  category?: string;
+  standard?: number;
+  actual?: number;
+  standardCost?: number;
+  actualCost?: number;
+  variance?: number;
+  status?: string;
   rootCause: string;
 }
 
@@ -1557,15 +1586,21 @@ export interface HrOvertimeRequest {
 export interface HrTrainingMaster {
   id: string;
   name: string;
-  type: 'Safety' | 'Machine Operation' | 'Mold Handling' | 'Quality' | 'Chemical MSDS' | 'Forklift' | 'ISO/IATF' | 'Induction';
-  department: string;
-  validityMonths: number;
-  isMandatory: boolean;
-  trainer: string;
-  passingScore: number;
-  certificationIssued: boolean;
-  active: boolean;
-  description: string;
+  title?: string;
+  code?: string;
+  type?: 'Safety' | 'Machine Operation' | 'Mold Handling' | 'Quality' | 'Chemical MSDS' | 'Forklift' | 'ISO/IATF' | 'Induction' | string;
+  department?: string;
+  validityMonths?: number;
+  durationHours?: number;
+  enrolledEmployees?: number;
+  effectivenessScore?: number;
+  isMandatory?: boolean;
+  trainer?: string;
+  passingScore?: number;
+  certificationIssued?: boolean;
+  active?: boolean;
+  status?: string;
+  description?: string;
 }
 
 export interface HrSkillMatrixItem {
@@ -1573,7 +1608,8 @@ export interface HrSkillMatrixItem {
   employeeId: string;
   employeeName: string;
   department: string;
-  skillGroup: string;
+  skillGroup?: string;
+  category?: string;
   machineOrProcess: string;
   level: HrSkillLevel;
   lastAssessmentDate: string;
@@ -1612,15 +1648,20 @@ export interface HrSafetyIncident {
 }
 
 export interface HrPpeMasterItem {
+  id?: string;
   code: string;
   name: string;
-  category: 'Footwear' | 'Head Protection' | 'Hand Protection' | 'Eye & Face' | 'Hearing' | 'Respiratory' | 'Apparel';
-  sizes: string[];
-  validityDays: number;
-  stockAvailable: number;
-  minStockLevel: number;
-  costPerUnit: number;
-  supplier: string;
+  category: 'Footwear' | 'Head Protection' | 'Hand Protection' | 'Eye & Face' | 'Hearing' | 'Respiratory' | 'Apparel' | string;
+  sizes?: string[];
+  validityDays?: number;
+  stockAvailable?: number;
+  minStockLevel?: number;
+  currentStock?: number;
+  reorderThreshold?: number;
+  standard?: string;
+  unit?: string;
+  costPerUnit?: number;
+  supplier?: string;
 }
 
 export interface HrPpeIssueRecord {
@@ -1747,6 +1788,7 @@ export type HrSkillMatrixRecord = HrSkillMatrixItem;
 export interface AuthUser {
   id: string;
   name: string;
+  fullName?: string;
   email: string;
   role: string;
   roleType: 'admin' | 'production' | 'quality' | 'warehouse' | 'finance' | 'operator' | 'hr' | 'planner' | 'maintenance' | 'sales' | 'procurement' | 'scm' | string;
@@ -1760,5 +1802,8 @@ export interface AuthUser {
   initials: string;
   permissions: string[];
 }
+
+export type { PurchaseRequisition, PurchaseRequisitionLine } from './types/procurement';
+
 
 

@@ -52,8 +52,8 @@ import {
 import {
   mockSodRules,
   mockSodViolations,
-  simulationScenarios,
-  multiContextPolicies,
+  simulationScenarios as mockSimulationScenarios,
+  multiContextPolicies as mockMultiContextPolicies,
 } from '../../data/adminExtendedData';
 import { WorkspaceModuleRbacView } from './WorkspaceModuleRbacView';
 import { useWorkspaceRbac } from '../../hooks/useWorkspaceRbac';
@@ -370,6 +370,17 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
       });
     }
 
+    const newRole: AdminRole = {
+      id: `ROLE-${Date.now().toString().slice(-4)}`,
+      name: newRoleData.name,
+      code: newRoleData.code || newRoleData.name.toUpperCase().replace(/\s+/g, '_'),
+      description: newRoleData.description || 'Custom User Role',
+      isSystemRole: false,
+      userCount: 0,
+      createdDate: new Date().toISOString().split('T')[0],
+      permissions: basePerms,
+    };
+
     const updatedRoles = [...roles, newRole];
     setRoles(updatedRoles);
     saveStoredRoles(updatedRoles);
@@ -430,7 +441,7 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
       entityType: 'ROLE',
       entityCode: selectedRole.code,
       entityName: selectedRole.name,
-      action: 'PERMISSION_CHANGE',
+      action: 'UPDATE',
       changedBy: currentUser?.fullName || 'Administrator',
       userRole: 'admin',
       changeSummary: `Committed & deployed updated RBAC permission matrix for role "${selectedRole.name}".`,

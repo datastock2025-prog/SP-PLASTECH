@@ -363,9 +363,9 @@ export const SalesOrderList: React.FC<SalesOrderListProps> = ({
   ];
 
   // Enterprise scale summary metrics
-  const totalVolume = orders.length > 50 ? orders.length : 104280;
+  const totalVolume = orders.length > 50 ? orders.length : (orders.length > 0 ? orders.length : 0);
   const totalValuationCr = (
-    orders.reduce((sum, o) => sum + o.totalOrderValue, 0) / 10000000 || 48.25
+    orders.reduce((sum, o) => sum + (o.totalOrderValue || 0), 0) / 10000000
   ).toFixed(2);
 
   return (

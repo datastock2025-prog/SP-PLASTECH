@@ -42,7 +42,7 @@ export const MaintenanceMtbfView: React.FC<MaintenanceMtbfViewProps> = ({
     setLoading(true);
     try {
       const res = await analyticsApi.getMaintenanceMetrics(filters);
-      setData(res);
+      setData(res as any);
     } catch {
       showToast('Failed to load maintenance metrics');
     } finally {

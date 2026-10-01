@@ -85,7 +85,7 @@ interface Props {
   onUpdateInvoice?: (inv: SupplierInvoiceRecord) => void;
   openDrawer: (title: string, content: React.ReactNode, footer?: React.ReactNode) => void;
   closeDrawer: () => void;
-  openConfirm?: (options: any) => void;
+  openConfirm?: (title: string, message: string, onConfirm: () => void) => void;
   showToast: (msg: string) => void;
 }
 

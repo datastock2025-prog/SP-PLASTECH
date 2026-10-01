@@ -50,13 +50,13 @@ export interface AccountingEntryLine {
 }
 
 export interface DocumentAccountingImpact {
-  documentType: 'PO' | 'GRN' | 'QC' | 'Stock' | 'Dispatch' | 'Invoice' | 'Payment' | 'Receipt';
+  documentType: 'PO' | 'GRN' | 'QC' | 'Stock' | 'Dispatch' | 'Invoice' | 'Payment' | 'Receipt' | string;
   documentNumber: string;
   postingDate: string;
-  status: 'Draft' | 'Posted' | 'Pending Approval' | 'Simulated';
+  status: 'Draft' | 'Posted' | 'Pending Approval' | 'Simulated' | string;
   journalEntryNumber?: string;
-  costCenter: string;
-  taxImpact: number;
+  costCenter?: string;
+  taxImpact?: number;
   totalDebit: number;
   totalCredit: number;
   lines: AccountingEntryLine[];
@@ -67,7 +67,7 @@ export interface StockOverviewItem {
   id: string;
   itemCode: string;
   itemName: string;
-  category: 'Raw Material' | 'Masterbatch' | 'Finished Goods' | 'WIP' | 'Packaging' | 'Additive';
+  category: 'Raw Material' | 'Masterbatch' | 'Finished Goods' | 'WIP' | 'Packaging' | 'Additive' | string;
   plant: string;
   store: string;
   location: string;
@@ -79,17 +79,18 @@ export interface StockOverviewItem {
   closingQty: number;
   stockValue: number;
   unitCost: number;
-  qualityStatus: 'Available' | 'Quarantine' | 'QC Hold' | 'Rejected' | 'Reserved';
+  qualityStatus: 'Available' | 'Quarantine' | 'QC Hold' | 'Rejected' | 'Reserved' | string;
   expiryDate: string;
   reservedQty: number;
   availableQty: number;
-  valuationMethod: 'FIFO' | 'Weighted Average' | 'Standard Cost';
+  valuationMethod: 'FIFO' | 'Weighted Average' | 'Standard Cost' | string;
 }
 
 export interface StockMovementLedgerItem {
   id: string;
   movementId: string;
-  dateTime: string;
+  dateTime?: string;
+  timestamp?: string;
   itemCode: string;
   itemName: string;
   batchLot: string;
@@ -104,19 +105,28 @@ export interface StockMovementLedgerItem {
     | 'Transfer Out'
     | 'Adjustment'
     | 'Scrap'
-    | 'QC Move';
-  sourceDocument: string;
-  referenceDocument: string;
-  inQty: number;
-  outQty: number;
-  balanceQty: number;
-  unitValue: number;
-  totalValue: number;
-  fromLocation: string;
-  toLocation: string;
-  accountingImpact: 'Posted' | 'Unposted' | 'Pending';
+    | 'QC Move'
+    | string;
+  sourceDocument?: string;
+  referenceDocument?: string;
+  inQty?: number;
+  outQty?: number;
+  quantity?: number;
+  balanceQty?: number;
+  unitValue?: number;
+  totalValue?: number;
+  uom?: string;
+  fromLocation?: string;
+  toLocation?: string;
+  fromStore?: string;
+  toStore?: string;
+  sourceDocType?: string;
+  impactAccounting?: boolean;
+  accountingImpact?: 'Posted' | 'Unposted' | 'Pending' | string;
+  journalRef?: string;
   journalEntryNo?: string;
-  status: 'Completed' | 'Pending Approval' | 'Under Review';
+  performedBy?: string;
+  status?: 'Completed' | 'Pending Approval' | 'Under Review' | string;
 }
 
 // Purchase Order
@@ -533,6 +543,7 @@ export interface ExceptionItem {
   description: string;
   financialImpact: number;
   assignedTo: string;
+  ageDays?: number;
   status: 'Open' | 'Investigating' | 'Resolved' | 'Overridden';
   resolution?: string;
 }

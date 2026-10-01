@@ -209,6 +209,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
     'Colorant': ['Color Masterbatch'],
     'Additive': ['Color Masterbatch'],
     'Spare Part': ['Tooling & Mold Asset'],
+    'Packaging': ['Finished Molded Component', 'Polymer Resin Item'],
     'Packaging Material': ['Finished Molded Component', 'Polymer Resin Item'],
     'Consumable': ['Color Masterbatch', 'Polymer Resin Item'],
   };
@@ -222,13 +223,13 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   // Codes and Names of items currently waiting for approval or rejected in Item Master Grid
   const pendingOrRejectedCodes = new Set(
     currentGridItems
-      .filter((i) => i.approval === 'pending' || i.approval === 'rejected' || i.status === 'rejected' || i.status === 'quarantined')
+      .filter((i) => i.approval === 'pending' || i.approval === 'rejected' || (i.status as string) === 'rejected' || (i.status as string) === 'quarantined')
       .map((i) => (i.code || '').trim().toLowerCase())
   );
 
   const pendingOrRejectedNames = new Set(
     currentGridItems
-      .filter((i) => i.approval === 'pending' || i.approval === 'rejected' || i.status === 'rejected' || i.status === 'quarantined')
+      .filter((i) => i.approval === 'pending' || i.approval === 'rejected' || (i.status as string) === 'rejected' || (i.status as string) === 'quarantined')
       .map((i) => (i.name || '').trim().toLowerCase())
   );
 
@@ -269,7 +270,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       return false;
     }
     // 2. Exclude records marked as Rejected or Pending in governance
-    if (r.status === 'Rejected' || r.status === 'Pending' || (r as any).approval === 'rejected' || (r as any).approval === 'pending') {
+    if ((r.status as string) === 'Rejected' || (r.status as string) === 'Pending' || (r as any).approval === 'rejected' || (r as any).approval === 'pending') {
       return false;
     }
     // 3. When creating new item, exclude any codes/names already active in Item Master grid to prevent duplicate SKU selection
@@ -698,7 +699,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
 
   // Step 9: Documents
   const [documents, setDocuments] = useState<
-    { name: string; type: string; size: string; uploadedOn: string; url?: string }[]
+    { id?: string; name: string; type: string; size?: string; fileSize?: string; uploadedOn?: string; uploadedDate?: string; url?: string; link?: string; version?: string; uploadedBy?: string }[]
   >([]);
   const [isDocDragging, setIsDocDragging] = useState<boolean>(false);
 
@@ -967,6 +968,26 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
     setConversions(conversions.filter((c) => c.id !== id));
   };
 
+  const handleRestoreDraft = () => {
+    if (!existingDraftFound) return;
+    if (existingDraftFound.selectedType) setSelectedType(existingDraftFound.selectedType);
+    if (existingDraftFound.itemCode) setItemCode(existingDraftFound.itemCode);
+    if (existingDraftFound.itemName) setItemName(existingDraftFound.itemName);
+    if (existingDraftFound.category) setCategory(existingDraftFound.category);
+    if (existingDraftFound.description) setDescription(existingDraftFound.description);
+    if (existingDraftFound.baseUOM) setBaseUOM(existingDraftFound.baseUOM);
+    showToast('Draft restored successfully.');
+    setExistingDraftFound(null);
+  };
+
+  const handleDiscardDraft = () => {
+    try {
+      localStorage.removeItem('item_wizard_draft');
+    } catch (_) {}
+    setExistingDraftFound(null);
+    showToast('Draft discarded.');
+  };
+
   const handleSaveDraft = () => {
     if (!itemCode.trim()) {
       setItemCodeError(true);
@@ -1037,7 +1058,16 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       isAssembly,
       isDeflash,
       moldToolId: isFgItem ? (moldTool || 'MOLD-001') : undefined,
-      documents: documents.length > 0 ? documents : editItem?.documents || [],
+      documents: (documents.length > 0 ? documents : editItem?.documents || []).map((d: any, idx: number) => ({
+        id: d.id || `DOC-${Date.now()}-${idx}`,
+        name: d.name,
+        type: d.type,
+        version: d.version || '1.0',
+        link: d.link || d.url || '#',
+        fileSize: d.fileSize || d.size || '0 KB',
+        uploadedDate: d.uploadedDate || d.uploadedOn || new Date().toISOString().split('T')[0],
+        uploadedBy: d.uploadedBy || 'Current User',
+      })),
     };
     onSaveItem(draftItem);
     showToast(`Draft item ${draftItem.code} saved successfully.`);
@@ -1120,7 +1150,16 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       isAssembly,
       isDeflash,
       moldToolId: isFgItem ? (moldTool || 'MOLD-001') : undefined,
-      documents: documents.length > 0 ? documents : editItem?.documents || [],
+      documents: (documents.length > 0 ? documents : editItem?.documents || []).map((d: any, idx: number) => ({
+        id: d.id || `DOC-${Date.now()}-${idx}`,
+        name: d.name,
+        type: d.type,
+        version: d.version || '1.0',
+        link: d.link || d.url || '#',
+        fileSize: d.fileSize || d.size || '0 KB',
+        uploadedDate: d.uploadedDate || d.uploadedOn || new Date().toISOString().split('T')[0],
+        uploadedBy: d.uploadedBy || 'Current User',
+      })),
     };
 
     onSaveItem(finalItem);
@@ -2819,7 +2858,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                               )
                               .map((b) => (
                                 <button
-                                  key={b.id}
+                                  key={b.code}
                                   type="button"
                                   onClick={() => {
                                     setDefaultBin(b.code);

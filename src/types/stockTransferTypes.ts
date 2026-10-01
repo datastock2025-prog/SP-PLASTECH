@@ -188,6 +188,7 @@ export interface StockTransferItem {
   gstRatePct: number;
   packagingUnit?: string;
   netWeightKg?: number;
+  lineItemStatus?: string;
 }
 
 export interface AssetMoldItem {

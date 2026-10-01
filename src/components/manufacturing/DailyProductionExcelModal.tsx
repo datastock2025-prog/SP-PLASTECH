@@ -721,11 +721,11 @@ export const DailyProductionExcelModal: React.FC<DailyProductionExcelModalProps>
                     <tr key={row.id || idx} className="hover:bg-slate-50 transition-colors">
                       <td className="p-2.5">
                         {row.validationStatus === 'valid' ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600" title="Valid matching WO" />
+                          <span title="Valid matching WO"><CheckCircle2 className="w-4 h-4 text-emerald-600" /></span>
                         ) : row.validationStatus === 'warning' ? (
-                          <AlertTriangle className="w-4 h-4 text-amber-500" title={row.validationMessage} />
+                          <span title={row.validationMessage}><AlertTriangle className="w-4 h-4 text-amber-500" /></span>
                         ) : (
-                          <Sparkles className="w-4 h-4 text-purple-600" title="New entry" />
+                          <span title="New entry"><Sparkles className="w-4 h-4 text-purple-600" /></span>
                         )}
                       </td>
                       <td className="p-2.5 font-mono font-bold text-[#0F8B8D]">{row.id}</td>

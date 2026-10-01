@@ -65,17 +65,24 @@ export interface WipInventoryRecord {
 export interface PlantStoreInventoryItem {
   id: string;
   plantId: string;
-  plantName: string;
-  storeCode: MainWarehouseStoreType | OperationalStoreType;
+  plantName?: string;
+  storeCode: MainWarehouseStoreType | OperationalStoreType | string;
+  storeName?: string;
   itemCode: string;
   itemName: string;
-  category: MaterialCategoryType;
-  stockQty: number;
+  category: MaterialCategoryType | string;
+  stockQty?: number;
+  currentBalance?: number;
+  availableBalance?: number;
+  holdBalance?: number;
   uom: string;
-  allocatedQty: number;
-  minSafetyStock: number;
-  unitCost: number;
+  allocatedQty?: number;
+  minSafetyStock?: number;
+  minLevel?: number;
+  maxLevel?: number;
+  unitCost?: number;
   batchNo?: string;
+  lastMovementDate?: string;
 }
 
 export interface MaterialTransferRecord {

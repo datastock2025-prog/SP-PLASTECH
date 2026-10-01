@@ -54,6 +54,8 @@ export interface EnrichedCustomerRecord extends CustomerMasterRecord {
   shippingAddress?: string;
 }
 
+export type CustomerMasterExtended = EnrichedCustomerRecord;
+
 // Initial PO seeding for prominent customers
 const DEFAULT_ENRICHMENTS: Record<string, Partial<EnrichedCustomerRecord>> = {
   '12398': {

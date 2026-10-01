@@ -97,6 +97,10 @@ export const mapMonthlyPlanToSalesOrder = (plan: MonthlyPlanOrder, customSoId?: 
     packagingInstructions: 'Standard corrugated master cartons',
     eInvoiceRequired: true,
     eWayBillRequired: true,
+    deliveryChallanAllowed: true,
+    coaRequired: true,
+    msdsRequired: false,
+    batchTraceabilityRequired: true,
     lines: (plan.items || []).map((it, idx) => ({
       lineNumber: idx + 1,
       itemCode: it.itemCode,

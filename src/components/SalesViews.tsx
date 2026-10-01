@@ -128,23 +128,77 @@ export const SalesViews: React.FC<SalesProps> = ({
   const [gatePasses, setGatePasses] = useState<GatePassRecord[]>(() => salesDataService.getGatePassesSync());
   const [exceptions, setExceptions] = useState<ComplianceExceptionRecord[]>(() => salesDataService.getComplianceExceptionsSync());
 
-  // Load from Supabase / PostgreSQL database on mount
+  // Load from Supabase / PostgreSQL database on mount and subscribe to real-time events
   useEffect(() => {
     let isMounted = true;
-    Promise.all([
-      salesDataService.getSalesOrders(),
-      salesDataService.getMonthlyPlans(),
-    ]).then(([fetchedOrders, fetchedPlans]) => {
-      if (!isMounted) return;
-      if (fetchedOrders && fetchedOrders.length > 0) {
-        setPlasticSalesOrders(fetchedOrders);
+    
+    const refreshData = () => {
+      Promise.all([
+        salesDataService.getSalesOrders(),
+        salesDataService.getMonthlyPlans(),
+      ]).then(([fetchedOrders, fetchedPlans]) => {
+        if (!isMounted) return;
+        if (fetchedOrders && fetchedOrders.length > 0) {
+          setPlasticSalesOrders(fetchedOrders);
+        } else {
+          setPlasticSalesOrders(salesDataService.getSalesOrdersSync());
+        }
+        if (fetchedPlans && fetchedPlans.length > 0) {
+          setMonthlyPlans(fetchedPlans);
+        } else {
+          setMonthlyPlans(salesDataService.getMonthlyPlansSync());
+        }
+      }).catch((err) => console.warn('Live data sync background notice:', err));
+    };
+
+    refreshData();
+
+    // Cross-browser & Cross-tab Realtime Event Listeners
+    const unsubOrderCreated = adminEventBus.on('SALES_ORDER_CREATED', (newOrder: PlasticSalesOrder) => {
+      setPlasticSalesOrders((prev) => {
+        const exists = prev.some((o) => o.id === newOrder.id);
+        return exists ? prev.map((o) => (o.id === newOrder.id ? newOrder : o)) : [newOrder, ...prev];
+      });
+    });
+
+    const unsubOrderSynced = adminEventBus.on('SALES_ORDERS_SYNCED', (event: any) => {
+      if (event?.data) {
+        const item = event.data;
+        setPlasticSalesOrders((prev) => {
+          const exists = prev.some((o) => o.id === item.id);
+          return exists ? prev.map((o) => (o.id === item.id ? { ...o, ...item } : o)) : [item, ...prev];
+        });
       }
-      if (fetchedPlans && fetchedPlans.length > 0) {
-        setMonthlyPlans(fetchedPlans);
+    });
+
+    const unsubPlanCreated = adminEventBus.on('MONTHLY_PLAN_CREATED', (newPlan: MonthlyPlanOrder) => {
+      setMonthlyPlans((prev) => {
+        const exists = prev.some((p) => p.id === newPlan.id);
+        return exists ? prev.map((p) => (p.id === newPlan.id ? newPlan : p)) : [newPlan, ...prev];
+      });
+    });
+
+    const unsubPlanSynced = adminEventBus.on('MONTHLY_PLANS_SYNCED', (event: any) => {
+      if (event?.data) {
+        const item = event.data;
+        setMonthlyPlans((prev) => {
+          const exists = prev.some((p) => p.id === item.id);
+          return exists ? prev.map((p) => (p.id === item.id ? { ...p, ...item } : p)) : [item, ...prev];
+        });
       }
-    }).catch((err) => console.warn('Live data sync background notice:', err));
+    });
+
+    const unsubDelivery = adminEventBus.on('DELIVERIES_SYNCED', () => {
+      setDeliveries(salesDataService.getDeliveriesSync());
+    });
+
     return () => {
       isMounted = false;
+      unsubOrderCreated();
+      unsubOrderSynced();
+      unsubPlanCreated();
+      unsubPlanSynced();
+      unsubDelivery();
     };
   }, []);
 

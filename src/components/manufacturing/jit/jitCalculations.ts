@@ -765,10 +765,10 @@ export function exportJitPlanToCsv(
     const row = [
       `"${req.categoryLabel}"`,
       `"${req.materialCode}"`,
-      `"${req.description.replace(/"/g, '""')}"`,
+      `"${(req.materialName || '').replace(/"/g, '""')}"`,
       req.requiredQty,
       `"${req.uom}"`,
-      `"${req.storeName}"`,
+      `"${req.storeLocation || ''}"`,
       req.availableStock,
       req.shortageQty,
       `"${req.feasibility}"`,

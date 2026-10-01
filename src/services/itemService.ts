@@ -1,6 +1,7 @@
 import { ItemMaster } from '../types';
 import { apiClient } from '../shared/api/client';
 import { adminEventBus } from './adminService';
+import { universalSyncManager } from './realtime/UniversalSyncManager';
 import { DOCUMENT_ITEM_MASTER_CATALOG } from '../data/masterItemsCatalog';
 
 const STORAGE_KEY = 'reboot_erp_item_master_catalog';
@@ -51,6 +52,24 @@ function saveLocalItems(items: ItemMaster[]) {
 class ItemService {
   private cache: ItemMaster[] = loadLocalItems();
 
+  constructor() {
+    if (typeof window !== 'undefined') {
+      adminEventBus.on('ITEMS_SYNCED', (event: any) => {
+        if (event?.data) {
+          const item = event.data;
+          const idx = this.cache.findIndex((i) => i.code === item.code);
+          if (idx >= 0) {
+            this.cache[idx] = { ...this.cache[idx], ...item };
+          } else {
+            this.cache.unshift(item);
+          }
+          saveLocalItems(this.cache);
+          adminEventBus.emit('ITEM_SAVED', item);
+        }
+      });
+    }
+  }
+
   public getItemsSync(): ItemMaster[] {
     if (!this.cache || this.cache.length === 0) {
       this.cache = loadLocalItems();
@@ -60,7 +79,7 @@ class ItemService {
 
   public async getItems(): Promise<ItemMaster[]> {
     try {
-      const res = await apiClient.get<any>('/api/items');
+      const res = await apiClient.get<any>('/items');
       if (res && res.data && Array.isArray(res.data.items) && res.data.items.length > 0) {
         this.cache = res.data.items.filter((i: ItemMaster) => !DUMMY_CODES.has(i.code));
         saveLocalItems(this.cache);
@@ -95,7 +114,7 @@ class ItemService {
 
     // Try backend API post
     try {
-      await apiClient.post('/api/items', enrichedItem);
+      await apiClient.post('/items', enrichedItem);
     } catch {
       // Continue with offline local store
     }
@@ -109,12 +128,13 @@ class ItemService {
 
     saveLocalItems(this.cache);
     adminEventBus.emit('ITEM_SAVED', enrichedItem);
+    universalSyncManager.broadcastMutation('ITEMS', 'INSERT', enrichedItem);
     return enrichedItem;
   }
 
   public async deleteItem(code: string): Promise<boolean> {
     try {
-      await apiClient.delete(`/api/items/${code}`);
+      await apiClient.delete(`/items/${code}`);
     } catch {
       // Offline fallback
     }
@@ -122,6 +142,7 @@ class ItemService {
     this.cache = this.cache.filter((i) => i.code !== code);
     saveLocalItems(this.cache);
     adminEventBus.emit('ITEM_DELETED', { code });
+    universalSyncManager.broadcastMutation('ITEMS', 'DELETE', { code });
     return true;
   }
 

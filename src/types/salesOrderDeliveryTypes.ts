@@ -6,7 +6,7 @@
 
 export type SalesOrderType = 'Daily Sales Order' | 'Monthly Plan Order' | 'Blanket/Contract Order';
 
-export type MonthlyPlanLinkType = 'Not Linked' | 'Manually Mapped' | 'Auto-Consumed';
+export type MonthlyPlanLinkType = 'Not Linked' | 'Manually Mapped' | 'Auto-Consumed' | 'Linked';
 
 export type MonthlyPlanStatus =
   | 'Draft'
@@ -40,14 +40,19 @@ export type DeliveryStatus =
   | 'Picked'
   | 'Packing'
   | 'Packed'
+  | 'Packaged'
+  | 'Challan Generated'
+  | 'E-Invoiced'
   | 'Compliance Pending'
   | 'Ready for Dispatch'
   | 'Gate Pass Created'
   | 'Gate Pass Issued'
   | 'Dispatched'
   | 'In Transit'
+  | 'In-Transit'
   | 'Delivered'
   | 'POD Received'
+  | 'Cancelled'
   | 'Closed';
 
 export type EInvoiceStatus =
@@ -63,6 +68,7 @@ export type EWayBillStatus =
   | 'Not Required'
   | 'Pending'
   | 'Generated'
+  | 'Active'
   | 'Vehicle Updated'
   | 'Expired'
   | 'Extended'
@@ -121,6 +127,9 @@ export interface MonthlyPlanOrder {
   variancePct: number;
   totalPlannedValue: number;
   notes?: string;
+  planNumber?: string;
+  plantWarehouse?: string;
+  monthYear?: string;
   auditTrail: Array<{ action: string; user: string; timestamp: string; note?: string }>;
 }
 
@@ -186,6 +195,7 @@ export interface PlasticSalesOrder {
   requiredDeliveryDate: string;
   monthlyPlanPeriod?: string;
   monthlyPlanRef?: string;
+  linkedMonthlyPlanId?: string;
   linkType: MonthlyPlanLinkType;
   salesperson: string;
   currency: string;
@@ -310,23 +320,26 @@ export interface FgPickList {
 }
 
 export interface DeliveryPackageItem {
-  packageId: string; // PKG-9001
+  packageId?: string; // PKG-9001
+  packageNumber?: string;
   palletId?: string; // PAL-101
-  itemCode: string;
-  itemName: string;
-  batchLot: string;
-  packedQty: number;
-  uom: string;
-  packageType: 'Corrugated Box' | 'Wooden Pallet' | 'Plastic Crate' | 'HDPE Bag';
-  grossWeightKg: number;
-  netWeightKg: number;
-  dimensionsCm: string; // e.g. "60x40x40"
-  labelStatus: 'Pending' | 'Printed' | 'Applied';
+  itemCode?: string;
+  itemName?: string;
+  batchLot?: string;
+  packedQty?: number;
+  itemCount?: number;
+  uom?: string;
+  packageType: 'Corrugated Box' | 'Wooden Pallet' | 'Plastic Crate' | 'HDPE Bag' | string;
+  grossWeightKg?: number;
+  netWeightKg?: number;
+  weightKg?: number;
+  dimensionsCm?: string; // e.g. "60x40x40"
+  labelStatus?: 'Pending' | 'Printed' | 'Applied';
   sealNumber?: string;
-  qrCode: string;
+  qrCode?: string;
   customerItemCode?: string;
-  mfgDate: string;
-  expiryDate: string;
+  mfgDate?: string;
+  expiryDate?: string;
   handlingInstructions?: string;
 }
 
@@ -343,6 +356,7 @@ export interface DeliveryNoteChallan {
   plant: string;
   fgStore: string;
   deliveryDate: string;
+  date?: string;
   dispatchDate?: string;
   status: DeliveryStatus;
   // Logistics
@@ -352,9 +366,12 @@ export interface DeliveryNoteChallan {
   vehicleNumber: string;
   driverName?: string;
   driverMobile?: string;
+  driverPhone?: string;
+  driverContact?: string;
   lrNumber: string;
   dispatchPoint: string;
   estimatedDistanceKm: number;
+  approxDistanceKm?: number;
   expectedDeparture: string;
   expectedArrival: string;
   actualDeparture?: string;
@@ -364,14 +381,20 @@ export interface DeliveryNoteChallan {
   invoiceDate?: string;
   invoiceValue: number;
   taxableValue: number;
+  taxableAmount?: number;
   cgstAmount: number;
+  cgstTotal?: number;
   sgstAmount: number;
+  sgstTotal?: number;
   igstAmount: number;
+  igstTotal?: number;
   eInvoiceStatus: EInvoiceStatus;
   irn?: string;
   ackNumber?: string;
+  ackNo?: string;
   ackDate?: string;
   eWayBillStatus: EWayBillStatus;
+  ewbStatus?: string;
   ewbNumber?: string;
   ewbDate?: string;
   ewbValidUntil?: string;
@@ -381,7 +404,9 @@ export interface DeliveryNoteChallan {
   gatePassStatus: GatePassStatus;
   sealNumber?: string;
   packageCount: number;
+  packagingType?: string;
   grossWeightKg: number;
+  tareWeightKg?: number;
   netWeightKg: number;
   // POD
   podStatus: 'Pending' | 'Received' | 'Disputed' | 'Rejected';
@@ -411,6 +436,9 @@ export interface DeliveryNoteChallan {
     taxRatePct: number;
     lineTotal: number;
     pickStatus: 'Pending' | 'Picked' | 'Shortage';
+    coaNumber?: string;
+    taxableValue?: number;
+    allocatedBatches?: any[];
   }>;
   packages: DeliveryPackageItem[];
   complianceBlockReason?: string;
@@ -418,62 +446,110 @@ export interface DeliveryNoteChallan {
 }
 
 export interface EInvoiceRecord {
+  id?: string;
+  deliveryId?: string;
   invoiceNumber: string;
-  deliveryNoteNumber: string;
-  salesOrderNumber: string;
-  customer: string;
-  customerGstin: string;
-  supplierGstin: string;
-  invoiceDate: string;
-  invoiceValue: number;
-  taxableValue: number;
-  placeOfSupply: string;
-  invoiceType: 'B2B' | 'B2G' | 'Export' | 'SEZ';
-  hsnCode: string;
-  cgst: number;
-  sgst: number;
-  igst: number;
-  cess: number;
+  deliveryNoteNumber?: string;
+  salesOrderNumber?: string;
+  customer?: string;
+  customerGstin?: string;
+  supplierGstin?: string;
+  invoiceDate?: string;
+  invoiceValue?: number;
+  totalValue?: number;
+  taxableValue?: number;
+  placeOfSupply?: string;
+  posState?: string;
+  posStateCode?: string;
+  invoiceType?: 'B2B' | 'B2G' | 'Export' | 'SEZ' | string;
+  hsnCode?: string;
+  cgst?: number;
+  cgstValue?: number;
+  sgst?: number;
+  sgstValue?: number;
+  igst?: number;
+  igstValue?: number;
+  cess?: number;
+  cessValue?: number;
   irn?: string;
   ackNumber?: string;
+  ackNo?: string;
   ackDate?: string;
-  status: EInvoiceStatus;
-  qrCodeUrl: string;
-  eWayBillLinked: boolean;
+  status?: EInvoiceStatus;
+  qrCodeUrl?: string;
+  eWayBillLinked?: boolean;
   errorCode?: string;
   errorMessage?: string;
   signedInvoiceJson?: string;
-  apiLogs: Array<{ timestamp: string; endpoint: string; status: number; message: string }>;
+  signedQrCode?: string;
+  nicSyncStatus?: string;
+  items?: any[];
+  apiLogs?: Array<{ timestamp: string; endpoint: string; status: number; message: string }>;
   overrideApprovedBy?: string;
   overrideReason?: string;
 }
 
 export interface EWayBillRecord {
+  id?: string;
   ewbNumber: string;
-  sourceDocument: 'Invoice' | 'Delivery Challan';
+  sourceDocument?: 'Invoice' | 'Delivery Challan';
   documentNumber: string;
-  customer: string;
-  customerGstin: string;
-  supplierGstin: string;
-  dispatchDate: string;
+  customer?: string;
+  customerGstin?: string;
+  fromGstin?: string;
+  fromLegalName?: string;
+  fromAddress?: string;
+  fromPlace?: string;
+  fromPincode?: string;
+  fromState?: string;
+  fromStateCode?: string;
+  toGstin?: string;
+  toLegalName?: string;
+  toAddress?: string;
+  toPlace?: string;
+  toPincode?: string;
+  toState?: string;
+  toStateCode?: string;
+  recipientGstin?: string;
+  supplierGstin?: string;
+  dispatchDate?: string;
+  generatedDate?: string;
   validUntil: string;
-  hoursRemaining: number;
-  transporterName: string;
-  transporterId: string;
-  vehicleNumber: string;
-  transportMode: 'Road' | 'Rail' | 'Air' | 'Ship';
-  distanceKm: number;
+  hoursRemaining?: number;
+  validityHoursRemaining?: number;
+  totalValue?: number;
+  taxableAmount?: number;
+  cgstAmount?: number;
+  sgstAmount?: number;
+  igstAmount?: number;
+  cessAmount?: number;
+  transporterName?: string;
+  transporterId?: string;
+  vehicleNumber?: string;
+  vehicleType?: string;
+  transportMode?: 'Road' | 'Rail' | 'Air' | 'Ship';
+  distanceKm?: number;
+  approxDistanceKm?: number;
   status: EWayBillStatus;
-  subSupplyType: 'Supply' | 'Export' | 'Job Work' | 'SKD/CKD' | 'Recipient Not Known' | 'For Own Use' | 'Others';
-  reasonForTransportation: 'Supply' | 'Export' | 'Job work' | 'Line Sale' | 'Recipient not known' | 'Fair/Exhibition';
-  dispatchFrom: string;
-  dispatchTo: string;
+  partA?: boolean;
+  partB?: boolean;
+  partBStatus?: string;
+  subSupplyType?: 'Supply' | 'Export' | 'Job Work' | 'SKD/CKD' | 'Recipient Not Known' | 'For Own Use' | 'Others' | string;
+  supplyType?: string;
+  reasonForTransportation?: 'Supply' | 'Export' | 'Job work' | 'Line Sale' | 'Recipient not known' | 'Fair/Exhibition' | string;
+  dispatchFrom?: string;
+  dispatchTo?: string;
   driverName?: string;
   driverMobile?: string;
   lrNumber?: string;
-  qrCodeUrl: string;
-  vehicleHistory: Array<{ vehicleNumber: string; fromPlace: string; updatedOn: string; user: string; reason: string }>;
-  isConsolidated: boolean;
+  ewbDate?: string;
+  documentDate?: string;
+  documentType?: string;
+  qrCodeUrl?: string;
+  qrCodeData?: string;
+  items?: any[];
+  vehicleHistory?: Array<{ vehicleNumber: string; fromPlace: string; updatedOn: string; user: string; reason: string }>;
+  isConsolidated?: boolean;
   consolidatedEwbNumber?: string;
 }
 
@@ -499,32 +575,50 @@ export interface ConsolidatedEwbRecord {
 
 export interface GatePassRecord {
   id?: string;
+  deliveryId?: string;
+  deliveryNumber?: string;
+  invoiceNumber?: string;
+  salesOrderId?: string;
+  customer?: string;
+  customerName?: string;
+  plant?: string;
+  invoiceValue?: number;
+  tareWeightKg?: number;
+  netWeightKg?: number;
+  driverLicenseNumber?: string;
   gatePassNumber: string;
-  deliveryNoteNumber: string;
+  deliveryNoteNumber?: string;
   deliveryNoteId?: string;
   invoiceOrChallanNumber?: string;
   vehicleNumber: string;
   driverName: string;
   driverMobile?: string;
   driverPhone?: string;
+  driverContact?: string;
   transporter?: string;
   transporterName?: string;
   gateNumber?: string;
   ewbNumber?: string;
-  lrNumber: string;
-  sealNumber: string;
-  packageCount: number;
+  lrNumber?: string;
+  sealNumber?: string;
+  packageCount?: number;
   totalPackages?: number;
-  grossWeightKg: number;
+  grossWeightKg?: number;
+  packagingType?: string;
+  securityOfficerName?: string;
+  qrCodeData?: string;
+  notes?: string;
+  issueDate?: string;
   departureTime?: string;
   securityVerifiedBy?: string;
   dispatchApprovedBy?: string;
-  status: GatePassStatus;
+  status?: GatePassStatus;
   securityCheckStatus?: 'Pending' | 'Cleared' | 'Security Hold' | string;
-  vehiclePhotoCaptured: boolean;
-  sealPhotoCaptured: boolean;
-  ewbQrScanned: boolean;
-  eInvoiceQrVerified: boolean;
+  vehiclePhotoCaptured?: boolean;
+  sealPhotoCaptured?: boolean;
+  vehicleInspection?: any;
+  ewbQrScanned?: boolean;
+  eInvoiceQrVerified?: boolean;
   remarks?: string;
   gateOutTimestamp?: string;
   holdReason?: string;
@@ -534,6 +628,12 @@ export interface ComplianceExceptionRecord {
   id: string; // EXC-7001
   deliveryOrInvoice: string;
   customer: string;
+  entityName?: string;
+  category?: string;
+  documentNumber?: string;
+  description?: string;
+  penaltyRisk?: number;
+  suggestedResolution?: string;
   exceptionType:
     | 'E-invoice pending'
     | 'E-invoice failed'
@@ -549,12 +649,13 @@ export interface ComplianceExceptionRecord {
     | 'Invoice value threshold mismatch'
     | 'Gate pass missing'
     | 'Dispatch without compliance'
-    | 'API integration failure';
+    | 'API integration failure'
+    | string;
   errorCode: string;
   errorMessage: string;
-  severity: 'Critical' | 'Warning' | 'Informational';
+  severity: 'Critical' | 'Warning' | 'Informational' | string;
   detectedDate: string;
   assignedTo: string;
-  status: 'Open' | 'In Review' | 'Resolved' | 'Overridden';
+  status: 'Open' | 'In Review' | 'Resolved' | 'Overridden' | string;
   auditLog: Array<{ action: string; timestamp: string; user: string; note: string }>;
 }

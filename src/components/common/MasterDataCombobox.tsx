@@ -15,6 +15,8 @@ export interface MasterDataComboboxProps {
   isAutoFilled?: boolean;
   icon?: React.ReactNode;
   allowCustom?: boolean;
+  entityLabel?: string;
+  onSaveCustomOption?: (newVal: any) => void;
 }
 
 export const MasterDataCombobox: React.FC<MasterDataComboboxProps> = ({
@@ -23,6 +25,8 @@ export const MasterDataCombobox: React.FC<MasterDataComboboxProps> = ({
   onChange,
   options = [],
   onAddNew,
+  entityLabel,
+  onSaveCustomOption,
   placeholder = 'Select or type to search...',
   required = false,
   disabled = false,

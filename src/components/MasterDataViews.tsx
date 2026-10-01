@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   ItemMaster,
   BomMaster,
+  BomLine,
   MachineMaster,
   ApprovalStatus,
   ItemType,
@@ -55,6 +56,10 @@ import {
   Boxes,
   MoreVertical,
   MoreHorizontal,
+  Fingerprint,
+  FlaskConical,
+  Palette,
+  Package,
 } from 'lucide-react';
 import { PaginationBar } from './common/PaginationBar';
 import { CreateItemWizardModal } from './masterdata/CreateItemWizardModal';
@@ -81,7 +86,7 @@ interface MasterDataProps {
   currentUser?: AuthUser | null;
   selectedCode?: string;
   selectedId?: string;
-  onNavigate: (view: string, code?: string, id?: string) => void;
+  onNavigate: (view: string, param?: any, isNavTraversing?: boolean | string) => void;
   onUpdateItem: (item: ItemMaster) => void;
   onDeleteItem: (code: string) => void;
   onCreateItem: (item: ItemMaster) => void;
@@ -1872,7 +1877,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                           className={`hover:bg-[#F0F6FF] transition-colors cursor-pointer group ${
                             isSelected ? 'bg-teal-50/40' : ''
                           }`}
-                          onClick={() => onNavigate('itemDetail', { code: item.code })}
+                          onClick={() => onNavigate('itemDetail', item.code)}
                           title="Click to view detailed item master info, tooling specs, BOM usage & documents"
                         >
                           <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
@@ -3089,7 +3094,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                         {itemBoms.map((b) => (
                           <tr
                             key={b.id}
-                            onClick={() => onNavigate('bomDetail', { id: b.id })}
+                            onClick={() => onNavigate('bomDetail', b.id)}
                             className="hover:bg-gray-50 cursor-pointer"
                           >
                             <td className="py-2.5 px-3 font-mono font-bold text-[#0F8B8D]">{b.id}</td>
@@ -3103,7 +3108,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                             <td className="py-2.5 px-3 text-right" onClick={(e) => e.stopPropagation()}>
                               <button
                                 type="button"
-                                onClick={() => onNavigate('bomDetail', { id: b.id })}
+                                onClick={() => onNavigate('bomDetail', b.id)}
                                 className="text-xs text-[#0F8B8D] font-bold hover:underline"
                               >
                                 Open Details
@@ -3361,7 +3366,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   showToast('Admin permission required to create/modify Manufacturing BOMs.');
                   return;
                 }
-                const defaultParent = items.find((i) => i.type === 'Finished Goods' || i.type === 'Finished Good') || (items.length > 0 ? items[0] : null);
+                const defaultParent = items.find((i) => (i.type as string) === 'Finished Goods' || i.type === 'Finished Good') || (items.length > 0 ? items[0] : null);
                 if (defaultParent) {
                   handleOpenMfgBomWizard(defaultParent);
                 } else {
@@ -3403,7 +3408,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                 boms.map((b) => {
                   const totalCost = (b.lines || []).reduce((s, l) => s + (l.cost || 0), 0);
                   return (
-                    <tr key={b.id} onClick={() => onNavigate('bomDetail', { id: b.id })}>
+                    <tr key={b.id} onClick={() => onNavigate('bomDetail', b.id)}>
                       <td><span className="cell-code">{b.id}</span></td>
                       <td className="cell-name"><b>{b.parentName}</b><div className="cell-sub">{b.parent}</div></td>
                       <td>{b.version}</td>
@@ -3660,7 +3665,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                         return (
                           <tr
                             key={idx}
-                            onClick={() => onNavigate('itemDetail', { code: line.item })}
+                            onClick={() => onNavigate('itemDetail', line.item)}
                             className={`hover:bg-gray-50 cursor-pointer ${isAux ? 'bg-amber-50/20' : ''}`}
                           >
                             <td className="py-2.5 px-3">
@@ -3940,7 +3945,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
             setBomWizardParentItem(null);
           }}
           showToast={showToast}
-          onViewBomDetails={(b) => onNavigate('bomDetail', { id: b.id })}
+          onViewBomDetails={(b) => onNavigate('bomDetail', b.id)}
         />
       )}
 

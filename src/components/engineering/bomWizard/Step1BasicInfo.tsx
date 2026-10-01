@@ -202,7 +202,7 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
     setPlantList(masterDataGovernanceService.getPlants());
     onChange({ plantId: saved.code });
     setIsNewPlantModalOpen(false);
-    setNewPlantForm({ code: '', name: '', location: '' });
+    setNewPlantForm({ code: '', name: '', location: '', type: 'Injection & Extrusion' });
     showToast(`✓ Registered Plant "${saved.name}" in Master Governance!`);
   };
 
@@ -215,12 +215,13 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
     }
     const saved = masterDataGovernanceService.saveOwner({
       name: newOwnerForm.name.trim(),
-      leadPerson: newOwnerForm.leadPerson,
+      department: newOwnerForm.department,
+      role: newOwnerForm.role,
     });
     setOwnerList(masterDataGovernanceService.getOwners());
     onChange({ owner: saved.name });
     setIsNewOwnerModalOpen(false);
-    setNewOwnerForm({ name: '', leadPerson: '' });
+    setNewOwnerForm({ name: '', department: 'Engineering & Tooling', role: 'BOM Design Authority' });
     showToast(`✓ Registered Owner "${saved.name}" in Master Governance!`);
   };
 

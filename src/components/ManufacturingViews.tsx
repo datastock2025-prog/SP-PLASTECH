@@ -251,8 +251,9 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
         const next = [...prev];
         next[idx] = {
           ...existing,
-          currentBalance: existing.currentBalance + goodQty,
-          availableBalance: existing.availableBalance + goodQty,
+          currentBalance: (existing.currentBalance ?? existing.stockQty ?? 0) + goodQty,
+          availableBalance: (existing.availableBalance ?? existing.stockQty ?? 0) + goodQty,
+          stockQty: (existing.stockQty ?? 0) + goodQty,
           lastMovementDate: 'Today',
         };
         return next;

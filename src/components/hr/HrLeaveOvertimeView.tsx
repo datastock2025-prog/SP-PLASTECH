@@ -104,7 +104,7 @@ export const HrLeaveOvertimeView: React.FC<HrLeaveOvertimeViewProps> = ({
                 activeTab === 'leaves' ? 'bg-white text-[#14213D] shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Leave Requests ({leaves.filter((l) => l.status === 'Pending').length} Pending)
+              Leave Requests ({leaves.filter((l) => (l.status as string) === 'Pending' || l.status === 'Pending Approval').length} Pending)
             </button>
             <button
               onClick={() => setActiveTab('overtime')}
@@ -112,7 +112,7 @@ export const HrLeaveOvertimeView: React.FC<HrLeaveOvertimeViewProps> = ({
                 activeTab === 'overtime' ? 'bg-white text-[#14213D] shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Overtime Pre-Authorization ({overtime.filter((o) => o.status === 'Pending').length} Pending)
+              Overtime Pre-Authorization ({overtime.filter((o) => (o.status as string) === 'Pending' || o.status === 'Pending Approval').length} Pending)
             </button>
           </div>
 
@@ -201,7 +201,7 @@ export const HrLeaveOvertimeView: React.FC<HrLeaveOvertimeViewProps> = ({
                         className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                           l.status === 'Approved'
                             ? 'bg-emerald-100 text-emerald-800'
-                            : l.status === 'Pending'
+                            : (l.status as string) === 'Pending' || l.status === 'Pending Approval'
                             ? 'bg-amber-100 text-amber-800'
                             : 'bg-rose-100 text-rose-800'
                         }`}
@@ -210,7 +210,7 @@ export const HrLeaveOvertimeView: React.FC<HrLeaveOvertimeViewProps> = ({
                       </span>
                     </td>
                     <td className="p-3 text-right">
-                      {l.status === 'Pending' ? (
+                      {(l.status as string) === 'Pending' || l.status === 'Pending Approval' ? (
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => onApproveLeave(l.id)}
@@ -266,7 +266,7 @@ export const HrLeaveOvertimeView: React.FC<HrLeaveOvertimeViewProps> = ({
                     <td className="p-3 font-bold text-blue-700">{o.hours} Hours</td>
                     <td className="p-3">
                       <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 font-mono font-bold rounded">
-                        {o.rateMultiplier}x Basic
+                        {(o as any).rateMultiplier || '2.0'}x Basic
                       </span>
                     </td>
                     <td className="p-3 text-slate-600 max-w-[260px] truncate" title={o.reason}>
@@ -277,7 +277,7 @@ export const HrLeaveOvertimeView: React.FC<HrLeaveOvertimeViewProps> = ({
                         className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                           o.status === 'Approved'
                             ? 'bg-emerald-100 text-emerald-800'
-                            : o.status === 'Pending'
+                            : (o.status as string) === 'Pending' || o.status === 'Pending Approval'
                             ? 'bg-amber-100 text-amber-800'
                             : 'bg-rose-100 text-rose-800'
                         }`}
@@ -286,7 +286,7 @@ export const HrLeaveOvertimeView: React.FC<HrLeaveOvertimeViewProps> = ({
                       </span>
                     </td>
                     <td className="p-3 text-right">
-                      {o.status === 'Pending' ? (
+                      {(o.status as string) === 'Pending' || o.status === 'Pending Approval' ? (
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => onApproveOvertime(o.id)}

@@ -196,6 +196,10 @@ export interface SupplierMaster {
   openPOValue: number;
   outstandingBalance: number;
   lastPurchaseDate?: string;
+  totalSpendYtd?: number;
+  certifications?: string[];
+  riskScore?: number;
+  creditLimit?: number;
   contacts: SupplierContact[];
   addresses: SupplierAddress[];
   bankingTax: SupplierBankTax;
@@ -225,7 +229,7 @@ export interface SupplierMaster {
 // 2. PURCHASE REQUISITIONS (PR)
 // ----------------------------------------------------
 export type PrStatus = 'draft' | 'pending_approval' | 'approved' | 'rejected' | 'converted_rfq' | 'converted_po' | 'on_hold' | 'cancelled';
-export type PrSource = 'Manual' | 'MRP' | 'Production Work Order' | 'Warehouse Reorder' | 'Maintenance Job' | 'Project Requirement';
+export type PrSource = 'Manual' | 'MRP' | 'Production Work Order' | 'Warehouse Reorder' | 'Maintenance Job' | 'Project Requirement' | 'Monthly Plan Order';
 
 export interface PurchaseRequisitionLine {
   id: string;
@@ -333,6 +337,7 @@ export interface RequestForQuotation {
   status: RfqStatus;
   submissionInstructions: string;
   lines: RfqLineItem[];
+  items?: RfqLineItem[];
   invitedSuppliers: RfqSupplierInvite[];
   responsesCount: number;
   awardedSupplierId?: string;
@@ -440,8 +445,14 @@ export interface ExtendedPurchaseOrder {
   poNumber: string;
   supplierId: string;
   supplierName: string;
+  vendorName?: string;
   supplierCode: string;
+  supplierGstin?: string;
+  receivingWarehouse?: string;
+  incoterms?: string;
   buyer: string;
+  buyerName?: string;
+  items?: any[];
   plantWarehouse: string;
   poDate: string;
   expectedDeliveryDate: string;

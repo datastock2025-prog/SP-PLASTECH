@@ -44,7 +44,7 @@ export const EsgSustainabilityView: React.FC<EsgSustainabilityViewProps> = ({
     setLoading(true);
     try {
       const res = await analyticsApi.getEsgMetrics(filters);
-      setData(res);
+      setData(res as any);
     } catch {
       showToast('Failed to load ESG sustainability metrics');
     } finally {

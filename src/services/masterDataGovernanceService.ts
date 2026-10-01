@@ -570,15 +570,15 @@ class MasterDataGovernanceService {
   // ==========================================
   // Task 5: Routing Operations, Work Centers, Machines & Molds
   // ==========================================
-  public getOperations(): Array<{ id: string; name: string; type: string; defaultWorkCenter?: string }> {
+  public getOperations(): Array<{ id: string; name: string; type: string; category?: string; defaultWorkCenter?: string; defaultSetupMin?: number; defaultCycleSec?: number }> {
     const defaultOps = [
-      { id: 'OP-01', name: 'High-Speed Injection Molding & Degating', type: 'Primary Molding', defaultWorkCenter: 'WC-INJ-01' },
-      { id: 'OP-02', name: 'Laser Part Marking & 2D Barcoding', type: 'Decoration / Marking', defaultWorkCenter: 'WC-LASER-01' },
-      { id: 'OP-03', name: 'Automated Robotic Degating & Trimming', type: 'Post-Molding', defaultWorkCenter: 'WC-TRIM-01' },
-      { id: 'OP-04', name: 'Ultrasonic Horn Welding & Fastening', type: 'Assembly', defaultWorkCenter: 'WC-ASSY-01' },
-      { id: 'OP-05', name: 'Hot Foil Stamping & Pad Printing', type: 'Printing & Decoration', defaultWorkCenter: 'WC-PRINT-01' },
-      { id: 'OP-06', name: 'In-Line Vision Inspection & Defect Check', type: 'Quality Gate', defaultWorkCenter: 'WC-QC-01' },
-      { id: 'OP-07', name: 'Corrugated Case Packout & Palletizing', type: 'Final Packaging', defaultWorkCenter: 'WC-PACK-01' },
+      { id: 'OP-01', name: 'High-Speed Injection Molding & Degating', type: 'Primary Molding', category: 'Primary Molding', defaultWorkCenter: 'WC-INJ-01', defaultSetupMin: 45, defaultCycleSec: 25 },
+      { id: 'OP-02', name: 'Laser Part Marking & 2D Barcoding', type: 'Decoration / Marking', category: 'Decoration / Marking', defaultWorkCenter: 'WC-LASER-01', defaultSetupMin: 15, defaultCycleSec: 5 },
+      { id: 'OP-03', name: 'Automated Robotic Degating & Trimming', type: 'Post-Molding', category: 'Post-Molding', defaultWorkCenter: 'WC-TRIM-01', defaultSetupMin: 20, defaultCycleSec: 8 },
+      { id: 'OP-04', name: 'Ultrasonic Horn Welding & Fastening', type: 'Assembly', category: 'Assembly', defaultWorkCenter: 'WC-ASSY-01', defaultSetupMin: 20, defaultCycleSec: 12 },
+      { id: 'OP-05', name: 'Hot Foil Stamping & Pad Printing', type: 'Printing & Decoration', category: 'Printing & Decoration', defaultWorkCenter: 'WC-PRINT-01', defaultSetupMin: 30, defaultCycleSec: 6 },
+      { id: 'OP-06', name: 'In-Line Vision Inspection & Defect Check', type: 'Quality Gate', category: 'Quality Gate', defaultWorkCenter: 'WC-QC-01', defaultSetupMin: 5, defaultCycleSec: 3 },
+      { id: 'OP-07', name: 'Corrugated Case Packout & Palletizing', type: 'Final Packaging', category: 'Final Packaging', defaultWorkCenter: 'WC-PACK-01', defaultSetupMin: 10, defaultCycleSec: 5 },
     ];
     try {
       const raw = localStorage.getItem('reboot_erp_master_operations');
@@ -599,13 +599,16 @@ class MasterDataGovernanceService {
     return defaultOps;
   }
 
-  public saveOperation(op: { name: string; type?: string; defaultWorkCenter?: string }) {
+  public saveOperation(op: { name: string; type?: string; category?: string; defaultWorkCenter?: string; defaultSetupMin?: number; defaultCycleSec?: number }) {
     const list = this.getOperations();
     const newRecord = {
       id: `OP-${Date.now().toString().slice(-4)}`,
       name: op.name.trim(),
-      type: op.type || 'Secondary Operation',
+      type: op.type || op.category || 'Secondary Operation',
+      category: op.category || op.type || 'Secondary Operation',
       defaultWorkCenter: op.defaultWorkCenter || 'WC-INJ-01',
+      defaultSetupMin: op.defaultSetupMin ?? 30,
+      defaultCycleSec: op.defaultCycleSec ?? 15,
     };
 
     const idx = list.findIndex(o => o.name.toLowerCase() === newRecord.name.toLowerCase());
@@ -625,14 +628,14 @@ class MasterDataGovernanceService {
     return newRecord;
   }
 
-  public getWorkCenters(): Array<{ id: string; code: string; name: string; bay: string; plantId: string }> {
+  public getWorkCenters(): Array<{ id: string; code: string; name: string; bay: string; plantId: string; plant?: string; ratePerHour?: number }> {
     const defaultWorkCenters = [
-      { id: 'WC-INJ-01', code: 'WC-INJ-01', name: 'WC-INJ-01 - 250T Injection Bay', bay: 'Bay 1 (Presses 1-6)', plantId: 'PLANT-01' },
-      { id: 'WC-INJ-02', code: 'WC-INJ-02', name: 'WC-INJ-02 - 450T Heavy Tonnage Bay', bay: 'Bay 2 (Presses 7-12)', plantId: 'PLANT-01' },
-      { id: 'WC-EXT-01', code: 'WC-EXT-01', name: 'WC-EXT-01 - Pipe & Profile Extrusion Line', bay: 'Extrusion Hall A', plantId: 'PLANT-02' },
-      { id: 'WC-BLOW-01', code: 'WC-BLOW-01', name: 'WC-BLOW-01 - Continuous Extrusion Blow Bay', bay: 'Blow Molding Hall', plantId: 'PLANT-02' },
-      { id: 'WC-ASSY-01', code: 'WC-ASSY-01', name: 'WC-ASSY-01 - Cleanroom Ultrasonic Cell', bay: 'Class 100k Cleanroom', plantId: 'PLANT-01' },
-      { id: 'WC-PACK-01', code: 'WC-PACK-01', name: 'WC-PACK-01 - Automated Case Packing Line', bay: 'End-of-Line Packaging', plantId: 'PLANT-01' },
+      { id: 'WC-INJ-01', code: 'WC-INJ-01', name: 'WC-INJ-01 - 250T Injection Bay', bay: 'Bay 1 (Presses 1-6)', plantId: 'PLANT-01', plant: 'PLANT-01', ratePerHour: 65 },
+      { id: 'WC-INJ-02', code: 'WC-INJ-02', name: 'WC-INJ-02 - 450T Heavy Tonnage Bay', bay: 'Bay 2 (Presses 7-12)', plantId: 'PLANT-01', plant: 'PLANT-01', ratePerHour: 85 },
+      { id: 'WC-EXT-01', code: 'WC-EXT-01', name: 'WC-EXT-01 - Pipe & Profile Extrusion Line', bay: 'Extrusion Hall A', plantId: 'PLANT-02', plant: 'PLANT-02', ratePerHour: 75 },
+      { id: 'WC-BLOW-01', code: 'WC-BLOW-01', name: 'WC-BLOW-01 - Continuous Extrusion Blow Bay', bay: 'Blow Molding Hall', plantId: 'PLANT-02', plant: 'PLANT-02', ratePerHour: 70 },
+      { id: 'WC-ASSY-01', code: 'WC-ASSY-01', name: 'WC-ASSY-01 - Cleanroom Ultrasonic Cell', bay: 'Class 100k Cleanroom', plantId: 'PLANT-01', plant: 'PLANT-01', ratePerHour: 55 },
+      { id: 'WC-PACK-01', code: 'WC-PACK-01', name: 'WC-PACK-01 - Automated Case Packing Line', bay: 'End-of-Line Packaging', plantId: 'PLANT-01', plant: 'PLANT-01', ratePerHour: 45 },
     ];
     try {
       const raw = localStorage.getItem('reboot_erp_master_workcenters');
@@ -653,14 +656,17 @@ class MasterDataGovernanceService {
     return defaultWorkCenters;
   }
 
-  public saveWorkCenter(wc: { code: string; name: string; bay?: string; plantId?: string }) {
+  public saveWorkCenter(wc: { code: string; name: string; bay?: string; plant?: string; plantId?: string; ratePerHour?: number }) {
     const list = this.getWorkCenters();
+    const resolvedPlant = wc.plantId || wc.plant || 'PLANT-01';
     const newRecord = {
       id: wc.code.trim().toUpperCase(),
       code: wc.code.trim().toUpperCase(),
       name: wc.name.trim(),
       bay: wc.bay || 'Production Bay',
-      plantId: wc.plantId || 'PLANT-01',
+      plantId: resolvedPlant,
+      plant: resolvedPlant,
+      ratePerHour: wc.ratePerHour ?? 65,
     };
 
     const idx = list.findIndex(w => w.code.toLowerCase() === newRecord.code.toLowerCase());

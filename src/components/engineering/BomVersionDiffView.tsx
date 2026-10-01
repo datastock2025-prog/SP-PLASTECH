@@ -624,6 +624,7 @@ export const BomVersionDiffView: React.FC<BomVersionDiffViewProps> = ({
         name: it.name,
         category: it.type || it.cat || 'Item',
         inDiff: false,
+        diffChangeType: undefined as string | undefined,
         uom: it.baseUOM || 'KG',
       }));
 

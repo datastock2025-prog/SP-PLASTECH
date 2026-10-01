@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { adminEventBus } from './adminService';
+import { universalSyncManager } from './realtime/UniversalSyncManager';
 import {
   ItemMaster,
   BomMaster,
@@ -101,7 +103,7 @@ class LiveDataStore {
       const overallOeePct = Number(((availabilityPct * performancePct * qualityPct) / 10000).toFixed(2));
       const hourlyOutputRate = Number((payload.actualCycleTimeSec > 0 ? (3600 / payload.actualCycleTimeSec) * payload.cavities : 0).toFixed(0));
 
-      return {
+      const result: ProductionEntryResult = {
         success: true,
         workOrder: {
           id: payload.workOrderId,
@@ -119,6 +121,10 @@ class LiveDataStore {
         materialConsumedKg: Number((totalProduced * 0.035).toFixed(2)),
         hourlyOutputRate,
       };
+
+      adminEventBus.emit('PRODUCTION_LOGGED', result);
+      universalSyncManager.broadcastMutation('WORK_ORDERS', 'UPDATE', result.workOrder);
+      return result;
     }
   }
 
@@ -153,7 +159,8 @@ class LiveDataStore {
   public async getItems(): Promise<ItemMaster[]> {
     try {
       const res = await this.api.get('/items');
-      return res.data?.data || res.data || [];
+      const data = res.data?.data || res.data;
+      return Array.isArray(data) ? data : [];
     } catch {
       return [];
     }
@@ -162,8 +169,13 @@ class LiveDataStore {
   public async updateItem(item: ItemMaster): Promise<ItemMaster> {
     try {
       const res = await this.api.put(`/items/${item.code}`, item);
-      return res.data?.data || item;
+      const updated = res.data?.data || item;
+      adminEventBus.emit('ITEM_SAVED', updated);
+      universalSyncManager.broadcastMutation('ITEMS', 'UPDATE', updated);
+      return updated;
     } catch {
+      adminEventBus.emit('ITEM_SAVED', item);
+      universalSyncManager.broadcastMutation('ITEMS', 'UPDATE', item);
       return item;
     }
   }
@@ -174,7 +186,8 @@ class LiveDataStore {
   public async getWorkOrders(): Promise<WorkOrder[]> {
     try {
       const res = await this.api.get('/work-orders');
-      return res.data?.data || res.data || [];
+      const data = res.data?.data || res.data;
+      return Array.isArray(data) ? data : [];
     } catch {
       return [];
     }
@@ -183,8 +196,13 @@ class LiveDataStore {
   public async saveWorkOrder(wo: WorkOrder): Promise<WorkOrder> {
     try {
       const res = await this.api.post('/work-orders', wo);
-      return res.data?.data || wo;
+      const saved = res.data?.data || wo;
+      adminEventBus.emit('WORK_ORDER_SAVED', saved);
+      universalSyncManager.broadcastMutation('WORK_ORDERS', 'INSERT', saved);
+      return saved;
     } catch {
+      adminEventBus.emit('WORK_ORDER_SAVED', wo);
+      universalSyncManager.broadcastMutation('WORK_ORDERS', 'INSERT', wo);
       return wo;
     }
   }
@@ -195,7 +213,8 @@ class LiveDataStore {
   public async getPurchaseOrders(): Promise<PurchaseOrder[]> {
     try {
       const res = await this.api.get('/purchase-orders');
-      return res.data?.data || res.data || [];
+      const data = res.data?.data || res.data;
+      return Array.isArray(data) ? data : [];
     } catch {
       return [];
     }
@@ -207,7 +226,8 @@ class LiveDataStore {
   public async getSalesOrders(): Promise<SalesOrder[]> {
     try {
       const res = await this.api.get('/sales-orders');
-      return res.data?.data || res.data || [];
+      const data = res.data?.data || res.data;
+      return Array.isArray(data) ? data : [];
     } catch {
       return [];
     }
@@ -219,7 +239,8 @@ class LiveDataStore {
   public async getAccounts(): Promise<Account[]> {
     try {
       const res = await this.api.get('/finance/accounts');
-      return res.data?.data || res.data || [];
+      const data = res.data?.data || res.data;
+      return Array.isArray(data) ? data : [];
     } catch {
       return [];
     }
@@ -228,7 +249,8 @@ class LiveDataStore {
   public async getJournalEntries(): Promise<JournalEntry[]> {
     try {
       const res = await this.api.get('/finance/journal-entries');
-      return res.data?.data || res.data || [];
+      const data = res.data?.data || res.data;
+      return Array.isArray(data) ? data : [];
     } catch {
       return [];
     }

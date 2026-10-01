@@ -88,22 +88,22 @@ export const SupplierRiskComplianceView: React.FC<Props> = ({
                 <td className="py-3 px-4 text-slate-600">{sup.category}</td>
                 <td className="py-3 px-4">
                   <div className="flex flex-wrap gap-1">
-                    {(sup.certifications || []).map((c, i) => (
+                    {(sup.certifications || []).map((c: any, i) => (
                       <span key={i} className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-semibold border border-emerald-200">
-                        {c.name} (Exp: {c.expiryDate})
+                        {typeof c === 'string' ? c : `${c.name || 'Cert'} (Exp: ${c.expiryDate || '2028'})`}
                       </span>
                     ))}
                   </div>
                 </td>
                 <td className="py-3 px-4">
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                    sup.riskScore === 'Low'
+                    (sup.riskLevel || sup.riskScore) === 'Low' || (sup.riskScore as any) === 1
                       ? 'bg-emerald-100 text-emerald-800'
-                      : sup.riskScore === 'Medium'
+                      : (sup.riskLevel || sup.riskScore) === 'Medium' || (sup.riskScore as any) === 2
                       ? 'bg-amber-100 text-amber-800'
                       : 'bg-red-100 text-red-800'
                   }`}>
-                    {sup.riskScore || 'Low'} Risk
+                    {sup.riskLevel || (typeof sup.riskScore === 'string' ? sup.riskScore : 'Low')} Risk
                   </span>
                 </td>
                 <td className="py-3 px-4 text-right font-mono font-bold text-[#14213D]">

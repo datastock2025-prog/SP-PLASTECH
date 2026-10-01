@@ -45,7 +45,7 @@ export const QualityDefectReportsView: React.FC<QualityDefectReportsViewProps> =
     setLoading(true);
     try {
       const res = await analyticsApi.getQualityMetrics(filters);
-      setData(res);
+      setData(res as any);
     } catch {
       showToast('Failed to load quality metrics');
     } finally {

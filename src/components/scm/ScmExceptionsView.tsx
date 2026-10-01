@@ -142,9 +142,9 @@ export const ScmExceptionsView: React.FC<ScmExceptionsViewProps> = ({ onNavigate
                   </div>
                   <span
                     className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      ex.severity === 'Critical'
+                      (ex.severity as string) === 'Critical' || ex.severity === 'High'
                         ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                        : ex.severity === 'Major'
+                        : ex.severity === 'Medium' || (ex.severity as string) === 'Major'
                         ? 'bg-amber-100 text-amber-800 border border-amber-300'
                         : 'bg-blue-100 text-blue-800'
                     }`}

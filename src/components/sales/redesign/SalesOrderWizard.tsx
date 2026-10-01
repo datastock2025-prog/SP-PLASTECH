@@ -134,7 +134,7 @@ export const SalesOrderWizard: React.FC<SalesOrderWizardProps> = ({
   const getLiveStockForProduct = (itemCode: string, plantName?: string, storeName?: string) => {
     // 1. Check matching batches in INITIAL_FG_BATCHES
     const matchingBatches = INITIAL_FG_BATCHES.filter((b) => {
-      const codeMatch = b.itemCode === itemCode || (b.productName && b.productName.toLowerCase().includes(itemCode.toLowerCase()));
+      const codeMatch = b.itemCode === itemCode || ((b as any).productName && (b as any).productName.toLowerCase().includes(itemCode.toLowerCase())) || b.itemName?.toLowerCase().includes(itemCode.toLowerCase());
       const plantMatch = !plantName || !b.plant || b.plant.includes(plantName.split(' - ')[0]) || b.plant === plantName;
       const storeMatch = !storeName || !b.fgStore || b.fgStore === storeName;
       return codeMatch && (plantMatch || storeMatch);
@@ -970,7 +970,7 @@ export const SalesOrderWizard: React.FC<SalesOrderWizardProps> = ({
       deliveredValue: 0,
       invoicedValue: 0,
       remainingValue: totalOrderVal,
-      transportMode,
+      transportMode: (transportMode as 'Road' | 'Rail' | 'Air' | 'Ship') || 'Road',
       transporterName,
       transporterGstin,
       vehicleNumber,
@@ -2458,12 +2458,14 @@ export const SalesOrderWizard: React.FC<SalesOrderWizardProps> = ({
       {/* 5-Step Customer Onboarding Wizard Modal */}
       {isOnboardingWizardOpen && (
         <CustomerOnboardingWizardModal
+          isOpen={isOnboardingWizardOpen}
           onClose={() => setIsOnboardingWizardOpen(false)}
-          onSuccess={(newCust) => {
+          onCustomerSaved={(newCust) => {
             handleSelectCustomer(newCust);
             setIsOnboardingWizardOpen(false);
             showToast(`✓ Customer ${newCust.name} (${newCust.code}) onboarded successfully!`);
           }}
+          showToast={showToast}
         />
       )}
     </div>

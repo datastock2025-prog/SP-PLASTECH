@@ -74,19 +74,19 @@ export const StockLedgerTab: React.FC<Props> = ({
       id: m.id,
       movementId: m.id,
       timestamp: m.timestamp || new Date().toISOString(),
-      itemCode: m.itemSku || '',
+      itemCode: m.sku || (m as any).itemSku || '',
       itemName: m.itemName || '',
       batchLot: m.lotNumber || '—',
-      movementType: (m.movementType === 'RECEIPT_GRN' ? 'GRN Inward' : m.movementType === 'ISSUE_PROD' ? 'Production Issue' : m.movementType) as any,
+      movementType: m.movementType === 'IN' ? 'GRN Inward' : 'Production Issue',
       quantity: m.quantity || 0,
       uom: m.uom || 'PCS',
-      fromStore: m.fromLocation || 'Vendor Dock',
-      toStore: m.toLocation || 'WH-01',
-      sourceDocument: m.referenceDoc || 'GRN',
-      sourceDocType: 'GRN',
+      fromStore: (m as any).fromLocation || m.location || 'Vendor Dock',
+      toStore: (m as any).toLocation || m.location || 'WH-01',
+      sourceDocument: (m as any).referenceDoc || m.docNumber || 'GRN',
+      sourceDocType: m.docType || 'GRN',
       impactAccounting: true,
       journalRef: `JRN-${m.id}`,
-      performedBy: m.operator || 'System User',
+      performedBy: (m as any).operator || 'System User',
     }));
   }, []);
 
@@ -143,7 +143,7 @@ export const StockLedgerTab: React.FC<Props> = ({
         <div className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
           <span className="text-xs text-slate-500 block mb-1">Active Batches Tracked</span>
           <span className="text-xl font-bold font-mono text-slate-900 dark:text-slate-100">
-            {mockStockOverview.length} Verified Lots
+            {liveStockOverview.length} Verified Lots
           </span>
           <span className="text-[11px] text-slate-400 block mt-0.5">FIFO & W-Avg Valued</span>
         </div>
@@ -191,7 +191,7 @@ export const StockLedgerTab: React.FC<Props> = ({
                 : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
-            Movement Ledger ({mockStockMovements.length})
+            Movement Ledger ({liveMovements.length})
           </button>
         </div>
 

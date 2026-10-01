@@ -212,7 +212,7 @@ export const Step3BatchOutput: React.FC<Step3Props> = ({ state, onChange, errors
             <div className="overflow-y-auto divide-y divide-gray-100 max-h-36">
               {filteredBins.map((b) => (
                 <button
-                  key={b.id}
+                  key={b.code}
                   type="button"
                   onClick={() => {
                     onChange({ [fieldKey]: b.code });

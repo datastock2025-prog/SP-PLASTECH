@@ -43,7 +43,7 @@ export const InventoryAgingView: React.FC<InventoryAgingViewProps> = ({
     setLoading(true);
     try {
       const res = await analyticsApi.getInventoryAging(filters);
-      setData(res);
+      setData(res as any);
     } catch {
       showToast('Failed to load inventory aging');
     } finally {

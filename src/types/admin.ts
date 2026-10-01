@@ -288,10 +288,12 @@ export interface SystemParameter {
   category: 'Inventory & Traceability' | 'Production & Shop Floor' | 'Finance & Valuation' | 'Quality & AQL' | 'General System';
   description: string;
   valueType: 'boolean' | 'number' | 'string' | 'select';
+  dataType?: 'boolean' | 'number' | 'string' | 'select' | string;
   currentValue: any;
   defaultValue: any;
   options?: string[];
   requiresServerRestart: boolean;
+  requiresRestart?: boolean;
   unit?: string;
 }
 

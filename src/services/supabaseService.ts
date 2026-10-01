@@ -367,7 +367,36 @@ export const SupabaseDataService = {
     }
   },
 
-  // 10. REALTIME SUBSCRIPTION HELPER
+  // 10. COMPANY SETTINGS
+  async getCompanySettings(): Promise<DbResult<any>> {
+    try {
+      const { data, error } = await supabase
+        .from('company_settings')
+        .select('*')
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return { data, error: null };
+    } catch (err: any) {
+      return { data: null, error: err.message };
+    }
+  },
+
+  async upsertCompanySettings(settings: Record<string, any>): Promise<DbResult<any>> {
+    try {
+      const { data, error } = await supabase
+        .from('company_settings')
+        .upsert(settings)
+        .select()
+        .single();
+      if (error) throw error;
+      return { data, error: null };
+    } catch (err: any) {
+      return { data: null, error: err.message };
+    }
+  },
+
+  // 11. REALTIME SUBSCRIPTION HELPER
   subscribeToTable(table: string, onUpdate: (payload: any) => void) {
     return supabase
       .channel(`public:${table}`)

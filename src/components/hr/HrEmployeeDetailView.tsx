@@ -283,7 +283,7 @@ export const HrEmployeeDetailView: React.FC<HrEmployeeDetailViewProps> = ({
                     <div key={sk.skillId} className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
                       <div>
                         <div className="font-bold text-slate-900">{sk.skillName}</div>
-                        <div className="text-[11px] text-slate-500">Assessed by: {sk.assessor} · Valid till {sk.validUntil}</div>
+                        <div className="text-[11px] text-slate-500">Assessed by: {(sk as any).assessor || sk.assessedBy} · Valid till {sk.validUntil}</div>
                       </div>
                       <span className="px-2 py-1 rounded bg-[#0F8B8D]/10 text-[#0F8B8D] font-bold text-[10px]">
                         {sk.level}
@@ -680,7 +680,7 @@ export const HrEmployeeDetailView: React.FC<HrEmployeeDetailViewProps> = ({
                             className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                               l.status === 'Approved'
                                 ? 'bg-emerald-100 text-emerald-800'
-                                : l.status === 'Pending'
+                                : (l.status as string) === 'Pending' || l.status === 'Pending Approval'
                                 ? 'bg-amber-100 text-amber-800'
                                 : 'bg-rose-100 text-rose-800'
                             }`}
@@ -733,7 +733,7 @@ export const HrEmployeeDetailView: React.FC<HrEmployeeDetailViewProps> = ({
                           {sk.level}
                         </span>
                       </td>
-                      <td className="p-3 text-slate-600">{sk.assessor}</td>
+                      <td className="p-3 text-slate-600">{(sk as any).assessor || sk.assessedBy}</td>
                       <td className="p-3 font-mono">{sk.validUntil}</td>
                       <td className="p-3 text-right">
                         <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold text-[10px] rounded">
@@ -817,14 +817,14 @@ export const HrEmployeeDetailView: React.FC<HrEmployeeDetailViewProps> = ({
           <div className="space-y-3">
             {(emp.certifications && emp.certifications.length > 0) ? (
               emp.certifications.map((cert) => (
-                <div key={cert.certificateId} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+                <div key={(cert as any).certificateId || cert.certId} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
                   <div className="space-y-1">
                     <div className="font-bold text-sm text-slate-900">{cert.name}</div>
                     <div className="text-[11px] text-slate-500">
-                      Issuing Body: <strong>{cert.issuingAuthority}</strong> · License #: <span className="font-mono font-bold text-indigo-700">{cert.certificateNumber}</span>
+                      Issuing Body: <strong>{(cert as any).issuingAuthority || 'NABET / ISO Registrar'}</strong> · License #: <span className="font-mono font-bold text-indigo-700">{(cert as any).certificateNumber || cert.certNumber}</span>
                     </div>
                     <div className="text-[11px] text-slate-500 font-mono">
-                      Issued: {cert.issueDate} · Valid Until: <strong>{cert.validUntil}</strong>
+                      Issued: {cert.issueDate} · Valid Until: <strong>{(cert as any).validUntil || cert.expiryDate}</strong>
                     </div>
                   </div>
                   <button

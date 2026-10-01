@@ -35,6 +35,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, lastLoggedOut
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Background warm-up of remote users directory without blocking UI interactions
+  useEffect(() => {
+    adminService.getUsers().catch(() => {});
+  }, []);
+
   // Sound feedback
   const playTone = (freq = 520, type: OscillatorType = 'sine', duration = 0.05) => {
     try {
@@ -114,27 +119,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, lastLoggedOut
         return;
       }
 
-      // 2. Dynamic Live User Check from In-Memory Cached Directory
+      // 2. Instant In-Memory Cached Directory Check (< 5ms response time)
       const cachedUsers = adminService.getCachedUsers();
-      let matchedUser = cachedUsers.find(
+      const matchedUser = cachedUsers.find(
         (u) =>
           u.status === 'Active' &&
           (u.email.toLowerCase() === identifier ||
             (u.id && u.id.toLowerCase() === identifier) ||
             (u.username && u.username.toLowerCase() === identifier))
       );
-
-      if (!matchedUser) {
-        // Fallback fetch if not yet initialized in memory
-        const liveUsers = await adminService.getUsers();
-        matchedUser = liveUsers.find(
-          (u) =>
-            u.status === 'Active' &&
-            (u.email.toLowerCase() === identifier ||
-              (u.id && u.id.toLowerCase() === identifier) ||
-              (u.username && u.username.toLowerCase() === identifier))
-        );
-      }
 
       if (matchedUser) {
         const isPasswordMatch =

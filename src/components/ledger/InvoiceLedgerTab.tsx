@@ -42,12 +42,12 @@ export const InvoiceLedgerTab: React.FC<Props> = ({
   const filteredInvoices = mockInvoices.filter((inv) => {
     if (invoiceTypeToggle === 'ALL') return true;
     if (invoiceTypeToggle === 'Supplier Invoice') {
-      return inv.invoiceType === 'Supplier Invoice' || inv.invoiceType === 'Purchase Invoice';
+      return (inv.invoiceType as string) === 'Supplier Invoice' || inv.invoiceType === 'Purchase Invoice';
     }
     if (invoiceTypeToggle === 'Customer Invoice') {
-      return inv.invoiceType === 'Customer Invoice' || inv.invoiceType === 'Sales Invoice';
+      return (inv.invoiceType as string) === 'Customer Invoice' || inv.invoiceType === 'Sales Invoice';
     }
-    return inv.invoiceType === invoiceTypeToggle;
+    return (inv.invoiceType as string) === invoiceTypeToggle;
   });
 
   return (
@@ -169,7 +169,7 @@ export const InvoiceLedgerTab: React.FC<Props> = ({
                     <td className="py-3 px-3">
                       <span
                         className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                          inv.invoiceType === 'Supplier Invoice' || inv.invoiceType === 'Purchase Invoice'
+                          (inv.invoiceType as string) === 'Supplier Invoice' || inv.invoiceType === 'Purchase Invoice'
                             ? 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300'
                             : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                         }`}
