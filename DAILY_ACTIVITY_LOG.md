@@ -61,3 +61,7 @@
 - **TypeScript Typecheck (`tsc --noEmit`)**: 0 errors.
 - **Production Build (`vite build`)**: 2,969 modules transformed, bundle generated in 1m 25s.
 - **CI/CD Pipeline**: GitHub Actions triggered, typecheck and bundle build jobs completed successfully.
+- **Podman & Supabase Live Sync Engine**:
+  - `podman-machine-default` VM connected and postgres container `reboot-v1-postgres-1` initialized.
+  - Automated sync verified with identical record counts across all core tables (121 Customers, 411 Suppliers, 1,000 Master Items, 3 Warehouses, 5 Machines).
+
