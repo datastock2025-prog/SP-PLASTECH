@@ -209,8 +209,8 @@ class LiveDataStore {
     try {
       await supabase.from('work_orders').upsert({
         id: wo.id,
-        item_code: wo.itemCode,
-        machine_id: wo.machineId,
+        item_code: wo.item || (wo as any).itemCode,
+        machine_id: wo.machine || (wo as any).machineId,
         status: wo.status,
         updated_at: new Date().toISOString(),
       });
@@ -253,6 +253,21 @@ class LiveDataStore {
     }
   }
 
+  public async savePurchaseOrder(po: PurchaseOrder): Promise<PurchaseOrder> {
+    try {
+      await supabase.from('purchase_orders').upsert({
+        id: po.id,
+        supplier_id: (po as any).supplierId || (po as any).supplier,
+        status: (po as any).status,
+        updated_at: new Date().toISOString(),
+      });
+    } catch {}
+
+    adminEventBus.emit('PURCHASE_ORDER_SAVED', po);
+    universalSyncManager.broadcastMutation('PURCHASE_ORDERS', 'UPDATE', po);
+    return po;
+  }
+
   // --------------------------------------------------------------------------
   // 6. Sales Orders (Live DB)
   // --------------------------------------------------------------------------
@@ -282,9 +297,9 @@ class LiveDataStore {
       await supabase.from('sales_orders').upsert({
         id: so.id,
         so_number: (so as any).soNumber || so.id,
-        customer_id: so.customerId,
+        customer_id: (so as any).customerId || (so as any).customer,
         customer_name: (so as any).customerName,
-        status: so.status,
+        status: (so as any).status,
         total_value: (so as any).totalValue || (so as any).totalAmount || 0,
         updated_at: new Date().toISOString(),
       });
@@ -322,7 +337,7 @@ class LiveDataStore {
   public async saveCustomer(customer: Customer): Promise<Customer> {
     try {
       await supabase.from('customers').upsert({
-        id: customer.id || customer.code,
+        id: (customer as any).id || customer.code,
         code: customer.code,
         name: customer.name,
         email: (customer as any).email,
@@ -522,7 +537,7 @@ class LiveDataStore {
   public async saveAccount(acc: Account): Promise<Account> {
     try {
       await supabase.from('accounts').upsert({
-        id: acc.id || acc.code,
+        id: (acc as any).id || acc.code,
         code: acc.code,
         name: acc.name,
         type: acc.type,
@@ -563,7 +578,7 @@ class LiveDataStore {
         id: je.id,
         je_number: (je as any).jeNumber || je.id,
         date: je.date,
-        status: je.status,
+        status: (je as any).status,
         updated_at: new Date().toISOString(),
       });
     } catch {}
@@ -595,8 +610,8 @@ class LiveDataStore {
       await supabase.from('quotations').upsert({
         id: quote.id,
         quote_number: (quote as any).quoteNumber || quote.id,
-        customer_id: quote.customerId,
-        status: quote.status,
+        customer_id: (quote as any).customerId || (quote as any).customer,
+        status: (quote as any).status,
         updated_at: new Date().toISOString(),
       });
     } catch {}
