@@ -16,6 +16,7 @@ import { itemService } from './services/itemService';
 import { adminEventBus } from './services/adminService';
 import { liveDataStore } from './services/liveDataStore';
 import { universalSyncManager } from './services/realtime/UniversalSyncManager';
+import { initializeUniversalSyncBridge } from './services/realtime/UniversalSyncBridge';
 import { SessionTimeoutModal, MfaVerificationModal, CookieConsentModal } from './security';
 import { UserProfilePreferencesView } from './components/profile/UserProfilePreferencesView';
 
@@ -373,6 +374,9 @@ export const App: React.FC = () => {
 
   // Sync Item Master & All Core Entities with Live Database Store & Cross-Browser Mesh
   useEffect(() => {
+    // 0. Initialize UniversalSyncManager ↔ TanStack React Query Realtime Invalidation Bridge
+    const cleanupBridge = initializeUniversalSyncBridge();
+
     // 1. Master Data & Operations
     itemService.getItems().then((fetched) => {
       if (Array.isArray(fetched)) setItems(fetched);
@@ -540,6 +544,7 @@ export const App: React.FC = () => {
     });
 
     return () => {
+      cleanupBridge?.();
       unsubSaved?.();
       unsubDeleted?.();
       unsubWoSynced?.();
