@@ -7,7 +7,7 @@ interface Props {
 
 export const WarehouseStatusBadge: React.FC<Props> = ({ status, size = 'sm' }) => {
   const getStyle = (st: string) => {
-    const s = st.toLowerCase().replace(/ /g, '_');
+    const s = (st || '').toLowerCase().replace(/ /g, '_');
     switch (s) {
       case 'in_stock':
       case 'released':
@@ -26,6 +26,8 @@ export const WarehouseStatusBadge: React.FC<Props> = ({ status, size = 'sm' }) =
         return 'bg-amber-50 text-amber-700 border-amber-200';
 
       case 'out_of_stock':
+      case 'no_stock':
+      case 'zero_stock':
       case 'variance_flagged':
       case 'scrap_destroy':
       case 'rejected':
@@ -50,7 +52,11 @@ export const WarehouseStatusBadge: React.FC<Props> = ({ status, size = 'sm' }) =
   };
 
   const formatText = (st: string) => {
-    if (!st) return 'Unknown';
+    if (!st) return 'No Stock';
+    const s = String(st).toLowerCase().replace(/ /g, '_');
+    if (s === 'no_stock' || s === 'out_of_stock' || s === 'zero_stock') {
+      return 'No Stock';
+    }
     return String(st)
       .replace(/_/g, ' ')
       .replace(/\b\w/g, (c) => c.toUpperCase());

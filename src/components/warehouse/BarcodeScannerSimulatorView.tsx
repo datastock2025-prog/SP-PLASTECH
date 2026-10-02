@@ -154,7 +154,7 @@ export const BarcodeScannerSimulatorView: React.FC<Props> = ({
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
               <span className="font-mono text-sm font-bold text-[#0F8B8D]">{matchedItem.sku}</span>
-              <WarehouseStatusBadge status={matchedItem.status} size="xs" />
+              <WarehouseStatusBadge status={(matchedItem.totalOnHand <= 0 || matchedItem.availableToPromise <= 0) ? 'no_stock' : matchedItem.status} size="xs" />
             </div>
             <span className="text-xs text-slate-500 font-mono">Location: <span className="font-bold text-[#14213D]">{matchedItem.primaryBin}</span></span>
           </div>

@@ -190,9 +190,10 @@ export const StockLedgerListView: React.FC<Props> = ({
         (item.resinGrade && item.resinGrade.toLowerCase().includes(search.toLowerCase()));
 
       const itemStore = resolveStoreType(item);
+      const itemStatus = (item.totalOnHand <= 0 || item.availableToPromise <= 0) ? 'no_stock' : item.status;
       const matchStore = selectedStoreType === 'ALL' || itemStore === selectedStoreType;
       const matchCat = selectedCategory === 'ALL' || item.category === selectedCategory;
-      const matchStatus = selectedStatus === 'ALL' || item.status === selectedStatus;
+      const matchStatus = selectedStatus === 'ALL' || itemStatus === selectedStatus;
 
       return matchSearch && matchStore && matchCat && matchStatus;
     });
@@ -860,7 +861,7 @@ export const StockLedgerListView: React.FC<Props> = ({
                         ₹{item.totalValuationInr.toLocaleString()}
                       </td>
                       <td className="py-3 px-4 text-center">
-                        <WarehouseStatusBadge status={item.status} size="xs" />
+                        <WarehouseStatusBadge status={(item.totalOnHand <= 0 || item.availableToPromise <= 0) ? 'no_stock' : item.status} size="xs" />
                       </td>
                       <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
@@ -1416,12 +1417,14 @@ const StockAdjustmentDrawerForm: React.FC<StockAdjustmentDrawerFormProps> = ({
     }
 
     const updatedOnHand = Math.max(0, item.totalOnHand + adjustmentQty);
+    const updatedAvail = Math.max(0, updatedOnHand - item.allocatedToProduction - item.reservedForOrders);
     const updatedItem: InventoryStockItem = {
       ...item,
       totalOnHand: updatedOnHand,
-      availableToPromise: Math.max(0, updatedOnHand - item.allocatedToProduction - item.reservedForOrders),
+      availableToPromise: updatedAvail,
       totalValuationInr: updatedOnHand * item.unitCostInr,
       primaryBin: targetBin,
+      status: (updatedOnHand > 0 && updatedAvail > 0) ? (updatedOnHand <= (item.reorderPointKg || 0) ? 'low_stock' : 'in_stock') : 'no_stock',
     };
 
     if (onUpdateItem) onUpdateItem(updatedItem);

@@ -266,7 +266,7 @@ export const ItemLotLedgerModal: React.FC<ItemLotLedgerModalProps> = ({
               <span className="font-mono text-sm font-bold text-[#0F8B8D] bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
                 {item.sku}
               </span>
-              <WarehouseStatusBadge status={item.status} size="xs" />
+              <WarehouseStatusBadge status={(item.totalOnHand <= 0 || item.availableToPromise <= 0) ? 'no_stock' : item.status} size="xs" />
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 uppercase tracking-wide">
                 {resolveStoreType(item)} STORE
               </span>

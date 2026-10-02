@@ -1,4 +1,4 @@
-export type StockItemStatus = 'in_stock' | 'low_stock' | 'out_of_stock' | 'in_quarantine' | 'allocated' | 'discontinued';
+export type StockItemStatus = 'in_stock' | 'low_stock' | 'out_of_stock' | 'no_stock' | 'in_quarantine' | 'allocated' | 'discontinued';
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
 export type CountStatus = 'scheduled' | 'in_progress' | 'under_review' | 'reconciled' | 'variance_flagged';
 export type QuarantineDisposition = 'pending_disposition' | 'released_to_production' | 'returned_to_vendor' | 'send_to_regrind' | 'scrap_destroy';

@@ -176,7 +176,7 @@ export function getWarehouseStock(): InventoryStockItem[] {
         safetyStockKg: 0,
         maximumStockKg: 100000,
         economicOrderQtyKg: 0,
-        status: effectiveStock > 0 ? 'in_stock' : 'in_stock',
+        status: (effectiveStock > 0 && effectiveAvail > 0) ? 'in_stock' : 'no_stock',
         leadTimeDays: 5,
         abcClassification: 'A',
         lastMovementDate: m.createdOn || new Date().toISOString().slice(0, 10),
@@ -471,7 +471,7 @@ export function postPutawayTasksToWarehouse(tasks: GrnPutawayTask[], customBins?
         availableToPromise: newAvail,
         primaryBin: targetBin || existing.primaryBin,
         lastMovementDate: todayStr,
-        status: newOnHand > (existing.reorderPointKg || 0) ? 'in_stock' : existing.status,
+        status: newOnHand > (existing.reorderPointKg || 0) ? 'in_stock' : (newOnHand > 0 ? 'low_stock' : 'no_stock'),
         lots: updatedLots,
         totalValuationInr: newOnHand * (existing.unitCostInr || 78.5),
       };
@@ -693,11 +693,13 @@ export function recordProductionShiftInventoryMovement(params: {
       if (stockIdx >= 0) {
         const sItem = currentStock[stockIdx];
         const newOnHand = Math.max(0, sItem.totalOnHand - consumedResinKg);
+        const newAvail = Math.max(0, sItem.availableToPromise - consumedResinKg);
         currentStock[stockIdx] = {
           ...sItem,
           totalOnHand: newOnHand,
-          availableToPromise: Math.max(0, sItem.availableToPromise - consumedResinKg),
+          availableToPromise: newAvail,
           lastMovementDate: todayStr,
+          status: (newOnHand > 0 && newAvail > 0) ? (newOnHand <= (sItem.safetyStockKg || 2000) ? 'low_stock' : 'in_stock') : 'no_stock',
           totalValuationInr: newOnHand * (sItem.unitCostInr || 78.5),
         };
 
@@ -1012,10 +1014,12 @@ export function recordOutwardDispatchInventoryMovement(params: {
 
       itemStock.totalOnHand = newOnHand;
       itemStock.availableToPromise = newAvail;
-      if (newOnHand <= 0) {
-        itemStock.status = 'out_of_stock';
+      if (newOnHand <= 0 || newAvail <= 0) {
+        itemStock.status = 'no_stock';
       } else if (newOnHand < (itemStock.safetyStockKg || 500)) {
         itemStock.status = 'low_stock';
+      } else {
+        itemStock.status = 'in_stock';
       }
 
       currentBalance = newOnHand;
