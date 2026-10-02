@@ -82,164 +82,10 @@ export const ItemLotLedgerModal: React.FC<ItemLotLedgerModalProps> = ({
   const [splitOutPage, setSplitOutPage] = useState(1);
   const splitPageSize = 15;
 
-  // Scale Demo State: Allows user to test 100,000+ records in real time
-  const [isDemoScaleActive, setIsDemoScaleActive] = useState(false);
-
-  // Get base movements for this item
-  const baseItemMovements = useMemo(() => {
+  // Base movements for this item from actual movement ledger
+  const allMovements = useMemo(() => {
     return movementLedger.filter((m) => m.sku === item.sku);
   }, [movementLedger, item.sku]);
-
-  // High-Volume Dataset Generator (Simulates 100,000+ realistic transaction records if scale mode is enabled)
-  const allMovements = useMemo(() => {
-    if (!isDemoScaleActive) {
-      if (baseItemMovements.length > 0) return baseItemMovements;
-      // If no movements exist in store, provide initial realistic seeded records with both IN and OUT
-      return [
-        {
-          id: 'MOV-INIT-001',
-          timestamp: new Date(Date.now() - 86400000 * 2).toISOString(),
-          docNumber: 'GRN-PLANT01-2026-004528',
-          docType: 'RECEIPTS',
-          ledgerDate: '2026-09-21',
-          sku: item.sku,
-          itemName: item.name,
-          lotNumber: item.lots?.[0]?.lotNumber || 'LOT-SPL-HIPS-08',
-          location: `${item.primaryBin || 'RM-WH-01-BAY-B1'} (Pending QC Pass)`,
-          supplier: 'Supreme Petrochem Ltd',
-          movementType: 'IN',
-          quantity: item.totalOnHand || 8000,
-          qtyIn: item.totalOnHand || 8000,
-          qtyOut: 0,
-          uom: item.uom || 'KG',
-          unitPrice: item.unitCostInr || 85,
-          status: 'CLOSED',
-          parentDocNumber: 'PO-2026-0941',
-          parentDocType: 'PURCHASE_ORDER',
-          referenceNumber: 'CHALLAN-SPL-88912',
-          locationType: 'QUARANTINE_ZONE',
-          sourceOrigin: 'Supreme Petrochem Ltd (GRN Receipt)',
-          sourceReference: 'GRN-PLANT01-2026-004528',
-          sourceLocation: 'Dock 2 Quarantine Holding Zone',
-          purposeDescription: 'Available for Requisition',
-          destinationStore: 'Shopfloor Staging',
-          authorizedBy: 'Dharmesh Solanki (Forklift Bay #2)',
-          runningBalance: item.totalOnHand || 8000,
-        },
-        {
-          id: 'MOV-INIT-002',
-          timestamp: new Date(Date.now() - 86400000).toISOString(),
-          docNumber: 'WO-ISSUE-2026-007892',
-          docType: 'ISSUES',
-          ledgerDate: '2026-09-22',
-          sku: item.sku,
-          itemName: item.name,
-          lotNumber: item.lots?.[0]?.lotNumber || 'LOT-SPL-HIPS-08',
-          location: 'SHOPFLOOR-LINE-04',
-          customer: 'Hero MotoCorp Component Line #2',
-          movementType: 'OUT',
-          quantity: 1200,
-          qtyIn: 0,
-          qtyOut: 1200,
-          uom: item.uom || 'KG',
-          unitPrice: item.unitCostInr || 85,
-          status: 'CLOSED',
-          parentDocNumber: 'WO-2026-9812',
-          parentDocType: 'WORK_ORDER',
-          referenceNumber: 'REQ-LINE4-551',
-          locationType: 'SHOPFLOOR',
-          sourceOrigin: item.primaryBin || 'RM-WH-01-BAY-B1',
-          sourceReference: 'REQUISITION-L4-991',
-          sourceLocation: 'RM Store Staging',
-          purposeDescription: 'Issued for Scheduled Work Orders (Line #4 Molding)',
-          destinationStore: 'Shopfloor Staging',
-          authorizedBy: 'Shift Supervisor (Rajesh V.)',
-          runningBalance: (item.totalOnHand || 8000) - 1200,
-        },
-      ] as StockMovementLedgerEntry[];
-    }
-
-    // Generate 100,000 synthetic records indexed for ultra-fast browsing
-    const count = 100000;
-    const generated: StockMovementLedgerEntry[] = new Array(count);
-    const suppliers = [
-      'Supreme Petrochem Ltd',
-      'Reliance Polymers Ind.',
-      'SABIC Innovative Plastics',
-      'INEOS Styrolution India',
-      'LG Chem Poly Co.',
-    ];
-    const customers = [
-      'Hero MotoCorp Ltd',
-      'Bajaj Auto Components',
-      'Tata Motors Chassis Div',
-      'Havells India Appliance',
-      'Voltas Refrigeration Staging',
-      'Schneider Electric Unit 4',
-    ];
-    const docPrefixes = ['GRN-2026', 'WO-ISSUE', 'QC-PASS', 'DISPATCH-INV', 'STK-XFER'];
-    const lots = [
-      'LOT-SPL-HIPS-08',
-      'LOT-SPL-HIPS-09',
-      'LOT-SPL-HIPS-10',
-      'LOT-SPL-HIPS-11',
-      'LOT-SPL-HIPS-12',
-      'LOT-SPL-HIPS-14',
-    ];
-    const bins = ['RM-WH-01-BAY-B1', 'RM-WH-02-RACK-04', 'SHOPFLOOR-BAY-3', 'QUARANTINE-HOLD-2'];
-
-    let runningBal = 8000;
-    for (let i = 0; i < count; i++) {
-      const isInward = i % 2 === 0;
-      const docType: 'TRANSFERS' | 'RECEIPTS' | 'ISSUES' | 'DISPATCHES' | 'ADJUSTMENTS' = isInward
-        ? 'RECEIPTS'
-        : i % 4 === 1
-        ? 'ISSUES'
-        : 'DISPATCHES';
-      const qty = Math.floor(Math.random() * 4000) + 400;
-      const dayOffset = Math.floor(i / 100);
-      const date = new Date(Date.now() - dayOffset * 86400000).toISOString().split('T')[0];
-
-      if (isInward) {
-        runningBal += qty;
-      } else {
-        runningBal = Math.max(0, runningBal - qty);
-      }
-
-      generated[i] = {
-        id: `SYN-MOV-${i + 1}`,
-        timestamp: new Date(Date.now() - dayOffset * 86400000).toISOString(),
-        docNumber: `${docPrefixes[i % docPrefixes.length]}-${String(100000 + i)}`,
-        docType: docType,
-        ledgerDate: date,
-        sku: item.sku,
-        itemName: item.name,
-        lotNumber: lots[i % lots.length],
-        location: bins[i % bins.length],
-        customer: !isInward ? customers[i % customers.length] : undefined,
-        supplier: isInward ? suppliers[i % suppliers.length] : undefined,
-        movementType: isInward ? 'IN' : 'OUT',
-        quantity: qty,
-        qtyIn: isInward ? qty : 0,
-        qtyOut: !isInward ? qty : 0,
-        uom: item.uom || 'KG',
-        unitPrice: item.unitCostInr || 85,
-        status: i % 7 === 0 ? 'OPEN' : i % 15 === 0 ? 'IN TRANSIT' : 'CLOSED',
-        parentDocNumber: isInward ? `PO-2026-${5000 + (i % 500)}` : `WO-2026-${7000 + (i % 500)}`,
-        parentDocType: isInward ? 'PURCHASE_ORDER' : 'WORK_ORDER',
-        referenceNumber: `REF-BATCH-${90000 + i}`,
-        locationType: isInward ? 'WAREHOUSE' : 'PRODUCTION',
-        sourceOrigin: isInward ? (suppliers[i % suppliers.length] || 'Supplier Inward') : 'Store Staging',
-        sourceReference: `DOC-${100000 + i}`,
-        sourceLocation: bins[i % bins.length],
-        purposeDescription: isInward ? 'Vendor Inward GRN' : 'Issued for Production Line',
-        destinationStore: bins[(i + 1) % bins.length],
-        authorizedBy: isInward ? 'Inward Gate Inspector' : 'Shopfloor Supervisor',
-        runningBalance: runningBal,
-      };
-    }
-    return generated;
-  }, [isDemoScaleActive, baseItemMovements, item]);
 
   // High-Speed Filter Pipeline (Memoized)
   const filteredRecords = useMemo(() => {
@@ -428,12 +274,6 @@ export const ItemLotLedgerModal: React.FC<ItemLotLedgerModalProps> = ({
                 <Factory className="w-3 h-3 text-slate-500" />
                 <span>{item.plant || 'Plant 1 - Pimpri Auto-Hub'}</span>
               </span>
-              {isDemoScaleActive && (
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-300 animate-pulse flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-purple-600" />
-                  1 Lakh+ High Scale Mode Active
-                </span>
-              )}
             </div>
             <h3 className="font-bold font-['Space_Grotesk'] text-lg text-[#14213D] mt-0.5 flex items-center gap-2">
               <span>{item.name}</span>
@@ -443,30 +283,6 @@ export const ItemLotLedgerModal: React.FC<ItemLotLedgerModalProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5">
-            {/* 1 Lakh Scale Mode Toggle */}
-            <button
-              onClick={() => {
-                setIsDemoScaleActive(!isDemoScaleActive);
-                setCurrentPage(1);
-                showToast(
-                  !isDemoScaleActive
-                    ? 'Switched to 1 Lakh+ (100,000 Records) High-Scale Mode!'
-                    : 'Switched back to standard store ledger dataset.'
-                );
-              }}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border ${
-                isDemoScaleActive
-                  ? 'bg-purple-50 text-purple-700 border-purple-300 hover:bg-purple-100'
-                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-              }`}
-              title="Toggle synthetic 1 Lakh (100,000) transactions to verify high-volume speed"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-              <span className="hidden sm:inline">
-                {isDemoScaleActive ? '100K Mode On' : 'Simulate 1 Lakh Records'}
-              </span>
-            </button>
-
             {/* Density Toggle */}
             <button
               onClick={() => setDensity(density === 'compact' ? 'normal' : 'compact')}
@@ -1141,15 +957,15 @@ export const ItemLotLedgerModal: React.FC<ItemLotLedgerModalProps> = ({
                               Where From In (Inward Origin)
                             </div>
                             <div className="text-slate-700">
-                              <strong>Origin Source:</strong> {lot.inwardSource || `${lot.supplierName || 'Vendor Inward'} (GRN-PLANT01-2026-004528)`}
+                              <strong>Origin Source:</strong> {lot.inwardSource || lot.supplierName || '—'}
                             </div>
                             <div className="text-slate-600 text-[11px]">
-                              <strong>Dock / Bay:</strong> {lot.inwardOriginLocation || 'Dock 2 Quarantine Holding Zone'} &bull;{' '}
-                              <strong>Ref:</strong> {lot.inwardDocumentRef || lot.grnReference || 'GRN-PLANT01-2026-004528'}
+                              <strong>Dock / Bay:</strong> {lot.inwardOriginLocation || lot.storageBin || '—'} &bull;{' '}
+                              <strong>Ref:</strong> {lot.inwardDocumentRef || lot.grnReference || '—'}
                             </div>
                             <div className="text-slate-500 text-[10px]">
-                              Received By: {lot.inwardReceivedBy || 'Dharmesh Solanki (Forklift Bay #2)'} &bull; Date:{' '}
-                              {lot.receiptDate || '2026-09-21'}
+                              Received By: {lot.inwardReceivedBy || 'Store In-Charge'} &bull; Date:{' '}
+                              {lot.receiptDate || '—'}
                             </div>
                           </div>
 
@@ -1168,7 +984,7 @@ export const ItemLotLedgerModal: React.FC<ItemLotLedgerModalProps> = ({
                             </div>
                             <div className="text-slate-600 text-[11px]">
                               <strong>Target Destination:</strong> {lot.outwardDestination || 'Shopfloor Staging'} &bull;{' '}
-                              <strong>Ref:</strong> {lot.outwardReference || 'WO-REQUISITION'}
+                              <strong>Ref:</strong> {lot.outwardReference || '—'}
                             </div>
                             <div className="text-slate-500 text-[10px]">
                               Authorized By: {lot.outwardAuthorizedBy || 'Shift Supervisor'}
@@ -1379,15 +1195,15 @@ export const ItemLotLedgerModal: React.FC<ItemLotLedgerModalProps> = ({
                             Where From In (Inward Origin)
                           </div>
                           <div className="text-slate-700">
-                            <strong>Origin Source:</strong> {lot.inwardSource || `${lot.supplierName || 'Vendor Inward'} (GRN-PLANT01-2026-004528)`}
+                            <strong>Origin Source:</strong> {lot.inwardSource || lot.supplierName || '—'}
                           </div>
                           <div className="text-slate-600 text-[11px]">
-                            <strong>Dock / Bay:</strong> {lot.inwardOriginLocation || 'Dock 2 Quarantine Holding Zone'} &bull;{' '}
-                            <strong>Ref:</strong> {lot.inwardDocumentRef || lot.grnReference || 'GRN-PLANT01-2026-004528'}
+                            <strong>Dock / Bay:</strong> {lot.inwardOriginLocation || lot.storageBin || '—'} &bull;{' '}
+                            <strong>Ref:</strong> {lot.inwardDocumentRef || lot.grnReference || '—'}
                           </div>
                           <div className="text-slate-500 text-[10px]">
-                            Received By: {lot.inwardReceivedBy || 'Dharmesh Solanki (Forklift Bay #2)'} &bull; Date:{' '}
-                            {lot.receiptDate || '2026-09-21'}
+                            Received By: {lot.inwardReceivedBy || 'Store In-Charge'} &bull; Date:{' '}
+                            {lot.receiptDate || '—'}
                           </div>
                         </div>
 
@@ -1406,7 +1222,7 @@ export const ItemLotLedgerModal: React.FC<ItemLotLedgerModalProps> = ({
                           </div>
                           <div className="text-slate-600 text-[11px]">
                             <strong>Target Destination:</strong> {lot.outwardDestination || 'Shopfloor Staging'} &bull;{' '}
-                            <strong>Ref:</strong> {lot.outwardReference || 'WO-REQUISITION'}
+                            <strong>Ref:</strong> {lot.outwardReference || '—'}
                           </div>
                           <div className="text-slate-500 text-[10px]">
                             Authorized By: {lot.outwardAuthorizedBy || 'Shift Supervisor'}

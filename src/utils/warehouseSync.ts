@@ -130,12 +130,9 @@ export function getWarehouseStock(): InventoryStockItem[] {
         m.type === 'Packaging' || (m.type as any) === 'Packaging Material' ? 'PCK' :
         (m.isWip || (m as any).routingDestination === 'WIP') ? 'WIP' : 'FG';
 
-      const isArmpad50 = m.code === '708027010001';
-      const isSaiCover = m.code === '1208C0030' || m.code === '1208C0030-M';
-
-      const primaryBin = isArmpad50 || isSaiCover ? 'BAY-C-04-RACK' : (m.wh || 'WH-01') + '-BAY-01';
-      const effectiveStock = isArmpad50 ? (stockVal > 0 ? stockVal : 744) : isSaiCover ? (stockVal > 0 ? stockVal : 4800) : stockVal;
-      const effectiveAvail = isArmpad50 ? (availVal > 0 ? availVal : 744) : isSaiCover ? (availVal > 0 ? availVal : 4800) : availVal;
+      const primaryBin = (m.wh || 'WH-01') + '-BAY-01';
+      const effectiveStock = stockVal;
+      const effectiveAvail = availVal;
 
       const mappedCategory: StoreCategoryType =
         m.type === 'Raw Material' ? 'Virgin Polymer' :
@@ -144,6 +141,8 @@ export function getWarehouseStock(): InventoryStockItem[] {
         m.type === 'Packaging' || (m.type as any) === 'Packaging Material' ? 'Packaging Material' :
         m.type === 'Finished Good' || (m.type as any) === 'Finished Goods' ? 'Molded Part (FG)' :
         (m.isWip || (m as any).routingDestination === 'WIP') ? 'WIP Store' : 'Molded Part (FG)';
+
+      const unitCost = parseFloat(String((m as any).cost || (m as any).price || '0')) || 0;
 
       return {
         id: `STK-${String(idx + 1).padStart(4, '0')}`,
@@ -161,8 +160,8 @@ export function getWarehouseStock(): InventoryStockItem[] {
         availableToPromise: effectiveAvail,
         inTransitFromVendors: 0,
         uom,
-        unitCostInr: isArmpad50 ? 45 : isSaiCover ? 45 : 0,
-        totalValuationInr: isArmpad50 ? 33480 : isSaiCover ? 216000 : 0,
+        unitCostInr: unitCost,
+        totalValuationInr: effectiveStock * unitCost,
         reorderPointKg: 0,
         safetyStockKg: 0,
         maximumStockKg: 100000,
@@ -170,52 +169,8 @@ export function getWarehouseStock(): InventoryStockItem[] {
         status: effectiveStock > 0 ? 'in_stock' : 'in_stock',
         leadTimeDays: 5,
         abcClassification: 'A',
-        lastMovementDate: m.createdOn || '2026-09-28',
-        lots: isArmpad50
-          ? [
-              {
-                lotNumber: 'LOT-PP-HFRL-99',
-                supplierBatchNumber: 'B-2026-ARM-01',
-                supplierName: 'Plant 1 (Machine IMM-250T-03)',
-                receiptDate: '2026-09-01',
-                initialQuantityKg: 744,
-                availableQuantityKg: 744,
-                allocatedQuantityKg: 0,
-                uom: 'PCS',
-                mfiTested: '14.0 g/10min',
-                moisturePct: 0.01,
-                storageBin: 'BAY-C-04-RACK',
-                status: 'released',
-                grnReference: 'WO-2026-ARM-01',
-                inwardSource: 'Production Shift A (IMM-250T-03)',
-                inwardOriginLocation: 'Shopfloor Bay 3',
-                inwardDocumentRef: 'WO-2026-ARM-01',
-                inwardReceivedBy: 'Plant 1 Store In-Charge',
-              },
-            ]
-          : isSaiCover
-          ? [
-              {
-                lotNumber: 'LOT-PP-EPDM-01',
-                supplierBatchNumber: 'B-2026-SAI-01',
-                supplierName: 'Plant 1 (Machine IMM-350T-01)',
-                receiptDate: '2026-09-01',
-                initialQuantityKg: 4800,
-                availableQuantityKg: 4800,
-                allocatedQuantityKg: 0,
-                uom: 'PCS',
-                mfiTested: '12.0 g/10min',
-                moisturePct: 0.01,
-                storageBin: 'BAY-C-04-RACK',
-                status: 'released',
-                grnReference: 'WO-2026-SAI-01',
-                inwardSource: 'Production Shift A (IMM-350T-01)',
-                inwardOriginLocation: 'Shopfloor Bay 1',
-                inwardDocumentRef: 'WO-2026-SAI-01',
-                inwardReceivedBy: 'Plant 1 Store In-Charge',
-              },
-            ]
-          : [],
+        lastMovementDate: m.createdOn || new Date().toISOString().slice(0, 10),
+        lots: [],
       };
     });
 
@@ -426,15 +381,24 @@ export function getStockMovementLedger(): StockMovementLedgerEntry[] {
     if (stored) {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed)) {
-        // Filter out legacy mock ledger entries
-        const cleaned = parsed.filter((entry) => !entry.id.startsWith('LDG-2026-'));
+        // Filter out legacy mock/dummy ledger entries
+        const cleaned = parsed.filter(
+          (entry) =>
+            entry &&
+            entry.id &&
+            !entry.id.startsWith('LDG-2026-') &&
+            !entry.id.startsWith('MOV-INIT-') &&
+            !entry.id.startsWith('SYN-MOV-') &&
+            entry.docNumber !== 'GRN-PLANT01-2026-004528' &&
+            entry.docNumber !== 'WO-ISSUE-2026-007892'
+        );
         return cleaned;
       }
     }
   } catch (e) {
     console.warn('Failed to parse movement ledger from storage', e);
   }
-  return [...INITIAL_STOCK_MOVEMENT_LEDGER];
+  return [];
 }
 
 export function postPutawayTasksToWarehouse(tasks: GrnPutawayTask[], customBins?: Record<string, string>): {
