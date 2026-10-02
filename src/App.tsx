@@ -829,7 +829,10 @@ export const App: React.FC = () => {
 
   // Task 3: Navigation with history stack tracking & localStorage persistence
   const handleNavigate = (view: string, param?: any, isNavTraversing?: boolean) => {
-    const p = param || {};
+    let p = param || {};
+    if (typeof param === 'string') {
+      p = { code: param, id: param };
+    }
     setCurrentView(view);
     setViewParams(p);
     setIsMobileSidebarOpen(false);
@@ -1686,6 +1689,7 @@ export const App: React.FC = () => {
               }}
               onDeleteItem={(code) => {
                 setItems((prev) => prev.filter((i) => i.code !== code));
+                itemService.deleteItem(code).catch(console.warn);
               }}
               onCreateItem={(newItem) => {
                 setItems((prev) => [newItem, ...prev]);

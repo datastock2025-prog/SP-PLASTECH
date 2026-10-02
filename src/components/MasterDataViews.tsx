@@ -2322,7 +2322,11 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
        ITEM DETAIL VIEW (With All 10 Full Tabs & Mold Spec Tooling)
     ---------------------------------------------------- */
     if (view === 'itemDetail') {
-      const item = items.find((i) => i.code === selectedCode) || (items.length > 0 ? items[0] : null);
+      const effectiveCode = typeof selectedCode === 'object' ? (selectedCode as any)?.code : selectedCode;
+      const item = items.find(
+        (i) => i.code === effectiveCode || (effectiveCode && i.code?.toLowerCase() === String(effectiveCode).toLowerCase())
+      ) || (effectiveCode ? null : (items.length > 0 ? items[0] : null));
+
       if (!item) {
         return (
           <div className="space-y-5">
@@ -2335,7 +2339,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               </div>
               <h3 className="text-sm font-bold text-[#14213D] mb-1">Item Not Found in Catalog</h3>
               <p className="text-xs text-[#6B7280] max-w-sm mx-auto mb-4">
-                The requested item code is not available or the master catalog is currently empty.
+                The requested item code {effectiveCode ? `"${effectiveCode}"` : ''} is not available or the master catalog is currently empty.
               </p>
               <button className="btn btn-sm btn-primary" onClick={() => onNavigate('itemList')}>
                 Return to Catalog
@@ -2347,13 +2351,16 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
 
       const isFg = item.type === 'Finished Good' || item.type === 'Semi-Finished Good';
       const itemBoms = boms.filter((b) => (b.lines || []).some((l) => l.item === item.code) || b.parent === item.code);
-      const cycle = Number(item.standardCycleTime || item.cycleTime || 24.5);
+      const cycle = Number(item.standardCycleTime || item.cycleTime || 0);
       const cavities = Number(item.cavityCount || 1);
-      const partWt = Number(item.partWeightGrams || 25);
+      const partWt = Number(item.partWeightGrams || item.netWeightGrams || 0);
       const runnerWt = Number(item.runnerWeightGrams || 0);
-      const singleShotWt = partWt + runnerWt;
-      const totalMoldShotWt = (partWt * cavities) + runnerWt;
+      const singleShotWt = Number((partWt + runnerWt).toFixed(2));
+      const totalMoldShotWt = Number(((partWt * cavities) + runnerWt).toFixed(2));
       const hourlyOutput = cycle > 0 ? Math.round((3600 / cycle) * cavities) : 0;
+      const detailStock = getItemStockData(item);
+      const whStockItem = getWarehouseStockItem(item.code);
+      const itemLots = whStockItem?.lots || [];
 
       const tabs = [
         'Overview',
@@ -2400,30 +2407,30 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                     Plant: <b>{item.plant || 'Plant 1 - Pimpri Auto-Hub'}</b>
                   </div>
                   <div className="m">
-                    Category: <b>{item.cat}</b>
+                    Category: <b>{item.cat || '—'}</b>
                   </div>
                   <div className="m">
-                    Warehouse: <b>{item.wh}</b>
+                    Warehouse: <b>{item.wh || '—'}</b>
                   </div>
                   {isFg ? (
                     <div className="m">
-                      Mold: <b>{item.moldToolId || 'MOLD-001'} ({cavities} Cav)</b>
+                      Mold: <b>{item.moldToolId ? `${item.moldToolId} (${cavities} Cav)` : '—'}</b>
                     </div>
                   ) : item.type === 'Raw Material' || item.type === 'Regrind' ? (
                     <div className="m">
-                      Polymer: <b>{item.resinType || item.polymerGrade || 'PP Copolymer'}</b>
+                      Polymer: <b>{item.resinType || item.polymerGrade || '—'}</b>
                     </div>
                   ) : item.type === 'Masterbatch' || item.type === 'Colorant' || item.type === 'Additive' ? (
                     <div className="m">
-                      Color: <b>{item.color || 'Standard'} ({item.masterbatchDosage || '2%'} LDR)</b>
+                      Color: <b>{item.color || 'Standard'} {item.masterbatchDosage ? `(${item.masterbatchDosage} LDR)` : ''}</b>
                     </div>
                   ) : item.type === 'Packaging Material' ? (
                     <div className="m">
-                      Pack Spec: <b>{item.packagingStandard || 'Corrugated Box'}</b>
+                      Pack Spec: <b>{item.packagingStandard || '—'}</b>
                     </div>
                   ) : (
                     <div className="m">
-                      Fitment: <b>{item.moldToolId || 'Universal'}</b>
+                      Fitment: <b>{item.moldToolId || '—'}</b>
                     </div>
                   )}
                 </div>
@@ -2479,74 +2486,67 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
 
           {/* KPIs */}
           <div className="kpi-row">
-            {(() => {
-              const detailStock = getItemStockData(item);
-              return (
-                <>
-                  <div className="kpi-card">
-                    <div className="lbl">On Hand Stock</div>
-                    <div className="val text-lg">{detailStock.onHand}</div>
-                  </div>
-                  <div className="kpi-card">
-                    <div className="lbl">Available Stock</div>
-                    <div className="val text-lg text-emerald-700">{detailStock.available}</div>
-                  </div>
-                </>
-              );
-            })()}
+            <div className="kpi-card">
+              <div className="lbl">On Hand Stock</div>
+              <div className="val text-lg">{detailStock.onHand}</div>
+            </div>
+            <div className="kpi-card">
+              <div className="lbl">Available Stock</div>
+              <div className="val text-lg text-emerald-700">{detailStock.available}</div>
+            </div>
             {isFg ? (
               <>
                 <div className="kpi-card">
                   <div className="lbl">Std Cycle Time</div>
-                  <div className="val text-lg">{cycle}s</div>
+                  <div className="val text-lg">{cycle > 0 ? `${cycle}s` : '—'}</div>
                 </div>
                 <div className="kpi-card">
                   <div className="lbl">Est. Hourly Output</div>
-                  <div className="val text-lg text-emerald-700">{hourlyOutput} pcs/h</div>
+                  <div className="val text-lg text-emerald-700">{hourlyOutput > 0 ? `${hourlyOutput} pcs/h` : '—'}</div>
                 </div>
               </>
             ) : item.type === 'Raw Material' || item.type === 'Regrind' ? (
               <>
                 <div className="kpi-card">
                   <div className="lbl">Melt Flow Index</div>
-                  <div className="val text-lg font-mono">{item.mfi || '12.0 g/10m'}</div>
+                  <div className="val text-lg font-mono">{item.mfi || '—'}</div>
                 </div>
                 <div className="kpi-card">
                   <div className="lbl">Density Gradient</div>
-                  <div className="val text-lg font-mono text-emerald-700">{item.density || '0.905 g/cm³'}</div>
+                  <div className="val text-lg font-mono text-emerald-700">{item.density || '—'}</div>
                 </div>
               </>
             ) : item.type === 'Masterbatch' || item.type === 'Colorant' || item.type === 'Additive' ? (
               <>
                 <div className="kpi-card">
                   <div className="lbl">Target Dosage (LDR)</div>
-                  <div className="val text-lg font-mono">{item.masterbatchDosage || '2.0%'}</div>
+                  <div className="val text-lg font-mono">{item.masterbatchDosage || '—'}</div>
                 </div>
                 <div className="kpi-card">
                   <div className="lbl">Heat Stability</div>
-                  <div className="val text-lg font-mono text-emerald-700">{item.heatStability || '280°C'}</div>
+                  <div className="val text-lg font-mono text-emerald-700">{item.heatStability || '—'}</div>
                 </div>
               </>
             ) : item.type === 'Packaging Material' ? (
               <>
                 <div className="kpi-card">
                   <div className="lbl">Box Dimensions</div>
-                  <div className="val text-sm font-mono truncate">{item.boxDimensions || '600x400x300 mm'}</div>
+                  <div className="val text-sm font-mono truncate">{item.boxDimensions || '—'}</div>
                 </div>
                 <div className="kpi-card">
                   <div className="lbl">Packaging Standard</div>
-                  <div className="val text-sm font-semibold text-emerald-700 truncate">{item.packagingStandard || 'Corrugated Box'}</div>
+                  <div className="val text-sm font-semibold text-emerald-700 truncate">{item.packagingStandard || '—'}</div>
                 </div>
               </>
             ) : (
               <>
                 <div className="kpi-card">
                   <div className="lbl">Lead Time</div>
-                  <div className="val text-lg font-mono">{item.leadTime || '7 days'}</div>
+                  <div className="val text-lg font-mono">{item.leadTime || '—'}</div>
                 </div>
                 <div className="kpi-card">
                   <div className="lbl">Safety Stock</div>
-                  <div className="val text-lg font-mono text-emerald-700">{item.safetyStock || '10 EA'}</div>
+                  <div className="val text-lg font-mono text-emerald-700">{item.safetyStock ? `${item.safetyStock} ${item.baseUOM || 'EA'}` : '0 EA'}</div>
                 </div>
               </>
             )}
@@ -2597,19 +2597,19 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 text-xs">
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">Cycle Time (seconds) *</span>
-                      <span className="font-mono text-base font-bold text-[#14213D]">{cycle} sec</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{cycle > 0 ? `${cycle} sec` : '—'}</span>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">Part Weight (grams/pc) *</span>
-                      <span className="font-mono text-base font-bold text-[#14213D]">{partWt} g</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{partWt > 0 ? `${partWt} g` : '—'}</span>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">Mold Cavities (count) *</span>
-                      <span className="font-mono text-base font-bold text-[#14213D]">{cavities} cav</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{cavities > 0 ? `${cavities} cav` : '—'}</span>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">Runner Weight (grams) *</span>
-                      <span className="font-mono text-base font-bold text-[#14213D]">{runnerWt} g</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{runnerWt > 0 ? `${runnerWt} g` : '0 g'}</span>
                     </div>
                   </div>
 
@@ -2620,11 +2620,11 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                         <Sparkles className="w-4 h-4 text-blue-600" />
                         <strong className="text-[#14213D]">Calculated Shot Weight:</strong>
                         <span className="px-2.5 py-0.5 rounded-md bg-white border border-blue-200 font-mono font-bold text-blue-800">
-                          {singleShotWt} g / pc shot
+                          {singleShotWt > 0 ? `${singleShotWt} g / pc shot` : '—'}
                         </span>
                         <span className="text-gray-400">&bull;</span>
                         <span className="px-2.5 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 font-mono font-bold text-emerald-800">
-                          {totalMoldShotWt} g (Total {cavities}-Cavity Shot)
+                          {totalMoldShotWt > 0 ? `${totalMoldShotWt} g (Total ${cavities}-Cavity Shot)` : '—'}
                         </span>
                       </div>
                       <div className="text-[11px] text-gray-600 font-mono">
@@ -2634,7 +2634,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
 
                     <div className="text-right flex-shrink-0 pl-4 border-l border-blue-200/80">
                       <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block">Est. Hourly Output</span>
-                      <span className="text-base font-mono font-bold text-emerald-700">{hourlyOutput} pcs / hr</span>
+                      <span className="text-base font-mono font-bold text-emerald-700">{hourlyOutput > 0 ? `${hourlyOutput} pcs / hr` : '—'}</span>
                     </div>
                   </div>
                 </div>
@@ -2662,19 +2662,19 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 text-xs">
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">Polymer Grade *</span>
-                      <span className="font-mono text-base font-bold text-[#14213D]">{item.polymerGrade || item.resinType || 'PP Copolymer'}</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{item.polymerGrade || item.resinType || '—'}</span>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">Melt Flow Index (MFI) *</span>
-                      <span className="font-mono text-base font-bold text-[#14213D]">{item.mfi || '12.0 g/10min'}</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{item.mfi || '—'}</span>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">Specific Density *</span>
-                      <span className="font-mono text-base font-bold text-[#14213D]">{item.density || '0.905 g/cm³'}</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{item.density || '—'}</span>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">Moisture Limit</span>
-                      <span className="font-mono text-base font-bold text-emerald-700">{item.moistureLimit || '< 0.05%'}</span>
+                      <span className="font-mono text-base font-bold text-emerald-700">{item.moistureLimit || '—'}</span>
                     </div>
                   </div>
                 </div>
@@ -2702,19 +2702,19 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 text-xs">
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">Carrier Resin *</span>
-                      <span className="font-mono text-base font-bold text-[#14213D]">{item.carrierResin || 'PP Homopolymer'}</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{item.carrierResin || '—'}</span>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">Shade / Color Name *</span>
-                      <span className="font-mono text-base font-bold text-[#14213D]">{item.color || 'Standard Shade'}</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{item.color || '—'}</span>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">Target Dosage (LDR %) *</span>
-                      <span className="font-mono text-base font-bold text-[#14213D]">{item.masterbatchDosage || '2.0%'}</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{item.masterbatchDosage || '—'}</span>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">Heat Stability</span>
-                      <span className="font-mono text-base font-bold text-purple-700">{item.heatStability || '280°C'}</span>
+                      <span className="font-mono text-base font-bold text-purple-700">{item.heatStability || '—'}</span>
                     </div>
                   </div>
                 </div>
@@ -2742,19 +2742,19 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 text-xs">
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">Packaging Standard *</span>
-                      <span className="font-mono text-base font-bold text-[#14213D]">{item.packagingStandard || 'Corrugated Box (5-Ply)'}</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{item.packagingStandard || '—'}</span>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">Box Dimensions (LxWxH) *</span>
-                      <span className="font-mono text-base font-bold text-[#14213D]">{item.boxDimensions || '600 x 400 x 300 mm'}</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{item.boxDimensions || '—'}</span>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">Pallet Pattern</span>
-                      <span className="font-mono text-base font-bold text-[#14213D]">4 Boxes/Layer &bull; 5 Tiers</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{item.palletPattern || '—'}</span>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">ECT / Bursting Strength</span>
-                      <span className="font-mono text-base font-bold text-amber-700">32 ECT / 200#</span>
+                      <span className="font-mono text-base font-bold text-amber-700">{item.burstingStrength || '—'}</span>
                     </div>
                   </div>
                 </div>
@@ -2782,7 +2782,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 text-xs">
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">Machine Fitment *</span>
-                      <span className="font-mono text-base font-bold text-[#14213D]">{item.moldToolId || 'Toshiba / Haitian 250T'}</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{item.moldToolId || '—'}</span>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">OEM Part Number *</span>
@@ -2790,11 +2790,11 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">PM Cycle</span>
-                      <span className="font-mono text-base font-bold text-[#14213D]">500,000 Cycles</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{item.pmInterval || '—'}</span>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">Criticality Flag</span>
-                      <span className="font-mono text-base font-bold text-slate-700">Class-A Critical</span>
+                      <span className="font-mono text-base font-bold text-slate-700">{item.criticality || 'Standard'}</span>
                     </div>
                   </div>
                 </div>
@@ -2809,42 +2809,42 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   <div className="kv-grid">
                     <div className="kv"><label>Item Type</label><div className="v">{item.type}</div></div>
                     <div className="kv"><label>Plant / Unit</label><div className="v font-semibold text-[#14213D] flex items-center gap-1"><Factory className="w-3.5 h-3.5 text-[#0F8B8D]" />{item.plant || 'Plant 1 - Pimpri Auto-Hub'}</div></div>
-                    <div className="kv"><label>Material Family</label><div className="v">{item.cat}</div></div>
-                    <div className="kv"><label>Base UOM</label><div className="v mono">{item.baseUOM}</div></div>
+                    <div className="kv"><label>Material Family</label><div className="v">{item.cat || '—'}</div></div>
+                    <div className="kv"><label>Base UOM</label><div className="v mono">{item.baseUOM || 'PCS'}</div></div>
                     {isFg ? (
                       <>
-                        <div className="kv"><label>Resin Grade</label><div className="v">{item.resinType || 'PP Copolymer'}</div></div>
-                        <div className="kv"><label>Melt Flow Index</label><div className="v mono">{item.mfi || '12.0 g/10min'}</div></div>
-                        <div className="kv"><label>Density</label><div className="v mono">{item.density || '0.905 g/cm³'}</div></div>
-                        <div className="kv"><label>Mold Tool ID</label><div className="v mono font-bold text-[#0F8B8D]">{item.moldToolId || 'MOLD-001'}</div></div>
+                        <div className="kv"><label>Resin Grade</label><div className="v">{item.resinType || item.polymerGrade || '—'}</div></div>
+                        <div className="kv"><label>Melt Flow Index</label><div className="v mono">{item.mfi || '—'}</div></div>
+                        <div className="kv"><label>Density</label><div className="v mono">{item.density || '—'}</div></div>
+                        <div className="kv"><label>Mold Tool ID</label><div className="v mono font-bold text-[#0F8B8D]">{item.moldToolId || '—'}</div></div>
                       </>
                     ) : item.type === 'Raw Material' || item.type === 'Regrind' ? (
                       <>
-                        <div className="kv"><label>Resin / Grade</label><div className="v">{item.polymerGrade || item.resinType || 'PP Copolymer'}</div></div>
-                        <div className="kv"><label>Melt Flow Index</label><div className="v mono">{item.mfi || '12.0 g/10min'}</div></div>
-                        <div className="kv"><label>Density</label><div className="v mono">{item.density || '0.905 g/cm³'}</div></div>
-                        <div className="kv"><label>Moisture Limit</label><div className="v mono text-emerald-700">{item.moistureLimit || '< 0.05%'}</div></div>
+                        <div className="kv"><label>Resin / Grade</label><div className="v">{item.polymerGrade || item.resinType || '—'}</div></div>
+                        <div className="kv"><label>Melt Flow Index</label><div className="v mono">{item.mfi || '—'}</div></div>
+                        <div className="kv"><label>Density</label><div className="v mono">{item.density || '—'}</div></div>
+                        <div className="kv"><label>Moisture Limit</label><div className="v mono text-emerald-700">{item.moistureLimit || '—'}</div></div>
                       </>
                     ) : item.type === 'Masterbatch' || item.type === 'Colorant' || item.type === 'Additive' ? (
                       <>
-                        <div className="kv"><label>Carrier Resin</label><div className="v">{item.carrierResin || 'PP Homopolymer'}</div></div>
-                        <div className="kv"><label>Color / Shade</label><div className="v">{item.color || 'Standard Shade'}</div></div>
-                        <div className="kv"><label>Target LDR Dosage</label><div className="v mono">{item.masterbatchDosage || '2.0%'}</div></div>
-                        <div className="kv"><label>Heat Stability</label><div className="v mono text-purple-700">{item.heatStability || '280°C'}</div></div>
+                        <div className="kv"><label>Carrier Resin</label><div className="v">{item.carrierResin || '—'}</div></div>
+                        <div className="kv"><label>Color / Shade</label><div className="v">{item.color || '—'}</div></div>
+                        <div className="kv"><label>Target LDR Dosage</label><div className="v mono">{item.masterbatchDosage || '—'}</div></div>
+                        <div className="kv"><label>Heat Stability</label><div className="v mono text-purple-700">{item.heatStability || '—'}</div></div>
                       </>
                     ) : item.type === 'Packaging Material' ? (
                       <>
-                        <div className="kv"><label>Packaging Spec</label><div className="v">{item.packagingStandard || 'Corrugated Box'}</div></div>
-                        <div className="kv"><label>Box Dimensions</label><div className="v mono">{item.boxDimensions || '600x400x300 mm'}</div></div>
-                        <div className="kv"><label>HSN / SAC Code</label><div className="v mono">{item.hsnCode || '4819.10.00'}</div></div>
+                        <div className="kv"><label>Packaging Spec</label><div className="v">{item.packagingStandard || '—'}</div></div>
+                        <div className="kv"><label>Box Dimensions</label><div className="v mono">{item.boxDimensions || '—'}</div></div>
+                        <div className="kv"><label>HSN / SAC Code</label><div className="v mono">{item.hsnCode || '—'}</div></div>
                         <div className="kv"><label>Storage Form</label><div className="v">Flat Packed on Pallet</div></div>
                       </>
                     ) : (
                       <>
-                        <div className="kv"><label>Machine Fitment</label><div className="v mono">{item.moldToolId || 'Toshiba / Haitian 250T'}</div></div>
+                        <div className="kv"><label>Machine Fitment</label><div className="v mono">{item.moldToolId || '—'}</div></div>
                         <div className="kv"><label>OEM Part Number</label><div className="v mono">{item.code}</div></div>
-                        <div className="kv"><label>Maintenance Interval</label><div className="v">500,000 Cycles</div></div>
-                        <div className="kv"><label>Critical Spare</label><div className="v font-bold text-amber-700">Yes (PM Essential)</div></div>
+                        <div className="kv"><label>Maintenance Interval</label><div className="v">{item.pmInterval || '—'}</div></div>
+                        <div className="kv"><label>Critical Spare</label><div className="v font-bold text-amber-700">{item.criticality === 'Class-A Critical' ? 'Yes (PM Essential)' : 'Standard'}</div></div>
                       </>
                     )}
                     <div className="kv"><label>Country of Origin</label><div className="v">{item.countryOrigin || 'India'}</div></div>
@@ -2854,13 +2854,13 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                 <div className="space-y-4">
                   <div className="side-block">
                     <h4>Planning &amp; Inventory Parameters</h4>
-                    <div className="side-row"><span>Reorder Level</span><span className="mono">{item.reorderLevel || '4,000 KG'}</span></div>
-                    <div className="side-row"><span>Safety Stock</span><span className="mono">{item.safetyStock || '2,000 KG'}</span></div>
-                    <div className="side-row"><span>Lead Time</span><span>{item.leadTime || '7 days'}</span></div>
-                    <div className="side-row"><span>Preferred Supplier</span><span>{item.supplier || 'Reliance Polymers'}</span></div>
+                    <div className="side-row"><span>Reorder Level</span><span className="mono">{item.reorderLevel ? `${item.reorderLevel} ${item.baseUOM || 'PCS'}` : '—'}</span></div>
+                    <div className="side-row"><span>Safety Stock</span><span className="mono">{item.safetyStock ? `${item.safetyStock} ${item.baseUOM || 'PCS'}` : '—'}</span></div>
+                    <div className="side-row"><span>Lead Time</span><span>{item.leadTime || '—'}</span></div>
+                    <div className="side-row"><span>Preferred Supplier</span><span>{item.supplier || '—'}</span></div>
                     <div className="side-row">
                       <span>{isFg ? 'Post-Molding Destination' : 'Receiving Inspection Gate'}</span>
-                      <span className="font-bold text-[#0F8B8D]">{isFg ? (item.routingDestination || 'DOL') : 'IQC Pass Gate'}</span>
+                      <span className="font-bold text-[#0F8B8D]">{isFg ? (item.routingDestination || item.wh || 'FG Store') : (item.wh || 'RM Store')}</span>
                     </div>
                   </div>
 
@@ -2898,8 +2898,11 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               </div>
 
               <div className="panel bg-white border border-[#E4E0D6] rounded-xl overflow-hidden shadow-xs">
-                <div className="panel-head p-4 bg-[#F9F8F5] border-b border-[#E4E0D6]">
+                <div className="panel-head p-4 bg-[#F9F8F5] border-b border-[#E4E0D6] flex items-center justify-between">
                   <h3 className="text-sm font-bold text-[#14213D]">Warehouse Stock by Lot</h3>
+                  <span className="text-xs text-gray-500 font-mono">
+                    Total Lots: {itemLots.length} &bull; On Hand: {detailStock.onHand}
+                  </span>
                 </div>
                 <div className="panel-body p-0">
                   <table className="w-full text-left text-xs">
@@ -2908,22 +2911,42 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                         <th className="py-2.5 px-3">Lot Number</th>
                         <th className="py-2.5 px-3">Warehouse</th>
                         <th className="py-2.5 px-3">Bin</th>
-                        <th className="py-2.5 px-3 text-right">On Hand</th>
-                        <th className="py-2.5 px-3">Mfg Date</th>
+                        <th className="py-2.5 px-3 text-right">Available Qty</th>
+                        <th className="py-2.5 px-3">Receipt / Mfg</th>
                         <th className="py-2.5 px-3">Expiry</th>
                         <th className="py-2.5 px-3 text-center">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      <tr>
-                        <td className="py-2.5 px-3 font-mono font-bold text-[#0F8B8D]">LOT-2026-0842</td>
-                        <td className="py-2.5 px-3">{item.wh}</td>
-                        <td className="py-2.5 px-3 font-mono text-xs text-[#0F8B8D] font-bold">{item.locationCode || 'BIN-01'}</td>
-                        <td className="py-2.5 px-3 text-right font-semibold">{item.stock}</td>
-                        <td className="py-2.5 px-3 font-mono">2026-06-01</td>
-                        <td className="py-2.5 px-3 font-mono">2027-06-01</td>
-                        <td className="py-2.5 px-3 text-center"><span className="badge green">available</span></td>
-                      </tr>
+                      {itemLots.length > 0 ? (
+                        itemLots.map((lot, idx) => (
+                          <tr key={lot.lotNumber || idx} className="hover:bg-gray-50">
+                            <td className="py-2.5 px-3 font-mono font-bold text-[#0F8B8D]">{lot.lotNumber}</td>
+                            <td className="py-2.5 px-3">{whStockItem?.primaryWarehouse || item.wh || 'WH-01'}</td>
+                            <td className="py-2.5 px-3 font-mono text-xs text-[#0F8B8D] font-bold">{lot.storageBin || whStockItem?.primaryBin || '—'}</td>
+                            <td className="py-2.5 px-3 text-right font-semibold">{lot.availableQuantityKg || lot.initialQuantityKg || 0} {lot.uom || item.baseUOM || 'PCS'}</td>
+                            <td className="py-2.5 px-3 font-mono">{lot.receiptDate || '—'}</td>
+                            <td className="py-2.5 px-3 font-mono">{lot.expiryDate || '—'}</td>
+                            <td className="py-2.5 px-3 text-center">
+                              <span className={`badge ${lot.status === 'released' || lot.status === 'available' ? 'green' : lot.status === 'quarantine' ? 'amber' : 'gray'}`}>
+                                {lot.status || 'available'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={7} className="py-8 text-center text-gray-500 bg-gray-50/50">
+                            <div className="flex flex-col items-center justify-center gap-1.5">
+                              <Package className="w-5 h-5 text-gray-400" />
+                              <span className="font-semibold text-gray-700">No active inventory lots or batches recorded for {item.code}.</span>
+                              <span className="text-[11px] text-gray-500">
+                                Current Physical Balance: {detailStock.onHand} | Available: {detailStock.available} | Default Store: {item.wh || 'General Store'}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -2950,26 +2973,26 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   </div>
 
                   <div className="flex items-baseline gap-3 pt-2">
-                    <span className="font-mono text-4xl font-bold text-[#14213D]">{cycle}</span>
+                    <span className="font-mono text-4xl font-bold text-[#14213D]">{cycle > 0 ? cycle : '—'}</span>
                     <span className="text-sm font-semibold text-gray-500">sec / cycle</span>
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-2">
                     <div className="p-3 bg-gray-50 rounded-lg border">
                       <span className="text-gray-500 block">Mold Tool Cavities</span>
-                      <strong className="text-sm text-[#14213D]">{cavities} Cavities</strong>
+                      <strong className="text-sm text-[#14213D]">{cavities > 0 ? `${cavities} Cavities` : '—'}</strong>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-lg border">
                       <span className="text-gray-500 block">Single Part Weight</span>
-                      <strong className="text-sm text-[#14213D]">{partWt} grams</strong>
+                      <strong className="text-sm text-[#14213D]">{partWt > 0 ? `${partWt} grams` : '—'}</strong>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-lg border">
                       <span className="text-gray-500 block">Runner &amp; Sprue Weight</span>
-                      <strong className="text-sm text-[#14213D]">{runnerWt} grams</strong>
+                      <strong className="text-sm text-[#14213D]">{runnerWt > 0 ? `${runnerWt} grams` : '0 grams'}</strong>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-lg border">
                       <span className="text-gray-500 block">Total Shot Weight</span>
-                      <strong className="text-sm text-emerald-700">{totalMoldShotWt} grams</strong>
+                      <strong className="text-sm text-emerald-700">{totalMoldShotWt > 0 ? `${totalMoldShotWt} grams` : '—'}</strong>
                     </div>
                   </div>
                 </div>
@@ -2991,19 +3014,19 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-2">
                     <div className="p-3 bg-gray-50 rounded-lg border">
                       <span className="text-gray-500 block">Melt Flow Index (MFI)</span>
-                      <strong className="text-sm text-[#14213D]">{item.mfi || '12.0 g/10min'}</strong>
+                      <strong className="text-sm text-[#14213D]">{item.mfi || '—'}</strong>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-lg border">
                       <span className="text-gray-500 block">Specific Gravity / Density</span>
-                      <strong className="text-sm text-[#14213D]">{item.density || '0.905 g/cm³'}</strong>
+                      <strong className="text-sm text-[#14213D]">{item.density || '—'}</strong>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-lg border">
                       <span className="text-gray-500 block">Moisture Limit</span>
-                      <strong className="text-sm text-[#14213D]">{item.moistureLimit || '< 0.05%'}</strong>
+                      <strong className="text-sm text-[#14213D]">{item.moistureLimit || '—'}</strong>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-lg border">
                       <span className="text-gray-500 block">Recommended Melt Temp</span>
-                      <strong className="text-sm text-emerald-700">210°C &ndash; 240°C</strong>
+                      <strong className="text-sm text-emerald-700">{item.meltTemp || '210°C – 240°C'}</strong>
                     </div>
                   </div>
 
@@ -3059,7 +3082,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                           </td>
                           <td className="py-2.5 px-3 text-gray-600">{doc.type}</td>
                           <td className="py-2.5 px-3 font-mono">{doc.version || 'v1.0'}</td>
-                          <td className="py-2.5 px-3 font-mono text-gray-600">{doc.uploadedDate || '2026-09-22'}</td>
+                          <td className="py-2.5 px-3 font-mono text-gray-600">{doc.uploadedDate || '—'}</td>
                           <td className="py-2.5 px-3 text-right">
                             {doc.link && (
                               <a
@@ -3082,7 +3105,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                 <div className="text-center py-10 px-4 bg-[#F9F8F5] rounded-xl border border-[#E4E0D6] space-y-3">
                   <FileText className="w-8 h-8 text-gray-400 mx-auto" />
                   <div>
-                    <h4 className="font-bold text-sm text-[#14213D]">No technical documents attached yet.</h4>
+                    <h4 className="font-bold text-sm text-[#14213D]">No technical documents attached yet for {item.code}.</h4>
                     <p className="text-xs text-gray-500 max-w-sm mx-auto mt-0.5">
                       Upload part drawings (STEP/DWG/PDF), mold setup sheets, or packaging specifications.
                     </p>
@@ -3165,7 +3188,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                       <Layers className="w-6 h-6 text-[#0F8B8D]" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-sm text-[#14213D]">No Manufacturing BOM exists for this item.</h4>
+                      <h4 className="font-bold text-sm text-[#14213D]">No Manufacturing BOM exists for {item.code}.</h4>
                       <p className="text-xs text-gray-500 max-w-md mx-auto mt-1">
                         Configure multi-component resin percentages, secondary degating operations, machine routing, and live cost rollups.
                       </p>
@@ -3190,8 +3213,8 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                 <h3 className="font-bold text-sm text-[#14213D] mb-4">Label Specifications</h3>
                 <div className="space-y-2 text-xs">
                   <div className="side-row"><span>Symbology</span><span>QR Code + Code 128</span></div>
-                  <div className="side-row"><span>Lot Number Included</span><span>Yes</span></div>
-                  <div className="side-row"><span>Warehouse Location Tag</span><span>Yes ({item.wh})</span></div>
+                  <div className="side-row"><span>Lot Number Included</span><span>{item.lot ? 'Yes' : 'No'}</span></div>
+                  <div className="side-row"><span>Warehouse Location Tag</span><span>Yes ({item.wh || 'STORE'})</span></div>
                   <div className="side-row"><span>Hazard / Moisture Warning</span><span>{item.hazardous ? 'Hazardous' : 'Standard'}</span></div>
                 </div>
                 <button
@@ -3205,11 +3228,11 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               <div className="panel p-5 flex flex-col items-center justify-center bg-[#F6F4EF]/60 border-dashed border-2 border-[#E4E0D6]">
                 <div className="p-4 bg-white border border-[#E4E0D6] rounded-lg shadow-sm w-64 text-center font-mono text-[11px] space-y-1.5">
                   <div className="font-bold font-['Space_Grotesk'] text-xs">DATASTOCK PLASTICS</div>
-                  <div className="text-[10px] text-[#6B7280] border-b border-[#E4E0D6] pb-1">PLANT 01 &middot; HOSUR</div>
+                  <div className="text-[10px] text-[#6B7280] border-b border-[#E4E0D6] pb-1">{item.plant ? item.plant.toUpperCase() : 'PLANT 01'}</div>
                   <div className="font-bold text-xs pt-1">{item.code}</div>
                   <div className="text-[10px] truncate">{item.name}</div>
-                  <div className="text-[10px]">MOLD: {item.moldToolId || 'MOLD-001'}</div>
-                  <div className="text-[10px]">QTY: {item.stock} &middot; {item.wh}</div>
+                  <div className="text-[10px]">{isFg ? `MOLD: ${item.moldToolId || '—'}` : `RESIN: ${item.resinType || item.polymerGrade || '—'}`}</div>
+                  <div className="text-[10px]">QTY: {detailStock.onHand} &middot; {item.wh || 'STORE'}</div>
                   <div className="py-2 text-2xl tracking-widest text-[#14213D]">
                     ||||| | ||||| | ||
                   </div>
@@ -3231,14 +3254,14 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   <div className="t-dot" style={{ background: 'var(--success)' }} />
                   <div>
                     <div className="t-text"><b>Item Created</b> &mdash; {item.name}</div>
-                    <div className="t-time">{item.createdOn} &middot; Initial draft</div>
+                    <div className="t-time">{item.createdOn || 'Initial Creation'} &middot; Master Record</div>
                   </div>
                 </div>
                 <div className="timeline-item">
                   <div className="t-dot" style={{ background: item.approval === 'approved' ? 'var(--success)' : 'var(--warning)' }} />
                   <div>
                     <div className="t-text">
-                      <b>QA &amp; Technical Review</b> &mdash; {item.approval === 'approved' ? 'Approved by Priya Rao' : 'Awaiting Review'}
+                      <b>QA &amp; Technical Review</b> &mdash; {item.approval === 'approved' ? (item.approvedBy ? `Approved by ${item.approvedBy}` : 'Approved & Released') : 'Awaiting Review'}
                     </div>
                     <div className="t-time">Master catalog release authority</div>
                   </div>
@@ -3271,7 +3294,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   <h3 className="text-sm font-bold text-[#14213D] flex items-center gap-2">
                     <History className="w-4 h-4 text-[#0F8B8D]" /> Immutable Change Audit Logs (PostgreSQL)
                   </h3>
-                  <p className="text-xs text-gray-500">Chronological history of revisions, approvals, and tooling changes.</p>
+                  <p className="text-xs text-gray-500">Chronological history of revisions, approvals, and tooling changes for {item.code}.</p>
                 </div>
                 <button
                   className="btn btn-sm btn-ghost border"
@@ -3284,13 +3307,32 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                 </button>
               </div>
 
-              <div className="timeline-item">
-                <div className="t-dot" style={{ background: 'var(--success)' }} />
-                <div>
-                  <div className="t-text font-bold text-xs text-[#14213D]">Item Created &amp; Tooling Linked</div>
-                  <div className="text-[11px] text-gray-500">{item.createdOn} &bull; Recorded with standard cycle time {cycle}s and mold {item.moldToolId || 'MOLD-001'}.</div>
-                </div>
-              </div>
+              {(() => {
+                const logs = (masterDataGovernanceService.getAllRecords?.() || [])
+                  .filter((r: any) => r.code === item.code);
+                return (
+                  <div className="space-y-3">
+                    <div className="timeline-item">
+                      <div className="t-dot" style={{ background: 'var(--success)' }} />
+                      <div>
+                        <div className="t-text font-bold text-xs text-[#14213D]">Item Master Record Active &bull; {item.code}</div>
+                        <div className="text-[11px] text-gray-500">
+                          {item.createdOn || 'Initial catalog release'} &bull; {item.name} &bull; Plant: {item.plant || 'Plant 1 - Pimpri Auto-Hub'}
+                        </div>
+                      </div>
+                    </div>
+                    {isFg && cycle > 0 && (
+                      <div className="timeline-item">
+                        <div className="t-dot" style={{ background: '#0F8B8D' }} />
+                        <div>
+                          <div className="t-text font-bold text-xs text-[#14213D]">Injection Tooling Spec Verified</div>
+                          <div className="text-[11px] text-gray-500">Cycle Time: {cycle}s &bull; Mold: {item.moldToolId || 'MOLD-001'} &bull; Cavities: {cavities}</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -3299,9 +3341,9 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
             <div className="panel p-5 space-y-4">
               <div className="section-title">Supplier &amp; Procurement Rates</div>
               <div className="kv-grid">
-                <div className="kv"><label>Preferred Supplier</label><div className="v">{item.supplier || 'Reliance Polymers Ltd'}</div></div>
-                <div className="kv"><label>Procurement Lead Time</label><div className="v">{item.leadTime || '7 days'}</div></div>
-                <div className="kv"><label>Valuation Standard</label><div className="v">{item.valuation || 'Weighted Avg Cost'}</div></div>
+                <div className="kv"><label>Preferred Supplier</label><div className="v">{item.supplier || '—'}</div></div>
+                <div className="kv"><label>Procurement Lead Time</label><div className="v">{item.leadTime || '—'}</div></div>
+                <div className="kv"><label>Valuation Standard</label><div className="v">{item.valuation || 'Standard Cost'}</div></div>
                 <div className="kv"><label>Standard Unit Cost</label><div className="v mono font-bold">₹{(item.standardCost || item.cost || 0).toFixed(2)}</div></div>
               </div>
             </div>
@@ -3312,10 +3354,10 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
             <div className="panel p-5 space-y-4">
               <div className="section-title">Quality Control &amp; Tolerances</div>
               <div className="kv-grid">
-                <div className="kv"><label>Incoming IQC Mandatory</label><div className="v">{item.qc ? 'Yes' : 'No'}</div></div>
+                <div className="kv"><label>Incoming IQC Mandatory</label><div className="v">{item.qc ? 'Yes (Mandatory Gate)' : 'No (Direct Store Acceptance)'}</div></div>
                 <div className="kv"><label>Certificate of Analysis (COA)</label><div className="v">{item.qc ? 'Mandatory Gate' : 'Optional'}</div></div>
-                <div className="kv"><label>Statistical Sampling</label><div className="v">AQL 1.0 General Level II</div></div>
-                <div className="kv"><label>Dimensional Tolerance</label><div className="v mono">&plusmn;0.05 mm</div></div>
+                <div className="kv"><label>Statistical Sampling</label><div className="v">{item.qc ? 'AQL 1.0 General Level II' : 'Standard Visual Inspection'}</div></div>
+                <div className="kv"><label>Dimensional Tolerance</label><div className="v mono">{item.tolerance || (isFg ? '±0.05 mm' : 'Standard Raw Spec')}</div></div>
               </div>
             </div>
           )}
