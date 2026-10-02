@@ -5,8 +5,8 @@ import { WorkOrder, BomMaster, ItemMaster } from '../types';
 import { liveDataStore } from '../services/liveDataStore';
 import { DOCUMENT_ITEM_MASTER_CATALOG } from '../data/masterItemsCatalog';
 
-const STOCK_STORAGE_KEY = 'reboot_warehouse_stock';
-const LEDGER_STORAGE_KEY = 'reboot_stock_movement_ledger';
+const STOCK_STORAGE_KEY = 'reboot_warehouse_stock_v3';
+const LEDGER_STORAGE_KEY = 'reboot_stock_movement_ledger_v3';
 
 /**
  * Checks if the current authenticated user has administrative privileges.
@@ -98,6 +98,16 @@ export function isStoreInUse(storeOrBinCode?: string): { inUse: boolean; reason?
  * Robust, error-resilient retrieval of all Warehouse Inventory Stock
  */
 export function getWarehouseStock(): InventoryStockItem[] {
+  // Purge legacy storage keys if present
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('reboot_warehouse_stock');
+      localStorage.removeItem('reboot_stock_movement_ledger');
+      localStorage.removeItem('reboot_warehouse_stock_v2');
+      localStorage.removeItem('reboot_stock_movement_ledger_v2');
+    }
+  } catch {}
+
   try {
     const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(STOCK_STORAGE_KEY) : null;
     if (stored) {
@@ -108,7 +118,7 @@ export function getWarehouseStock(): InventoryStockItem[] {
           (item) =>
             item &&
             item.sku &&
-            !['ASM-BEZEL-SUBASSY-01', 'DFL-CAP-MOLDED-01', 'FG-AUTO-BEZEL-01', 'WIP-AUTO-HOUSING-01', 'WIP-SWITCH-BEZEL-02', 'RM-PP-NAT-001', 'RM-HDPE-INJ-002', 'MB-BLK-001', 'RG-PP-NAT-001', 'RM-NYLON-66-GF30', 'CON-MOLD-RELEASE-01', 'CON-PURGE-COMP-01', 'PCK-CORR-BOX-01', 'PCK-ANTI-BAG-02', 'BOP-BRASS-M4-01', 'BOP-RUBBER-GROMMET-02'].includes(item.sku)
+            !['ASM-BEZEL-SUBASSY-01', 'DFL-CAP-MOLDED-01', 'FG-AUTO-BEZEL-01', 'WIP-AUTO-HOUSING-01', 'WIP-SWITCH-BEZEL-02', 'RM-PP-NAT-001', 'RM-HDPE-INJ-002', 'MB-BLK-001', 'RG-PP-NAT-001', 'RM-NYLON-66-GF30', 'CON-MOLD-RELEASE-01', 'CON-PURGE-COMP-01', 'PCK-CORR-BOX-01', 'PCK-ANTI-BAG-02', 'BOP-BRASS-M4-01', 'BOP-RUBBER-GROMMET-02', 'RM-PS-HIP-002', 'MB-AMB-008'].includes(item.sku)
         );
         if (cleaned.length > 0) return cleaned;
       }
@@ -377,7 +387,7 @@ export function syncItemsWithWarehouseStock(items: ItemMaster[]): ItemMaster[] {
 
 export function getStockMovementLedger(): StockMovementLedgerEntry[] {
   try {
-    const stored = localStorage.getItem(LEDGER_STORAGE_KEY);
+    const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(LEDGER_STORAGE_KEY) : null;
     if (stored) {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed)) {
@@ -390,7 +400,9 @@ export function getStockMovementLedger(): StockMovementLedgerEntry[] {
             !entry.id.startsWith('MOV-INIT-') &&
             !entry.id.startsWith('SYN-MOV-') &&
             entry.docNumber !== 'GRN-PLANT01-2026-004528' &&
-            entry.docNumber !== 'WO-ISSUE-2026-007892'
+            entry.docNumber !== 'WO-ISSUE-2026-007892' &&
+            entry.sku !== 'RM-PS-HIP-002' &&
+            entry.sku !== 'MB-AMB-008'
         );
         return cleaned;
       }
