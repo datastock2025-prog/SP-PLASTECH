@@ -32,6 +32,7 @@ import { adminService, adminEventBus } from '../../services/adminService';
 import { PlantDetails } from '../../types/admin';
 import { companyProfile, mockCompanyProfile } from '../../data/adminData';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
+import { liveDataStore } from '../../services/liveDataStore';
 import { isUserAdmin } from '../../utils/warehouseSync';
 import { useAuthContext } from '../../shared/components/RequireAuth';
 
@@ -348,7 +349,22 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
       isOpen: true,
       type: 'DEACTIVATE',
       title: 'Deactivate Shopfloor Work Center',
-      message: `Machine "${mc.code} (${mc.name})" is deployed on the shopfloor. Per ERP data governance, active work centers cannot be hard-deleted to preserve batch traceability and OEE history. Deactivating will retire this machine from active dispatching while preserving its complete ledger history. Proceed?`,
+      message: `Machine "${mc.code} (${mc.name})" will be retired from active production dispatching. Historical ledger will be preserved. Proceed?`,
+      targetMachine: mc,
+    });
+  };
+
+  const handleInitiateHardDelete = (mc: MachineWorkCenterConfig) => {
+    if (!isAdmin) {
+      showToast('⚠️ Only Administrators can delete machine assets.');
+      return;
+    }
+
+    setConfirmDialog({
+      isOpen: true,
+      type: 'DELETE_BLOCKED',
+      title: 'Permanently Delete Machine Asset',
+      message: `Are you sure you want to permanently delete work center "${mc.code} — ${mc.name}" from the database and production registry?`,
       targetMachine: mc,
     });
   };
@@ -362,6 +378,22 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
       saveStoredMachines(updatedList);
       setSelectedMachine(pendingData);
 
+      liveDataStore.saveMachine({
+        id: pendingData.id,
+        code: pendingData.code,
+        name: pendingData.name,
+        type: (pendingData.category as any) || 'Injection Molding Machine',
+        line: pendingData.bayNumber || 'IMM Bay 01',
+        status: pendingData.currentStatus?.toLowerCase() === 'running' ? 'running' : 'idle',
+        job: '',
+        lastPM: '2026-08-01',
+        nextPM: '2026-11-01',
+        tonnage: `${pendingData.tonnageRating}T`,
+        approval: 'approved',
+        createdOn: new Date().toISOString().split('T')[0],
+        hourlyRate: pendingData.hourlyCostRateInr || 2400,
+      }).catch(console.warn);
+
       // Record Audit
       masterDataGovernanceService.recordAudit({
         entityType: 'MACHINE_MASTER',
@@ -373,6 +405,7 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
         changeSummary: `Registered new injection molding asset ${pendingData.code} (${pendingData.tonnageRating}T) at ${pendingData.plantName}. Reason: ${reason || 'Capacity Provisioning'}`,
       });
       adminEventBus.emit('MACHINE_MASTER_SAVED', pendingData);
+      adminEventBus.emit('MACHINES_SYNCED');
 
       showToast(`✓ Machine Work Center ${pendingData.code} successfully registered in DB.`);
       setIsWizardOpen(false);
@@ -381,6 +414,22 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
       setMachines(updatedList);
       saveStoredMachines(updatedList);
       setSelectedMachine(pendingData);
+
+      liveDataStore.saveMachine({
+        id: pendingData.id,
+        code: pendingData.code,
+        name: pendingData.name,
+        type: (pendingData.category as any) || 'Injection Molding Machine',
+        line: pendingData.bayNumber || 'IMM Bay 01',
+        status: pendingData.currentStatus?.toLowerCase() === 'running' ? 'running' : 'idle',
+        job: '',
+        lastPM: '2026-08-01',
+        nextPM: '2026-11-01',
+        tonnage: `${pendingData.tonnageRating}T`,
+        approval: 'approved',
+        createdOn: new Date().toISOString().split('T')[0],
+        hourlyRate: pendingData.hourlyCostRateInr || 2400,
+      }).catch(console.warn);
 
       // Record Audit with Diff
       masterDataGovernanceService.recordAudit({
@@ -398,6 +447,7 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
         },
       });
       adminEventBus.emit('MACHINE_MASTER_SAVED', pendingData);
+      adminEventBus.emit('MACHINES_SYNCED');
 
       showToast(`✓ Work Center ${pendingData.code} specifications updated in DB.`);
       setIsWizardOpen(false);
@@ -419,11 +469,36 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
         action: 'DELETE',
         changedBy: currentUser?.name || 'Administrator',
         userRole: 'admin',
-        changeSummary: `Deactivated machine asset ${targetMachine.code} from shopfloor. Hard deletion blocked for audit genealogy. Reason: ${reason || 'Asset Decommissioning'}`,
+        changeSummary: `Deactivated machine asset ${targetMachine.code} from shopfloor. Reason: ${reason || 'Asset Decommissioning'}`,
       });
       adminEventBus.emit('MACHINE_MASTER_SAVED', deactivatedMachine);
+      adminEventBus.emit('MACHINES_SYNCED');
 
-      showToast(`🔒 Machine ${targetMachine.code} deactivated. Historical ledger preserved.`);
+      showToast(`🔒 Machine ${targetMachine.code} deactivated.`);
+    } else if (type === 'DELETE_BLOCKED' && targetMachine) {
+      const updatedList = machines.filter((m) => m.id !== targetMachine.id);
+      setMachines(updatedList);
+      saveStoredMachines(updatedList);
+      if (selectedMachine.id === targetMachine.id && updatedList.length > 0) {
+        setSelectedMachine(updatedList[0]);
+      }
+
+      liveDataStore.deleteMachine(targetMachine.id).catch(console.warn);
+
+      // Record Hard Delete Audit
+      masterDataGovernanceService.recordAudit({
+        entityType: 'MACHINE_MASTER',
+        entityCode: targetMachine.code,
+        entityName: targetMachine.name,
+        action: 'DELETE',
+        changedBy: currentUser?.name || 'Administrator',
+        userRole: 'admin',
+        changeSummary: `Deleted machine asset ${targetMachine.code} from database. Reason: ${reason || 'Asset Deletion'}`,
+      });
+      adminEventBus.emit('MACHINE_DELETED', { id: targetMachine.id, code: targetMachine.code });
+      adminEventBus.emit('MACHINES_SYNCED');
+
+      showToast(`✓ Machine ${targetMachine.code} removed from database.`);
     }
 
     setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
@@ -703,14 +778,25 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
             </div>
 
             {isAdmin && (
-              <div className="pt-3 border-t border-slate-200 flex justify-between items-center gap-2">
-                <button
-                  onClick={() => handleInitiateDeactivation(selectedMachine)}
-                  className="px-3 py-1.5 rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 text-xs font-semibold cursor-pointer flex items-center gap-1"
-                >
-                  <Lock className="w-3 h-3" />
-                  Deactivate Machine
-                </button>
+              <div className="pt-3 border-t border-slate-200 flex justify-between items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleInitiateDeactivation(selectedMachine)}
+                    className="px-2.5 py-1.5 rounded-lg border border-amber-200 text-amber-700 hover:bg-amber-50 text-xs font-semibold cursor-pointer flex items-center gap-1"
+                    title="Retire machine from active dispatching"
+                  >
+                    <Lock className="w-3 h-3" />
+                    Deactivate
+                  </button>
+                  <button
+                    onClick={() => handleInitiateHardDelete(selectedMachine)}
+                    className="px-2.5 py-1.5 rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 text-xs font-semibold cursor-pointer flex items-center gap-1"
+                    title="Permanently remove work center from database"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Delete
+                  </button>
+                </div>
 
                 <div className="flex gap-2">
                   <button

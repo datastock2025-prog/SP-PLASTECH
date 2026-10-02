@@ -490,6 +490,34 @@ class LiveDataStore {
         return data as MachineMaster[];
       }
     } catch {}
+
+    try {
+      const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_erp_machine_work_centers_v2') : null;
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((m: any) => ({
+            id: m.id || m.code,
+            code: m.code || m.id,
+            name: m.name,
+            type: m.category || 'Injection Molding Machine',
+            line: m.bayNumber || 'IMM Bay 01',
+            status: m.currentStatus?.toLowerCase() === 'running' ? 'running' : m.currentStatus?.toLowerCase() === 'idle' ? 'idle' : 'in_use',
+            job: m.currentJob || '',
+            lastPM: m.lastMaintenanceDate || '2026-08-01',
+            nextPM: m.nextPmDate || '2026-11-01',
+            tonnage: `${m.tonnageRating || 250}T`,
+            approval: 'approved' as const,
+            createdOn: m.commissioningDate || '2026-01-01',
+            hourlyRate: m.hourlyCostRateInr || 2400,
+            shotCount: m.totalLifetimeShots || 0,
+            plantId: m.plantId || 'PLANT-01',
+            plantName: m.plantName || 'Plant 01 — Pune / Chakan Hub',
+          }));
+        }
+      }
+    } catch {}
+
     return [];
   }
 
@@ -505,9 +533,47 @@ class LiveDataStore {
       });
     } catch {}
 
+    // Update local admin store if present
+    try {
+      const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_erp_machine_work_centers_v2') : null;
+      let list = stored ? JSON.parse(stored) : [];
+      if (Array.isArray(list)) {
+        const idx = list.findIndex((m: any) => m.id === machine.id || m.code === machine.id || m.code === machine.code);
+        if (idx >= 0) {
+          list[idx] = { ...list[idx], ...machine };
+        } else {
+          list.unshift(machine);
+        }
+        localStorage.setItem('reboot_erp_machine_work_centers_v2', JSON.stringify(list));
+      }
+    } catch {}
+
     adminEventBus.emit('MACHINE_SAVED', machine);
+    adminEventBus.emit('MACHINES_SYNCED');
     universalSyncManager.broadcastMutation('MACHINES', 'UPDATE', machine);
     return machine;
+  }
+
+  public async deleteMachine(id: string): Promise<boolean> {
+    try {
+      await supabase.from('machines').delete().eq('id', id);
+    } catch {}
+
+    try {
+      const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_erp_machine_work_centers_v2') : null;
+      if (stored) {
+        const list = JSON.parse(stored);
+        if (Array.isArray(list)) {
+          const filtered = list.filter((m: any) => m.id !== id && m.code !== id);
+          localStorage.setItem('reboot_erp_machine_work_centers_v2', JSON.stringify(filtered));
+        }
+      }
+    } catch {}
+
+    adminEventBus.emit('MACHINE_DELETED', { id });
+    adminEventBus.emit('MACHINES_SYNCED');
+    universalSyncManager.broadcastMutation('MACHINES', 'DELETE', { id });
+    return true;
   }
 
   // --------------------------------------------------------------------------

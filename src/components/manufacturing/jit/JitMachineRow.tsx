@@ -207,6 +207,7 @@ export const JitMachineRow: React.FC<Props> = ({
   const handleTargetPcsChange = (pcs: number) => {
     const safePcs = Math.max(0, pcs);
     const requiredHours = calculateHoursFromPcs(safePcs, job.cycleTimeSec, job.cavities, job.efficiencyPct);
+    const finish = calculateExpectedFinish(job.planDate, requiredHours, job.shift);
 
     onChange({
       ...job,
@@ -214,35 +215,63 @@ export const JitMachineRow: React.FC<Props> = ({
       calculatedPcs: safePcs,
       plannedHours: requiredHours,
       calculationMode: 'pcs_to_hours',
+      expectedFinishDate: finish.expectedFinishDate,
+      expectedFinishTime: finish.expectedFinishTime,
     });
   };
 
   const handleCycleTimeChange = (sec: number) => {
     const safeSec = Math.max(1, sec);
-    const calcPcs = calculatePcsFromHours(job.plannedHours, safeSec, job.cavities, job.efficiencyPct);
-
-    onChange({
-      ...job,
-      cycleTimeSec: safeSec,
-      isCustomCycleTime: true,
-      isCustomOverride: true,
-      calculatedPcs: calcPcs,
-      targetPcs: calcPcs,
-    });
+    if (job.calculationMode === 'pcs_to_hours') {
+      const requiredHours = calculateHoursFromPcs(job.targetPcs, safeSec, job.cavities, job.efficiencyPct);
+      const finish = calculateExpectedFinish(job.planDate, requiredHours, job.shift);
+      onChange({
+        ...job,
+        cycleTimeSec: safeSec,
+        isCustomCycleTime: true,
+        isCustomOverride: true,
+        plannedHours: requiredHours,
+        expectedFinishDate: finish.expectedFinishDate,
+        expectedFinishTime: finish.expectedFinishTime,
+      });
+    } else {
+      const calcPcs = calculatePcsFromHours(job.plannedHours, safeSec, job.cavities, job.efficiencyPct);
+      onChange({
+        ...job,
+        cycleTimeSec: safeSec,
+        isCustomCycleTime: true,
+        isCustomOverride: true,
+        calculatedPcs: calcPcs,
+        targetPcs: calcPcs,
+      });
+    }
   };
 
   const handleCavitiesChange = (cavs: number) => {
     const safeCavs = Math.max(1, cavs);
-    const calcPcs = calculatePcsFromHours(job.plannedHours, job.cycleTimeSec, safeCavs, job.efficiencyPct);
-
-    onChange({
-      ...job,
-      cavities: safeCavs,
-      isCustomCavity: true,
-      isCustomOverride: true,
-      calculatedPcs: calcPcs,
-      targetPcs: calcPcs,
-    });
+    if (job.calculationMode === 'pcs_to_hours') {
+      const requiredHours = calculateHoursFromPcs(job.targetPcs, job.cycleTimeSec, safeCavs, job.efficiencyPct);
+      const finish = calculateExpectedFinish(job.planDate, requiredHours, job.shift);
+      onChange({
+        ...job,
+        cavities: safeCavs,
+        isCustomCavity: true,
+        isCustomOverride: true,
+        plannedHours: requiredHours,
+        expectedFinishDate: finish.expectedFinishDate,
+        expectedFinishTime: finish.expectedFinishTime,
+      });
+    } else {
+      const calcPcs = calculatePcsFromHours(job.plannedHours, job.cycleTimeSec, safeCavs, job.efficiencyPct);
+      onChange({
+        ...job,
+        cavities: safeCavs,
+        isCustomCavity: true,
+        isCustomOverride: true,
+        calculatedPcs: calcPcs,
+        targetPcs: calcPcs,
+      });
+    }
   };
 
   // Preview estimated recipe requirements for this machine's target output
@@ -438,6 +467,7 @@ export const JitMachineRow: React.FC<Props> = ({
           <JitItemAutocomplete
             items={items}
             molds={molds}
+            boms={boms}
             selectedCode={job.itemCode}
             onSelectItem={handleItemSelect}
             placeholder="Type item code or name (e.g. FG-CTN-500)..."

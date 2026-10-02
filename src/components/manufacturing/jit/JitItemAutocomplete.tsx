@@ -1,11 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Search, Check, Package, Layers, Clock, AlertCircle } from 'lucide-react';
-import { ItemMaster } from '../../../types';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Search, Check, Package, Layers, Clock, AlertCircle, ShieldCheck } from 'lucide-react';
+import { ItemMaster, BomMaster } from '../../../types';
 import { MoldMaster } from '../../../data/manufacturingData';
 
 interface Props {
   items: ItemMaster[];
   molds: MoldMaster[];
+  boms?: BomMaster[];
   selectedCode: string;
   onSelectItem: (item: ItemMaster, suggestedMold?: MoldMaster) => void;
   placeholder?: string;
@@ -15,6 +16,7 @@ interface Props {
 export const JitItemAutocomplete: React.FC<Props> = ({
   items,
   molds,
+  boms = [],
   selectedCode,
   onSelectItem,
   placeholder = 'Type item code or name (e.g. FG-CTN-500)...',
@@ -52,12 +54,32 @@ export const JitItemAutocomplete: React.FC<Props> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [currentItem, selectedCode]);
 
-  // Task 2: Filter items to STRICTLY only show Finished Goods (FG) part items
+  // Approved BOM mapping (Items with approved/released engineering BOM)
+  const approvedBomMap = useMemo(() => {
+    const map = new Map<string, BomMaster>();
+    if (Array.isArray(boms) && boms.length > 0) {
+      boms.forEach((b) => {
+        const isApproved =
+          b.status === 'approved' ||
+          b.status === 'released' ||
+          (b as any).approval === 'approved' ||
+          (b as any).approvalStage === 'Released';
+
+        if (isApproved) {
+          if (b.parent) map.set(b.parent.trim().toUpperCase(), b);
+          if ((b as any).itemCode) map.set(String((b as any).itemCode).trim().toUpperCase(), b);
+        }
+      });
+    }
+    return map;
+  }, [boms]);
+
+  // Strict API-First Filter: Only Finished Goods with an Approved BOM
   const filteredItems = items
     .filter((item) => {
-      // Must be a Finished Good (exclude RM, Packaging, Masterbatch, Consumables, etc.)
       const isFg =
         item.type === 'Finished Good' ||
+        item.type === 'Semi-Finished Good' ||
         item.type?.toLowerCase() === 'finished goods' ||
         item.type?.toLowerCase() === 'fg' ||
         item.itemGroup === 'Finished Goods' ||
@@ -65,6 +87,12 @@ export const JitItemAutocomplete: React.FC<Props> = ({
         (item.wh && item.wh.startsWith('FG'));
 
       if (!isFg) return false;
+
+      // Gate: Item must have an approved BOM done
+      const hasApprovedBom = approvedBomMap.has(item.code.trim().toUpperCase());
+      if (approvedBomMap.size > 0 && !hasApprovedBom) {
+        return false;
+      }
 
       const q = query.toLowerCase().trim();
       if (!q) return true;
@@ -75,7 +103,7 @@ export const JitItemAutocomplete: React.FC<Props> = ({
         (item.cat && item.cat.toLowerCase().includes(q))
       );
     })
-    .slice(0, 15);
+    .slice(0, 20);
 
   const handleSelect = (item: ItemMaster) => {
     // Find compatible mold

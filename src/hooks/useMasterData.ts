@@ -72,6 +72,20 @@ export function useSaveMachine() {
   });
 }
 
+export function useDeleteMachine() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiClient.delete(`/machines/${id}`);
+      return res.data;
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.masterData.machines() });
+      universalSyncManager.broadcastMutation('MACHINES', 'DELETE', { id });
+    },
+  });
+}
+
 // 3. CUSTOMERS
 export function useCustomers() {
   return useQuery<Customer[]>({

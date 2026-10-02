@@ -644,6 +644,7 @@ export const JitCommonComposer: React.FC<Props> = ({
           <JitItemAutocomplete
             items={items}
             molds={molds}
+            boms={boms}
             selectedCode={selectedItemCode}
             onSelectItem={handleItemSelect}
             placeholder="Search finished goods or parts..."
