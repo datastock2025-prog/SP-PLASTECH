@@ -79,58 +79,60 @@ export const GoodsReceiptNoteView: React.FC<Props> = ({
   const [putawayTasks, setPutawayTasks] = useState<GrnPutawayTask[]>(INITIAL_PUTAWAY_TASKS);
   const [toleranceSettings, setToleranceSettings] = useState<GrnToleranceSettings>(DEFAULT_GRN_SETTINGS);
 
-  // Synchronize PO Queue from POs state dynamically
+  // Synchronize PO Queue from real POs state dynamically
   useEffect(() => {
+    if (!pos || pos.length === 0) {
+      setPoQueue([]);
+      return;
+    }
+    const queueItems: ConfirmedPoQueueItem[] = [];
     pos.forEach((po) => {
       if (po.status === 'sent_to_supplier' || po.status === 'approved' || po.status === 'partially_received') {
         po.lines.forEach((l, idx) => {
           const remaining = (l.orderedQty || 0) - (l.receivedQty || 0);
           if (remaining > 0) {
-            setPoQueue((prev) => {
-              const exists = prev.some((q) => q.poNumber === po.poNumber && q.poLineNo === (l.lineNo || idx + 1));
-              if (exists) return prev;
-              const newQueueItem: ConfirmedPoQueueItem = {
-                id: `PO-QUEUE-${po.poNumber}-${idx + 1}`,
-                poNumber: po.poNumber,
-                poLineNo: l.lineNo || idx + 1,
-                poDate: po.poDate,
-                supplierId: po.supplierId,
-                supplierCode: po.supplierCode || po.supplierId,
-                supplierName: po.supplierName,
-                supplierGstin: '24AAACG1234F1Z8',
-                expectedDate: po.expectedDeliveryDate,
-                arrivalDateTime: `${po.expectedDeliveryDate} 08:45 AM`,
-                plant: 'Plant 1 (Vapi Polymer Works)',
-                warehouse: l.warehouse || po.plantWarehouse || 'RM-WH-01',
-                receivingDock: 'Dock 2 (Heavy Resin Ramp)',
-                itemCode: l.itemCode,
-                itemName: l.itemName,
-                itemCategory: l.description || 'Raw Material Resin',
-                materialType: 'RM',
-                uom: l.uom,
-                orderedQty: l.orderedQty,
-                previouslyReceivedQty: l.receivedQty || 0,
-                openPoQty: remaining,
-                unitPrice: l.unitPrice,
-                poStatus: po.status === 'partially_received' ? 'Partially Received' : 'Confirmed',
-                qualityRequired: true,
-                asnReceived: true,
-                vehicleArrived: true,
-                transporterName: (po as any).deliveryTracking?.transporterName || 'Vapi Express Highway Logistics',
-                vehicleNumber: 'GJ-15-XY-9081',
-                driverName: 'Suresh Parmar',
-                deliveryChallanNo: `DC-${po.poNumber}-01`,
-                toleranceOverPct: 5.0,
-                toleranceUnderPct: 10.0,
-                qcMode: 'QC_BEFORE_GRN',
-                inspectionPlan: 'Standard Polyolefin Injection & Blow QC Assay',
-              };
-              return [newQueueItem, ...prev];
+            const dt = (po as any).deliveryTracking;
+            queueItems.push({
+              id: `PO-QUEUE-${po.poNumber}-${idx + 1}`,
+              poNumber: po.poNumber,
+              poLineNo: l.lineNo || idx + 1,
+              poDate: po.poDate,
+              supplierId: po.supplierId,
+              supplierCode: po.supplierCode || po.supplierId,
+              supplierName: po.supplierName,
+              supplierGstin: (po as any).supplierGstin || '',
+              expectedDate: po.expectedDeliveryDate,
+              arrivalDateTime: dt?.arrivalDateTime || '',
+              plant: po.plantWarehouse || 'Plant 1',
+              warehouse: l.warehouse || po.plantWarehouse || 'RM-WH-01',
+              receivingDock: dt?.receivingDock || 'Dock 1',
+              itemCode: l.itemCode,
+              itemName: l.itemName,
+              itemCategory: l.description || 'Material',
+              materialType: (l as any).materialType || 'RM',
+              uom: l.uom,
+              orderedQty: l.orderedQty,
+              previouslyReceivedQty: l.receivedQty || 0,
+              openPoQty: remaining,
+              unitPrice: l.unitPrice,
+              poStatus: po.status === 'partially_received' ? 'Partially Received' : 'Confirmed',
+              qualityRequired: Boolean(l.lotRequired || l.coaRequired),
+              asnReceived: Boolean(dt?.asnReceived),
+              vehicleArrived: Boolean(dt?.vehicleArrived),
+              transporterName: dt?.transporterName || '',
+              vehicleNumber: dt?.vehicleNumber || '',
+              driverName: dt?.driverName || '',
+              deliveryChallanNo: dt?.deliveryChallanNo || '',
+              toleranceOverPct: 5.0,
+              toleranceUnderPct: 10.0,
+              qcMode: 'QC_BEFORE_GRN',
+              inspectionPlan: 'Standard Receiving Inspection',
             });
           }
         });
       }
     });
+    setPoQueue(queueItems);
   }, [pos]);
 
   // Modals
