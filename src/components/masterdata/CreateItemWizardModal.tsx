@@ -37,6 +37,7 @@ import {
   Truck,
   MapPin,
   Store,
+  Factory,
 } from 'lucide-react';
 import { ItemMaster, ItemType, ApprovalStatus, ItemStatus } from '../../types';
 import { MasterDataRecord } from '../../data/adminExtendedData';
@@ -82,6 +83,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   const [category, setCategory] = useState<string>(editItem?.cat || '');
   const [itemGroup, setItemGroup] = useState<string>(editItem?.itemGroup || '');
   const [status, setStatus] = useState<string>(editItem?.approval === 'approved' ? 'Active' : 'Active');
+  const [plant, setPlant] = useState<string>(editItem?.plant || 'Plant 1 - Pimpri Auto-Hub');
   const [description, setDescription] = useState<string>(editItem?.desc || '');
   
   // Live Image State (Task 2)
@@ -810,6 +812,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
         category,
         itemGroup,
         status,
+        plant,
         description,
         cycleTime,
         partWeight,
@@ -862,6 +865,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
     category,
     itemGroup,
     status,
+    plant,
     description,
     cycleTime,
     partWeight,
@@ -974,6 +978,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
     if (existingDraftFound.itemCode) setItemCode(existingDraftFound.itemCode);
     if (existingDraftFound.itemName) setItemName(existingDraftFound.itemName);
     if (existingDraftFound.category) setCategory(existingDraftFound.category);
+    if (existingDraftFound.plant) setPlant(existingDraftFound.plant);
     if (existingDraftFound.description) setDescription(existingDraftFound.description);
     if (existingDraftFound.baseUOM) setBaseUOM(existingDraftFound.baseUOM);
     showToast('Draft restored successfully.');
@@ -1015,6 +1020,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       type: selectedType,
       cat: category,
       itemGroup: itemGroup,
+      plant: plant || 'Plant 1 - Pimpri Auto-Hub',
       stock: `0 ${baseUOM}`,
       avail: `0 ${baseUOM}`,
       wh: defaultWarehouse,
@@ -1106,6 +1112,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       type: selectedType,
       cat: category,
       itemGroup: itemGroup,
+      plant: plant || 'Plant 1 - Pimpri Auto-Hub',
       stock: editItem?.stock || `0 ${baseUOM}`,
       avail: editItem?.avail || `0 ${baseUOM}`,
       wh: defaultWarehouse,
@@ -1714,6 +1721,25 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         <option value="Draft">Draft</option>
                         <option value="Quarantine Hold">Quarantine Hold</option>
                         <option value="Obsolete">Obsolete</option>
+                      </select>
+                    </div>
+
+                    {/* Plant / Unit (belongs to plant) */}
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1 flex items-center gap-1">
+                        <Factory className="w-3.5 h-3.5 text-[#0F8B8D]" />
+                        Plant / Unit *
+                      </label>
+                      <select
+                        value={plant}
+                        onChange={(e) => setPlant(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white font-medium focus:ring-1 focus:ring-[#0F8B8D]"
+                      >
+                        <option value="Plant 1 - Pimpri Auto-Hub">Plant 1 - Pimpri Auto-Hub</option>
+                        <option value="Plant 2 - Chakan Complex">Plant 2 - Chakan Complex</option>
+                        <option value="Plant 3 - Sanand Mega Plant">Plant 3 - Sanand Mega Plant</option>
+                        <option value="Plant 4 - Pantnagar Facility">Plant 4 - Pantnagar Facility</option>
+                        <option value="All Plants (Global)">All Plants (Global)</option>
                       </select>
                     </div>
 

@@ -34,6 +34,7 @@ export interface ItemMaster {
   stock: string;
   avail: string;
   wh: string;
+  plant?: string;
   lot: boolean;
   qc: boolean;
   status: ItemStatus;

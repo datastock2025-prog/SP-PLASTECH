@@ -60,6 +60,7 @@ import {
   FlaskConical,
   Palette,
   Package,
+  Factory,
 } from 'lucide-react';
 import { PaginationBar } from './common/PaginationBar';
 import { CreateItemWizardModal } from './masterdata/CreateItemWizardModal';
@@ -839,7 +840,25 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <Factory className="w-3 h-3 text-[#0F8B8D]" />
+                    Plant / Unit *
+                  </label>
+                  <select
+                    disabled={!isAdmin}
+                    value={form.plant || 'Plant 1 - Pimpri Auto-Hub'}
+                    onChange={(e) => setForm({ ...form, plant: e.target.value })}
+                    className="w-full py-1.5 px-2 border border-slate-300 rounded-lg text-xs bg-white font-medium disabled:bg-slate-100"
+                  >
+                    <option value="Plant 1 - Pimpri Auto-Hub">Plant 1 - Pimpri Auto-Hub</option>
+                    <option value="Plant 2 - Chakan Complex">Plant 2 - Chakan Complex</option>
+                    <option value="Plant 3 - Sanand Mega Plant">Plant 3 - Sanand Mega Plant</option>
+                    <option value="Plant 4 - Pantnagar Facility">Plant 4 - Pantnagar Facility</option>
+                    <option value="All Plants (Global)">All Plants (Global)</option>
+                  </select>
+                </div>
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Resin Type</label>
                   <input
@@ -1404,6 +1423,9 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
         } else if (itemSortField === 'avail') {
           aVal = getItemStockData(a).availNum;
           bVal = getItemStockData(b).availNum;
+        } else if (itemSortField === 'plant') {
+          aVal = a.plant || 'Plant 1 - Pimpri Auto-Hub';
+          bVal = b.plant || 'Plant 1 - Pimpri Auto-Hub';
         } else if (itemSortField === 'cycleTime') {
           aVal = Number(a.standardCycleTime || a.cycleTime || 0);
           bVal = Number(b.standardCycleTime || b.cycleTime || 0);
@@ -1827,6 +1849,12 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                         <ArrowUpDown className="w-3 h-3 text-gray-400" />
                       </div>
                     </th>
+                    <th className="p-3 cursor-pointer hover:bg-amber-50/50" onClick={() => handleItemSort('plant')}>
+                      <div className="flex items-center gap-1">
+                        Plant / Unit
+                        <ArrowUpDown className="w-3 h-3 text-gray-400" />
+                      </div>
+                    </th>
                     <th className="p-3 cursor-pointer hover:bg-amber-50/50" onClick={() => handleItemSort('type')}>
                       <div className="flex items-center gap-1">
                         Type
@@ -1917,6 +1945,13 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                                 </span>
                               )}
                               {renderRoutingBadge(item)}
+                            </div>
+                          </td>
+
+                          <td className="p-3">
+                            <div className="flex items-center gap-1.5 font-semibold text-slate-700 text-xs">
+                              <Factory className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span className="truncate max-w-[140px]">{item.plant || 'Plant 1 - Pimpri Auto-Hub'}</span>
                             </div>
                           </td>
 
@@ -2155,7 +2190,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                     })
                   ) : (
                     <tr>
-                      <td colSpan={12}>
+                      <td colSpan={13}>
                         <div className="py-12 px-6 text-center">
                           <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-teal-50 text-[#0F8B8D] mb-3">
                             <Plus className="w-6 h-6" />
@@ -2359,6 +2394,10 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   </div>
                   <div className="m">
                     Type: <b>{item.type}</b>
+                  </div>
+                  <div className="m flex items-center gap-1">
+                    <Factory className="w-3 h-3 text-[#0F8B8D]" />
+                    Plant: <b>{item.plant || 'Plant 1 - Pimpri Auto-Hub'}</b>
                   </div>
                   <div className="m">
                     Category: <b>{item.cat}</b>
@@ -2769,6 +2808,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   </div>
                   <div className="kv-grid">
                     <div className="kv"><label>Item Type</label><div className="v">{item.type}</div></div>
+                    <div className="kv"><label>Plant / Unit</label><div className="v font-semibold text-[#14213D] flex items-center gap-1"><Factory className="w-3.5 h-3.5 text-[#0F8B8D]" />{item.plant || 'Plant 1 - Pimpri Auto-Hub'}</div></div>
                     <div className="kv"><label>Material Family</label><div className="v">{item.cat}</div></div>
                     <div className="kv"><label>Base UOM</label><div className="v mono">{item.baseUOM}</div></div>
                     {isFg ? (
