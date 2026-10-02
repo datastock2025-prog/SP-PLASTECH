@@ -212,48 +212,54 @@ export const GrnDashboardTab: React.FC<Props> = ({
           </div>
 
           <div className="divide-y divide-slate-100">
-            {poQueue.slice(0, 4).map((po) => (
-              <div
-                key={po.id}
-                className="p-4 hover:bg-slate-50/80 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
-                      {po.poNumber}
-                    </span>
-                    <span className="font-semibold text-xs text-slate-900">{po.supplierName}</span>
-                    {po.vehicleArrived && (
-                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                        Truck Arrived: {po.vehicleNumber}
+            {poQueue.length > 0 ? (
+              poQueue.slice(0, 4).map((po) => (
+                <div
+                  key={po.id}
+                  className="p-4 hover:bg-slate-50/80 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
+                        {po.poNumber}
                       </span>
-                    )}
+                      <span className="font-semibold text-xs text-slate-900">{po.supplierName}</span>
+                      {po.vehicleArrived && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          Truck Arrived: {po.vehicleNumber}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-slate-600 flex items-center gap-2">
+                      <span className="font-medium text-slate-800">{po.itemName}</span>
+                      <span className="text-slate-400">•</span>
+                      <span className="font-mono text-slate-500">{po.itemCode}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 flex items-center gap-3">
+                      <span>Expected: {po.expectedDate}</span>
+                      <span>•</span>
+                      <span>Dock: {po.receivingDock}</span>
+                      <span>•</span>
+                      <span className="font-medium text-slate-700">Open Qty: {po.openPoQty.toLocaleString()} {po.uom}</span>
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-600 flex items-center gap-2">
-                    <span className="font-medium text-slate-800">{po.itemName}</span>
-                    <span className="text-slate-400">•</span>
-                    <span className="font-mono text-slate-500">{po.itemCode}</span>
-                  </div>
-                  <div className="text-[11px] text-slate-500 flex items-center gap-3">
-                    <span>Expected: {po.expectedDate}</span>
-                    <span>•</span>
-                    <span>Dock: {po.receivingDock}</span>
-                    <span>•</span>
-                    <span className="font-medium text-slate-700">Open Qty: {po.openPoQty.toLocaleString()} {po.uom}</span>
-                  </div>
-                </div>
 
-                <div className="flex items-center gap-2 self-end sm:self-center">
-                  <button
-                    onClick={() => onOpenCreateModal(po)}
-                    className="px-3 py-1.5 bg-[#0F8B8D] hover:bg-[#0d797b] text-white rounded-lg text-xs font-semibold shadow-2xs transition flex items-center gap-1.5"
-                  >
-                    <Truck className="w-3.5 h-3.5" />
-                    Create GRN
-                  </button>
+                  <div className="flex items-center gap-2 self-end sm:self-center">
+                    <button
+                      onClick={() => onOpenCreateModal(po)}
+                      className="px-3 py-1.5 bg-[#0F8B8D] hover:bg-[#0d797b] text-white rounded-lg text-xs font-semibold shadow-2xs transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Truck className="w-3.5 h-3.5" />
+                      Create GRN
+                    </button>
+                  </div>
                 </div>
+              ))
+            ) : (
+              <div className="p-8 text-center text-xs text-slate-400">
+                No pending purchase orders in the receiving queue.
               </div>
-            ))}
+            )}
           </div>
         </div>
 
@@ -275,26 +281,32 @@ export const GrnDashboardTab: React.FC<Props> = ({
               Materials requiring lab testing (MFI, density, ash %, moisture) before posting to available inventory.
             </p>
 
-            {grns
-              .filter((g) => g.status === 'pending_qc')
-              .slice(0, 2)
-              .map((g) => (
-                <div
-                  key={g.id}
-                  onClick={() => onSelectGrn(g)}
-                  className="p-2.5 rounded-lg bg-amber-50/60 border border-amber-200 text-xs space-y-1 cursor-pointer hover:bg-amber-100/60 transition"
-                >
-                  <div className="flex items-center justify-between font-mono font-bold text-amber-900">
-                    <span>{g.grnNumber}</span>
-                    <span className="text-[10px] font-sans px-1.5 py-0.5 rounded bg-amber-200/80">Pending QC</span>
+            {grns.filter((g) => g.status === 'pending_qc').length > 0 ? (
+              grns
+                .filter((g) => g.status === 'pending_qc')
+                .slice(0, 2)
+                .map((g) => (
+                  <div
+                    key={g.id}
+                    onClick={() => onSelectGrn(g)}
+                    className="p-2.5 rounded-lg bg-amber-50/60 border border-amber-200 text-xs space-y-1 cursor-pointer hover:bg-amber-100/60 transition"
+                  >
+                    <div className="flex items-center justify-between font-mono font-bold text-amber-900">
+                      <span>{g.grnNumber}</span>
+                      <span className="text-[10px] font-sans px-1.5 py-0.5 rounded bg-amber-200/80">Pending QC</span>
+                    </div>
+                    <div className="text-[11px] text-slate-700 truncate">{g.lines[0]?.itemName}</div>
+                    <div className="text-[10px] text-slate-500 flex justify-between">
+                      <span>Lot: {g.lines[0]?.lotBatchNumber}</span>
+                      <span>{g.lines[0]?.currentReceivedQty} {g.lines[0]?.uom}</span>
+                    </div>
                   </div>
-                  <div className="text-[11px] text-slate-700 truncate">{g.lines[0]?.itemName}</div>
-                  <div className="text-[10px] text-slate-500 flex justify-between">
-                    <span>Lot: {g.lines[0]?.lotBatchNumber}</span>
-                    <span>{g.lines[0]?.currentReceivedQty} {g.lines[0]?.uom}</span>
-                  </div>
-                </div>
-              ))}
+                ))
+            ) : (
+              <div className="p-3 bg-slate-50 border border-dashed border-slate-200 rounded-lg text-center text-[11px] text-slate-400">
+                No materials currently in QC hold.
+              </div>
+            )}
 
             <button
               onClick={() => onTabChange('qc')}
