@@ -448,4 +448,37 @@ END $$;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
 
+-- 7. PERFORMANCE B-TREE INDEXES (<10ms Query Speed)
+CREATE INDEX IF NOT EXISTS idx_items_code ON public.items(code);
+CREATE INDEX IF NOT EXISTS idx_items_category ON public.items(category);
+CREATE INDEX IF NOT EXISTS idx_items_created_at ON public.items(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_suppliers_code ON public.suppliers(code);
+CREATE INDEX IF NOT EXISTS idx_suppliers_name ON public.suppliers(name);
+
+CREATE INDEX IF NOT EXISTS idx_customers_code ON public.customers(code);
+CREATE INDEX IF NOT EXISTS idx_customers_name ON public.customers(name);
+
+CREATE INDEX IF NOT EXISTS idx_sales_orders_customer_id ON public.sales_orders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_sales_orders_status ON public.sales_orders(status);
+CREATE INDEX IF NOT EXISTS idx_sales_orders_created_at ON public.sales_orders(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_work_orders_item_code ON public.work_orders(item_code);
+CREATE INDEX IF NOT EXISTS idx_work_orders_status ON public.work_orders(status);
+CREATE INDEX IF NOT EXISTS idx_work_orders_created_at ON public.work_orders(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_purchase_orders_supplier_id ON public.purchase_orders(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_purchase_orders_created_at ON public.purchase_orders(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_quotations_customer_id ON public.quotations(customer_id);
+CREATE INDEX IF NOT EXISTS idx_quotations_created_at ON public.quotations(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_quality_ncrs_created_at ON public.quality_ncrs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_quality_capas_created_at ON public.quality_capas(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_quality_coas_created_at ON public.quality_coas(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_record_id ON public.audit_logs(record_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON public.audit_logs(timestamp DESC);
+
+
 

@@ -94,10 +94,10 @@ export class DualSyncHybridAdapter implements IDatabaseAdapter {
     try {
       const remoteItems = await this.getPrimaryRemoteAdapter().findMany<T>(table, filter);
       if (Array.isArray(remoteItems) && remoteItems.length > 0) {
-        // Cache to local store
-        for (const item of remoteItems) {
-          await this.localAdapter.upsert(table, item);
-        }
+        // Asynchronously populate local cache in a single bulk batch (0ms blocking)
+        queueMicrotask(() => {
+          this.localAdapter.upsert(table, remoteItems).catch(() => {});
+        });
         return remoteItems;
       }
     } catch {
