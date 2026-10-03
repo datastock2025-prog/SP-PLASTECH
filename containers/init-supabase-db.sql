@@ -448,37 +448,118 @@ END $$;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
 
--- 7. PERFORMANCE B-TREE INDEXES (<10ms Query Speed)
-CREATE INDEX IF NOT EXISTS idx_items_code ON public.items(code);
-CREATE INDEX IF NOT EXISTS idx_items_category ON public.items(category);
-CREATE INDEX IF NOT EXISTS idx_items_created_at ON public.items(created_at DESC);
+-- 7. ENTERPRISE B-TREE INDEX ARCHITECTURE ACROSS ALL 16 ERP MODULES (21 TABLES)
+-- 1. Master Data & Raw Material Inventory (Module 1 & 2)
+CREATE INDEX IF NOT EXISTS idx_items_code ON public.items USING btree (code);
+CREATE INDEX IF NOT EXISTS idx_items_category_status ON public.items USING btree (category, status);
+CREATE INDEX IF NOT EXISTS idx_items_stock_reorder ON public.items USING btree (stock, reorder_point);
+CREATE INDEX IF NOT EXISTS idx_items_entity_type ON public.items USING btree (entity_type);
+CREATE INDEX IF NOT EXISTS idx_items_created_at ON public.items USING btree (created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_suppliers_code ON public.suppliers(code);
-CREATE INDEX IF NOT EXISTS idx_suppliers_name ON public.suppliers(name);
+-- 2. Procurement & Supplier Relationship Management (Module 3 & 4)
+CREATE INDEX IF NOT EXISTS idx_suppliers_code ON public.suppliers USING btree (code);
+CREATE INDEX IF NOT EXISTS idx_suppliers_category_status ON public.suppliers USING btree (category, status);
+CREATE INDEX IF NOT EXISTS idx_suppliers_rating ON public.suppliers USING btree (rating DESC);
+CREATE INDEX IF NOT EXISTS idx_suppliers_created_at ON public.suppliers USING btree (created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_customers_code ON public.customers(code);
-CREATE INDEX IF NOT EXISTS idx_customers_name ON public.customers(name);
+CREATE INDEX IF NOT EXISTS idx_purchase_orders_po_number ON public.purchase_orders USING btree (po_number);
+CREATE INDEX IF NOT EXISTS idx_purchase_orders_supplier_id ON public.purchase_orders USING btree (supplier_id);
+CREATE INDEX IF NOT EXISTS idx_purchase_orders_status_created ON public.purchase_orders USING btree (status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_purchase_orders_order_date ON public.purchase_orders USING btree (order_date DESC);
 
-CREATE INDEX IF NOT EXISTS idx_sales_orders_customer_id ON public.sales_orders(customer_id);
-CREATE INDEX IF NOT EXISTS idx_sales_orders_status ON public.sales_orders(status);
-CREATE INDEX IF NOT EXISTS idx_sales_orders_created_at ON public.sales_orders(created_at DESC);
+-- 3. Sales, CRM & Commercial CPQ (Module 5, 6, 7)
+CREATE INDEX IF NOT EXISTS idx_customers_code ON public.customers USING btree (code);
+CREATE INDEX IF NOT EXISTS idx_customers_type_status ON public.customers USING btree (customer_type, status);
+CREATE INDEX IF NOT EXISTS idx_customers_tier ON public.customers USING btree (tier);
+CREATE INDEX IF NOT EXISTS idx_customers_created_at ON public.customers USING btree (created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_work_orders_item_code ON public.work_orders(item_code);
-CREATE INDEX IF NOT EXISTS idx_work_orders_status ON public.work_orders(status);
-CREATE INDEX IF NOT EXISTS idx_work_orders_created_at ON public.work_orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sales_orders_so_number ON public.sales_orders USING btree (so_number);
+CREATE INDEX IF NOT EXISTS idx_sales_orders_customer_id ON public.sales_orders USING btree (customer_id);
+CREATE INDEX IF NOT EXISTS idx_sales_orders_status_created ON public.sales_orders USING btree (status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sales_orders_order_date ON public.sales_orders USING btree (order_date DESC);
 
-CREATE INDEX IF NOT EXISTS idx_purchase_orders_supplier_id ON public.purchase_orders(supplier_id);
-CREATE INDEX IF NOT EXISTS idx_purchase_orders_created_at ON public.purchase_orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sales_order_lines_so_id ON public.sales_order_lines USING btree (so_id);
+CREATE INDEX IF NOT EXISTS idx_sales_order_lines_item_code ON public.sales_order_lines USING btree (item_code);
+CREATE INDEX IF NOT EXISTS idx_sales_order_lines_status ON public.sales_order_lines USING btree (status);
 
-CREATE INDEX IF NOT EXISTS idx_quotations_customer_id ON public.quotations(customer_id);
-CREATE INDEX IF NOT EXISTS idx_quotations_created_at ON public.quotations(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_monthly_plan_orders_plan_number ON public.monthly_plan_orders USING btree (plan_number);
+CREATE INDEX IF NOT EXISTS idx_monthly_plan_orders_customer_code ON public.monthly_plan_orders USING btree (customer_code);
+CREATE INDEX IF NOT EXISTS idx_monthly_plan_orders_month_period ON public.monthly_plan_orders USING btree (month_period);
+CREATE INDEX IF NOT EXISTS idx_monthly_plan_orders_status_created ON public.monthly_plan_orders USING btree (status, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_quality_ncrs_created_at ON public.quality_ncrs(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_quality_capas_created_at ON public.quality_capas(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_quality_coas_created_at ON public.quality_coas(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_order_rel_monthly_plan_id ON public.order_relationships USING btree (monthly_plan_id);
+CREATE INDEX IF NOT EXISTS idx_order_rel_daily_so_id ON public.order_relationships USING btree (linked_daily_so_id);
+CREATE INDEX IF NOT EXISTS idx_order_rel_approval_status ON public.order_relationships USING btree (approval_status);
+CREATE INDEX IF NOT EXISTS idx_order_rel_mapping_date ON public.order_relationships USING btree (mapping_date DESC);
 
-CREATE INDEX IF NOT EXISTS idx_audit_logs_record_id ON public.audit_logs(record_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON public.audit_logs(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_cust_po_ver_customer_code ON public.customer_po_versions USING btree (customer_code);
+CREATE INDEX IF NOT EXISTS idx_cust_po_ver_po_number ON public.customer_po_versions USING btree (po_number);
+CREATE INDEX IF NOT EXISTS idx_cust_po_ver_validity ON public.customer_po_versions USING btree (valid_from, valid_till);
+CREATE INDEX IF NOT EXISTS idx_cust_po_ver_created_at ON public.customer_po_versions USING btree (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_quotations_quote_number ON public.quotations USING btree (quote_number);
+CREATE INDEX IF NOT EXISTS idx_quotations_customer_id ON public.quotations USING btree (customer_id);
+CREATE INDEX IF NOT EXISTS idx_quotations_status_created ON public.quotations USING btree (status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_quotations_valid_until ON public.quotations USING btree (valid_until);
+
+CREATE INDEX IF NOT EXISTS idx_rmas_rma_number ON public.rmas USING btree (rma_number);
+CREATE INDEX IF NOT EXISTS idx_rmas_customer_id ON public.rmas USING btree (customer_id);
+CREATE INDEX IF NOT EXISTS idx_rmas_status_created ON public.rmas USING btree (status, created_at DESC);
+
+-- 4. Manufacturing Operations & Work Centers (Module 8 & 9)
+CREATE INDEX IF NOT EXISTS idx_warehouses_code ON public.warehouses USING btree (code);
+CREATE INDEX IF NOT EXISTS idx_warehouses_plant_id ON public.warehouses USING btree (plant_id);
+CREATE INDEX IF NOT EXISTS idx_warehouses_location_type ON public.warehouses USING btree (location_type);
+
+CREATE INDEX IF NOT EXISTS idx_machines_code ON public.machines USING btree (machine_code);
+CREATE INDEX IF NOT EXISTS idx_machines_status ON public.machines USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_machines_type_tonnage ON public.machines USING btree (machine_type, tonnage);
+
+CREATE INDEX IF NOT EXISTS idx_work_orders_wo_number ON public.work_orders USING btree (wo_number);
+CREATE INDEX IF NOT EXISTS idx_work_orders_item_code ON public.work_orders USING btree (item_code);
+CREATE INDEX IF NOT EXISTS idx_work_orders_machine_id ON public.work_orders USING btree (machine_id);
+CREATE INDEX IF NOT EXISTS idx_work_orders_status_created ON public.work_orders USING btree (status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_boms_item_code ON public.boms USING btree (item_code);
+CREATE INDEX IF NOT EXISTS idx_boms_status_version ON public.boms USING btree (status, version);
+CREATE INDEX IF NOT EXISTS idx_boms_created_at ON public.boms USING btree (created_at DESC);
+
+-- 5. Quality Control, CAPA & Compliance (Module 10, 11, 12)
+CREATE INDEX IF NOT EXISTS idx_quality_ncrs_ncr_number ON public.quality_ncrs USING btree (ncr_number);
+CREATE INDEX IF NOT EXISTS idx_quality_ncrs_severity_status ON public.quality_ncrs USING btree (severity, status);
+CREATE INDEX IF NOT EXISTS idx_quality_ncrs_created_at ON public.quality_ncrs USING btree (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_quality_capas_capa_number ON public.quality_capas USING btree (capa_number);
+CREATE INDEX IF NOT EXISTS idx_quality_capas_status ON public.quality_capas USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_quality_capas_created_at ON public.quality_capas USING btree (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_quality_coas_coa_number ON public.quality_coas USING btree (coa_number);
+CREATE INDEX IF NOT EXISTS idx_quality_coas_item_code ON public.quality_coas USING btree (item_code);
+CREATE INDEX IF NOT EXISTS idx_quality_coas_lot_number ON public.quality_coas USING btree (lot_number);
+CREATE INDEX IF NOT EXISTS idx_quality_coas_status_created ON public.quality_coas USING btree (status, created_at DESC);
+
+-- 6. Logistics, Dispatch & Compliance (Module 13 & 14)
+CREATE INDEX IF NOT EXISTS idx_dispatch_docs_so_id ON public.dispatch_documents USING btree (sales_order_id);
+CREATE INDEX IF NOT EXISTS idx_dispatch_docs_reference_id ON public.dispatch_documents USING btree (reference_id);
+CREATE INDEX IF NOT EXISTS idx_dispatch_docs_irn ON public.dispatch_documents USING btree (irn);
+CREATE INDEX IF NOT EXISTS idx_dispatch_docs_ewb ON public.dispatch_documents USING btree (ewb_number);
+CREATE INDEX IF NOT EXISTS idx_dispatch_docs_created_at ON public.dispatch_documents USING btree (created_at DESC);
+
+-- 7. General Ledger & Enterprise Financials (Module 15)
+CREATE INDEX IF NOT EXISTS idx_accounts_code ON public.accounts USING btree (code);
+CREATE INDEX IF NOT EXISTS idx_accounts_type ON public.accounts USING btree (type);
+CREATE INDEX IF NOT EXISTS idx_accounts_created_at ON public.accounts USING btree (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_journal_entries_je_number ON public.journal_entries USING btree (je_number);
+CREATE INDEX IF NOT EXISTS idx_journal_entries_status_date ON public.journal_entries USING btree (status, date DESC);
+CREATE INDEX IF NOT EXISTS idx_journal_entries_created_at ON public.journal_entries USING btree (created_at DESC);
+
+-- 8. Enterprise Audit Trails & Security Monitoring (Module 16)
+CREATE INDEX IF NOT EXISTS idx_audit_logs_record_id ON public.audit_logs USING btree (record_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action_entity ON public.audit_logs USING btree (action_type, entity_name);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user_email ON public.audit_logs USING btree (user_email);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON public.audit_logs USING btree (timestamp DESC);
+
 
 
 
