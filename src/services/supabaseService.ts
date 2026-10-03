@@ -1,4 +1,5 @@
 import { db } from '../shared/db';
+import { checkSupabaseConnection } from '../shared/supabaseClient';
 
 // ============================================================================
 // ENTERPRISE DATA SERVICE — REBOOT ERP
@@ -230,14 +231,13 @@ export const SupabaseDataService = {
 
   // 8d. LIVE TELEMETRY HEALTH PING
   async pingDatabase(): Promise<{ latencyMs: number; status: 'healthy' | 'degraded' | 'offline' }> {
-    const start = performance.now();
     try {
-      const res = await db.findMany('users', { limit: 1 });
-      const latencyMs = Math.round((performance.now() - start) * 10) / 10;
-      if (res.error) {
-        return { latencyMs: Math.max(1.2, latencyMs), status: 'degraded' };
+      const res = await checkSupabaseConnection();
+      const latency = res.latencyMs ?? 1.2;
+      if (!res.connected) {
+        return { latencyMs: latency, status: 'degraded' };
       }
-      return { latencyMs: Math.max(0.8, latencyMs), status: 'healthy' };
+      return { latencyMs: latency, status: 'healthy' };
     } catch {
       return { latencyMs: 2.4, status: 'healthy' };
     }

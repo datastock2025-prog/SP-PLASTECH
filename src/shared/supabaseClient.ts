@@ -1,11 +1,9 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // ============================================================================
-// SUPABASE CLIENT (SECURITY HARDENED)
-// Connected to Local Podman Kong Gateway & PostgreSQL
+// SUPABASE CLIENT (SECURITY HARDENED & VENDOR-AGNOSTIC)
 // ============================================================================
 
-// Default fallback tokens for secure Cloudflare / Web connectivity
 const DEFAULT_SUPABASE_URL = 'https://gqrelwvmeoqvfnanoutz.supabase.co';
 const DEFAULT_ANON_KEY =
   'sb_publishable_RN013pGcuejquwnEeW-n3Q_Ly2qVu2R';
@@ -20,9 +18,6 @@ const supabaseAnonKey =
 
 /**
  * Hardened Supabase Client instance
- * - Exclusively utilizes public anon key in browser context (RLS enforced)
- * - Service role key is NEVER exposed to the frontend
- * - Localhost port bound
  */
 export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -42,9 +37,9 @@ let lastPingTimestamp = 0;
 const PING_CACHE_TTL_MS = 8000; // 8 seconds TTL
 
 /**
- * Health check utility to verify Supabase Kong gateway and database connectivity
- * Optimized with in-flight deduplication, TTL cache, and lightweight limit(1) probe
- * Eliminates HTTP 206 Partial Content and net::ERR_ABORTED cascades.
+ * Generic Health Check Utility
+ * Fully dynamic and table-agnostic: does NOT query 'items' or any business table.
+ * Probes the PostgREST / Kong gateway root directly.
  */
 export async function checkSupabaseConnection(): Promise<{ connected: boolean; latencyMs?: number; error?: string }> {
   const now = Date.now();
@@ -59,16 +54,18 @@ export async function checkSupabaseConnection(): Promise<{ connected: boolean; l
   inFlightPing = (async () => {
     const start = performance.now();
     try {
-      // Lightweight single-row ping: returns instant 200 OK (no 206 Partial Content, no full table scan)
-      const { error } = await supabase.from('items').select('id').limit(1).maybeSingle();
-      if (error && error.code !== 'PGRST116') {
-        const res = { connected: false, error: error.message };
-        lastPingResult = res;
-        lastPingTimestamp = Date.now();
-        return res;
-      }
+      // Dynamic Gateway Root Probe: 0 table scans, 0 mock dependencies, instant 200 OK
+      const response = await fetch(`${supabaseUrl}/rest/v1/`, {
+        method: 'HEAD',
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`,
+        },
+      });
+
       const latencyMs = Math.round(performance.now() - start);
-      const res = { connected: true, latencyMs };
+      const isOk = response.ok || response.status === 200 || response.status === 304;
+      const res = { connected: isOk, latencyMs };
       lastPingResult = res;
       lastPingTimestamp = Date.now();
       return res;
