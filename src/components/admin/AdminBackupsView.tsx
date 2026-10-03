@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Database,
   Download,
@@ -14,7 +14,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { BackupRecord } from '../../types/admin';
-import { backupRecords, mockBackupRecords } from '../../data/adminData';
+import { useAdminBackups } from '../../hooks/useAdmin';
 
 interface AdminBackupsViewProps {
   showToast?: (msg: string) => void;
@@ -23,10 +23,17 @@ interface AdminBackupsViewProps {
 export const AdminBackupsView: React.FC<AdminBackupsViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
-  const [backups, setBackups] = useState<BackupRecord[]>(mockBackupRecords);
+  const { data: serverBackups = [], isLoading } = useAdminBackups();
+  const [backups, setBackups] = useState<BackupRecord[]>([]);
   const [isCreatingSnapshot, setIsCreatingSnapshot] = useState(false);
   const [restoringBackup, setRestoringBackup] = useState<BackupRecord | null>(null);
   const [confirmText, setConfirmText] = useState('');
+
+  useEffect(() => {
+    if (serverBackups.length > 0) {
+      setBackups(serverBackups);
+    }
+  }, [serverBackups]);
 
   const handleCreateSnapshot = () => {
     setIsCreatingSnapshot(true);

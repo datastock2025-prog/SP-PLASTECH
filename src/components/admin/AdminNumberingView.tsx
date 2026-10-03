@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Hash,
   Plus,
@@ -14,8 +14,8 @@ import {
   Zap,
 } from 'lucide-react';
 import { NumberingSequence } from '../../types/admin';
-import { numberingSequences, mockNumberingSequences } from '../../data/adminData';
-import { adminService, adminEventBus } from '../../services/adminService';
+import { adminService } from '../../services/adminService';
+import { useAdminNumberingSeries, useSaveAdminNumberingSeries } from '../../hooks/useAdmin';
 
 interface AdminNumberingViewProps {
   showToast?: (msg: string) => void;
@@ -24,23 +24,12 @@ interface AdminNumberingViewProps {
 export const AdminNumberingView: React.FC<AdminNumberingViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
-  const [sequences, setSequences] = useState<NumberingSequence[]>(mockNumberingSequences);
+  const { data: sequences = [], isLoading, refetch } = useAdminNumberingSeries();
+  const saveSequenceMutation = useSaveAdminNumberingSeries();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSeq, setEditingSeq] = useState<NumberingSequence | null>(null);
   const [testResult, setTestResult] = useState<{ id: string; generatedCode: string } | null>(null);
-
-  const loadSequences = async () => {
-    try {
-      const data = await adminService.getNumberingSequences();
-      setSequences(data);
-    } catch {
-      // Fallback
-    }
-  };
-
-  useEffect(() => {
-    loadSequences();
-  }, []);
 
   const [formData, setFormData] = useState<Partial<NumberingSequence>>({
     documentType: '',
@@ -101,17 +90,12 @@ export const AdminNumberingView: React.FC<AdminNumberingViewProps> = ({
     );
 
     if (editingSeq) {
-      setSequences((prev) =>
-        prev.map((s) =>
-          s.id === editingSeq.id
-            ? {
-                ...s,
-                ...(formData as NumberingSequence),
-                samplePreview: preview,
-              }
-            : s
-        )
-      );
+      const updatedSeq: NumberingSequence = {
+        ...editingSeq,
+        ...(formData as NumberingSequence),
+        samplePreview: preview,
+      };
+      saveSequenceMutation.mutate(updatedSeq);
       showToast(`Numbering sequence for "${formData.documentType}" updated in PostgreSQL.`);
     } else {
       const newSeq: NumberingSequence = {
@@ -120,7 +104,7 @@ export const AdminNumberingView: React.FC<AdminNumberingViewProps> = ({
         samplePreview: preview,
         lastGeneratedOn: 'Not yet generated',
       };
-      setSequences([...sequences, newSeq]);
+      saveSequenceMutation.mutate(newSeq);
       showToast(`New document series "${newSeq.documentType}" registered.`);
     }
     setIsModalOpen(false);
@@ -130,7 +114,7 @@ export const AdminNumberingView: React.FC<AdminNumberingViewProps> = ({
     const code = await adminService.generateNextNumber(seq.module, seq.documentType);
     setTestResult({ id: seq.id, generatedCode: code });
     showToast(`Dispatched document sequence #${code} from PostgreSQL generator engine.`);
-    loadSequences();
+    refetch();
   };
 
   return (

@@ -24,6 +24,7 @@ import {
   Laptop,
 } from 'lucide-react';
 import { INITIAL_QUICK_ACTIONS, QuickActionItem, SAMPLE_QA_AUDIT_LOGS, QuickActionUsageAudit } from '../../data/quickActionsData';
+import { useAdminQuickActions, useSaveAdminQuickActions } from '../../hooks/useAdmin';
 
 interface AdminQuickActionsConfigViewProps {
   showToast?: (msg: string) => void;
@@ -32,12 +33,21 @@ interface AdminQuickActionsConfigViewProps {
 export const AdminQuickActionsConfigView: React.FC<AdminQuickActionsConfigViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
+  const { data: serverActions = [], isLoading } = useAdminQuickActions();
+  const saveActionsMutation = useSaveAdminQuickActions();
+
   const [actions, setActions] = useState<QuickActionItem[]>(INITIAL_QUICK_ACTIONS);
   const [auditLogs, setAuditLogs] = useState<QuickActionUsageAudit[]>(SAMPLE_QA_AUDIT_LOGS);
   const [activeTab, setActiveTab] = useState<'config' | 'analytics' | 'audit'>('config');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedModule, setSelectedModule] = useState('ALL');
   const [editingAction, setEditingAction] = useState<QuickActionItem | null>(null);
+
+  React.useEffect(() => {
+    if (serverActions.length > 0) {
+      setActions(serverActions);
+    }
+  }, [serverActions]);
 
   const modulesList = ['ALL', 'Production', 'Quality', 'Warehouse', 'Maintenance', 'Procurement', 'Sales', 'HR', 'Admin'];
 

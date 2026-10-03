@@ -24,11 +24,12 @@ import {
   Sparkles,
   GitMerge,
 } from 'lucide-react';
-import { MasterDataRecord, masterDataRecords, mockMasterDataRecords } from '../../data/adminExtendedData';
+import { MasterDataRecord, masterDataRecords } from '../../data/adminExtendedData';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { adminEventBus } from '../../services/adminService';
 import { PaginationBar } from '../common/PaginationBar';
 import { MasterDataCombobox } from '../common/MasterDataCombobox';
+import { useAdminMasterDataGovernance } from '../../hooks/useAdmin';
 
 interface AdminMasterDataViewProps {
   showToast?: (msg: string) => void;
@@ -37,6 +38,7 @@ interface AdminMasterDataViewProps {
 export const AdminMasterDataView: React.FC<AdminMasterDataViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
+  const { data: serverRecords = [], isLoading } = useAdminMasterDataGovernance();
   const [records, setRecords] = useState<MasterDataRecord[]>(() => masterDataGovernanceService.getAllRecords());
   const [selectedEntity, setSelectedEntity] = useState<string>('ALL');
   const [search, setSearch] = useState('');
@@ -57,6 +59,12 @@ export const AdminMasterDataView: React.FC<AdminMasterDataViewProps> = ({
       status: 'Approved',
     };
   });
+
+  React.useEffect(() => {
+    if (serverRecords.length > 0) {
+      setRecords(serverRecords);
+    }
+  }, [serverRecords]);
 
   // Dynamic Master Catalog Options State
   const [categories, setCategories] = useState<string[]>(() => masterDataGovernanceService.getCategories());

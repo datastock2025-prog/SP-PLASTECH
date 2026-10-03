@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Database,
   ShieldCheck,
@@ -13,7 +13,8 @@ import {
   Play,
   CheckCircle2,
 } from 'lucide-react';
-import { DataRetentionPolicy, retentionPolicies, mockRetentionPolicies } from '../../data/adminExtendedData';
+import { DataRetentionPolicy } from '../../data/adminExtendedData';
+import { useAdminBackupRetention, useSaveAdminBackupRetention } from '../../hooks/useAdmin';
 
 interface AdminBackupRetentionPrivacyViewProps {
   showToast?: (msg: string) => void;
@@ -22,8 +23,17 @@ interface AdminBackupRetentionPrivacyViewProps {
 export const AdminBackupRetentionPrivacyView: React.FC<AdminBackupRetentionPrivacyViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
-  const [policies, setPolicies] = useState<DataRetentionPolicy[]>(mockRetentionPolicies);
+  const { data: serverPolicies = [], isLoading } = useAdminBackupRetention();
+  const savePolicyMutation = useSaveAdminBackupRetention();
+
+  const [policies, setPolicies] = useState<DataRetentionPolicy[]>([]);
   const [isBackingUp, setIsBackingUp] = useState(false);
+
+  useEffect(() => {
+    if (serverPolicies.length > 0) {
+      setPolicies(serverPolicies);
+    }
+  }, [serverPolicies]);
 
   const handleTriggerBackup = () => {
     setIsBackingUp(true);

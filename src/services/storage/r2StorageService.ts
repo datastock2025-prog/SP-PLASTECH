@@ -3,7 +3,7 @@
  * S3-Compatible Archival Storage for E-Invoices, E-Way Bills, Delivery Challans, and Gate Passes
  */
 
-import { supabase } from '../../shared/supabaseClient';
+import { db } from '../../shared/db';
 import { GeneratedPdfDocument } from '../pdf/dispatchPdfGenerator';
 
 export interface R2ArchiveResult {
@@ -84,7 +84,7 @@ class R2StorageService {
 
     try {
       // 1. Record metadata to Database (dispatch_documents)
-      await supabase.from('dispatch_documents').upsert({
+      await db.upsert('dispatch_documents', {
         id: documentId,
         document_type: docType,
         reference_id: docNumber,

@@ -1,4 +1,4 @@
-import { supabase } from '../shared/supabaseClient';
+import { db } from '../shared/db';
 import { universalSyncManager } from './realtime/UniversalSyncManager';
 import {
   PlasticSalesOrder,
@@ -115,10 +115,10 @@ class SalesDataService {
 
   public async getSalesOrders(): Promise<PlasticSalesOrder[]> {
     try {
-      const { data, error } = await supabase
-        .from('sales_orders')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data, error } = await db.findMany<any>('sales_orders', {
+        orderBy: 'created_at',
+        ascending: false,
+      });
 
       if (!error && Array.isArray(data) && data.length > 0) {
         const mapped: PlasticSalesOrder[] = data.map((d: any) => ({
@@ -181,7 +181,7 @@ class SalesDataService {
         return mapped;
       }
     } catch (err) {
-      console.warn('Supabase sales_orders query fallback:', err);
+      console.warn('DB sales_orders query fallback:', err);
     }
     return this.getSalesOrdersSync();
   }
@@ -195,7 +195,7 @@ class SalesDataService {
 
     // 2. Persist to DB
     try {
-      await supabase.from('sales_orders').upsert({
+      await db.upsert('sales_orders', {
         id: order.id,
         order_type: order.orderType,
         customer_code: order.customerGstin || 'CUST',
@@ -319,7 +319,7 @@ class SalesDataService {
     this.setMonthlyPlansCache(updated);
 
     try {
-      await supabase.from('monthly_plan_orders').upsert({
+      await db.upsert('monthly_plan_orders', {
         id: plan.id,
         plan_number: plan.id,
         month_period: plan.monthPeriod,
@@ -378,7 +378,7 @@ class SalesDataService {
 
     try {
       for (const r of newRels) {
-        await supabase.from('order_relationships').upsert({
+        await db.upsert('order_relationships', {
           id: r.id,
           monthly_plan_id: r.monthlyPlanId,
           monthly_plan_line_item: r.monthlyPlanLineItem,

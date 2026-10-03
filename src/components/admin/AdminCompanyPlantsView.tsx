@@ -21,8 +21,9 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { CompanyProfile, PlantDetails } from '../../types/admin';
-import { companyProfile, mockCompanyProfile } from '../../data/adminData';
+import { companyProfile } from '../../data/adminData';
 import { adminService, adminEventBus } from '../../services/adminService';
+import { useAdminCompanyProfile, useSaveAdminCompanyProfile, useAdminPlants, useSaveAdminPlant } from '../../hooks/useAdmin';
 
 interface AdminCompanyPlantsViewProps {
   showToast?: (msg: string) => void;
@@ -31,35 +32,24 @@ interface AdminCompanyPlantsViewProps {
 export const AdminCompanyPlantsView: React.FC<AdminCompanyPlantsViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
-  const [profile, setProfile] = useState<CompanyProfile>(mockCompanyProfile);
+  const { data: serverProfile, isLoading: isProfileLoading } = useAdminCompanyProfile();
+  const { data: plants = [], isLoading: isPlantsLoading } = useAdminPlants();
+  const saveProfileMutation = useSaveAdminCompanyProfile();
+  const savePlantMutation = useSaveAdminPlant();
+
+  const [profile, setProfile] = useState<CompanyProfile>(companyProfile);
   const [isEditingCompany, setIsEditingCompany] = useState(false);
-  const [companyForm, setCompanyForm] = useState(mockCompanyProfile);
+  const [companyForm, setCompanyForm] = useState<CompanyProfile>(companyProfile);
   const [isPlantModalOpen, setIsPlantModalOpen] = useState(false);
   const [editingPlantId, setEditingPlantId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Load plants from PostgreSQL
-  const loadPlants = async () => {
-    setIsLoading(true);
-    try {
-      const livePlants = await adminService.getPlants();
-      setProfile((prev) => ({ ...prev, plants: livePlants }));
-    } catch {
-      // Fallback
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   useEffect(() => {
-    loadPlants();
-    const unsub = adminEventBus.subscribe(() => {
-      adminService.getPlants().then((livePlants) => {
-        setProfile((prev) => ({ ...prev, plants: livePlants }));
-      });
-    });
-    return unsub;
-  }, []);
+    if (serverProfile) {
+      const merged = { ...serverProfile, plants: plants.length > 0 ? plants : serverProfile.plants };
+      setProfile(merged);
+      setCompanyForm(merged);
+    }
+  }, [serverProfile, plants]);
 
   const [plantForm, setPlantForm] = useState<Partial<PlantDetails>>({
     plantCode: '',

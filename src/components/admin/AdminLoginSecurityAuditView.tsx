@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShieldAlert,
   Search,
@@ -15,7 +15,8 @@ import {
   Download,
   RefreshCw,
 } from 'lucide-react';
-import { SecurityLoginAuditRecord, loginAuditRecords, mockLoginAuditRecords } from '../../data/adminExtendedData';
+import { SecurityLoginAuditRecord, loginAuditRecords } from '../../data/adminExtendedData';
+import { useAdminLoginAudit } from '../../hooks/useAdmin';
 
 interface AdminLoginSecurityAuditViewProps {
   showToast?: (msg: string) => void;
@@ -24,9 +25,16 @@ interface AdminLoginSecurityAuditViewProps {
 export const AdminLoginSecurityAuditView: React.FC<AdminLoginSecurityAuditViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
-  const [records, setRecords] = useState<SecurityLoginAuditRecord[]>(mockLoginAuditRecords);
+  const { data: serverRecords = [], isLoading } = useAdminLoginAudit();
+  const [records, setRecords] = useState<SecurityLoginAuditRecord[]>([]);
   const [search, setSearch] = useState('');
   const [riskFilter, setRiskFilter] = useState('ALL');
+
+  useEffect(() => {
+    if (serverRecords.length > 0) {
+      setRecords(serverRecords);
+    }
+  }, [serverRecords]);
 
   const filtered = records.filter((r) => {
     const matchSearch =

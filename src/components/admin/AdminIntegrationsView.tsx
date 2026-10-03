@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Cpu,
   RefreshCw,
@@ -15,7 +15,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { IntegrationConnector } from '../../types/admin';
-import { integrations, mockIntegrations } from '../../data/adminData';
+import { useAdminIntegrations, useSaveAdminIntegration } from '../../hooks/useAdmin';
 
 interface AdminIntegrationsViewProps {
   showToast?: (msg: string) => void;
@@ -24,9 +24,18 @@ interface AdminIntegrationsViewProps {
 export const AdminIntegrationsView: React.FC<AdminIntegrationsViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
-  const [integrations, setIntegrations] = useState<IntegrationConnector[]>(mockIntegrations);
+  const { data: serverIntegrations = [], isLoading } = useAdminIntegrations();
+  const saveIntegrationMutation = useSaveAdminIntegration();
+
+  const [integrations, setIntegrations] = useState<IntegrationConnector[]>([]);
   const [testingId, setTestingId] = useState<string | null>(null);
   const [configuringItem, setConfiguringItem] = useState<IntegrationConnector | null>(null);
+
+  useEffect(() => {
+    if (serverIntegrations.length > 0) {
+      setIntegrations(serverIntegrations);
+    }
+  }, [serverIntegrations]);
 
   const handleTestConnection = (conn: IntegrationConnector) => {
     setTestingId(conn.id);
@@ -37,17 +46,14 @@ export const AdminIntegrationsView: React.FC<AdminIntegrationsViewProps> = ({
   };
 
   const handleToggleActive = (id: string) => {
-    setIntegrations((prev) =>
-      prev.map((conn) => {
-        if (conn.id === id) {
-          const isConnected = conn.status === 'Connected';
-          const nextStatus: IntegrationConnector['status'] = isConnected ? 'Disconnected' : 'Connected';
-          showToast(`${conn.name} is now ${nextStatus === 'Connected' ? 'Active & Polling' : 'Disabled'}.`);
-          return { ...conn, status: nextStatus };
-        }
-        return conn;
-      })
-    );
+    const target = integrations.find((c) => c.id === id);
+    if (!target) return;
+    const isConnected = target.status === 'Connected';
+    const nextStatus: IntegrationConnector['status'] = isConnected ? 'Disconnected' : 'Connected';
+    const updated = { ...target, status: nextStatus };
+    saveIntegrationMutation.mutate(updated);
+    setIntegrations((prev) => prev.map((c) => (c.id === id ? updated : c)));
+    showToast(`${target.name} is now ${nextStatus === 'Connected' ? 'Active & Polling' : 'Disabled'}.`);
   };
 
   const getCategoryIcon = (category: IntegrationConnector['serviceCategory']) => {

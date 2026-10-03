@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { supabase } from '../shared/supabaseClient';
+import { db } from '../shared/db';
 import { adminEventBus } from './adminService';
 import { universalSyncManager } from './realtime/UniversalSyncManager';
 import {
@@ -186,13 +186,13 @@ class LiveDataStore {
   // --------------------------------------------------------------------------
   public async getWorkOrders(): Promise<WorkOrder[]> {
     try {
-      const { data, error } = await supabase
-        .from('work_orders')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data, error } = await db.findMany<WorkOrder>('work_orders', {
+        orderBy: 'created_at',
+        ascending: false,
+      });
 
       if (!error && Array.isArray(data) && data.length > 0) {
-        return data as WorkOrder[];
+        return data;
       }
     } catch {}
 
@@ -207,7 +207,7 @@ class LiveDataStore {
 
   public async saveWorkOrder(wo: WorkOrder): Promise<WorkOrder> {
     try {
-      await supabase.from('work_orders').upsert({
+      await db.upsert('work_orders', {
         id: wo.id,
         item_code: wo.item || (wo as any).itemCode,
         machine_id: wo.machine || (wo as any).machineId,
@@ -234,13 +234,13 @@ class LiveDataStore {
   // --------------------------------------------------------------------------
   public async getPurchaseOrders(): Promise<PurchaseOrder[]> {
     try {
-      const { data, error } = await supabase
-        .from('purchase_orders')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data, error } = await db.findMany<PurchaseOrder>('purchase_orders', {
+        orderBy: 'created_at',
+        ascending: false,
+      });
 
       if (!error && Array.isArray(data) && data.length > 0) {
-        return data as PurchaseOrder[];
+        return data;
       }
     } catch {}
 
@@ -255,7 +255,7 @@ class LiveDataStore {
 
   public async savePurchaseOrder(po: PurchaseOrder): Promise<PurchaseOrder> {
     try {
-      await supabase.from('purchase_orders').upsert({
+      await db.upsert('purchase_orders', {
         id: po.id,
         supplier_id: (po as any).supplierId || (po as any).supplier,
         status: (po as any).status,
@@ -273,13 +273,13 @@ class LiveDataStore {
   // --------------------------------------------------------------------------
   public async getSalesOrders(): Promise<SalesOrder[]> {
     try {
-      const { data, error } = await supabase
-        .from('sales_orders')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data, error } = await db.findMany<SalesOrder>('sales_orders', {
+        orderBy: 'created_at',
+        ascending: false,
+      });
 
       if (!error && Array.isArray(data) && data.length > 0) {
-        return data as unknown as SalesOrder[];
+        return data;
       }
     } catch {}
 
@@ -294,7 +294,7 @@ class LiveDataStore {
 
   public async saveSalesOrder(so: SalesOrder): Promise<SalesOrder> {
     try {
-      await supabase.from('sales_orders').upsert({
+      await db.upsert('sales_orders', {
         id: so.id,
         so_number: (so as any).soNumber || so.id,
         customer_id: (so as any).customerId || (so as any).customer,
@@ -315,13 +315,13 @@ class LiveDataStore {
   // --------------------------------------------------------------------------
   public async getCustomers(): Promise<Customer[]> {
     try {
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .order('name', { ascending: true });
+      const { data, error } = await db.findMany<Customer>('customers', {
+        orderBy: 'name',
+        ascending: true,
+      });
 
       if (!error && Array.isArray(data) && data.length > 0) {
-        return data as Customer[];
+        return data;
       }
     } catch {}
 
@@ -336,7 +336,7 @@ class LiveDataStore {
 
   public async saveCustomer(customer: Customer): Promise<Customer> {
     try {
-      await supabase.from('customers').upsert({
+      await db.upsert('customers', {
         id: (customer as any).id || customer.code,
         code: customer.code,
         name: customer.name,
@@ -357,13 +357,13 @@ class LiveDataStore {
   // --------------------------------------------------------------------------
   public async getNcrs(): Promise<NonConformanceReport[]> {
     try {
-      const { data, error } = await supabase
-        .from('quality_ncrs')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data, error } = await db.findMany<NonConformanceReport>('quality_ncrs', {
+        orderBy: 'created_at',
+        ascending: false,
+      });
 
       if (!error && Array.isArray(data) && data.length > 0) {
-        return data as NonConformanceReport[];
+        return data;
       }
     } catch {}
     return [];
@@ -371,7 +371,7 @@ class LiveDataStore {
 
   public async saveNcr(ncr: NonConformanceReport): Promise<NonConformanceReport> {
     try {
-      await supabase.from('quality_ncrs').upsert({
+      await db.upsert('quality_ncrs', {
         id: ncr.id,
         ncr_number: (ncr as any).ncrNumber || ncr.id,
         severity: (ncr as any).severity,
@@ -388,13 +388,13 @@ class LiveDataStore {
 
   public async getCapas(): Promise<CapaReport[]> {
     try {
-      const { data, error } = await supabase
-        .from('quality_capas')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data, error } = await db.findMany<CapaReport>('quality_capas', {
+        orderBy: 'created_at',
+        ascending: false,
+      });
 
       if (!error && Array.isArray(data) && data.length > 0) {
-        return data as CapaReport[];
+        return data;
       }
     } catch {}
     return [];
@@ -402,7 +402,7 @@ class LiveDataStore {
 
   public async saveCapa(capa: CapaReport): Promise<CapaReport> {
     try {
-      await supabase.from('quality_capas').upsert({
+      await db.upsert('quality_capas', {
         id: capa.id,
         capa_number: (capa as any).capaNumber || capa.id,
         status: (capa as any).status,
@@ -417,13 +417,13 @@ class LiveDataStore {
 
   public async getCoas(): Promise<CertificateOfAnalysis[]> {
     try {
-      const { data, error } = await supabase
-        .from('quality_coas')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data, error } = await db.findMany<CertificateOfAnalysis>('quality_coas', {
+        orderBy: 'created_at',
+        ascending: false,
+      });
 
       if (!error && Array.isArray(data) && data.length > 0) {
-        return data as CertificateOfAnalysis[];
+        return data;
       }
     } catch {}
     return [];
@@ -431,7 +431,7 @@ class LiveDataStore {
 
   public async saveCoa(coa: CertificateOfAnalysis): Promise<CertificateOfAnalysis> {
     try {
-      await supabase.from('quality_coas').upsert({
+      await db.upsert('quality_coas', {
         id: coa.id,
         coa_number: (coa as any).coaNumber || coa.id,
         item_code: (coa as any).itemCode,
@@ -451,13 +451,13 @@ class LiveDataStore {
   // --------------------------------------------------------------------------
   public async getBoms(): Promise<BomMaster[]> {
     try {
-      const { data, error } = await supabase
-        .from('boms')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data, error } = await db.findMany<BomMaster>('boms', {
+        orderBy: 'created_at',
+        ascending: false,
+      });
 
       if (!error && Array.isArray(data) && data.length > 0) {
-        return data as BomMaster[];
+        return data;
       }
     } catch {}
     return [];
@@ -465,7 +465,7 @@ class LiveDataStore {
 
   public async saveBom(bom: BomMaster): Promise<BomMaster> {
     try {
-      await supabase.from('boms').upsert({
+      await db.upsert('boms', {
         id: bom.id,
         item_code: bom.itemCode,
         version: bom.version,
@@ -481,13 +481,13 @@ class LiveDataStore {
 
   public async getMachines(): Promise<MachineMaster[]> {
     try {
-      const { data, error } = await supabase
-        .from('machines')
-        .select('*')
-        .order('machine_code', { ascending: true });
+      const { data, error } = await db.findMany<MachineMaster>('machines', {
+        orderBy: 'machine_code',
+        ascending: true,
+      });
 
       if (!error && Array.isArray(data) && data.length > 0) {
-        return data as MachineMaster[];
+        return data;
       }
     } catch {}
 
@@ -523,7 +523,7 @@ class LiveDataStore {
 
   public async saveMachine(machine: MachineMaster): Promise<MachineMaster> {
     try {
-      await supabase.from('machines').upsert({
+      await db.upsert('machines', {
         id: machine.id,
         machine_code: (machine as any).machineCode || (machine as any).code || machine.id,
         name: machine.name,
@@ -556,7 +556,7 @@ class LiveDataStore {
 
   public async deleteMachine(id: string): Promise<boolean> {
     try {
-      await supabase.from('machines').delete().eq('id', id);
+      await db.delete('machines', id);
     } catch {}
 
     try {
@@ -581,13 +581,13 @@ class LiveDataStore {
   // --------------------------------------------------------------------------
   public async getAccounts(): Promise<Account[]> {
     try {
-      const { data, error } = await supabase
-        .from('accounts')
-        .select('*')
-        .order('code', { ascending: true });
+      const { data, error } = await db.findMany<Account>('accounts', {
+        orderBy: 'code',
+        ascending: true,
+      });
 
       if (!error && Array.isArray(data) && data.length > 0) {
-        return data as Account[];
+        return data;
       }
     } catch {}
 
@@ -602,7 +602,7 @@ class LiveDataStore {
 
   public async saveAccount(acc: Account): Promise<Account> {
     try {
-      await supabase.from('accounts').upsert({
+      await db.upsert('accounts', {
         id: (acc as any).id || acc.code,
         code: acc.code,
         name: acc.name,
@@ -619,13 +619,13 @@ class LiveDataStore {
 
   public async getJournalEntries(): Promise<JournalEntry[]> {
     try {
-      const { data, error } = await supabase
-        .from('journal_entries')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data, error } = await db.findMany<JournalEntry>('journal_entries', {
+        orderBy: 'created_at',
+        ascending: false,
+      });
 
       if (!error && Array.isArray(data) && data.length > 0) {
-        return data as JournalEntry[];
+        return data;
       }
     } catch {}
 
@@ -640,7 +640,7 @@ class LiveDataStore {
 
   public async saveJournalEntry(je: JournalEntry): Promise<JournalEntry> {
     try {
-      await supabase.from('journal_entries').upsert({
+      await db.upsert('journal_entries', {
         id: je.id,
         je_number: (je as any).jeNumber || je.id,
         date: je.date,
@@ -659,13 +659,13 @@ class LiveDataStore {
   // --------------------------------------------------------------------------
   public async getQuotations(): Promise<Quotation[]> {
     try {
-      const { data, error } = await supabase
-        .from('quotations')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data, error } = await db.findMany<Quotation>('quotations', {
+        orderBy: 'created_at',
+        ascending: false,
+      });
 
       if (!error && Array.isArray(data) && data.length > 0) {
-        return data as Quotation[];
+        return data;
       }
     } catch {}
     return [];
@@ -673,7 +673,7 @@ class LiveDataStore {
 
   public async saveQuotation(quote: Quotation): Promise<Quotation> {
     try {
-      await supabase.from('quotations').upsert({
+      await db.upsert('quotations', {
         id: quote.id,
         quote_number: (quote as any).quoteNumber || quote.id,
         customer_id: (quote as any).customerId || (quote as any).customer,
@@ -689,13 +689,13 @@ class LiveDataStore {
 
   public async getRmas(): Promise<ReturnMerchandise[]> {
     try {
-      const { data, error } = await supabase
-        .from('rmas')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data, error } = await db.findMany<ReturnMerchandise>('rmas', {
+        orderBy: 'created_at',
+        ascending: false,
+      });
 
       if (!error && Array.isArray(data) && data.length > 0) {
-        return data as ReturnMerchandise[];
+        return data;
       }
     } catch {}
     return [];
@@ -703,7 +703,7 @@ class LiveDataStore {
 
   public async saveRma(rma: ReturnMerchandise): Promise<ReturnMerchandise> {
     try {
-      await supabase.from('rmas').upsert({
+      await db.upsert('rmas', {
         id: rma.id,
         rma_number: (rma as any).rmaNumber || rma.id,
         status: rma.status,

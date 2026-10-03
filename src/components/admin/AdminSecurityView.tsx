@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Shield,
   Lock,
@@ -16,12 +16,10 @@ import {
   Terminal,
 } from 'lucide-react';
 import { SecurityPolicySettings } from '../../types/admin';
-import { securityPolicy, mockSecurityPolicy } from '../../data/adminData';
 import { adminEventBus } from '../../services/adminService';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { useAuthContext } from '../../shared/components/RequireAuth';
-
-const SECURITY_POLICY_STORAGE_KEY = 'reboot_erp_security_policy_v2';
+import { useAdminSecurityPolicy, useSaveAdminSecurityPolicy } from '../../hooks/useAdmin';
 
 export interface ExtendedSecurityPolicySettings extends SecurityPolicySettings {
   mfaEnforced?: boolean;
@@ -58,41 +56,6 @@ const DEFAULT_SECURITY_POLICY: ExtendedSecurityPolicySettings = {
   soc2ComplianceLogging: true,
 };
 
-function loadStoredSecurityPolicy(): ExtendedSecurityPolicySettings {
-  try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(SECURITY_POLICY_STORAGE_KEY) : null;
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') {
-        return {
-          ...DEFAULT_SECURITY_POLICY,
-          ...mockSecurityPolicy,
-          ...parsed,
-          mfaEnforcedRoles: Array.isArray(parsed.mfaEnforcedRoles) && parsed.mfaEnforcedRoles.length > 0
-            ? parsed.mfaEnforcedRoles
-            : DEFAULT_SECURITY_POLICY.mfaEnforcedRoles,
-          allowedIpRanges: Array.isArray(parsed.allowedIpRanges) && parsed.allowedIpRanges.length > 0
-            ? parsed.allowedIpRanges
-            : DEFAULT_SECURITY_POLICY.allowedIpRanges,
-        };
-      }
-    }
-  } catch (e) {
-    console.warn('Failed to load security policy', e);
-  }
-  return { ...DEFAULT_SECURITY_POLICY };
-}
-
-function saveStoredSecurityPolicy(p: ExtendedSecurityPolicySettings) {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(SECURITY_POLICY_STORAGE_KEY, JSON.stringify(p));
-    }
-  } catch (e) {
-    console.warn('Failed to save security policy', e);
-  }
-}
-
 interface AdminSecurityViewProps {
   showToast?: (msg: string) => void;
 }
@@ -101,10 +64,22 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
   const { currentUser } = useAuthContext();
-  const [policy, setPolicy] = useState<ExtendedSecurityPolicySettings>(loadStoredSecurityPolicy);
+  const { data: serverPolicy, isLoading } = useAdminSecurityPolicy();
+  const savePolicyMutation = useSaveAdminSecurityPolicy();
+
+  const [policy, setPolicy] = useState<ExtendedSecurityPolicySettings>(DEFAULT_SECURITY_POLICY);
   const [newIpRange, setNewIpRange] = useState('');
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [changeReason, setChangeReason] = useState('');
+
+  useEffect(() => {
+    if (serverPolicy) {
+      setPolicy((prev) => ({
+        ...prev,
+        ...serverPolicy,
+      }));
+    }
+  }, [serverPolicy]);
 
   const handleTriggerSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,7 +87,7 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
   };
 
   const handleExecuteSave = () => {
-    saveStoredSecurityPolicy(policy);
+    savePolicyMutation.mutate(policy);
     adminEventBus.emit('SECURITY_POLICY_SAVED', policy);
 
     masterDataGovernanceService.recordAudit({
@@ -145,7 +120,7 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
       allowedIpRanges: [...currentList, cleanIp],
     };
     setPolicy(updated);
-    saveStoredSecurityPolicy(updated);
+    savePolicyMutation.mutate(updated);
     setNewIpRange('');
     showToast(`CIDR range "${cleanIp}" added to plant IP whitelist.`);
   };
@@ -157,7 +132,7 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
       allowedIpRanges: currentList.filter((item) => item !== ip),
     };
     setPolicy(updated);
-    saveStoredSecurityPolicy(updated);
+    savePolicyMutation.mutate(updated);
     showToast(`Removed ${ip} from IP whitelist.`);
   };
 

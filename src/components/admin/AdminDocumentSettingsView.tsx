@@ -23,7 +23,7 @@ import {
   Shield,
   Layers,
 } from 'lucide-react';
-import { DocumentSettingPolicy, documentPolicies, mockDocumentPolicies } from '../../data/adminExtendedData';
+import { DocumentSettingPolicy, documentPolicies } from '../../data/adminExtendedData';
 
 interface AdminDocumentSettingsViewProps {
   showToast?: (msg: string) => void;
@@ -34,7 +34,7 @@ const AVAILABLE_EXTENSIONS = ['.pdf', '.xlsx', '.csv', '.step', '.iges', '.dxf',
 export const AdminDocumentSettingsView: React.FC<AdminDocumentSettingsViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
-  const [policies, setPolicies] = useState<DocumentSettingPolicy[]>(mockDocumentPolicies);
+  const [policies, setPolicies] = useState<DocumentSettingPolicy[]>(documentPolicies);
   const [search, setSearch] = useState('');
   
   // Modals

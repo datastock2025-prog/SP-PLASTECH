@@ -1,8 +1,8 @@
-import { supabase } from '../shared/supabaseClient';
+import { db } from '../shared/db';
 
 // ============================================================================
-// SUPABASE ENTERPRISE DATA SERVICE — REBOOT ERP
-// Complete End-to-End Real-Time Database Bridge for all ERP Modules
+// ENTERPRISE DATA SERVICE — REBOOT ERP
+// Universal Vendor-Agnostic Database Bridge for all ERP Modules
 // ============================================================================
 
 export interface DbResult<T> {
@@ -14,12 +14,8 @@ export const SupabaseDataService = {
   // 1. MASTER DATA: ITEMS
   async getItems(): Promise<DbResult<any[]>> {
     try {
-      const { data, error } = await supabase
-        .from('items')
-        .select('*')
-        .order('code', { ascending: true });
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.findMany('items', { orderBy: 'code', ascending: true });
+      return { data: res.data || [], error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -27,13 +23,8 @@ export const SupabaseDataService = {
 
   async upsertItem(item: Record<string, any>): Promise<DbResult<any>> {
     try {
-      const { data, error } = await supabase
-        .from('items')
-        .upsert(item, { onConflict: 'code' })
-        .select()
-        .single();
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.upsert('items', item, { onConflict: 'code' });
+      return { data: res.data, error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -42,12 +33,8 @@ export const SupabaseDataService = {
   // 2. PROCUREMENT: SUPPLIERS
   async getSuppliers(): Promise<DbResult<any[]>> {
     try {
-      const { data, error } = await supabase
-        .from('suppliers')
-        .select('*')
-        .order('name', { ascending: true });
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.findMany('suppliers', { orderBy: 'name', ascending: true });
+      return { data: res.data || [], error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -55,13 +42,8 @@ export const SupabaseDataService = {
 
   async upsertSupplier(supplier: Record<string, any>): Promise<DbResult<any>> {
     try {
-      const { data, error } = await supabase
-        .from('suppliers')
-        .upsert(supplier, { onConflict: 'id' })
-        .select()
-        .single();
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.upsert('suppliers', supplier, { onConflict: 'id' });
+      return { data: res.data, error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -70,12 +52,8 @@ export const SupabaseDataService = {
   // 2b. PROCUREMENT: SUPPLIER PRICE LISTS & CONTRACT FORMULAS
   async getSupplierPriceLists(): Promise<DbResult<any[]>> {
     try {
-      const { data, error } = await supabase
-        .from('supplier_price_lists')
-        .select('*')
-        .order('item_code', { ascending: true });
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.findMany('supplier_price_lists', { orderBy: 'item_code', ascending: true });
+      return { data: res.data || [], error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -83,13 +61,8 @@ export const SupabaseDataService = {
 
   async upsertSupplierPriceList(priceList: Record<string, any>): Promise<DbResult<any>> {
     try {
-      const { data, error } = await supabase
-        .from('supplier_price_lists')
-        .upsert(priceList, { onConflict: 'id' })
-        .select()
-        .single();
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.upsert('supplier_price_lists', priceList, { onConflict: 'id' });
+      return { data: res.data, error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -98,12 +71,8 @@ export const SupabaseDataService = {
   // 3. PROCUREMENT: PURCHASE ORDERS
   async getPurchaseOrders(): Promise<DbResult<any[]>> {
     try {
-      const { data, error } = await supabase
-        .from('purchase_orders')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.findMany('purchase_orders', { orderBy: 'created_at', ascending: false });
+      return { data: res.data || [], error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -111,13 +80,8 @@ export const SupabaseDataService = {
 
   async upsertPurchaseOrder(po: Record<string, any>): Promise<DbResult<any>> {
     try {
-      const { data, error } = await supabase
-        .from('purchase_orders')
-        .upsert(po, { onConflict: 'id' })
-        .select()
-        .single();
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.upsert('purchase_orders', po, { onConflict: 'id' });
+      return { data: res.data, error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -126,12 +90,8 @@ export const SupabaseDataService = {
   // 4. MANUFACTURING: MACHINES & WORK ORDERS
   async getMachines(): Promise<DbResult<any[]>> {
     try {
-      const { data, error } = await supabase
-        .from('machines')
-        .select('*')
-        .order('machine_code', { ascending: true });
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.findMany('machines', { orderBy: 'machine_code', ascending: true });
+      return { data: res.data || [], error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -139,12 +99,8 @@ export const SupabaseDataService = {
 
   async getWorkOrders(): Promise<DbResult<any[]>> {
     try {
-      const { data, error } = await supabase
-        .from('work_orders')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.findMany('work_orders', { orderBy: 'created_at', ascending: false });
+      return { data: res.data || [], error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -153,12 +109,8 @@ export const SupabaseDataService = {
   // 5. SALES & CUSTOMERS
   async getCustomers(): Promise<DbResult<any[]>> {
     try {
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .order('name', { ascending: true });
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.findMany('customers', { orderBy: 'name', ascending: true });
+      return { data: res.data || [], error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -166,27 +118,17 @@ export const SupabaseDataService = {
 
   async upsertCustomer(customer: Record<string, any>): Promise<DbResult<any>> {
     try {
-      const { data, error } = await supabase
-        .from('customers')
-        .upsert(customer, { onConflict: 'id' })
-        .select()
-        .single();
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.upsert('customers', customer, { onConflict: 'id' });
+      return { data: res.data, error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
   },
 
-
   async getSalesOrders(): Promise<DbResult<any[]>> {
     try {
-      const { data, error } = await supabase
-        .from('sales_orders')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.findMany('sales_orders', { orderBy: 'created_at', ascending: false });
+      return { data: res.data || [], error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -195,12 +137,8 @@ export const SupabaseDataService = {
   // 6. QUALITY: INSPECTIONS
   async getQcInspections(): Promise<DbResult<any[]>> {
     try {
-      const { data, error } = await supabase
-        .from('qc_inspections')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.findMany('qc_inspections', { orderBy: 'created_at', ascending: false });
+      return { data: res.data || [], error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -209,12 +147,8 @@ export const SupabaseDataService = {
   // 7. USER MANAGEMENT (LIVE DB DIRECTORY)
   async getUsers(): Promise<DbResult<any[]>> {
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.findMany('users', { orderBy: 'created_at', ascending: false });
+      return { data: res.data || [], error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -222,13 +156,8 @@ export const SupabaseDataService = {
 
   async upsertUser(user: Record<string, any>): Promise<DbResult<any>> {
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .upsert(user, { onConflict: 'id' })
-        .select()
-        .single();
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.upsert('users', user, { onConflict: 'id' });
+      return { data: res.data, error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -236,9 +165,8 @@ export const SupabaseDataService = {
 
   async deleteUser(userId: string): Promise<DbResult<boolean>> {
     try {
-      const { error } = await supabase.from('users').delete().eq('id', userId);
-      if (error) throw error;
-      return { data: true, error: null };
+      const res = await db.delete('users', userId);
+      return { data: res.data ?? true, error: res.error };
     } catch (err: any) {
       return { data: false, error: err.message };
     }
@@ -247,12 +175,8 @@ export const SupabaseDataService = {
   // 8. PARENT WAREHOUSES & LOCATIONS
   async getWarehouses(): Promise<DbResult<any[]>> {
     try {
-      const { data, error } = await supabase
-        .from('warehouses')
-        .select('*')
-        .order('code', { ascending: true });
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.findMany('warehouses', { orderBy: 'code', ascending: true });
+      return { data: res.data || [], error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -260,13 +184,8 @@ export const SupabaseDataService = {
 
   async upsertWarehouse(wh: Record<string, any>): Promise<DbResult<any>> {
     try {
-      const { data, error } = await supabase
-        .from('warehouses')
-        .upsert(wh, { onConflict: 'id' })
-        .select()
-        .single();
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.upsert('warehouses', wh, { onConflict: 'id' });
+      return { data: res.data, error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -274,12 +193,8 @@ export const SupabaseDataService = {
 
   async getLocationBins(): Promise<DbResult<any[]>> {
     try {
-      const { data, error } = await supabase
-        .from('warehouse_bins')
-        .select('*')
-        .order('bin_code', { ascending: true });
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.findMany('warehouse_bins', { orderBy: 'bin_code', ascending: true });
+      return { data: res.data || [], error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -287,13 +202,8 @@ export const SupabaseDataService = {
 
   async upsertLocationBin(bin: Record<string, any>): Promise<DbResult<any>> {
     try {
-      const { data, error } = await supabase
-        .from('warehouse_bins')
-        .upsert(bin, { onConflict: 'id' })
-        .select()
-        .single();
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.upsert('warehouse_bins', bin, { onConflict: 'id' });
+      return { data: res.data, error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -302,12 +212,8 @@ export const SupabaseDataService = {
   // 8c. REASON CODES TAXONOMY
   async getReasonCodes(): Promise<DbResult<any[]>> {
     try {
-      const { data, error } = await supabase
-        .from('reason_codes')
-        .select('*')
-        .order('code', { ascending: true });
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.findMany('reason_codes', { orderBy: 'code', ascending: true });
+      return { data: res.data || [], error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -315,13 +221,8 @@ export const SupabaseDataService = {
 
   async upsertReasonCode(reasonCode: Record<string, any>): Promise<DbResult<any>> {
     try {
-      const { data, error } = await supabase
-        .from('reason_codes')
-        .upsert(reasonCode, { onConflict: 'code' })
-        .select()
-        .single();
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.upsert('reason_codes', reasonCode, { onConflict: 'code' });
+      return { data: res.data, error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -331,9 +232,9 @@ export const SupabaseDataService = {
   async pingDatabase(): Promise<{ latencyMs: number; status: 'healthy' | 'degraded' | 'offline' }> {
     const start = performance.now();
     try {
-      const { error } = await supabase.from('users').select('id').limit(1);
+      const res = await db.findMany('users', { limit: 1 });
       const latencyMs = Math.round((performance.now() - start) * 10) / 10;
-      if (error) {
+      if (res.error) {
         return { latencyMs: Math.max(1.2, latencyMs), status: 'degraded' };
       }
       return { latencyMs: Math.max(0.8, latencyMs), status: 'healthy' };
@@ -352,31 +253,24 @@ export const SupabaseDataService = {
     changes?: Record<string, any>;
   }): Promise<void> {
     try {
-      await supabase.from('audit_logs').insert([
-        {
-          action_type: log.actionType,
-          entity_name: log.entityName,
-          record_id: log.recordId,
-          user_email: log.userEmail,
-          user_role: log.userRole || 'USER',
-          changes: log.changes || {},
-        },
-      ]);
+      await db.insert('audit_logs', {
+        action_type: log.actionType,
+        entity_name: log.entityName,
+        record_id: log.recordId,
+        user_email: log.userEmail,
+        user_role: log.userRole || 'USER',
+        changes: log.changes || {},
+      });
     } catch (err) {
-      console.warn('Supabase audit log warning:', err);
+      console.warn('Audit log write warning:', err);
     }
   },
 
   // 10. COMPANY SETTINGS
   async getCompanySettings(): Promise<DbResult<any>> {
     try {
-      const { data, error } = await supabase
-        .from('company_settings')
-        .select('*')
-        .limit(1)
-        .maybeSingle();
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.findMany('company_settings', { limit: 1 });
+      return { data: res.data?.[0] || null, error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -384,13 +278,8 @@ export const SupabaseDataService = {
 
   async upsertCompanySettings(settings: Record<string, any>): Promise<DbResult<any>> {
     try {
-      const { data, error } = await supabase
-        .from('company_settings')
-        .upsert(settings)
-        .select()
-        .single();
-      if (error) throw error;
-      return { data, error: null };
+      const res = await db.upsert('company_settings', settings);
+      return { data: res.data, error: res.error };
     } catch (err: any) {
       return { data: null, error: err.message };
     }
@@ -398,14 +287,7 @@ export const SupabaseDataService = {
 
   // 11. REALTIME SUBSCRIPTION HELPER
   subscribeToTable(table: string, onUpdate: (payload: any) => void) {
-    return supabase
-      .channel(`public:${table}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table },
-        (payload) => onUpdate(payload)
-      )
-      .subscribe();
+    return db.subscribeToChanges(table, onUpdate);
   },
 };
 

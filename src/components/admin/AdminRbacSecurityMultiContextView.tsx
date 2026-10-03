@@ -42,10 +42,15 @@ import {
   breakGlassRequests,
   ActiveSessionRecord,
 } from '../../data/adminExtendedData';
-import { adminUsers, adminRoles } from '../../data/adminData';
 import { adminService, adminEventBus } from '../../services/adminService';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { useAuthContext } from '../../shared/components/RequireAuth';
+import {
+  useAdminMultiContextPolicies,
+  useSaveAdminMultiContextPolicy,
+  useAdminUsers,
+  useAdminRoles,
+} from '../../hooks/useAdmin';
 
 const CONTEXTS_STORAGE_KEY = 'reboot_erp_multi_context_policies_v2';
 const RLS_STORAGE_KEY = 'reboot_erp_rls_rules_v2';
@@ -97,14 +102,25 @@ export const AdminRbacSecurityMultiContextView: React.FC<AdminRbacSecurityMultiC
     'contexts' | 'rls' | 'guardrails' | 'breakglass' | 'sessions'
   >('contexts');
 
-  // Live Users for Context & RLS Governance
-  const [liveUsers, setLiveUsers] = useState<AdminUser[]>(() => adminService.getCachedUsers());
+  const { data: serverContexts = [], isLoading: isLoadingContexts } = useAdminMultiContextPolicies();
+  const saveContextMutation = useSaveAdminMultiContextPolicy();
+  const { data: liveUsers = [] } = useAdminUsers();
+  const { data: roles = [] } = useAdminRoles();
 
   // Context Policies State
   const [contexts, setContexts] = useState<MultiContextScopePolicy[]>(loadStoredContexts);
-  const [selectedContextId, setSelectedContextId] = useState<string>(contexts[0]?.id || '');
+  const [selectedContextId, setSelectedContextId] = useState<string>('');
   const [rlsRules, setRlsRules] = useState<RowLevelSecurityRule[]>(loadStoredRls);
   const [breakGlassList, setBreakGlassList] = useState<BreakGlassRequest[]>(loadStoredBreakGlass);
+
+  useEffect(() => {
+    if (serverContexts.length > 0) {
+      setContexts(serverContexts);
+      if (!selectedContextId || !serverContexts.some((c) => c.id === selectedContextId)) {
+        setSelectedContextId(serverContexts[0].id);
+      }
+    }
+  }, [serverContexts, selectedContextId]);
 
   // New Break-Glass Modal State
   const [isBreakGlassModalOpen, setIsBreakGlassModalOpen] = useState(false);
@@ -147,19 +163,14 @@ export const AdminRbacSecurityMultiContextView: React.FC<AdminRbacSecurityMultiC
   const [activeSessions, setActiveSessions] = useState<ActiveSessionRecord[]>(() => adminService.getActiveSessions());
 
   useEffect(() => {
-    adminService.getUsers().then((u) => {
-      if (u && u.length > 0) {
-        setLiveUsers(u);
-        if (!testUserContext) setTestUserContext(u[0]?.id || '');
-      }
-    });
+    if (liveUsers.length > 0 && !testUserContext) {
+      setTestUserContext(liveUsers[0].id);
+    }
+  }, [liveUsers, testUserContext]);
 
+  useEffect(() => {
     const unsub = adminEventBus.subscribe((event) => {
-      if (event === 'USER_CREATED' || event === 'USER_UPDATED') {
-        adminService.getUsers().then((u) => {
-          if (u && u.length > 0) setLiveUsers(u);
-        });
-      } else if (event === 'SESSION_TERMINATED' || event === 'SESSIONS_REFRESHED') {
+      if (event === 'SESSION_TERMINATED' || event === 'SESSIONS_REFRESHED') {
         setActiveSessions(adminService.getActiveSessions());
       }
     });
@@ -357,7 +368,7 @@ export const AdminRbacSecurityMultiContextView: React.FC<AdminRbacSecurityMultiC
   };
 
   const handleEvaluateRlsQuery = () => {
-    const user = liveUsers.find((u) => u.id === testUserContext) || liveUsers[0] || adminUsers[0];
+    const user = liveUsers.find((u) => u.id === testUserContext) || liveUsers[0] || { fullName: 'Admin User', roleName: 'Super Administrator', plantIds: ['PLANT-01'] };
     const userPlant = user.plantIds?.[0] || 'PLANT-01';
     const generatedQuery = `SELECT * FROM mfg_work_orders 
 WHERE \`plant_id\` = '${userPlant}' 

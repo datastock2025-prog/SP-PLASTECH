@@ -24,14 +24,15 @@ import {
 import {
   ShiftCalendarConfig,
   HolidayOvertimeRule,
-  shifts,
-  holidays,
-  mockShifts,
-  mockHolidays,
 } from '../../data/adminExtendedData';
-import { adminService } from '../../services/adminService';
 import { PlantDetails } from '../../types/admin';
-import { companyProfile, mockCompanyProfile } from '../../data/adminData';
+import {
+  useAdminShifts,
+  useAdminHolidays,
+  useAdminPlants,
+  useSaveAdminShift,
+  useSaveAdminHoliday,
+} from '../../hooks/useAdmin';
 
 interface AdminShiftCalendarViewProps {
   showToast?: (msg: string) => void;
@@ -40,9 +41,14 @@ interface AdminShiftCalendarViewProps {
 export const AdminShiftCalendarView: React.FC<AdminShiftCalendarViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
-  const [shifts, setShifts] = useState<ShiftCalendarConfig[]>(mockShifts);
-  const [holidays, setHolidays] = useState<HolidayOvertimeRule[]>(mockHolidays);
-  const [plants, setPlants] = useState<PlantDetails[]>(mockCompanyProfile.plants);
+  // TanStack React Query v5 dynamic data
+  const { data: shifts = [], isLoading: isShiftsLoading } = useAdminShifts();
+  const { data: holidays = [], isLoading: isHolidaysLoading } = useAdminHolidays();
+  const { data: plants = [] } = useAdminPlants();
+
+  const saveShiftMutation = useSaveAdminShift();
+  const saveHolidayMutation = useSaveAdminHoliday();
+
   const [activeTab, setActiveTab] = useState<'SHIFTS' | 'CALENDAR_HOLIDAYS' | 'OVERTIME_RULES'>('SHIFTS');
   const [isSyncingBiometrics, setIsSyncingBiometrics] = useState(false);
 
@@ -76,26 +82,12 @@ export const AdminShiftCalendarView: React.FC<AdminShiftCalendarViewProps> = ({
     affectedPlants: ['Pune / Chakan Hub', 'Sanand Precision', 'Chennai Molding'],
   });
 
-  // Load live plants
-  useEffect(() => {
-    adminService.getPlants().then((livePlants) => {
-      if (livePlants && livePlants.length > 0) {
-        setPlants(livePlants);
-      }
-    });
-  }, []);
-
   const handleToggleShiftStatus = (id: string) => {
-    setShifts((prev) =>
-      prev.map((s) => {
-        if (s.id === id) {
-          const next = s.status === 'Active' ? 'Suspended' : 'Active';
-          showToast(`Shift ${s.shiftName} set to ${next}.`);
-          return { ...s, status: next };
-        }
-        return s;
-      })
-    );
+    const s = shifts.find((item) => item.id === id);
+    if (!s) return;
+    const next = s.status === 'Active' ? 'Suspended' : 'Active';
+    saveShiftMutation.mutate({ ...s, status: next });
+    showToast(`Shift ${s.shiftName} set to ${next}.`);
   };
 
   const handleSyncBiometricClocks = () => {
@@ -141,14 +133,14 @@ export const AdminShiftCalendarView: React.FC<AdminShiftCalendarViewProps> = ({
 
     if (editingShiftId) {
       const updated = { ...(shiftForm as ShiftCalendarConfig), id: editingShiftId };
-      setShifts((prev) => prev.map((s) => (s.id === editingShiftId ? updated : s)));
+      saveShiftMutation.mutate(updated);
       showToast(`Shift schedule parameters for ${updated.shiftCode} saved.`);
     } else {
       const newShift: ShiftCalendarConfig = {
         ...(shiftForm as ShiftCalendarConfig),
         id: `SFT-${Date.now().toString().slice(-4)}`,
       };
-      setShifts((prev) => [...prev, newShift]);
+      saveShiftMutation.mutate(newShift);
       showToast(`New shift schedule ${newShift.shiftCode} activated.`);
     }
     setIsShiftModalOpen(false);
@@ -177,16 +169,11 @@ export const AdminShiftCalendarView: React.FC<AdminShiftCalendarViewProps> = ({
   };
 
   const handleToggleCompOffInline = (hId: string) => {
-    setHolidays((prev) =>
-      prev.map((h) => {
-        if (h.id === hId) {
-          const next = !h.compOffEligible;
-          showToast(`Comp-off eligibility for ${h.title} set to ${next ? 'Eligible (60d)' : 'Disabled'}.`);
-          return { ...h, compOffEligible: next };
-        }
-        return h;
-      })
-    );
+    const h = holidays.find((item) => item.id === hId);
+    if (!h) return;
+    const next = !h.compOffEligible;
+    saveHolidayMutation.mutate({ ...h, compOffEligible: next });
+    showToast(`Comp-off eligibility for ${h.title} set to ${next ? 'Eligible (60d)' : 'Disabled'}.`);
   };
 
   const handleSaveHoliday = (e: React.FormEvent) => {
@@ -198,14 +185,14 @@ export const AdminShiftCalendarView: React.FC<AdminShiftCalendarViewProps> = ({
 
     if (editingHolidayId) {
       const updated = { ...(holidayForm as HolidayOvertimeRule), id: editingHolidayId };
-      setHolidays((prev) => prev.map((h) => (h.id === editingHolidayId ? updated : h)));
+      saveHolidayMutation.mutate(updated);
       showToast(`Holiday & overtime rule for "${updated.title}" updated.`);
     } else {
       const newH: HolidayOvertimeRule = {
         ...(holidayForm as HolidayOvertimeRule),
         id: `HOL-${Date.now().toString().slice(-4)}`,
       };
-      setHolidays((prev) => [...prev, newH]);
+      saveHolidayMutation.mutate(newH);
       showToast(`New calendar holiday "${newH.title}" registered.`);
     }
     setIsHolidayModalOpen(false);

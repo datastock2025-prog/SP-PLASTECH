@@ -46,47 +46,22 @@ import {
   AdminUser,
 } from '../../types/admin';
 import {
-  adminRoles,
-  adminUsers,
-} from '../../data/adminData';
-import {
-  mockSodRules,
-  mockSodViolations,
-  simulationScenarios as mockSimulationScenarios,
-  multiContextPolicies as mockMultiContextPolicies,
+  mockSimulationScenarios,
 } from '../../data/adminExtendedData';
 import { WorkspaceModuleRbacView } from './WorkspaceModuleRbacView';
 import { useWorkspaceRbac } from '../../hooks/useWorkspaceRbac';
 import { adminService, adminEventBus } from '../../services/adminService';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { useAuthContext } from '../../shared/components/RequireAuth';
-
-const RBAC_ROLES_STORAGE_KEY = 'reboot_erp_rbac_roles_v2';
-
-function loadStoredRoles(): AdminRole[] {
-  try {
-    const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(RBAC_ROLES_STORAGE_KEY) : null;
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.warn('Failed to load stored roles', e);
-  }
-  return [...adminRoles];
-}
-
-function saveStoredRoles(roles: AdminRole[]) {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(RBAC_ROLES_STORAGE_KEY, JSON.stringify(roles));
-    }
-  } catch (e) {
-    console.warn('Failed to save roles', e);
-  }
-}
+import {
+  useAdminRoles,
+  useSaveAdminRole,
+  useDeleteAdminRole,
+  useSodRules,
+  useSodViolations,
+  useAdminUsers,
+  useAdminMultiContextPolicies,
+} from '../../hooks/useAdmin';
 
 interface AdminRolesViewProps {
   showToast?: (msg: string) => void;
@@ -101,21 +76,32 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
 }) => {
   const { currentUser } = useAuthContext();
   const { pendingCount } = useWorkspaceRbac();
+
+  // TanStack React Query v5 Dynamic Data
+  const { data: rolesData = [], isLoading: isLoadingRoles } = useAdminRoles();
+  const saveRoleMutation = useSaveAdminRole();
+  const deleteRoleMutation = useDeleteAdminRole();
+  const { data: liveUsers = [] } = useAdminUsers();
+  const { data: sodRulesData = [] } = useSodRules();
+  const { data: sodViolationsData = [] } = useSodViolations();
+  const { data: multiContextPolicies = [] } = useAdminMultiContextPolicies();
+
   // Navigation / View State
   const [activeTab, setActiveTab] = useState<'matrix' | 'simulator' | 'sod' | 'hierarchy' | 'workspace_access'>(initialTab);
-  const [roles, setRoles] = useState<AdminRole[]>(loadStoredRoles);
-  const [liveUsers, setLiveUsers] = useState<AdminUser[]>(adminService.getCachedUsers);
-  const [selectedRoleId, setSelectedRoleId] = useState<string>(roles[0]?.id || '');
+  const [roles, setRoles] = useState<AdminRole[]>([]);
+  const [selectedRoleId, setSelectedRoleId] = useState<string>('');
   const [moduleCategoryFilter, setModuleCategoryFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Sync roles from React Query
   useEffect(() => {
-    adminService.getUsers().then((u) => {
-      if (u && u.length > 0) {
-        setLiveUsers(u);
+    if (rolesData && rolesData.length > 0) {
+      setRoles(rolesData);
+      if (!selectedRoleId || !rolesData.some((r) => r.id === selectedRoleId)) {
+        setSelectedRoleId(rolesData[0].id);
       }
-    });
-  }, []);
+    }
+  }, [rolesData]);
 
   // Modals / Actions
   const [isCreatingRole, setIsCreatingRole] = useState(false);
@@ -131,9 +117,9 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
   // Simulator Sandbox State
   // -------------------------------------------------------------
   const [simSubjectType, setSimSubjectType] = useState<'user' | 'role' | 'multi_role'>('user');
-  const [simSelectedUserId, setSimSelectedUserId] = useState<string>(liveUsers[0]?.id || adminUsers[0]?.id || '');
-  const [simSelectedRoleId, setSimSelectedRoleId] = useState<string>(roles[1]?.id || roles[0]?.id || '');
-  const [simMultiRoleIds, setSimMultiRoleIds] = useState<string[]>([roles[1]?.id, roles[2]?.id].filter(Boolean));
+  const [simSelectedUserId, setSimSelectedUserId] = useState<string>('');
+  const [simSelectedRoleId, setSimSelectedRoleId] = useState<string>('');
+  const [simMultiRoleIds, setSimMultiRoleIds] = useState<string[]>([]);
   const [simSelectedPlant, setSimSelectedPlant] = useState<string>('PLANT_CHE_01');
   const [simSelectedShift, setSimSelectedShift] = useState<string>('Shift A (06:00 - 14:00)');
   const [simIpAddress, setSimIpAddress] = useState<string>('192.168.10.45');
@@ -144,12 +130,31 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
   const [simulationResult, setSimulationResult] = useState<SimulationVerdict | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
 
+  // Sync simulator defaults
+  useEffect(() => {
+    if (liveUsers.length > 0 && !simSelectedUserId) {
+      setSimSelectedUserId(liveUsers[0].id);
+    }
+    if (roles.length > 0 && !simSelectedRoleId) {
+      setSimSelectedRoleId(roles[1]?.id || roles[0]?.id || '');
+      setSimMultiRoleIds([roles[1]?.id, roles[2]?.id].filter(Boolean) as string[]);
+    }
+  }, [liveUsers, roles]);
+
   // What-if Sandbox Overrides
   const [sandboxOverrides, setSandboxOverrides] = useState<Record<string, Partial<ModulePermission>>>({});
 
   // SoD Rules State
-  const [sodRules, setSodRules] = useState<SodConflictRule[]>(mockSodRules);
-  const [sodViolations, setSodViolations] = useState<SodViolation[]>(mockSodViolations);
+  const [sodRules, setSodRules] = useState<SodConflictRule[]>([]);
+  const [sodViolations, setSodViolations] = useState<SodViolation[]>([]);
+
+  useEffect(() => {
+    if (sodRulesData.length > 0) setSodRules(sodRulesData);
+  }, [sodRulesData]);
+
+  useEffect(() => {
+    if (sodViolationsData.length > 0) setSodViolations(sodViolationsData);
+  }, [sodViolationsData]);
 
   const selectedRole = roles.find((r) => r.id === selectedRoleId) || roles[0];
 
@@ -383,7 +388,7 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
 
     const updatedRoles = [...roles, newRole];
     setRoles(updatedRoles);
-    saveStoredRoles(updatedRoles);
+    saveRoleMutation.mutate(newRole);
     setSelectedRoleId(newRole.id);
     setIsCreatingRole(false);
     setNewRoleData({ name: '', code: '', description: '', template: 'Blank' });
@@ -415,7 +420,7 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
     };
     const updatedRoles = [...roles, clonedRole];
     setRoles(updatedRoles);
-    saveStoredRoles(updatedRoles);
+    saveRoleMutation.mutate(clonedRole);
     setSelectedRoleId(clonedRole.id);
 
     masterDataGovernanceService.recordAudit({
@@ -433,8 +438,7 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
   };
 
   const handleSaveRoleChanges = () => {
-    saveStoredRoles(roles);
-    adminService.updateRole(selectedRole.id, selectedRole);
+    saveRoleMutation.mutate(selectedRole);
     adminEventBus.emit('ROLE_UPDATED', selectedRole);
 
     masterDataGovernanceService.recordAudit({
@@ -471,7 +475,7 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
       let subjectName = '';
 
       if (simSubjectType === 'user') {
-        const user = liveUsers.find((u) => u.id === simSelectedUserId) || liveUsers[0] || adminUsers[0];
+        const user = liveUsers.find((u) => u.id === simSelectedUserId) || liveUsers[0] || { fullName: 'Admin User', designation: 'Operations Admin', roleId: roles[0]?.id };
         subjectName = `${user.fullName} (${user.designation})`;
         const matchingRole = roles.find((r) => r.id === user.roleId) || roles[0];
         targetRoles = [matchingRole];
@@ -497,8 +501,8 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
       });
 
       // Context Check (e.g. IP Geofence & Shift)
-      const contextPolicy = mockMultiContextPolicies.find((c) => c.code === simSelectedPlant) || mockMultiContextPolicies[0];
-      const isWhitelistedIp = contextPolicy.ipSubnets.some((subnet) => simIpAddress.startsWith(subnet.split('/')[0].slice(0, 7)));
+      const contextPolicy = multiContextPolicies.find((c) => c.code === simSelectedPlant) || multiContextPolicies[0] || { ipSubnets: ['192.168.10.0/24'], enforceGeofence: true };
+      const isWhitelistedIp = (contextPolicy.ipSubnets || []).some((subnet) => simIpAddress.startsWith(subnet.split('/')[0].slice(0, 7)));
 
       // Commercial threshold check
       const requiresCommercialDualAuth =
@@ -545,7 +549,7 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
         {
           name: 'Plant Context & Geofence Fencing',
           passed: isWhitelistedIp || !contextPolicy.enforceGeofence,
-          detail: `Target Plant: ${contextPolicy.contextName} | Client IP: ${simIpAddress} | Subnet Match: ${isWhitelistedIp ? 'MATCHED' : 'EXTERNAL'}`,
+          detail: `Target Plant: ${(contextPolicy as any).contextName || (contextPolicy as any).code || simSelectedPlant} | Client IP: ${simIpAddress} | Subnet Match: ${isWhitelistedIp ? 'MATCHED' : 'EXTERNAL'}`,
         },
         {
           name: 'Commercial Dollar/Rupee Ceiling Limit',

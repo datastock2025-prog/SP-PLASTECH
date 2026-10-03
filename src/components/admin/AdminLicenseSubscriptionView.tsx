@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   KeyRound,
   ShieldCheck,
@@ -16,7 +16,8 @@ import {
   PhoneCall,
   Mail,
 } from 'lucide-react';
-import { LicenseSubscriptionDetails, licenseDetails, mockLicenseDetails } from '../../data/adminExtendedData';
+import { LicenseSubscriptionDetails, licenseDetails } from '../../data/adminExtendedData';
+import { useAdminLicense } from '../../hooks/useAdmin';
 
 interface AdminLicenseSubscriptionViewProps {
   showToast?: (msg: string) => void;
@@ -25,7 +26,14 @@ interface AdminLicenseSubscriptionViewProps {
 export const AdminLicenseSubscriptionView: React.FC<AdminLicenseSubscriptionViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
-  const [license, setLicense] = useState<LicenseSubscriptionDetails>(mockLicenseDetails);
+  const { data: serverLicense, isLoading } = useAdminLicense();
+  const [license, setLicense] = useState<LicenseSubscriptionDetails>(licenseDetails);
+
+  useEffect(() => {
+    if (serverLicense) {
+      setLicense(serverLicense);
+    }
+  }, [serverLicense]);
 
   const handleCopyKey = () => {
     navigator.clipboard?.writeText(license.licenseKey);

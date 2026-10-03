@@ -12,7 +12,7 @@ import {
   Search,
   FileText,
 } from 'lucide-react';
-import { DataExchangeJob, dataExchangeJobs, mockDataExchangeJobs } from '../../data/adminExtendedData';
+import { DataExchangeJob, dataExchangeJobs } from '../../data/adminExtendedData';
 
 interface AdminDataImportExportViewProps {
   showToast?: (msg: string) => void;
@@ -21,7 +21,7 @@ interface AdminDataImportExportViewProps {
 export const AdminDataImportExportView: React.FC<AdminDataImportExportViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
-  const [jobs, setJobs] = useState<DataExchangeJob[]>(mockDataExchangeJobs);
+  const [jobs, setJobs] = useState<DataExchangeJob[]>(dataExchangeJobs);
   const [activeTab, setActiveTab] = useState<'JOB_HISTORY' | 'TEMPLATES'>('JOB_HISTORY');
 
   const templates = [

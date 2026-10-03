@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Bell,
   Mail,
@@ -13,7 +13,7 @@ import {
   Sliders,
 } from 'lucide-react';
 import { NotificationTemplate } from '../../types/admin';
-import { notificationTemplates, mockNotificationTemplates } from '../../data/adminData';
+import { useAdminNotificationTemplates, useSaveAdminNotificationTemplate } from '../../hooks/useAdmin';
 
 interface AdminNotificationsViewProps {
   showToast?: (msg: string) => void;
@@ -22,27 +22,40 @@ interface AdminNotificationsViewProps {
 export const AdminNotificationsView: React.FC<AdminNotificationsViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
-  const [templates, setTemplates] = useState<NotificationTemplate[]>(mockNotificationTemplates);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(templates[0]?.id || '');
+  const { data: serverTemplates = [], isLoading } = useAdminNotificationTemplates();
+  const saveTemplateMutation = useSaveAdminNotificationTemplate();
+
+  const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<NotificationTemplate | null>(null);
+
+  useEffect(() => {
+    if (serverTemplates.length > 0) {
+      setTemplates(serverTemplates);
+      if (!selectedTemplateId || !serverTemplates.some((t) => t.id === selectedTemplateId)) {
+        setSelectedTemplateId(serverTemplates[0].id);
+      }
+    }
+  }, [serverTemplates, selectedTemplateId]);
 
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) || templates[0];
 
   const handleToggleChannel = (templateId: string, channel: 'email' | 'sms' | 'whatsapp' | 'inApp') => {
-    setTemplates((prev) =>
-      prev.map((t) => {
-        if (t.id === templateId) {
-          const channels = {
-            ...t.channels,
-            [channel]: !t.channels[channel],
-          };
-          return { ...t, channels };
-        }
-        return t;
-      })
-    );
-    showToast(`Updated notification delivery channels for "${selectedTemplate?.templateName}".`);
+    const targetTemplate = templates.find((t) => t.id === templateId);
+    if (!targetTemplate) return;
+
+    const updated = {
+      ...targetTemplate,
+      channels: {
+        ...targetTemplate.channels,
+        [channel]: !targetTemplate.channels[channel],
+      },
+    };
+
+    saveTemplateMutation.mutate(updated);
+    setTemplates((prev) => prev.map((t) => (t.id === templateId ? updated : t)));
+    showToast(`Updated notification delivery channels for "${targetTemplate.templateName}".`);
   };
 
   const handleSendTestDispatch = (template: NotificationTemplate) => {
@@ -52,6 +65,7 @@ export const AdminNotificationsView: React.FC<AdminNotificationsViewProps> = ({
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editForm) return;
+    saveTemplateMutation.mutate(editForm);
     setTemplates((prev) => prev.map((t) => (t.id === editForm.id ? editForm : t)));
     setIsEditing(false);
     showToast(`Template "${editForm.templateName}" updated successfully.`);

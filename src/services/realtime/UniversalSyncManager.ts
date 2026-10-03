@@ -1,4 +1,5 @@
-import { supabase, checkSupabaseConnection } from '../../shared/supabaseClient';
+import { db } from '../../shared/db';
+import { checkSupabaseConnection } from '../../shared/supabaseClient';
 import { adminEventBus } from '../adminService';
 
 export type SyncDomain =
@@ -34,14 +35,13 @@ export class UniversalSyncManager {
   private static instance: UniversalSyncManager;
   private broadcastChannel: BroadcastChannel | null = null;
   private clientId = `client_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-  private realtimeChannel: any = null;
   private isConnected = false;
   private connectionListeners: Set<(connected: boolean) => void> = new Set();
   private healthCheckTimer: any = null;
 
   private constructor() {
     this.initBroadcastChannel();
-    this.initSupabaseRealtime();
+    this.initRealtimeSubscriptions();
     this.startHealthChecks();
   }
 
@@ -71,87 +71,43 @@ export class UniversalSyncManager {
   }
 
   // --------------------------------------------------------------------------
-  // 2. Cross-Browser & Multi-Workstation Sync (via Supabase Realtime)
+  // 2. Cross-Browser & Multi-Workstation Sync (via Database Adapter Realtime)
   // --------------------------------------------------------------------------
-  private initSupabaseRealtime() {
+  private initRealtimeSubscriptions() {
+    const tableMap: Array<{ table: string; domain: SyncDomain }> = [
+      { table: 'sales_orders', domain: 'SALES_ORDERS' },
+      { table: 'monthly_plan_orders', domain: 'MONTHLY_PLANS' },
+      { table: 'work_orders', domain: 'WORK_ORDERS' },
+      { table: 'items', domain: 'ITEMS' },
+      { table: 'purchase_orders', domain: 'PURCHASE_ORDERS' },
+      { table: 'quality_ncrs', domain: 'QUALITY_NCRS' },
+      { table: 'quality_capas', domain: 'QUALITY_CAPAS' },
+      { table: 'quality_coas', domain: 'QUALITY_COAS' },
+      { table: 'customers', domain: 'CUSTOMERS' },
+      { table: 'quotations', domain: 'QUOTATIONS' },
+      { table: 'users', domain: 'USERS' },
+    ];
+
     try {
-      this.realtimeChannel = supabase
-        .channel('erp_mesh_channel')
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'sales_orders' },
-          (payload) => this.handlePostgresEvent('SALES_ORDERS', payload)
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'monthly_plan_orders' },
-          (payload) => this.handlePostgresEvent('MONTHLY_PLANS', payload)
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'work_orders' },
-          (payload) => this.handlePostgresEvent('WORK_ORDERS', payload)
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'items' },
-          (payload) => this.handlePostgresEvent('ITEMS', payload)
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'purchase_orders' },
-          (payload) => this.handlePostgresEvent('PURCHASE_ORDERS', payload)
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'quality_ncrs' },
-          (payload) => this.handlePostgresEvent('QUALITY_NCRS', payload)
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'quality_capas' },
-          (payload) => this.handlePostgresEvent('QUALITY_CAPAS', payload)
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'quality_coas' },
-          (payload) => this.handlePostgresEvent('QUALITY_COAS', payload)
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'customers' },
-          (payload) => this.handlePostgresEvent('CUSTOMERS', payload)
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'quotations' },
-          (payload) => this.handlePostgresEvent('QUOTATIONS', payload)
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'users' },
-          (payload) => this.handlePostgresEvent('USERS', payload)
-        )
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            this.setConnectionState(true);
-          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-            this.setConnectionState(false);
-          }
+      tableMap.forEach(({ table, domain }) => {
+        db.subscribeToChanges(table, (payload) => {
+          this.handleRealtimeEvent(domain, payload);
         });
+      });
+      this.setConnectionState(true);
     } catch (err) {
-      console.warn('[SyncManager] Supabase Realtime channel subscription skipped:', err);
+      console.warn('[SyncManager] Realtime subscription skipped:', err);
     }
   }
 
-  private handlePostgresEvent(domain: SyncDomain, payload: any) {
-    const data = payload.new || payload.old || payload;
+  private handleRealtimeEvent(domain: SyncDomain, payload: any) {
+    const data = payload.new || payload.old || payload.record || payload;
     const syncMsg: SyncMessage = {
       domain,
       table: payload.table,
-      eventType: (payload.eventType as any) || 'UPDATE',
+      eventType: (payload.eventType as any) || (payload.type as any) || 'UPDATE',
       data,
-      sourceClient: 'SUPABASE_REALTIME',
+      sourceClient: 'DATABASE_GATEWAY',
       timestamp: Date.now(),
     };
     this.dispatchToLocalEcosystem(syncMsg);

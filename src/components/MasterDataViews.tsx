@@ -1225,55 +1225,65 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   const handleSaveWizardItem = (savedItem: ItemMaster) => {
     const exists = items.some((i) => i.code === savedItem.code);
     const prevItem = items.find((i) => i.code === savedItem.code);
+    const autoApprove = isSuperAdmin || canApproveItem;
 
-    // Task 2: All Item Master modifications/creations require approval hereafter
-    const pendingItem: ItemMaster = {
+    const itemToSave: ItemMaster = {
       ...savedItem,
-      approval: 'pending' as const,
+      approval: autoApprove ? 'approved' : ('pending' as const),
       status: 'active' as const,
+      approvedBy: autoApprove ? (currentUser?.name || 'Admin Authority') : undefined,
     };
 
-    itemService.saveItem(pendingItem);
+    itemService.saveItem(itemToSave);
     if (exists) {
-      onUpdateItem(pendingItem);
+      onUpdateItem(itemToSave);
     } else {
-      onCreateItem(pendingItem);
+      onCreateItem(itemToSave);
     }
 
-    // Submit CRUD Change Request to Admin queue
-    masterDataGovernanceService.submitChangeRequest({
-      requestType: exists ? 'UPDATE' : 'CREATE',
-      itemCode: savedItem.code,
-      itemName: savedItem.name,
-      requestedBy: currentUser?.name || 'Production Engineer',
-      userRole: currentUser?.role || 'engineer',
-      reason: exists ? 'Item master tooling specifications & attribute update' : 'New SKU registration in live catalog',
-      payload: pendingItem,
-      currentSnapshot: prevItem,
-    });
+    // Submit CRUD Change Request if non-admin or record audit trail
+    if (!autoApprove) {
+      masterDataGovernanceService.submitChangeRequest({
+        requestType: exists ? 'UPDATE' : 'CREATE',
+        itemCode: savedItem.code,
+        itemName: savedItem.name,
+        requestedBy: currentUser?.name || 'Production Engineer',
+        userRole: currentUser?.role || 'engineer',
+        reason: exists ? 'Item master tooling specifications & attribute update' : 'New SKU registration in live catalog',
+        payload: itemToSave,
+        currentSnapshot: prevItem,
+      });
+    }
 
     // Record immutable audit ledger entry
     masterDataGovernanceService.recordAudit({
       entityType: 'ITEM_MASTER',
-      entityCode: pendingItem.code,
-      entityName: pendingItem.name,
-      action: exists ? 'UPDATE' : 'CREATE',
-      changedBy: currentUser?.name || 'Production Engineer',
-      raisedBy: currentUser?.name || 'Production Engineer',
-      userRole: currentUser?.role || 'engineer',
-      changeSummary: `${exists ? 'Updated' : 'Registered'} SKU ${pendingItem.code} (${pendingItem.name}). Queued for approval gate before live release.`,
+      entityCode: itemToSave.code,
+      entityName: itemToSave.name,
+      action: autoApprove ? (exists ? 'UPDATE' : 'CREATE') : (exists ? 'UPDATE' : 'CREATE'),
+      changedBy: currentUser?.name || 'Admin Authority',
+      raisedBy: currentUser?.name || 'Admin Authority',
+      approvedBy: autoApprove ? (currentUser?.name || 'Admin Authority') : undefined,
+      userRole: currentUser?.role || 'admin',
+      changeSummary: autoApprove
+        ? `${exists ? 'Updated' : 'Registered and approved'} SKU ${itemToSave.code} (${itemToSave.name}) in live operational catalog.`
+        : `${exists ? 'Updated' : 'Registered'} SKU ${itemToSave.code} (${itemToSave.name}). Queued for approval gate before live release.`,
       diff: prevItem
         ? {
-            name: { before: prevItem.name, after: pendingItem.name },
-            type: { before: prevItem.type, after: pendingItem.type },
-            cycleTime: { before: prevItem.cycleTime, after: pendingItem.cycleTime },
-            shotWeightGrams: { before: prevItem.shotWeightGrams, after: pendingItem.shotWeightGrams },
-            approval: { before: prevItem.approval, after: 'pending' },
+            name: { before: prevItem.name, after: itemToSave.name },
+            type: { before: prevItem.type, after: itemToSave.type },
+            cycleTime: { before: prevItem.cycleTime, after: itemToSave.cycleTime },
+            shotWeightGrams: { before: prevItem.shotWeightGrams, after: itemToSave.shotWeightGrams },
+            approval: { before: prevItem.approval, after: itemToSave.approval },
           }
         : undefined,
     });
 
-    showToast(`✓ SKU ${savedItem.code} saved! Status set to Pending Approval for review.`);
+    showToast(
+      autoApprove
+        ? `✓ SKU ${savedItem.code} saved & stored in live database!`
+        : `✓ SKU ${savedItem.code} saved! Status set to Pending Approval for review.`
+    );
     setIsItemWizardOpen(false);
     setWizardEditItem(null);
   };
@@ -1335,6 +1345,118 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
     }
     setBomWizardParentItem(targetItem);
     setIsMfgBomWizardOpen(true);
+  };
+
+  const handleExportCatalogCsv = () => {
+    setIsMoreMenuOpen(false);
+    const headers = [
+      'Item Code',
+      'Item Name',
+      'Item Type',
+      'Plant',
+      'Category',
+      'Warehouse',
+      'Base UOM',
+      'On Hand Stock',
+      'Available Stock',
+      'Safety Stock',
+      'Reorder Level',
+      'Lead Time',
+      'Cycle Time (s)',
+      'Mold Tool ID',
+      'Cavities',
+      'Part Weight (g)',
+      'Runner Weight (g)',
+      'Shot Weight (g)',
+      'Resin / Material',
+      'MFI',
+      'Density',
+      'Supplier',
+      'Standard Cost (INR)',
+      'Approval Status',
+      'Record Status',
+    ];
+
+    const rows = items.map((i) => {
+      const stock = getItemStockData(i);
+      return [
+        `"${i.code || ''}"`,
+        `"${(i.name || '').replace(/"/g, '""')}"`,
+        `"${i.type || ''}"`,
+        `"${i.plant || 'Plant 1 - Pimpri Auto-Hub'}"`,
+        `"${i.cat || ''}"`,
+        `"${i.wh || ''}"`,
+        `"${i.baseUOM || 'PCS'}"`,
+        `"${stock.onHandNum}"`,
+        `"${stock.availNum}"`,
+        `"${i.safetyStock || 0}"`,
+        `"${i.reorderLevel || 0}"`,
+        `"${i.leadTime || ''}"`,
+        `"${i.cycleTime || i.standardCycleTime || 0}"`,
+        `"${i.moldToolId || ''}"`,
+        `"${i.cavityCount || 1}"`,
+        `"${i.partWeightGrams || i.netWeightGrams || 0}"`,
+        `"${i.runnerWeightGrams || 0}"`,
+        `"${i.shotWeightGrams || 0}"`,
+        `"${i.resinType || i.polymerGrade || ''}"`,
+        `"${i.mfi || ''}"`,
+        `"${i.density || ''}"`,
+        `"${(i.supplier || '').replace(/"/g, '""')}"`,
+        `"${(i.standardCost || i.cost || 0).toFixed(2)}"`,
+        `"${i.approval || 'approved'}"`,
+        `"${i.status || 'active'}"`,
+      ].join(',');
+    });
+
+    const blob = new Blob([[headers.join(','), ...rows].join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `item_master_catalog_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`✓ Exported ${items.length} dynamic items with technical & tooling specs to CSV!`);
+  };
+
+  const handlePrintLabel = (item: ItemMaster) => {
+    const printWindow = window.open('', '_blank', 'width=450,height=600');
+    if (printWindow) {
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Zebra Barcode Label - ${item.code}</title>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; padding: 20px; text-align: center; }
+              .card { border: 2px solid #000; padding: 15px; border-radius: 8px; max-width: 380px; margin: 0 auto; }
+              .header { font-size: 14px; font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 10px; }
+              .code { font-size: 18px; font-weight: bold; margin: 8px 0; font-family: monospace; }
+              .name { font-size: 12px; margin-bottom: 8px; font-weight: 600; }
+              .barcode { font-size: 28px; letter-spacing: 4px; margin: 15px 0; font-family: monospace; }
+              .meta { font-size: 11px; display: flex; justify-content: space-between; border-top: 1px dashed #000; padding-top: 8px; font-weight: 500; }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <div class="header">DATASTOCK PLASTICS &bull; ${item.plant || 'PLANT 1'}</div>
+              <div class="code">${item.code}</div>
+              <div class="name">${item.name}</div>
+              <div>Type: ${item.type} | Store: ${item.wh || 'STORE'}</div>
+              <div class="barcode">||| | ||||| | ||| ||||</div>
+              <div class="meta">
+                <span>UOM: ${item.baseUOM || 'PCS'}</span>
+                <span>Status: ${(item.approval || 'APPROVED').toUpperCase()}</span>
+              </div>
+            </div>
+            <script>
+              window.onload = function() { window.print(); }
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
+    showToast(`✓ Zebra thermal label generated for SKU ${item.code}`);
   };
 
   // Status helper badge
@@ -1605,10 +1727,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                       {/* Export CSV */}
                       <button
                         type="button"
-                        onClick={() => {
-                          setIsMoreMenuOpen(false);
-                          showToast(`Exported ${items.length} items to CSV`);
-                        }}
+                        onClick={handleExportCatalogCsv}
                         className="w-full px-3.5 py-2 text-left flex items-center gap-2.5 text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors font-medium group cursor-pointer"
                       >
                         <Download className="w-4 h-4 text-slate-500 group-hover:scale-110 transition-transform" />
@@ -2461,7 +2580,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               </button>
               <button
                 className="btn btn-sm btn-ghost"
-                onClick={() => showToast(`Label sent to Zebra printer for ${item.code}`)}
+                onClick={() => handlePrintLabel(item)}
               >
                 <Printer className="w-3.5 h-3.5" /> Print Label
               </button>
@@ -2928,7 +3047,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                             <td className="py-2.5 px-3 font-mono">{lot.receiptDate || '—'}</td>
                             <td className="py-2.5 px-3 font-mono">{lot.expiryDate || '—'}</td>
                             <td className="py-2.5 px-3 text-center">
-                              <span className={`badge ${lot.status === 'released' || lot.status === 'available' ? 'green' : lot.status === 'quarantine' ? 'amber' : 'gray'}`}>
+                              <span className={`badge ${(lot.status as any) === 'released' || (lot.status as any) === 'available' ? 'green' : (lot.status as any) === 'quarantine' ? 'amber' : 'gray'}`}>
                                 {lot.status || 'available'}
                               </span>
                             </td>
@@ -3308,25 +3427,46 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               </div>
 
               {(() => {
-                const logs = (masterDataGovernanceService.getAllRecords?.() || [])
-                  .filter((r: any) => r.code === item.code);
+                const logs = masterDataGovernanceService.getAuditHistory({ code: item.code });
                 return (
                   <div className="space-y-3">
-                    <div className="timeline-item">
-                      <div className="t-dot" style={{ background: 'var(--success)' }} />
-                      <div>
-                        <div className="t-text font-bold text-xs text-[#14213D]">Item Master Record Active &bull; {item.code}</div>
-                        <div className="text-[11px] text-gray-500">
-                          {item.createdOn || 'Initial catalog release'} &bull; {item.name} &bull; Plant: {item.plant || 'Plant 1 - Pimpri Auto-Hub'}
+                    {logs.length > 0 ? (
+                      logs.map((l) => (
+                        <div key={l.id} className="timeline-item">
+                          <div
+                            className="t-dot"
+                            style={{
+                              background:
+                                l.action === 'APPROVE'
+                                  ? 'var(--success)'
+                                  : l.action === 'REJECT'
+                                  ? 'var(--danger)'
+                                  : l.action === 'CREATE'
+                                  ? '#0F8B8D'
+                                  : 'var(--warning)',
+                            }}
+                          />
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-xs text-[#14213D]">{l.action}: {l.changeSummary}</span>
+                              <span className="px-1.5 py-0.2 text-[9px] font-mono rounded bg-slate-100 border text-slate-600">
+                                {l.userRole || 'admin'}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-gray-500 mt-0.5">
+                              {new Date(l.timestamp).toLocaleString()} &bull; By: {l.changedBy} {l.approvedBy ? `(Approved by ${l.approvedBy})` : ''}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                    {isFg && cycle > 0 && (
+                      ))
+                    ) : (
                       <div className="timeline-item">
-                        <div className="t-dot" style={{ background: '#0F8B8D' }} />
+                        <div className="t-dot" style={{ background: 'var(--success)' }} />
                         <div>
-                          <div className="t-text font-bold text-xs text-[#14213D]">Injection Tooling Spec Verified</div>
-                          <div className="text-[11px] text-gray-500">Cycle Time: {cycle}s &bull; Mold: {item.moldToolId || 'MOLD-001'} &bull; Cavities: {cavities}</div>
+                          <div className="t-text font-bold text-xs text-[#14213D]">Item Master Record Active &bull; {item.code}</div>
+                          <div className="text-[11px] text-gray-500">
+                            {item.createdOn || 'Initial catalog release'} &bull; {item.name} &bull; Plant: {item.plant || 'Plant 1 - Pimpri Auto-Hub'}
+                          </div>
                         </div>
                       </div>
                     )}

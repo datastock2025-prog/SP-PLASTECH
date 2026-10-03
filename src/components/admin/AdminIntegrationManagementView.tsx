@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Cpu,
   Plus,
@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Power,
 } from 'lucide-react';
+import { useAdminIntegrations } from '../../hooks/useAdmin';
 
 interface IntegrationConnectorExtended {
   id: string;
@@ -28,7 +29,7 @@ interface IntegrationConnectorExtended {
   description: string;
 }
 
-const mockConnectors: IntegrationConnectorExtended[] = [
+const DEFAULT_CONNECTORS: IntegrationConnectorExtended[] = [
   {
     id: 'INT-01',
     name: 'Euromap 63 / 77 Injection Molding OPC-UA Server',
@@ -98,7 +99,8 @@ interface AdminIntegrationManagementViewProps {
 export const AdminIntegrationManagementView: React.FC<AdminIntegrationManagementViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
-  const [connectors, setConnectors] = useState<IntegrationConnectorExtended[]>(mockConnectors);
+  const { data: serverIntegrations = [], isLoading } = useAdminIntegrations();
+  const [connectors, setConnectors] = useState<IntegrationConnectorExtended[]>(DEFAULT_CONNECTORS);
   const [testingId, setTestingId] = useState<string | null>(null);
 
   const handleTestConnection = (id: string, name: string) => {

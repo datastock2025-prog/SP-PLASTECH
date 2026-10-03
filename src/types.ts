@@ -98,6 +98,13 @@ export interface ItemMaster {
   scrapRate?: number;
   defaultLocation?: string;
   weight?: number;
+  palletPattern?: string;
+  burstingStrength?: string;
+  pmInterval?: string;
+  criticality?: string;
+  meltTemp?: string;
+  approvedBy?: string;
+  tolerance?: string;
   netWeightGrams?: number;
   cycleTime?: number;
   partWeightGrams?: number;

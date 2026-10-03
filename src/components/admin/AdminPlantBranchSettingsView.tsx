@@ -41,73 +41,9 @@ interface PlantBranch {
   status: 'Operational' | 'Maintenance Overhaul';
 }
 
-const mockPlantsList: PlantBranch[] = [
-  {
-    id: 'PLANT-01',
-    code: 'PUN-CHK-01',
-    name: 'Pune / Chakan Hub',
-    type: 'Injection Molding Hub',
-    address: 'Plot No. C-14, Phase II, MIDC Industrial Area, Chakan',
-    city: 'Pune',
-    state: 'Maharashtra',
-    gstin: '27AABCR1234F1Z8',
-    factoryLicenseNo: 'FL-PUN-2022-8819',
-    pollutionConsentNo: 'MPCB/RO-PUN/CTO-RED/24-912',
-    consentExpiryDate: '2028-03-31',
-    totalMachineBays: 24,
-    activeTonnageRange: '150T to 1200T',
-    connectedPowerKva: 3200,
-    dgSetBackupKva: 2500,
-    plantHead: 'Rameshwar Patil',
-    plantHeadPhone: '+91 98220 99112',
-    ehsOfficer: 'Anand Shinde',
-    status: 'Operational',
-  },
-  {
-    id: 'PLANT-02',
-    code: 'SND-GIDC-02',
-    name: 'Sanand Precision Plastics',
-    type: 'Compounding & Masterbatch',
-    address: 'Plot No. 89, GIDC Industrial Estate, Sanand II',
-    city: 'Ahmedabad',
-    state: 'Gujarat',
-    gstin: '24AABCR1234F1Z3',
-    factoryLicenseNo: 'FL-AHD-2023-4122',
-    pollutionConsentNo: 'GPCB/CTO-AIR-WATER/2023-1102',
-    consentExpiryDate: '2027-12-31',
-    totalMachineBays: 16,
-    activeTonnageRange: '80T to 650T + Extruders',
-    connectedPowerKva: 2400,
-    dgSetBackupKva: 1800,
-    plantHead: 'Dhaval Patel',
-    plantHeadPhone: '+91 94260 77334',
-    ehsOfficer: 'Mitesh Solanki',
-    status: 'Operational',
-  },
-  {
-    id: 'PLANT-03',
-    code: 'CHN-SRI-03',
-    name: 'Chennai Automotive Molding',
-    type: 'Injection Molding Hub',
-    address: 'Survey No. 204, SIPCOT Industrial Park, Sriperumbudur',
-    city: 'Kanchipuram',
-    state: 'Tamil Nadu',
-    gstin: '33AABCR1234F1Z5',
-    factoryLicenseNo: 'FL-TN-2024-0981',
-    pollutionConsentNo: 'TNPCB/CTO-EXP/2024-550',
-    consentExpiryDate: '2029-06-30',
-    totalMachineBays: 18,
-    activeTonnageRange: '250T to 850T',
-    connectedPowerKva: 2800,
-    dgSetBackupKva: 2000,
-    plantHead: 'S. Rajagopalan',
-    plantHeadPhone: '+91 98400 44221',
-    ehsOfficer: 'K. Balaji',
-    status: 'Operational',
-  },
-];
+import { useAdminPlants, useSaveAdminPlant } from '../../hooks/useAdmin';
 
-const STORAGE_KEY = 'reboot_erp_master_plants_list';
+import { PlantDetails } from '../../types/admin';
 
 interface AdminPlantBranchSettingsViewProps {
   onNavigate?: (view: string, param?: any) => void;
@@ -118,33 +54,49 @@ export const AdminPlantBranchSettingsView: React.FC<AdminPlantBranchSettingsView
   onNavigate,
   showToast = (_msg: string) => {},
 }) => {
-  const [plants, setPlants] = useState<PlantBranch[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return mockPlantsList;
-  });
+  const { data: rawPlants = [], isLoading } = useAdminPlants();
+  const savePlantMutation = useSaveAdminPlant();
 
-  const [selectedPlant, setSelectedPlant] = useState<PlantBranch>(plants[0] || mockPlantsList[0]);
+  // Convert PlantDetails to PlantBranch structure
+  const plants: PlantBranch[] = rawPlants.length > 0 ? rawPlants.map((p) => ({
+    id: p.id,
+    code: p.plantCode,
+    name: p.plantName,
+    type: (p.division as any) || 'Injection Molding Hub',
+    address: p.address,
+    city: p.city,
+    state: p.state,
+    gstin: p.gstin,
+    factoryLicenseNo: 'FL-PUN-2022-8819',
+    pollutionConsentNo: 'MPCB/RO-PUN/CTO-RED/24-912',
+    consentExpiryDate: '2028-03-31',
+    totalMachineBays: p.totalMachines || 24,
+    activeTonnageRange: '150T to 1200T',
+    connectedPowerKva: 3200,
+    dgSetBackupKva: 2500,
+    plantHead: p.contactPerson,
+    plantHeadPhone: p.contactPhone,
+    ehsOfficer: 'Anand Shinde',
+    status: p.operationalStatus === 'Offline' ? 'Maintenance Overhaul' : 'Operational',
+  })) : [];
+
+  const [selectedPlant, setSelectedPlant] = useState<PlantBranch | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState<PlantBranch>(selectedPlant);
+  const [editForm, setEditForm] = useState<Partial<PlantBranch>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
-    setEditForm(selectedPlant);
-    setIsEditing(false);
-  }, [selectedPlant]);
+    if (plants.length > 0 && !selectedPlant) {
+      setSelectedPlant(plants[0]);
+    }
+  }, [plants, selectedPlant]);
 
-  const savePlantsList = (list: PlantBranch[]) => {
-    setPlants(list);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-    } catch {}
-  };
+  useEffect(() => {
+    if (selectedPlant) {
+      setEditForm(selectedPlant);
+      setIsEditing(false);
+    }
+  }, [selectedPlant]);
 
   const [newPlant, setNewPlant] = useState({
     name: '',
@@ -184,8 +136,15 @@ export const AdminPlantBranchSettingsView: React.FC<AdminPlantBranchSettingsView
       status: 'Operational',
     };
 
-    const updated = [...plants, created];
-    savePlantsList(updated);
+    savePlantMutation.mutate({
+      plantCode: created.code,
+      plantName: created.name,
+      division: created.type,
+      city: created.city,
+      state: created.state,
+      address: created.address,
+      gstin: created.gstin,
+    });
     setSelectedPlant(created);
     setIsModalOpen(false);
 
@@ -201,9 +160,18 @@ export const AdminPlantBranchSettingsView: React.FC<AdminPlantBranchSettingsView
 
   const handleSavePlantUpdates = (e: React.FormEvent) => {
     e.preventDefault();
-    const updatedList = plants.map((p) => (p.id === editForm.id ? editForm : p));
-    savePlantsList(updatedList);
-    setSelectedPlant(editForm);
+    if (!editForm.id) return;
+    savePlantMutation.mutate({
+      id: editForm.id,
+      plantCode: editForm.code,
+      plantName: editForm.name,
+      division: editForm.type,
+      city: editForm.city,
+      state: editForm.state,
+      address: editForm.address,
+      gstin: editForm.gstin,
+    });
+    setSelectedPlant(editForm as PlantBranch);
     setIsEditing(false);
 
     masterDataGovernanceService.savePlant({

@@ -7,6 +7,15 @@ import {
   ApprovalWorkflow,
   SystemParameter,
   AdminSystemHealth,
+  SecurityPolicySettings,
+  NotificationTemplate,
+  IntegrationConnector,
+  BackupRecord,
+  CompanyProfile,
+  AuditLogEntry,
+  SodConflictRule,
+  SodViolation,
+  MultiContextScopePolicy,
 } from '../types/admin';
 import {
   adminUsers,
@@ -16,8 +25,37 @@ import {
   approvalWorkflows,
   systemParameters,
   systemHealth,
+  securityPolicy as defaultSecurityPolicy,
+  notificationTemplates as defaultNotificationTemplates,
+  integrations as defaultIntegrations,
+  backupRecords as defaultBackups,
+  auditLogs as defaultAuditLogs,
 } from '../data/adminData';
-import { ActiveSessionRecord } from '../data/adminExtendedData';
+import {
+  ActiveSessionRecord,
+  ReasonCodeItem,
+  MachineWorkCenterConfig,
+  ShiftCalendarConfig,
+  HolidayOvertimeRule,
+  WarehouseLocationConfig,
+  SecurityLoginAuditRecord,
+  LicenseSubscriptionDetails,
+  DataRetentionPolicy,
+  UserGroup,
+  mockSodRules,
+  mockSodViolations,
+  multiContextPolicies as defaultMultiContextPolicies,
+  mockWarehouseLocations,
+  mockMachineWorkCenters,
+  mockShifts,
+  mockHolidays,
+  mockReasonCodes,
+  mockLoginAuditRecords,
+  mockLicenseDetails,
+  mockRetentionPolicies,
+  mockUserGroups as defaultUserGroups,
+} from '../data/adminExtendedData';
+
 
 // Event emitter for cross-module reactive synchronization
 type AdminEventListener = (event: string, payload?: any) => void;
@@ -1077,4 +1115,611 @@ export const adminService = {
     adminEventBus.emit('SESSIONS_REFRESHED', refreshed);
     return refreshed;
   },
+
+  // ============================================================================
+  // SOD CONFLICT RULES & VIOLATIONS
+  // ============================================================================
+  async getSodRules(): Promise<SodConflictRule[]> {
+    try {
+      const res = await apiClient.get<SodConflictRule[]>('/admin/sod-rules');
+      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+    } catch {}
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_sod_rules') : null;
+    if (raw) {
+      try { return JSON.parse(raw); } catch {}
+    }
+    return [...mockSodRules];
+  },
+
+  async getSodViolations(): Promise<SodViolation[]> {
+    try {
+      const res = await apiClient.get<SodViolation[]>('/admin/sod-violations');
+      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+    } catch {}
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_sod_violations') : null;
+    if (raw) {
+      try { return JSON.parse(raw); } catch {}
+    }
+    return [...mockSodViolations];
+  },
+
+  // ============================================================================
+  // WAREHOUSES & LOCATIONS
+  // ============================================================================
+  async getWarehouseLocations(): Promise<WarehouseLocationConfig[]> {
+    try {
+      const res = await apiClient.get<WarehouseLocationConfig[]>('/admin/warehouses');
+      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+    } catch {}
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_warehouses') : null;
+    if (raw) {
+      try { return JSON.parse(raw); } catch {}
+    }
+    return [...mockWarehouseLocations];
+  },
+
+  async saveWarehouseLocation(wh: Partial<WarehouseLocationConfig>): Promise<WarehouseLocationConfig> {
+    try {
+      if (wh.id) {
+        const res = await apiClient.put<WarehouseLocationConfig>(`/admin/warehouses/${wh.id}`, wh);
+        if (res.data) return res.data;
+      } else {
+        const res = await apiClient.post<WarehouseLocationConfig>('/admin/warehouses', wh);
+        if (res.data) return res.data;
+      }
+    } catch {}
+    const existing = await this.getWarehouseLocations();
+    const updated = wh.id
+      ? existing.map((w) => (w.id === wh.id ? { ...w, ...wh } as WarehouseLocationConfig : w))
+      : [{ ...wh, id: `WH-LOC-${Date.now()}` } as WarehouseLocationConfig, ...existing];
+    try {
+      localStorage.setItem('reboot_admin_warehouses', JSON.stringify(updated));
+    } catch {}
+    adminEventBus.emit('WAREHOUSE_UPDATED', updated);
+    return updated.find((w) => w.id === wh.id) || updated[0];
+  },
+
+  // ============================================================================
+  // MACHINES & WORK CENTERS
+  // ============================================================================
+  async getMachines(plantId?: string): Promise<MachineWorkCenterConfig[]> {
+    try {
+      const res = await apiClient.get<MachineWorkCenterConfig[]>('/admin/machines', { params: { plantId } });
+      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+    } catch {}
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_machines') : null;
+    let list: MachineWorkCenterConfig[] = [...mockMachineWorkCenters];
+    if (raw) {
+      try { list = JSON.parse(raw); } catch {}
+    }
+    if (plantId) {
+      list = list.filter((m) => m.plantId === plantId);
+    }
+    return list;
+  },
+
+  async saveMachine(machine: Partial<MachineWorkCenterConfig>): Promise<MachineWorkCenterConfig> {
+    try {
+      if (machine.id) {
+        const res = await apiClient.put<MachineWorkCenterConfig>(`/admin/machines/${machine.id}`, machine);
+        if (res.data) return res.data;
+      } else {
+        const res = await apiClient.post<MachineWorkCenterConfig>('/admin/machines', machine);
+        if (res.data) return res.data;
+      }
+    } catch {}
+    const existing = await this.getMachines();
+    const updated = machine.id
+      ? existing.map((m) => (m.id === machine.id ? { ...m, ...machine } as MachineWorkCenterConfig : m))
+      : [{ ...machine, id: `MC-${Date.now().toString().slice(-4)}` } as MachineWorkCenterConfig, ...existing];
+    try {
+      localStorage.setItem('reboot_admin_machines', JSON.stringify(updated));
+    } catch {}
+    adminEventBus.emit('MACHINE_UPDATED', updated);
+    return updated.find((m) => m.id === machine.id) || updated[0];
+  },
+
+  // ============================================================================
+  // SHIFTS & HOLIDAYS
+  // ============================================================================
+  async getShifts(plantId?: string): Promise<ShiftCalendarConfig[]> {
+    try {
+      const res = await apiClient.get<ShiftCalendarConfig[]>('/admin/shifts', { params: { plantId } });
+      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+    } catch {}
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_shifts') : null;
+    let list: ShiftCalendarConfig[] = [...mockShifts];
+    if (raw) {
+      try { list = JSON.parse(raw); } catch {}
+    }
+    if (plantId) {
+      list = list.filter((s) => s.appliesToPlants?.includes(plantId) || s.appliesToPlants?.includes('All Plants'));
+    }
+    return list;
+  },
+
+  async getHolidays(plantId?: string): Promise<HolidayOvertimeRule[]> {
+    try {
+      const res = await apiClient.get<HolidayOvertimeRule[]>('/admin/holidays', { params: { plantId } });
+      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+    } catch {}
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_holidays') : null;
+    let list: HolidayOvertimeRule[] = [...mockHolidays];
+    if (raw) {
+      try { list = JSON.parse(raw); } catch {}
+    }
+    if (plantId) {
+      list = list.filter((h) => h.affectedPlants?.includes(plantId) || h.affectedPlants?.includes('All Plants'));
+    }
+    return list;
+  },
+
+  async saveShift(shift: Partial<ShiftCalendarConfig>): Promise<ShiftCalendarConfig> {
+    try {
+      if (shift.id) {
+        const res = await apiClient.put<ShiftCalendarConfig>(`/admin/shifts/${shift.id}`, shift);
+        if (res.data) return res.data;
+      } else {
+        const res = await apiClient.post<ShiftCalendarConfig>('/admin/shifts', shift);
+        if (res.data) return res.data;
+      }
+    } catch {}
+    const existing = await this.getShifts();
+    const updated = shift.id
+      ? existing.map((s) => (s.id === shift.id ? { ...s, ...shift } as ShiftCalendarConfig : s))
+      : [{ ...shift, id: `SFT-${Date.now().toString().slice(-4)}` } as ShiftCalendarConfig, ...existing];
+    try {
+      localStorage.setItem('reboot_admin_shifts', JSON.stringify(updated));
+    } catch {}
+    return updated.find((s) => s.id === shift.id) || updated[0];
+  },
+
+  async saveHoliday(holiday: Partial<HolidayOvertimeRule>): Promise<HolidayOvertimeRule> {
+    try {
+      if (holiday.id) {
+        const res = await apiClient.put<HolidayOvertimeRule>(`/admin/holidays/${holiday.id}`, holiday);
+        if (res.data) return res.data;
+      } else {
+        const res = await apiClient.post<HolidayOvertimeRule>('/admin/holidays', holiday);
+        if (res.data) return res.data;
+      }
+    } catch {}
+    const existing = await this.getHolidays();
+    const updated = holiday.id
+      ? existing.map((h) => (h.id === holiday.id ? { ...h, ...holiday } as HolidayOvertimeRule : h))
+      : [{ ...holiday, id: `HOL-${Date.now().toString().slice(-4)}` } as HolidayOvertimeRule, ...existing];
+    try {
+      localStorage.setItem('reboot_admin_holidays', JSON.stringify(updated));
+    } catch {}
+    return updated.find((h) => h.id === holiday.id) || updated[0];
+  },
+
+  // ============================================================================
+  // REASON CODES
+  // ============================================================================
+  async getReasonCodes(category?: string): Promise<ReasonCodeItem[]> {
+    try {
+      const res = await apiClient.get<ReasonCodeItem[]>('/admin/reason-codes', { params: { category } });
+      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+    } catch {}
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_reason_codes') : null;
+    let list: ReasonCodeItem[] = [...mockReasonCodes];
+    if (raw) {
+      try { list = JSON.parse(raw); } catch {}
+    }
+    if (category && category !== 'ALL') {
+      list = list.filter((r) => r.subCategory === category || r.department === category);
+    }
+    return list;
+  },
+
+  async saveReasonCode(code: Partial<ReasonCodeItem>): Promise<ReasonCodeItem> {
+    try {
+      if (code.id) {
+        const res = await apiClient.put<ReasonCodeItem>(`/admin/reason-codes/${code.id}`, code);
+        if (res.data) return res.data;
+      } else {
+        const res = await apiClient.post<ReasonCodeItem>('/admin/reason-codes', code);
+        if (res.data) return res.data;
+      }
+    } catch {}
+    const existing = await this.getReasonCodes();
+    const updated = code.id
+      ? existing.map((r) => (r.id === code.id ? { ...r, ...code } as ReasonCodeItem : r))
+      : [{ ...code, id: `RC-${Date.now().toString().slice(-4)}` } as ReasonCodeItem, ...existing];
+    try {
+      localStorage.setItem('reboot_admin_reason_codes', JSON.stringify(updated));
+    } catch {}
+    return updated.find((r) => r.id === code.id) || updated[0];
+  },
+
+  async deleteReasonCode(codeId: string): Promise<boolean> {
+    try {
+      await apiClient.delete(`/admin/reason-codes/${codeId}`);
+    } catch {}
+    const existing = await this.getReasonCodes();
+    const filtered = existing.filter((r) => r.id !== codeId);
+    try {
+      localStorage.setItem('reboot_admin_reason_codes', JSON.stringify(filtered));
+    } catch {}
+    return true;
+  },
+
+  // ============================================================================
+  // COMPANY PROFILE
+  // ============================================================================
+  async getCompanyProfile(): Promise<CompanyProfile> {
+    try {
+      const res = await apiClient.get<CompanyProfile>('/admin/company-profile');
+      if (res.data) return res.data;
+    } catch {}
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_company_profile') : null;
+    if (raw) {
+      try { return JSON.parse(raw); } catch {}
+    }
+    return companyProfile;
+  },
+
+  async updateCompanyProfile(profile: Partial<CompanyProfile>): Promise<CompanyProfile> {
+    try {
+      const res = await apiClient.put<CompanyProfile>('/admin/company-profile', profile);
+      if (res.data) return res.data;
+    } catch {}
+    const existing = await this.getCompanyProfile();
+    const updated = { ...existing, ...profile };
+    try {
+      localStorage.setItem('reboot_admin_company_profile', JSON.stringify(updated));
+    } catch {}
+    adminEventBus.emit('COMPANY_PROFILE_UPDATED', updated);
+    return updated;
+  },
+
+  // ============================================================================
+  // NUMBERING SEQUENCES CRUD
+  // ============================================================================
+  async createNumberingSequence(seq: Partial<NumberingSequence>): Promise<NumberingSequence> {
+    try {
+      const res = await apiClient.post<NumberingSequence>('/admin/numbering-series', seq);
+      if (res.data) return res.data;
+    } catch {}
+    const existing = await this.getNumberingSequences();
+    const created: NumberingSequence = {
+      id: `SEQ-${Date.now().toString().slice(-4)}`,
+      documentType: seq.documentType || 'New Document',
+      module: seq.module || 'General',
+      prefix: seq.prefix || 'DOC-',
+      currentSequence: seq.currentSequence || 1000,
+      zeroPadding: seq.zeroPadding || 4,
+      resetFrequency: seq.resetFrequency || 'Yearly (Jan-Dec)',
+      samplePreview: seq.samplePreview || `${seq.prefix || 'DOC-'}2026-0001`,
+      allowManualOverride: !!seq.allowManualOverride,
+      lastGeneratedOn: new Date().toISOString().split('T')[0],
+    };
+    cachedSequences = [created, ...existing];
+    return created;
+  },
+
+  async updateNumberingSequence(id: string, seq: Partial<NumberingSequence>): Promise<NumberingSequence> {
+    try {
+      const res = await apiClient.put<NumberingSequence>(`/admin/numbering-series/${id}`, seq);
+      if (res.data) return res.data;
+    } catch {}
+    cachedSequences = cachedSequences.map((s) => (s.id === id ? { ...s, ...seq } : s));
+    return cachedSequences.find((s) => s.id === id)!;
+  },
+
+  // ============================================================================
+  // APPROVAL WORKFLOWS CRUD
+  // ============================================================================
+  async getApprovalWorkflows(): Promise<ApprovalWorkflow[]> {
+    return this.getWorkflows();
+  },
+
+  async createApprovalWorkflow(wf: Partial<ApprovalWorkflow>): Promise<ApprovalWorkflow> {
+    try {
+      const res = await apiClient.post<ApprovalWorkflow>('/admin/approval-workflows', wf);
+      if (res.data) return res.data;
+    } catch {}
+    const created: ApprovalWorkflow = {
+      id: `WF-${Date.now().toString().slice(-4)}`,
+      workflowName: wf.workflowName || 'New Workflow',
+      module: (wf.module || 'Procurement') as any,
+      documentType: wf.documentType || 'Purchase Order (PO)',
+      description: wf.description || '',
+      triggerCondition: wf.triggerCondition || 'Amount > 0',
+      isActive: wf.isActive !== undefined ? wf.isActive : true,
+      tiers: wf.tiers || [],
+      lastModifiedDate: new Date().toISOString().split('T')[0],
+      modifiedBy: 'Super Administrator',
+    };
+    cachedWorkflows.push(created);
+    return created;
+  },
+
+  async updateApprovalWorkflow(id: string, wf: Partial<ApprovalWorkflow>): Promise<ApprovalWorkflow> {
+    try {
+      const res = await apiClient.put<ApprovalWorkflow>(`/admin/approval-workflows/${id}`, wf);
+      if (res.data) return res.data;
+    } catch {}
+    cachedWorkflows = cachedWorkflows.map((w) => (w.id === id ? { ...w, ...wf } : w));
+    return cachedWorkflows.find((w) => w.id === id)!;
+  },
+
+  // ============================================================================
+  // SECURITY & MFA POLICY
+  // ============================================================================
+  async getSecurityPolicy(): Promise<SecurityPolicySettings> {
+    try {
+      const res = await apiClient.get<SecurityPolicySettings>('/admin/security/policy');
+      if (res.data) return res.data;
+    } catch {}
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_security_policy') : null;
+    if (raw) {
+      try { return JSON.parse(raw); } catch {}
+    }
+    return defaultSecurityPolicy;
+  },
+
+  async updateSecurityPolicy(policy: Partial<SecurityPolicySettings>): Promise<SecurityPolicySettings> {
+    try {
+      const res = await apiClient.put<SecurityPolicySettings>('/admin/security/policy', policy);
+      if (res.data) return res.data;
+    } catch {}
+    const existing = await this.getSecurityPolicy();
+    const updated = { ...existing, ...policy };
+    try {
+      localStorage.setItem('reboot_admin_security_policy', JSON.stringify(updated));
+    } catch {}
+    adminEventBus.emit('SECURITY_POLICY_UPDATED', updated);
+    return updated;
+  },
+
+  // ============================================================================
+  // AUDIT LOGS & LOGIN SECURITY AUDIT
+  // ============================================================================
+  async getAuditLogs(filter?: any): Promise<AuditLogEntry[]> {
+    try {
+      const res = await apiClient.get<AuditLogEntry[]>('/admin/audit-logs', { params: filter });
+      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+    } catch {}
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_audit_logs') : null;
+    if (raw) {
+      try { return JSON.parse(raw); } catch {}
+    }
+    return defaultAuditLogs;
+  },
+
+  async getLoginAuditRecords(params?: any): Promise<SecurityLoginAuditRecord[]> {
+    try {
+      const res = await apiClient.get<SecurityLoginAuditRecord[]>('/admin/security/login-audit', { params });
+      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+    } catch {}
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_login_audit') : null;
+    if (raw) {
+      try { return JSON.parse(raw); } catch {}
+    }
+    return [...mockLoginAuditRecords];
+  },
+
+  // ============================================================================
+  // INTEGRATIONS
+  // ============================================================================
+  async getIntegrations(): Promise<IntegrationConnector[]> {
+    try {
+      const res = await apiClient.get<IntegrationConnector[]>('/admin/integrations');
+      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+    } catch {}
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_integrations') : null;
+    if (raw) {
+      try { return JSON.parse(raw); } catch {}
+    }
+    return defaultIntegrations;
+  },
+
+  async saveIntegration(connector: Partial<IntegrationConnector>): Promise<IntegrationConnector> {
+    try {
+      if (connector.id) {
+        const res = await apiClient.put<IntegrationConnector>(`/admin/integrations/${connector.id}`, connector);
+        if (res.data) return res.data;
+      } else {
+        const res = await apiClient.post<IntegrationConnector>('/admin/integrations', connector);
+        if (res.data) return res.data;
+      }
+    } catch {}
+    const existing = await this.getIntegrations();
+    const updated = connector.id
+      ? existing.map((c) => (c.id === connector.id ? { ...c, ...connector } as IntegrationConnector : c))
+      : [{ ...connector, id: `INT-${Date.now().toString().slice(-4)}` } as IntegrationConnector, ...existing];
+    try {
+      localStorage.setItem('reboot_admin_integrations', JSON.stringify(updated));
+    } catch {}
+    return updated.find((c) => c.id === connector.id) || updated[0];
+  },
+
+  // ============================================================================
+  // BACKUP & RETENTION POLICY
+  // ============================================================================
+  async getBackupRetentionPolicy(): Promise<DataRetentionPolicy[]> {
+    try {
+      const res = await apiClient.get<DataRetentionPolicy[]>('/admin/backup-retention-policy');
+      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+    } catch {}
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_backup_retention') : null;
+    if (raw) {
+      try { return JSON.parse(raw); } catch {}
+    }
+    return mockRetentionPolicies;
+  },
+
+  async saveBackupRetentionPolicy(policy: Partial<DataRetentionPolicy>): Promise<DataRetentionPolicy> {
+    try {
+      const res = await apiClient.put<DataRetentionPolicy>('/admin/backup-retention-policy', policy);
+      if (res.data) return res.data;
+    } catch {}
+    const existing = await this.getBackupRetentionPolicy();
+    const updated = existing.map((p) => (p.id === policy.id ? { ...p, ...policy } : p));
+    try {
+      localStorage.setItem('reboot_admin_backup_retention', JSON.stringify(updated));
+    } catch {}
+    return (updated.find((p) => p.id === policy.id) || updated[0]) as DataRetentionPolicy;
+  },
+
+  async getBackups(): Promise<BackupRecord[]> {
+    try {
+      const res = await apiClient.get<BackupRecord[]>('/admin/backups');
+      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+    } catch {}
+    return defaultBackups;
+  },
+
+  // ============================================================================
+  // LICENSE & SUBSCRIPTION
+  // ============================================================================
+  async getLicenseDetails(): Promise<LicenseSubscriptionDetails> {
+    try {
+      const res = await apiClient.get<LicenseSubscriptionDetails>('/admin/license-subscription');
+      if (res.data) return res.data;
+    } catch {}
+    return mockLicenseDetails;
+  },
+
+  // ============================================================================
+  // QUICK ACTIONS
+  // ============================================================================
+  async getQuickActions(): Promise<any[]> {
+    try {
+      const res = await apiClient.get<any[]>('/admin/quick-actions');
+      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+    } catch {}
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_quick_actions') : null;
+    if (raw) {
+      try { return JSON.parse(raw); } catch {}
+    }
+    return [];
+  },
+
+  async saveQuickActions(actions: any[]): Promise<any[]> {
+    try {
+      const res = await apiClient.put<any[]>('/admin/quick-actions', { actions });
+      if (Array.isArray(res.data)) return res.data;
+    } catch {}
+    try {
+      localStorage.setItem('reboot_admin_quick_actions', JSON.stringify(actions));
+    } catch {}
+    return actions;
+  },
+
+  // ============================================================================
+  // MULTI-CONTEXT POLICIES
+  // ============================================================================
+  async getMultiContextPolicies(): Promise<MultiContextScopePolicy[]> {
+    try {
+      const res = await apiClient.get<MultiContextScopePolicy[]>('/admin/multi-context-policies');
+      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+    } catch {}
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_multi_context') : null;
+    if (raw) {
+      try { return JSON.parse(raw); } catch {}
+    }
+    return defaultMultiContextPolicies as any;
+  },
+
+  async saveMultiContextPolicy(policy: Partial<MultiContextScopePolicy>): Promise<MultiContextScopePolicy> {
+    try {
+      const res = await apiClient.put<MultiContextScopePolicy>('/admin/multi-context-policies', policy);
+      if (res.data) return res.data;
+    } catch {}
+    const existing = await this.getMultiContextPolicies();
+    const updated = existing.map((p) => (p.id === policy.id ? { ...p, ...policy } as MultiContextScopePolicy : p));
+    try {
+      localStorage.setItem('reboot_admin_multi_context', JSON.stringify(updated));
+    } catch {}
+    return updated.find((p) => p.id === policy.id) || updated[0];
+  },
+
+  // ============================================================================
+  // USER GROUPS & CREWS
+  // ============================================================================
+  async getUserGroups(): Promise<UserGroup[]> {
+    try {
+      const res = await apiClient.get<UserGroup[]>('/admin/user-groups');
+      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+    } catch {}
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_user_groups') : null;
+    if (raw) {
+      try { return JSON.parse(raw); } catch {}
+    }
+    return [...defaultUserGroups];
+  },
+
+  async saveUserGroup(group: Partial<UserGroup>): Promise<UserGroup> {
+    try {
+      if (group.id) {
+        const res = await apiClient.put<UserGroup>(`/admin/user-groups/${group.id}`, group);
+        if (res.data) return res.data;
+      } else {
+        const res = await apiClient.post<UserGroup>('/admin/user-groups', group);
+        if (res.data) return res.data;
+      }
+    } catch {}
+    const existing = await this.getUserGroups();
+    const updated = group.id
+      ? existing.map((g) => (g.id === group.id ? { ...g, ...group } as UserGroup : g))
+      : [{ ...group, id: `GRP-${Date.now().toString().slice(-4)}` } as UserGroup, ...existing];
+    try {
+      localStorage.setItem('reboot_admin_user_groups', JSON.stringify(updated));
+    } catch {}
+    return updated.find((g) => g.id === group.id) || updated[0];
+  },
+
+  // ============================================================================
+  // SYSTEM PARAMETERS & UDF
+  // ============================================================================
+  async getSystemParameters(): Promise<SystemParameter[]> {
+    return this.getParameters();
+  },
+
+  async saveSystemParameter(param: Partial<SystemParameter>): Promise<SystemParameter> {
+    if (param.id && param.currentValue !== undefined) {
+      await this.updateParameter(param.id, String(param.currentValue));
+    }
+    const list = await this.getSystemParameters();
+    return list.find((p) => p.id === param.id) || list[0];
+  },
+
+  // ============================================================================
+  // NOTIFICATION TEMPLATES
+  // ============================================================================
+  async getNotificationTemplates(): Promise<NotificationTemplate[]> {
+    try {
+      const res = await apiClient.get<NotificationTemplate[]>('/admin/notifications/templates');
+      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+    } catch {}
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_notification_templates') : null;
+    if (raw) {
+      try { return JSON.parse(raw); } catch {}
+    }
+    return defaultNotificationTemplates;
+  },
+
+  async saveNotificationTemplate(tmpl: Partial<NotificationTemplate>): Promise<NotificationTemplate> {
+    try {
+      if (tmpl.id) {
+        const res = await apiClient.put<NotificationTemplate>(`/admin/notifications/templates/${tmpl.id}`, tmpl);
+        if (res.data) return res.data;
+      } else {
+        const res = await apiClient.post<NotificationTemplate>('/admin/notifications/templates', tmpl);
+        if (res.data) return res.data;
+      }
+    } catch {}
+    const existing = await this.getNotificationTemplates();
+    const updated = tmpl.id
+      ? existing.map((t) => (t.id === tmpl.id ? { ...t, ...tmpl } as NotificationTemplate : t))
+      : [{ ...tmpl, id: `NT-${Date.now().toString().slice(-4)}` } as NotificationTemplate, ...existing];
+    try {
+      localStorage.setItem('reboot_admin_notification_templates', JSON.stringify(updated));
+    } catch {}
+    return updated.find((t) => t.id === tmpl.id) || updated[0];
+  },
 };
+

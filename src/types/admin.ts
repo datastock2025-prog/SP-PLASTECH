@@ -386,3 +386,6 @@ export interface BreakGlassRequest {
   expiresAt: string;
 }
 
+export type SecurityPolicy = SecurityPolicySettings;
+export type BackupJob = BackupRecord;
+

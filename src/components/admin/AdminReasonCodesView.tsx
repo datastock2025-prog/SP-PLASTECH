@@ -26,14 +26,13 @@ import {
   Check,
   X,
 } from 'lucide-react';
-import { ReasonCodeItem, reasonCodes, mockReasonCodes } from '../../data/adminExtendedData';
+import { ReasonCodeItem } from '../../data/adminExtendedData';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { SupabaseDataService } from '../../services/supabaseService';
 import { adminEventBus } from '../../services/adminService';
 import { isUserAdmin } from '../../utils/warehouseSync';
 import { useAuthContext } from '../../shared/components/RequireAuth';
-
-const REASON_CODES_STORAGE_KEY = 'reboot_erp_master_reason_codes';
+import { useAdminReasonCodes, useSaveAdminReasonCode, useDeleteAdminReasonCode } from '../../hooks/useAdmin';
 
 interface AdminReasonCodesViewProps {
   showToast?: (msg: string) => void;
@@ -45,25 +44,10 @@ export const AdminReasonCodesView: React.FC<AdminReasonCodesViewProps> = ({
   const { currentUser } = useAuthContext();
   const isAdmin = isUserAdmin(currentUser);
 
-  // Initialize reason codes from local storage or fallback to mockReasonCodes
-  const [reasonCodes, setReasonCodes] = useState<ReasonCodeItem[]>(() => {
-    try {
-      const stored = localStorage.getItem(REASON_CODES_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to parse reason codes from storage', e);
-    }
-    // Save defaults into storage if first run
-    try {
-      localStorage.setItem(REASON_CODES_STORAGE_KEY, JSON.stringify(mockReasonCodes));
-    } catch {}
-    return mockReasonCodes;
-  });
+  // TanStack React Query v5 dynamic data
+  const { data: reasonCodes = [], isLoading } = useAdminReasonCodes();
+  const saveReasonMutation = useSaveAdminReasonCode();
+  const deleteReasonMutation = useDeleteAdminReasonCode();
 
   const [selectedDept, setSelectedDept] = useState<string>('ALL');
   const [selectedSubCat, setSelectedSubCat] = useState<string>('ALL');
@@ -71,14 +55,7 @@ export const AdminReasonCodesView: React.FC<AdminReasonCodesViewProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingReason, setEditingReason] = useState<ReasonCodeItem | null>(null);
 
-  // Save reason codes list helper
   const saveReasonCodesList = (list: ReasonCodeItem[]) => {
-    setReasonCodes(list);
-    try {
-      localStorage.setItem(REASON_CODES_STORAGE_KEY, JSON.stringify(list));
-    } catch (e) {
-      console.warn('Failed to save reason codes to storage', e);
-    }
     adminEventBus.emit('REASON_CODES_UPDATED', list);
   };
 
@@ -189,8 +166,7 @@ export const AdminReasonCodesView: React.FC<AdminReasonCodesViewProps> = ({
       isActive: true,
     };
 
-    const updated = [created, ...reasonCodes];
-    saveReasonCodesList(updated);
+    await saveReasonMutation.mutateAsync(created);
 
     // Save to Supabase Database
     try {
@@ -253,8 +229,7 @@ export const AdminReasonCodesView: React.FC<AdminReasonCodesViewProps> = ({
       return;
     }
 
-    const updated = reasonCodes.map((r) => (r.id === editingReason.id ? editingReason : r));
-    saveReasonCodesList(updated);
+    await saveReasonMutation.mutateAsync(editingReason);
 
     // Persist to Supabase
     try {
@@ -288,13 +263,12 @@ export const AdminReasonCodesView: React.FC<AdminReasonCodesViewProps> = ({
     showToast(`✓ Reason Code "${editingReason.code}" updated in DB.`);
   };
 
-  const handleDeleteReason = (rc: ReasonCodeItem) => {
+  const handleDeleteReason = async (rc: ReasonCodeItem) => {
     if (!isAdmin) {
       showToast('⚠️ Admin privileges required to delete reason codes.');
       return;
     }
-    const updated = reasonCodes.filter((r) => r.id !== rc.id);
-    saveReasonCodesList(updated);
+    await deleteReasonMutation.mutateAsync(rc.id);
     showToast(`Deleted Reason Code: ${rc.code}.`);
   };
 

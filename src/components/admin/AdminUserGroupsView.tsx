@@ -20,10 +20,10 @@ import {
   Clock,
   Briefcase,
 } from 'lucide-react';
-import { UserGroup, userGroups } from '../../data/adminExtendedData';
+import { UserGroup } from '../../data/adminExtendedData';
 import { adminService, adminEventBus } from '../../services/adminService';
 import { AdminUser } from '../../types/admin';
-import { adminUsers } from '../../data/adminData';
+import { useAdminUserGroups, useSaveAdminUserGroup, useAdminUsers } from '../../hooks/useAdmin';
 
 interface AdminUserGroupsViewProps {
   showToast?: (msg: string) => void;
@@ -32,26 +32,20 @@ interface AdminUserGroupsViewProps {
 export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
-  const [groups, setGroups] = useState<UserGroup[]>(userGroups);
-  const [allUsers, setAllUsers] = useState<AdminUser[]>(() => adminService.getCachedUsers());
+  // TanStack React Query v5 dynamic data
+  const { data: groups = [], isLoading: isGroupsLoading } = useAdminUserGroups();
+  const { data: allUsers = [] } = useAdminUsers();
+  const saveGroupMutation = useSaveAdminUserGroup();
+
   const [search, setSearch] = useState('');
   const [selectedDept, setSelectedDept] = useState('ALL');
-  const [selectedGroup, setSelectedGroup] = useState<UserGroup>(groups[0]);
+  const [selectedGroup, setSelectedGroup] = useState<UserGroup | null>(null);
 
   useEffect(() => {
-    adminService.getUsers().then((u) => {
-      if (u && u.length > 0) setAllUsers(u);
-    });
-
-    const unsub = adminEventBus.subscribe((event) => {
-      if (event === 'USER_CREATED' || event === 'USER_UPDATED') {
-        adminService.getUsers().then((u) => {
-          if (u && u.length > 0) setAllUsers(u);
-        });
-      }
-    });
-    return unsub;
-  }, []);
+    if (groups.length > 0 && !selectedGroup) {
+      setSelectedGroup(groups[0]);
+    }
+  }, [groups, selectedGroup]);
 
   // Modals State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -82,15 +76,6 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
     tags: 'Injection Molds, Critical',
   });
 
-  // Load live users from adminService
-  useEffect(() => {
-    adminService.getUsers().then((users) => {
-      if (users && users.length > 0) {
-        setAllUsers(users);
-      }
-    });
-  }, []);
-
   const departments = [
     'ALL',
     'Production',
@@ -111,18 +96,13 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
 
   // Toggle Group Status (Active / Inactive)
   const handleToggleStatus = (id: string) => {
-    setGroups((prev) =>
-      prev.map((g) => {
-        if (g.id === id) {
-          const nextStatus = g.status === 'Active' ? 'Inactive' : 'Active';
-          const updated = { ...g, status: nextStatus as 'Active' | 'Inactive' };
-          if (selectedGroup.id === id) setSelectedGroup(updated);
-          showToast(`Group "${g.name}" set to ${nextStatus}.`);
-          return updated;
-        }
-        return g;
-      })
-    );
+    const target = groups.find((g) => g.id === id);
+    if (!target) return;
+    const nextStatus = target.status === 'Active' ? 'Inactive' : 'Active';
+    const updated = { ...target, status: nextStatus as 'Active' | 'Inactive' };
+    saveGroupMutation.mutate(updated);
+    if (selectedGroup?.id === id) setSelectedGroup(updated);
+    showToast(`Group "${target.name}" set to ${nextStatus}.`);
   };
 
   // Open Create Modal
@@ -178,7 +158,7 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
       tags: groupForm.tags.split(',').map((t) => t.trim()).filter(Boolean),
     };
 
-    setGroups([created, ...groups]);
+    saveGroupMutation.mutate(created);
     setSelectedGroup(created);
     setGroupMembersMap((prev) => ({ ...prev, [createdId]: [] }));
     setIsCreateModalOpen(false);
@@ -202,7 +182,7 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
       tags: groupForm.tags.split(',').map((t) => t.trim()).filter(Boolean),
     };
 
-    setGroups((prev) => prev.map((g) => (g.id === selectedGroup.id ? updated : g)));
+    saveGroupMutation.mutate(updated);
     setSelectedGroup(updated);
     setIsEditModalOpen(false);
     showToast(`User Group "${updated.name}" updated successfully.`);
@@ -238,7 +218,7 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
       membersCount: count,
     };
 
-    setGroups((prev) => prev.map((g) => (g.id === selectedGroup.id ? updatedGroup : g)));
+    saveGroupMutation.mutate(updatedGroup);
     setSelectedGroup(updatedGroup);
     setIsAddMemberModalOpen(false);
     showToast(`Updated crew enrollment for "${selectedGroup.name}": ${count} members assigned.`);

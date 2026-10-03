@@ -21,87 +21,13 @@ import {
   X,
   RefreshCw,
 } from 'lucide-react';
-import { WarehouseLocationConfig, warehouseLocations, mockWarehouseLocations } from '../../data/adminExtendedData';
+import { WarehouseLocationConfig } from '../../data/adminExtendedData';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { SupabaseDataService } from '../../services/supabaseService';
 import { adminEventBus } from '../../services/adminService';
 import { isStoreInUse, isUserAdmin } from '../../utils/warehouseSync';
 import { useAuthContext } from '../../shared/components/RequireAuth';
-
-const WAREHOUSE_LOCATIONS_STORAGE_KEY = 'reboot_warehouse_locations';
-
-/**
- * Task-3: Fully unified loader that merges:
- * 1. Saved location bins from localStorage
- * 2. All registered Parent Warehouses from masterDataGovernanceService / Supabase
- * 3. Default seed mock locations
- */
-function loadAllUnifiedLocations(): WarehouseLocationConfig[] {
-  let list: WarehouseLocationConfig[] = [];
-  try {
-    const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(WAREHOUSE_LOCATIONS_STORAGE_KEY) : null;
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        list = parsed;
-      }
-    }
-  } catch (e) {
-    console.warn('Failed to parse warehouse locations from storage', e);
-  }
-
-  if (list.length === 0) {
-    list = [...mockWarehouseLocations];
-  }
-
-  // Auto-merge ALL registered Parent Warehouses from masterDataGovernanceService
-  try {
-    const masterWarehouses = masterDataGovernanceService.getWarehouses();
-    for (const wh of masterWarehouses) {
-      const exists = list.some(
-        (l) => l.warehouseCode.toUpperCase() === wh.code.toUpperCase() || l.binCode.startsWith(wh.code.toUpperCase())
-      );
-      if (!exists) {
-        const storeBin: WarehouseLocationConfig = {
-          id: `LOC-WH-${wh.code}-${Date.now().toString().slice(-3)}`,
-          warehouseCode: wh.code.toUpperCase(),
-          warehouseName: wh.name,
-          plantId: 'PLANT-01',
-          plantName: wh.plantScope || 'All Plants',
-          zoneCode: 'Z-01',
-          zoneName: wh.zone || 'Primary Storage Bay',
-          zoneType: wh.code.includes('RM') || wh.name.toLowerCase().includes('raw')
-            ? 'Raw Polymer Silos'
-            : wh.code.includes('MB') || wh.name.toLowerCase().includes('masterbatch')
-            ? 'Masterbatch Temperature Controlled'
-            : wh.code.includes('RG') || wh.name.toLowerCase().includes('regrind')
-            ? 'Regrind / Scrap Staging'
-            : wh.code.includes('SP') || wh.name.toLowerCase().includes('tool')
-            ? 'Tool & Die Staging'
-            : 'Finished Goods High-Bay',
-          aisle: 'A1',
-          rack: 'R01',
-          shelf: '01',
-          binCode: `${wh.code.toUpperCase()}-BAY-01`,
-          maxCapacityKg: 50000,
-          currentOccupancyKg: 0,
-          temperatureControlled:
-            wh.code.includes('MB') ||
-            wh.name.toLowerCase().includes('climate') ||
-            wh.name.toLowerCase().includes('temp'),
-          targetTempCelsius: 22,
-          isBlocked: false,
-          barcodeScannable: true,
-        };
-        list.unshift(storeBin);
-      }
-    }
-  } catch (err) {
-    console.warn('Error merging master warehouses into locations:', err);
-  }
-
-  return list;
-}
+import { useAdminWarehouses, useSaveAdminWarehouse } from '../../hooks/useAdmin';
 
 interface AdminWarehouseLocationsViewProps {
   showToast?: (msg: string) => void;
@@ -113,8 +39,10 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
   const { currentUser } = useAuthContext();
   const isAdmin = isUserAdmin(currentUser);
 
-  // Initialize locations from unified multi-source loader
-  const [locations, setLocations] = useState<WarehouseLocationConfig[]>(loadAllUnifiedLocations);
+  // TanStack React Query v5 dynamic data
+  const { data: locations = [], isLoading } = useAdminWarehouses();
+  const saveWarehouseMutation = useSaveAdminWarehouse();
+
   const [search, setSearch] = useState('');
   const [selectedZone, setSelectedZone] = useState('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -123,25 +51,15 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
 
   // Dynamic live listener for instant store synchronization across front-end
   useEffect(() => {
-    const refreshUnifiedList = () => {
-      const refreshed = loadAllUnifiedLocations();
-      setLocations(refreshed);
+    const handleCustomEvent = () => {
+      // Event listener for external changes
     };
-
-    refreshUnifiedList();
-
-    const unsubWh = adminEventBus.on('WAREHOUSE_MASTER_SAVED', refreshUnifiedList);
-    const unsubBin = adminEventBus.on('BIN_MASTER_SAVED', refreshUnifiedList);
-
-    const handleCustomEvent = () => refreshUnifiedList();
     if (typeof window !== 'undefined') {
       window.addEventListener('warehouse_locations_updated', handleCustomEvent);
       window.addEventListener('warehouse_stock_updated', handleCustomEvent);
     }
 
     return () => {
-      unsubWh();
-      unsubBin();
       if (typeof window !== 'undefined') {
         window.removeEventListener('warehouse_locations_updated', handleCustomEvent);
         window.removeEventListener('warehouse_stock_updated', handleCustomEvent);
@@ -149,13 +67,10 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
     };
   }, []);
 
-  // Save locations to persistent storage whenever they change
+  // Save locations using React Query mutation
   const saveLocations = (newLocs: WarehouseLocationConfig[]) => {
-    setLocations(newLocs);
-    try {
-      localStorage.setItem(WAREHOUSE_LOCATIONS_STORAGE_KEY, JSON.stringify(newLocs));
-    } catch (e) {
-      console.warn('LocalStorage save failed for locations', e);
+    if (newLocs.length > 0) {
+      saveWarehouseMutation.mutate(newLocs[0]);
     }
   };
 

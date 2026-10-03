@@ -32,10 +32,11 @@ import {
   KeyRound,
   RefreshCw,
 } from 'lucide-react';
-import { WorkflowRuleConfig, workflowConfigs, mockWorkflowConfigs } from '../../data/adminExtendedData';
+import { WorkflowRuleConfig, workflowConfigs } from '../../data/adminExtendedData';
 import { adminEventBus } from '../../services/adminService';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { useAuthContext } from '../../shared/components/RequireAuth';
+import { useAdminWorkflows, useSaveAdminWorkflow } from '../../hooks/useAdmin';
 
 const WORKFLOW_RULES_STORAGE_KEY = 'reboot_erp_workflow_rules_v2';
 const DELEGATIONS_STORAGE_KEY = 'reboot_erp_delegations_v2';
@@ -49,7 +50,7 @@ function loadStoredWorkflows(): WorkflowRuleConfig[] {
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
   } catch (e) {}
-  return [...mockWorkflowConfigs];
+  return [...workflowConfigs];
 }
 
 function loadStoredDelegations(): ApprovalDelegation[] {

@@ -16,9 +16,8 @@ import {
   Globe,
 } from 'lucide-react';
 import { SystemParameter } from '../../types/admin';
-import { systemParameters, mockSystemParameters } from '../../data/adminData';
-import { adminService } from '../../services/adminService';
 import { systemSettingsService, CURRENCY_OPTIONS, SystemSettingsConfig } from '../../services/systemSettingsService';
+import { useAdminSystemParameters, useSaveAdminSystemParameter } from '../../hooks/useAdmin';
 
 interface AdminSystemParametersViewProps {
   showToast?: (msg: string) => void;
@@ -27,15 +26,20 @@ interface AdminSystemParametersViewProps {
 export const AdminSystemParametersView: React.FC<AdminSystemParametersViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
-  const [parameters, setParameters] = useState<SystemParameter[]>(mockSystemParameters);
+  const { data: serverParameters = [], isLoading } = useAdminSystemParameters();
+  const saveParamMutation = useSaveAdminSystemParameter();
+
+  const [parameters, setParameters] = useState<SystemParameter[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
+
+  useEffect(() => {
+    if (serverParameters.length > 0) {
+      setParameters(serverParameters);
+    }
+  }, [serverParameters]);
 
   // Enterprise Localization State (Currency, Time Format 12h/24h)
   const [settings, setSettings] = useState<SystemSettingsConfig>(systemSettingsService.getSettings());
-
-  useEffect(() => {
-    adminService.getParameters().then(setParameters);
-  }, []);
 
   const handleUpdateCurrency = (currCode: string) => {
     const updated = systemSettingsService.updateSettings({ baseCurrency: currCode });
@@ -96,19 +100,16 @@ export const AdminSystemParametersView: React.FC<AdminSystemParametersViewProps>
     const target = parameters.find((p) => p.id === paramId);
     if (!target) return;
     const newVal = !target.currentValue;
-    await adminService.updateParameter(paramId, String(newVal));
+    saveParamMutation.mutate({ ...target, currentValue: newVal });
     setParameters((prev) =>
-      prev.map((p) => {
-        if (p.id === paramId) {
-          return { ...p, currentValue: newVal };
-        }
-        return p;
-      })
+      prev.map((p) => (p.id === paramId ? { ...p, currentValue: newVal } : p))
     );
   };
 
   const handleUpdateValue = async (paramId: string, val: any) => {
-    await adminService.updateParameter(paramId, String(val));
+    const target = parameters.find((p) => p.id === paramId);
+    if (!target) return;
+    saveParamMutation.mutate({ ...target, currentValue: val });
     setParameters((prev) =>
       prev.map((p) => (p.id === paramId ? { ...p, currentValue: val } : p))
     );

@@ -2,20 +2,40 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../shared/api/client';
 import { queryKeys } from '../shared/queryKeys';
 import { universalSyncManager } from '../services/realtime/UniversalSyncManager';
-import { ItemMaster, MachineMaster, Customer } from '../types';
+import { itemService } from '../services/itemService';
+import {
+  masterDataGovernanceService,
+  MasterDataChangeRecord,
+  MasterDataChangeRequest,
+} from '../services/masterDataGovernanceService';
+import { ItemMaster, MachineMaster, Customer, BomMaster } from '../types';
 
 // ============================================================================
-// MASTER DATA — TANSTACK REACT QUERY HOOKS
+// MASTER DATA — TANSTACK REACT QUERY HOOKS (v5)
+// Multi-Tenant Gateway + Strict API-First & Live Database Sync
 // ============================================================================
 
-// 1. ITEMS / RAW MATERIALS / FINISHED GOODS
+// 1. ITEMS / ITEM MASTER CATALOG
 export function useItems(filter?: any) {
   return useQuery<ItemMaster[]>({
     queryKey: queryKeys.masterData.items(filter),
     queryFn: async () => {
-      const res = await apiClient.get('/items', { params: filter });
-      return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
+      const items = await itemService.getItems();
+      return items;
     },
+    staleTime: 1000 * 30, // 30 seconds fresh cache
+  });
+}
+
+export function useItemDetail(code?: string) {
+  return useQuery<ItemMaster | undefined>({
+    queryKey: ['masterData', 'itemDetail', code],
+    queryFn: async () => {
+      if (!code) return undefined;
+      return await itemService.getItemByCode(code);
+    },
+    enabled: !!code,
+    staleTime: 1000 * 30,
   });
 }
 
@@ -23,11 +43,12 @@ export function useSaveItem() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (item: ItemMaster) => {
-      const res = await apiClient.post('/items', item);
-      return res.data?.data || res.data || item;
+      return await itemService.saveItem(item);
     },
     onSuccess: (savedItem) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.masterData.items() });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'items'] });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'itemDetail', savedItem.code] });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'auditLedger'] });
       universalSyncManager.broadcastMutation('ITEMS', 'UPDATE', savedItem);
     },
   });
@@ -37,17 +58,102 @@ export function useDeleteItem() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (code: string) => {
-      const res = await apiClient.delete(`/items/${code}`);
-      return res.data;
+      return await itemService.deleteItem(code);
     },
     onSuccess: (_, code) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.masterData.items() });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'items'] });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'itemDetail', code] });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'auditLedger'] });
       universalSyncManager.broadcastMutation('ITEMS', 'DELETE', { code });
     },
   });
 }
 
-// 2. MACHINES
+export function useApproveItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      item,
+      reviewerName = 'Admin Authority',
+      comment = 'Approved and released SKU to live shopfloor',
+    }: {
+      item: ItemMaster;
+      reviewerName?: string;
+      comment?: string;
+    }) => {
+      return await itemService.approveItem(item, reviewerName, comment);
+    },
+    onSuccess: (approvedItem) => {
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'items'] });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'itemDetail', approvedItem.code] });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'auditLedger'] });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'approvalsQueue'] });
+      universalSyncManager.broadcastMutation('ITEMS', 'UPDATE', approvedItem);
+    },
+  });
+}
+
+export function useRejectItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      item,
+      reviewerName = 'Admin Authority',
+      reason = 'Rejected in QA / Engineering review',
+    }: {
+      item: ItemMaster;
+      reviewerName?: string;
+      reason?: string;
+    }) => {
+      return await itemService.rejectItem(item, reviewerName, reason);
+    },
+    onSuccess: (rejectedItem) => {
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'items'] });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'itemDetail', rejectedItem.code] });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'auditLedger'] });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'approvalsQueue'] });
+      universalSyncManager.broadcastMutation('ITEMS', 'UPDATE', rejectedItem);
+    },
+  });
+}
+
+export function useBulkSyncCatalog() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      return await itemService.syncLiveCatalog();
+    },
+    onSuccess: (catalog) => {
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'items'] });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'auditLedger'] });
+      universalSyncManager.broadcastMutation('ITEMS', 'UPDATE', { count: catalog.length });
+    },
+  });
+}
+
+// 2. ITEM AUDIT TRAIL & CHANGE LEDGER
+export function useItemAuditHistory(targetFilter?: { type?: string; code?: string }) {
+  return useQuery<MasterDataChangeRecord[]>({
+    queryKey: ['masterData', 'auditLedger', targetFilter],
+    queryFn: async () => {
+      return masterDataGovernanceService.getAuditHistory(targetFilter);
+    },
+    staleTime: 1000 * 15,
+  });
+}
+
+// 3. ADMIN APPROVALS QUEUE
+export function useItemApprovalsQueue() {
+  return useQuery<MasterDataChangeRequest[]>({
+    queryKey: ['masterData', 'approvalsQueue'],
+    queryFn: async () => {
+      return masterDataGovernanceService.getChangeRequests();
+    },
+    staleTime: 1000 * 15,
+  });
+}
+
+// 4. MACHINES
 export function useMachines() {
   return useQuery<MachineMaster[]>({
     queryKey: queryKeys.masterData.machines(),
@@ -86,7 +192,7 @@ export function useDeleteMachine() {
   });
 }
 
-// 3. CUSTOMERS
+// 5. CUSTOMERS
 export function useCustomers() {
   return useQuery<Customer[]>({
     queryKey: queryKeys.sales.customers(),

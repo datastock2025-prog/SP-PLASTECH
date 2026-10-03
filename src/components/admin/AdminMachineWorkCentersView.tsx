@@ -27,41 +27,14 @@ import {
   History,
   ShieldCheck,
 } from 'lucide-react';
-import { MachineWorkCenterConfig, machineWorkCenters, mockMachineWorkCenters } from '../../data/adminExtendedData';
+import { MachineWorkCenterConfig } from '../../data/adminExtendedData';
 import { adminService, adminEventBus } from '../../services/adminService';
 import { PlantDetails } from '../../types/admin';
-import { companyProfile, mockCompanyProfile } from '../../data/adminData';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { liveDataStore } from '../../services/liveDataStore';
 import { isUserAdmin } from '../../utils/warehouseSync';
 import { useAuthContext } from '../../shared/components/RequireAuth';
-
-const MACHINE_STORAGE_KEY = 'reboot_erp_machine_work_centers_v2';
-
-function loadStoredMachines(): MachineWorkCenterConfig[] {
-  try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(MACHINE_STORAGE_KEY) : null;
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.warn('Failed to load machines from storage', e);
-  }
-  return [...mockMachineWorkCenters];
-}
-
-function saveStoredMachines(list: MachineWorkCenterConfig[]) {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(MACHINE_STORAGE_KEY, JSON.stringify(list));
-    }
-  } catch (e) {
-    console.warn('Failed to save machines to storage', e);
-  }
-}
+import { useAdminMachines, useSaveAdminMachine, useAdminPlants } from '../../hooks/useAdmin';
 
 interface AdminMachineWorkCentersViewProps {
   showToast?: (msg: string) => void;
@@ -73,11 +46,21 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
   const { currentUser } = useAuthContext();
   const isAdmin = isUserAdmin(currentUser);
 
-  const [machines, setMachines] = useState<MachineWorkCenterConfig[]>(loadStoredMachines);
-  const [plants, setPlants] = useState<PlantDetails[]>(mockCompanyProfile.plants);
+  // TanStack React Query v5 dynamic data
+  const { data: machines = [], isLoading: isMachinesLoading } = useAdminMachines();
+  const { data: plants = [] } = useAdminPlants();
+  const saveMachineMutation = useSaveAdminMachine();
+
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
-  const [selectedMachine, setSelectedMachine] = useState<MachineWorkCenterConfig>(machines[0] || mockMachineWorkCenters[0]);
+  const [selectedMachine, setSelectedMachine] = useState<MachineWorkCenterConfig | null>(null);
+
+  // Auto-select first machine when data loads
+  useEffect(() => {
+    if (machines.length > 0 && !selectedMachine) {
+      setSelectedMachine(machines[0]);
+    }
+  }, [machines, selectedMachine]);
 
   // Wizard Modal State
   const [isWizardOpen, setIsWizardOpen] = useState(false);
@@ -124,15 +107,6 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
     message: '',
   });
 
-  // Load live plants
-  useEffect(() => {
-    adminService.getPlants().then((livePlants) => {
-      if (livePlants && livePlants.length > 0) {
-        setPlants(livePlants);
-      }
-    });
-  }, []);
-
   const categories = [
     'ALL',
     'Injection Molding',
@@ -158,38 +132,31 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
     }
 
     const prevMc = machines.find((m) => m.id === id);
-    const updated = machines.map((m) => {
-      if (m.id === id) {
-        return { ...m, currentStatus: newStatus };
-      }
-      return m;
-    });
+    if (!prevMc) return;
 
-    setMachines(updated);
-    saveStoredMachines(updated);
+    const updatedMc = { ...prevMc, currentStatus: newStatus };
+    saveMachineMutation.mutate(updatedMc);
 
-    if (selectedMachine.id === id) {
-      setSelectedMachine((prev) => ({ ...prev, currentStatus: newStatus }));
+    if (selectedMachine?.id === id) {
+      setSelectedMachine(updatedMc);
     }
 
     // Record audit in ledger
-    if (prevMc) {
-      masterDataGovernanceService.recordAudit({
-        entityType: 'MACHINE_MASTER',
-        entityCode: prevMc.code,
-        entityName: prevMc.name,
-        action: 'UPDATE',
-        changedBy: currentUser?.name || 'Administrator',
-        userRole: 'admin',
-        changeSummary: `Changed status of ${prevMc.code} from ${prevMc.currentStatus} to ${newStatus}.`,
-        diff: {
-          currentStatus: { before: prevMc.currentStatus, after: newStatus },
-        },
-      });
-      adminEventBus.emit('MACHINE_MASTER_SAVED', { ...prevMc, currentStatus: newStatus });
-    }
+    masterDataGovernanceService.recordAudit({
+      entityType: 'MACHINE_MASTER',
+      entityCode: prevMc.code,
+      entityName: prevMc.name,
+      action: 'UPDATE',
+      changedBy: currentUser?.name || 'Administrator',
+      userRole: 'admin',
+      changeSummary: `Changed status of ${prevMc.code} from ${prevMc.currentStatus} to ${newStatus}.`,
+      diff: {
+        currentStatus: { before: prevMc.currentStatus, after: newStatus },
+      },
+    });
+    adminEventBus.emit('MACHINE_MASTER_SAVED', updatedMc);
 
-    showToast(`Machine ${prevMc?.code || id} status updated to ${newStatus}.`);
+    showToast(`Machine ${prevMc.code} status updated to ${newStatus}.`);
   };
 
   /**
@@ -203,14 +170,14 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
 
     setEditingMachineId(null);
     setWizardStep(1);
-    const selectedPlant = plants[0] || mockCompanyProfile.plants[0];
+    const selectedPlant = plants[0] || { id: 'PLANT-01', name: 'Plant 01 — Pune / Chakan Hub' };
     
     // Clean initial values - NO hardcoded dummy figures
     setFormData({
       code: '',
       name: '',
       plantId: selectedPlant.id,
-      plantName: selectedPlant.plantName,
+      plantName: (selectedPlant as any).plantName || (selectedPlant as any).name || 'Plant 01 — Pune / Chakan Hub',
       bayNumber: '',
       category: 'Injection Molding',
       tonnageRating: 0,
@@ -373,9 +340,7 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
     const { type, pendingData, targetMachine, reason } = confirmDialog;
 
     if (type === 'ADD' && pendingData) {
-      const updatedList = [pendingData, ...machines];
-      setMachines(updatedList);
-      saveStoredMachines(updatedList);
+      saveMachineMutation.mutate(pendingData);
       setSelectedMachine(pendingData);
 
       liveDataStore.saveMachine({
@@ -410,9 +375,7 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
       showToast(`✓ Machine Work Center ${pendingData.code} successfully registered in DB.`);
       setIsWizardOpen(false);
     } else if (type === 'EDIT' && pendingData && targetMachine) {
-      const updatedList = machines.map((m) => (m.id === pendingData.id ? pendingData : m));
-      setMachines(updatedList);
-      saveStoredMachines(updatedList);
+      saveMachineMutation.mutate(pendingData);
       setSelectedMachine(pendingData);
 
       liveDataStore.saveMachine({
@@ -456,9 +419,7 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
         ...targetMachine,
         currentStatus: 'Idle',
       };
-      const updatedList = machines.map((m) => (m.id === targetMachine.id ? deactivatedMachine : m));
-      setMachines(updatedList);
-      saveStoredMachines(updatedList);
+      saveMachineMutation.mutate(deactivatedMachine);
       setSelectedMachine(deactivatedMachine);
 
       // Record Deactivation Audit
@@ -475,15 +436,10 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
       adminEventBus.emit('MACHINES_SYNCED');
 
       showToast(`🔒 Machine ${targetMachine.code} deactivated.`);
-    } else if (type === 'DELETE_BLOCKED' && targetMachine) {
-      const updatedList = machines.filter((m) => m.id !== targetMachine.id);
-      setMachines(updatedList);
-      saveStoredMachines(updatedList);
-      if (selectedMachine.id === targetMachine.id && updatedList.length > 0) {
-        setSelectedMachine(updatedList[0]);
-      }
-
       liveDataStore.deleteMachine(targetMachine.id).catch(console.warn);
+      if (selectedMachine?.id === targetMachine.id) {
+        setSelectedMachine(null);
+      }
 
       // Record Hard Delete Audit
       masterDataGovernanceService.recordAudit({

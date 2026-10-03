@@ -28,17 +28,27 @@ import {
 } from 'lucide-react';
 import { AdminUser, AdminRole, PlantDetails } from '../../types/admin';
 import { adminService, adminEventBus } from '../../services/adminService';
-import { adminUsers, adminRoles, companyProfile } from '../../data/adminData';
+import {
+  useAdminUsers,
+  useAdminRoles,
+  useAdminPlants,
+  useSaveAdminUser,
+  useDeleteAdminUser,
+} from '../../hooks/useAdmin';
 
 interface AdminUsersViewProps {
   showToast?: (msg: string) => void;
 }
 
 export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_msg: string) => {} }) => {
-  const [users, setUsers] = useState<AdminUser[]>(() => adminService.getCachedUsers());
-  const [roles, setRoles] = useState<AdminRole[]>(() => adminService.getCachedRoles());
-  const [plants, setPlants] = useState<PlantDetails[]>(() => adminService.getCachedPlants());
-  const [isLoading, setIsLoading] = useState(false);
+  // TanStack React Query v5 dynamic hooks
+  const { data: users = [], isLoading: isUsersLoading, refetch: refetchUsers } = useAdminUsers();
+  const { data: roles = [] } = useAdminRoles();
+  const { data: plants = [] } = useAdminPlants();
+
+  const saveUserMutation = useSaveAdminUser();
+  const deleteUserMutation = useDeleteAdminUser();
+
   const [search, setSearch] = useState('');
   const [selectedRole, setSelectedRole] = useState('ALL');
   const [selectedPlant, setSelectedPlant] = useState('ALL');
@@ -54,36 +64,14 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
   const [adminNewUserId, setAdminNewUserId] = useState('');
   const [activeCredTab, setActiveCredTab] = useState<'otp' | 'password' | 'userId' | 'history'>('otp');
 
-  // Load live data from PostgreSQL / Backend service
-  const loadData = async () => {
-    setIsLoading(true);
-    try {
-      const [fetchedUsers, fetchedRoles, fetchedPlants] = await Promise.all([
-        adminService.getUsers(),
-        adminService.getRoles(),
-        adminService.getPlants(),
-      ]);
-      if (fetchedUsers && fetchedUsers.length > 0) setUsers(fetchedUsers);
-      if (fetchedRoles && fetchedRoles.length > 0) setRoles(fetchedRoles);
-      if (fetchedPlants && fetchedPlants.length > 0) setPlants(fetchedPlants);
-    } catch {
-      // Handled in service fallback
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadData();
-    const unsub = adminEventBus.subscribe((event, payload) => {
+    const unsub = adminEventBus.subscribe((event) => {
       if (event === 'USER_CREATED' || event === 'USER_UPDATED' || event === 'DATA_CHANGED') {
-        adminService.getUsers().then((u) => {
-          if (u && u.length > 0) setUsers(u);
-        });
+        refetchUsers();
       }
     });
     return unsub;
-  }, []);
+  }, [refetchUsers]);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -180,13 +168,13 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
         status: formData.status,
         mfaEnabled: formData.mfaEnabled,
       });
-      setUsers((prev) => [created, ...prev.filter((u) => u.id !== created.id)]);
+      refetchUsers();
       setIsModalOpen(false);
       showToast(`User ${created.fullName} provisioned with 24-Hour Temporary OTP.`);
       // Automatically open the credential modal to display the new OTP
       handleOpenCredentialsModal(created, 'otp');
     } else if (editingUserId) {
-      const updated = await adminService.updateUser(editingUserId, {
+      await adminService.updateUser(editingUserId, {
         fullName: formData.fullName,
         username: formData.username,
         email: formData.email,
@@ -199,7 +187,7 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
         status: formData.status,
         mfaEnabled: formData.mfaEnabled,
       });
-      setUsers((prev) => prev.map((u) => (u.id === editingUserId ? updated : u)));
+      refetchUsers();
       showToast(`User profile and credentials updated in database.`);
       setIsModalOpen(false);
     }
@@ -253,7 +241,7 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
     }
     try {
       const updated = await adminService.changeUserId(credModalUser.id, adminNewUserId.trim(), 'Super Admin');
-      setUsers((prev) => prev.map((u) => (u.id === credModalUser.id ? updated : u)));
+      refetchUsers();
       setCredModalUser({ ...updated });
       showToast(`✓ User ID successfully updated to "${updated.id}".`);
     } catch (err: any) {
@@ -266,15 +254,14 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
     if (!target) return;
     const nextStatus = target.status === 'Active' ? 'Suspended' : 'Active';
     await adminService.updateUser(userId, { status: nextStatus });
-    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: nextStatus } : u)));
+    refetchUsers();
     showToast(`User ${target.fullName} status updated to ${nextStatus}.`);
   };
 
   const handleDeleteUser = async (userId: string) => {
     const target = users.find((u) => u.id === userId);
     if (!target) return;
-    await adminService.deleteUser(userId);
-    setUsers((prev) => prev.filter((u) => u.id !== userId));
+    deleteUserMutation.mutate(userId);
     showToast(`User ${target.fullName} soft-deleted from database (Audit trail retained).`);
   };
 
