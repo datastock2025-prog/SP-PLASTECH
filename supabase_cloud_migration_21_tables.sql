@@ -588,5 +588,8 @@ CREATE INDEX IF NOT EXISTS idx_qc_insp_number ON public.qc_inspections USING btr
 CREATE INDEX IF NOT EXISTS idx_qc_insp_item_lot ON public.qc_inspections USING btree (item_code, lot_number);
 CREATE INDEX IF NOT EXISTS idx_qc_insp_result_created ON public.qc_inspections USING btree (result, created_at DESC);
 
+-- 6. Reload PostgREST Schema Cache
+NOTIFY pgrst, 'reload schema';
+
 
 

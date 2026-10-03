@@ -120,17 +120,29 @@ export class SupabaseAdapter implements IDatabaseAdapter {
   }
 
   public async count(table: string, filter?: QueryFilter): Promise<number> {
-    let query = this.client.from(table).select('*', { count: 'exact', head: true });
-    if (filter?.where) {
-      Object.entries(filter.where).forEach(([key, val]) => {
-        if (val !== undefined && val !== null) {
-          query = query.eq(key, val);
+    try {
+      let query = this.client.from(table).select('id', { count: 'exact', head: true });
+      if (filter?.where) {
+        Object.entries(filter.where).forEach(([key, val]) => {
+          if (val !== undefined && val !== null) {
+            query = query.eq(key, val);
+          }
+        });
+      }
+      if (filter?.signal) {
+        query = query.abortSignal(filter.signal);
+      }
+      const { count, error } = await query;
+      if (error) {
+        if (error.code === 'PGRST205' || error.code === '42P01' || error.message?.includes('schema cache')) {
+          console.debug(`[SupabaseAdapter] count(${table}) table pending sync.`);
         }
-      });
+        return 0;
+      }
+      return count || 0;
+    } catch {
+      return 0;
     }
-    const { count, error } = await query;
-    if (error) return 0;
-    return count || 0;
   }
 
   public async upsert<T = any>(table: string, record: T | T[], conflictKey?: string): Promise<T> {
