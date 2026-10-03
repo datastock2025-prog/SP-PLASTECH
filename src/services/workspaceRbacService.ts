@@ -314,8 +314,18 @@ class WorkspaceRbacService {
       };
     }
 
-    // Auto-discover and sync screens on boot
-    this.syncAndDiscoverScreens('System Initial Boot Auto-Sync');
+    // Auto-discover and sync screens in idle time without blocking initial render/boot
+    if (typeof window !== 'undefined') {
+      if ('requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(() => {
+          this.syncAndDiscoverScreens('System Initial Boot Auto-Sync');
+        }, { timeout: 2000 });
+      } else {
+        setTimeout(() => {
+          this.syncAndDiscoverScreens('System Initial Boot Auto-Sync');
+        }, 150);
+      }
+    }
   }
 
   private persist() {
