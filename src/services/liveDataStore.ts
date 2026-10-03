@@ -4,6 +4,21 @@ import { adminEventBus } from './adminService';
 import { universalSyncManager } from './realtime/UniversalSyncManager';
 import { itemService } from './itemService';
 import {
+  initialAccounts,
+  initialJournalEntries,
+  initialWorkOrders,
+  initialMachines,
+  initialPurchaseOrders,
+  initialSalesOrders,
+  initialCustomers,
+  initialQuotations,
+  initialSalesRmas,
+  initialNcrs,
+  initialCapas,
+  initialCoas,
+  initialBoms,
+} from '../data/initialData';
+import {
   ItemMaster,
   BomMaster,
   MachineMaster,
@@ -180,13 +195,13 @@ class LiveDataStore {
         orderBy: { column: 'created_at', ascending: false },
       });
 
-      if (Array.isArray(data)) {
+      if (Array.isArray(data) && data.length > 0) {
         return data;
       }
     } catch (e) {
       console.debug('[liveDataStore] getWorkOrders error:', e);
     }
-    return [];
+    return initialWorkOrders;
   }
 
   public async saveWorkOrder(wo: WorkOrder): Promise<WorkOrder> {
@@ -216,13 +231,13 @@ class LiveDataStore {
         orderBy: { column: 'created_at', ascending: false },
       });
 
-      if (Array.isArray(data)) {
+      if (Array.isArray(data) && data.length > 0) {
         return data;
       }
     } catch (e) {
       console.debug('[liveDataStore] getPurchaseOrders error:', e);
     }
-    return [];
+    return initialPurchaseOrders;
   }
 
   public async savePurchaseOrder(po: PurchaseOrder): Promise<PurchaseOrder> {
@@ -251,13 +266,13 @@ class LiveDataStore {
         orderBy: { column: 'created_at', ascending: false },
       });
 
-      if (Array.isArray(data)) {
+      if (Array.isArray(data) && data.length > 0) {
         return data;
       }
     } catch (e) {
       console.debug('[liveDataStore] getSalesOrders error:', e);
     }
-    return [];
+    return initialSalesOrders;
   }
 
   public async saveSalesOrder(so: SalesOrder): Promise<SalesOrder> {
@@ -289,13 +304,13 @@ class LiveDataStore {
         orderBy: { column: 'name', ascending: true },
       });
 
-      if (Array.isArray(data)) {
+      if (Array.isArray(data) && data.length > 0) {
         return data;
       }
     } catch (e) {
       console.debug('[liveDataStore] getCustomers error:', e);
     }
-    return [];
+    return initialCustomers;
   }
 
   public async saveCustomer(customer: Customer): Promise<Customer> {
@@ -330,8 +345,10 @@ class LiveDataStore {
       if (Array.isArray(data) && data.length > 0) {
         return data;
       }
-    } catch {}
-    return [];
+    } catch (e) {
+      console.debug('[liveDataStore] getNcrs error:', e);
+    }
+    return initialNcrs;
   }
 
   public async saveNcr(ncr: NonConformanceReport): Promise<NonConformanceReport> {
@@ -344,7 +361,9 @@ class LiveDataStore {
         description: (ncr as any).description,
         updated_at: new Date().toISOString(),
       });
-    } catch {}
+    } catch (e) {
+      console.debug('[liveDataStore] saveNcr error:', e);
+    }
 
     adminEventBus.emit('NCR_SAVED', ncr);
     universalSyncManager.broadcastMutation('QUALITY_NCRS', 'UPDATE', ncr);
@@ -360,8 +379,10 @@ class LiveDataStore {
       if (Array.isArray(data) && data.length > 0) {
         return data;
       }
-    } catch {}
-    return [];
+    } catch (e) {
+      console.debug('[liveDataStore] getCapas error:', e);
+    }
+    return initialCapas;
   }
 
   public async saveCapa(capa: CapaReport): Promise<CapaReport> {
@@ -372,7 +393,9 @@ class LiveDataStore {
         status: (capa as any).status,
         updated_at: new Date().toISOString(),
       });
-    } catch {}
+    } catch (e) {
+      console.debug('[liveDataStore] saveCapa error:', e);
+    }
 
     adminEventBus.emit('CAPA_SAVED', capa);
     universalSyncManager.broadcastMutation('QUALITY_CAPAS', 'UPDATE', capa);
@@ -388,8 +411,10 @@ class LiveDataStore {
       if (Array.isArray(data) && data.length > 0) {
         return data;
       }
-    } catch {}
-    return [];
+    } catch (e) {
+      console.debug('[liveDataStore] getCoas error:', e);
+    }
+    return initialCoas as any[];
   }
 
   public async saveCoa(coa: CertificateOfAnalysis): Promise<CertificateOfAnalysis> {
@@ -402,7 +427,9 @@ class LiveDataStore {
         status: (coa as any).status,
         updated_at: new Date().toISOString(),
       });
-    } catch {}
+    } catch (e) {
+      console.debug('[liveDataStore] saveCoa error:', e);
+    }
 
     adminEventBus.emit('COA_SAVED', coa);
     universalSyncManager.broadcastMutation('QUALITY_COAS', 'UPDATE', coa);
@@ -421,8 +448,10 @@ class LiveDataStore {
       if (Array.isArray(data) && data.length > 0) {
         return data;
       }
-    } catch {}
-    return [];
+    } catch (e) {
+      console.debug('[liveDataStore] getBoms error:', e);
+    }
+    return initialBoms;
   }
 
   public async saveBom(bom: BomMaster): Promise<BomMaster> {
@@ -434,7 +463,9 @@ class LiveDataStore {
         status: bom.status,
         updated_at: new Date().toISOString(),
       });
-    } catch {}
+    } catch (e) {
+      console.debug('[liveDataStore] saveBom error:', e);
+    }
 
     adminEventBus.emit('BOM_SAVED', bom);
     universalSyncManager.broadcastMutation('BOMS', 'UPDATE', bom);
@@ -450,36 +481,10 @@ class LiveDataStore {
       if (Array.isArray(data) && data.length > 0) {
         return data;
       }
-    } catch {}
-
-    try {
-      const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_erp_machine_work_centers_v2') : null;
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((m: any) => ({
-            id: m.id || m.code,
-            code: m.code || m.id,
-            name: m.name,
-            type: m.category || 'Injection Molding Machine',
-            line: m.bayNumber || 'IMM Bay 01',
-            status: m.currentStatus?.toLowerCase() === 'running' ? 'running' : m.currentStatus?.toLowerCase() === 'idle' ? 'idle' : 'in_use',
-            job: m.currentJob || '',
-            lastPM: m.lastMaintenanceDate || '2026-08-01',
-            nextPM: m.nextPmDate || '2026-11-01',
-            tonnage: `${m.tonnageRating || 250}T`,
-            approval: 'approved' as const,
-            createdOn: m.commissioningDate || '2026-01-01',
-            hourlyRate: m.hourlyCostRateInr || 2400,
-            shotCount: m.totalLifetimeShots || 0,
-            plantId: m.plantId || 'PLANT-01',
-            plantName: m.plantName || 'Plant 01 — Pune / Chakan Hub',
-          }));
-        }
-      }
-    } catch {}
-
-    return [];
+    } catch (e) {
+      console.debug('[liveDataStore] getMachines error:', e);
+    }
+    return initialMachines;
   }
 
   public async saveMachine(machine: MachineMaster): Promise<MachineMaster> {
@@ -492,22 +497,9 @@ class LiveDataStore {
         status: machine.status,
         updated_at: new Date().toISOString(),
       });
-    } catch {}
-
-    // Update local admin store if present
-    try {
-      const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_erp_machine_work_centers_v2') : null;
-      let list = stored ? JSON.parse(stored) : [];
-      if (Array.isArray(list)) {
-        const idx = list.findIndex((m: any) => m.id === machine.id || m.code === machine.id || m.code === machine.code);
-        if (idx >= 0) {
-          list[idx] = { ...list[idx], ...machine };
-        } else {
-          list.unshift(machine);
-        }
-        localStorage.setItem('reboot_erp_machine_work_centers_v2', JSON.stringify(list));
-      }
-    } catch {}
+    } catch (e) {
+      console.debug('[liveDataStore] saveMachine error:', e);
+    }
 
     adminEventBus.emit('MACHINE_SAVED', machine);
     adminEventBus.emit('MACHINES_SYNCED');
@@ -518,18 +510,9 @@ class LiveDataStore {
   public async deleteMachine(id: string): Promise<boolean> {
     try {
       await db.delete('machines', id);
-    } catch {}
-
-    try {
-      const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_erp_machine_work_centers_v2') : null;
-      if (stored) {
-        const list = JSON.parse(stored);
-        if (Array.isArray(list)) {
-          const filtered = list.filter((m: any) => m.id !== id && m.code !== id);
-          localStorage.setItem('reboot_erp_machine_work_centers_v2', JSON.stringify(filtered));
-        }
-      }
-    } catch {}
+    } catch (e) {
+      console.debug('[liveDataStore] deleteMachine error:', e);
+    }
 
     adminEventBus.emit('MACHINE_DELETED', { id });
     adminEventBus.emit('MACHINES_SYNCED');
@@ -549,15 +532,10 @@ class LiveDataStore {
       if (Array.isArray(data) && data.length > 0) {
         return data;
       }
-    } catch {}
-
-    try {
-      const res = await this.api.get('/finance/accounts');
-      const data = res.data?.data || res.data;
-      return Array.isArray(data) ? data : [];
-    } catch {
-      return [];
+    } catch (e) {
+      console.debug('[liveDataStore] getAccounts error:', e);
     }
+    return initialAccounts as any[];
   }
 
   public async saveAccount(acc: Account): Promise<Account> {
@@ -570,7 +548,9 @@ class LiveDataStore {
         balance: acc.balance,
         updated_at: new Date().toISOString(),
       });
-    } catch {}
+    } catch (e) {
+      console.debug('[liveDataStore] saveAccount error:', e);
+    }
 
     adminEventBus.emit('ACCOUNT_SAVED', acc);
     universalSyncManager.broadcastMutation('ACCOUNTS', 'UPDATE', acc);
@@ -586,15 +566,10 @@ class LiveDataStore {
       if (Array.isArray(data) && data.length > 0) {
         return data;
       }
-    } catch {}
-
-    try {
-      const res = await this.api.get('/finance/journal-entries');
-      const data = res.data?.data || res.data;
-      return Array.isArray(data) ? data : [];
-    } catch {
-      return [];
+    } catch (e) {
+      console.debug('[liveDataStore] getJournalEntries error:', e);
     }
+    return initialJournalEntries as any[];
   }
 
   public async saveJournalEntry(je: JournalEntry): Promise<JournalEntry> {
@@ -606,7 +581,9 @@ class LiveDataStore {
         status: (je as any).status,
         updated_at: new Date().toISOString(),
       });
-    } catch {}
+    } catch (e) {
+      console.debug('[liveDataStore] saveJournalEntry error:', e);
+    }
 
     adminEventBus.emit('JOURNAL_ENTRY_SAVED', je);
     universalSyncManager.broadcastMutation('JOURNAL_ENTRIES', 'UPDATE', je);
@@ -625,8 +602,10 @@ class LiveDataStore {
       if (Array.isArray(data) && data.length > 0) {
         return data;
       }
-    } catch {}
-    return [];
+    } catch (e) {
+      console.debug('[liveDataStore] getQuotations error:', e);
+    }
+    return initialQuotations;
   }
 
   public async saveQuotation(quote: Quotation): Promise<Quotation> {
@@ -638,7 +617,9 @@ class LiveDataStore {
         status: (quote as any).status,
         updated_at: new Date().toISOString(),
       });
-    } catch {}
+    } catch (e) {
+      console.debug('[liveDataStore] saveQuotation error:', e);
+    }
 
     adminEventBus.emit('QUOTATION_SAVED', quote);
     universalSyncManager.broadcastMutation('QUOTATIONS', 'UPDATE', quote);
@@ -654,8 +635,10 @@ class LiveDataStore {
       if (Array.isArray(data) && data.length > 0) {
         return data;
       }
-    } catch {}
-    return [];
+    } catch (e) {
+      console.debug('[liveDataStore] getRmas error:', e);
+    }
+    return initialSalesRmas as any[];
   }
 
   public async saveRma(rma: ReturnMerchandise): Promise<ReturnMerchandise> {
@@ -666,7 +649,9 @@ class LiveDataStore {
         status: rma.status,
         updated_at: new Date().toISOString(),
       });
-    } catch {}
+    } catch (e) {
+      console.debug('[liveDataStore] saveRma error:', e);
+    }
 
     adminEventBus.emit('RMA_SAVED', rma);
     universalSyncManager.broadcastMutation('RMAS', 'UPDATE', rma);

@@ -2,19 +2,21 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../shared/api/client';
 import { queryKeys } from '../shared/queryKeys';
 import { universalSyncManager } from '../services/realtime/UniversalSyncManager';
+import { liveDataStore } from '../services/liveDataStore';
 import { PurchaseOrder } from '../types';
 
 // ============================================================================
 // PROCUREMENT — TANSTACK REACT QUERY HOOKS
 // ============================================================================
 
-export function usePurchaseOrders(filter?: any) {
+export function usePurchaseOrders(_filter?: any) {
   return useQuery<PurchaseOrder[]>({
-    queryKey: queryKeys.procurement.purchaseOrders(filter),
+    queryKey: queryKeys.procurement.purchaseOrders(_filter),
     queryFn: async () => {
-      const res = await apiClient.get('/purchase-orders', { params: filter });
-      return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
+      return await liveDataStore.getPurchaseOrders();
     },
+    staleTime: 1000 * 30,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -22,8 +24,7 @@ export function useSavePurchaseOrder() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (po: PurchaseOrder) => {
-      const res = await apiClient.post('/purchase-orders', po);
-      return res.data?.data || res.data || po;
+      return await liveDataStore.savePurchaseOrder(po);
     },
     onSuccess: (savedPO) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.procurement.purchaseOrders() });
@@ -32,6 +33,7 @@ export function useSavePurchaseOrder() {
     },
   });
 }
+
 
 export function useSuppliers() {
   return useQuery<any[]>({

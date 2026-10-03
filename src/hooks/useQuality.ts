@@ -2,18 +2,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../shared/api/client';
 import { queryKeys } from '../shared/queryKeys';
 import { universalSyncManager } from '../services/realtime/UniversalSyncManager';
+import { liveDataStore } from '../services/liveDataStore';
 import { NonConformanceReport, CapaReport, CertificateOfAnalysis, InspectionPlan } from '../types';
 
 // ============================================================================
 // QUALITY & SPC — TANSTACK REACT QUERY HOOKS
 // ============================================================================
 
-export function useNcrs(filter?: any) {
+export function useNcrs(_filter?: any) {
   return useQuery<NonConformanceReport[]>({
-    queryKey: queryKeys.quality.ncrs(filter),
-    queryFn: async ({ signal }) => {
-      const res = await apiClient.get('/quality/ncrs', { params: filter, signal });
-      return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
+    queryKey: queryKeys.quality.ncrs(_filter),
+    queryFn: async () => {
+      return await liveDataStore.getNcrs();
     },
     staleTime: 1000 * 30,
     refetchOnWindowFocus: false,
@@ -24,8 +24,7 @@ export function useSaveNcr() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (ncr: NonConformanceReport) => {
-      const res = await apiClient.post('/quality/ncrs', ncr);
-      return res.data?.data || res.data || ncr;
+      return await liveDataStore.saveNcr(ncr);
     },
     onSuccess: (savedNcr) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.quality.ncrs() });
@@ -35,12 +34,11 @@ export function useSaveNcr() {
   });
 }
 
-export function useCapas(filter?: any) {
+export function useCapas(_filter?: any) {
   return useQuery<CapaReport[]>({
-    queryKey: queryKeys.quality.capas(filter),
-    queryFn: async ({ signal }) => {
-      const res = await apiClient.get('/quality/capas', { params: filter, signal });
-      return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
+    queryKey: queryKeys.quality.capas(_filter),
+    queryFn: async () => {
+      return await liveDataStore.getCapas();
     },
     staleTime: 1000 * 30,
     refetchOnWindowFocus: false,
@@ -51,8 +49,7 @@ export function useSaveCapa() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (capa: CapaReport) => {
-      const res = await apiClient.post('/quality/capas', capa);
-      return res.data?.data || res.data || capa;
+      return await liveDataStore.saveCapa(capa);
     },
     onSuccess: (savedCapa) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.quality.capas() });
@@ -61,12 +58,11 @@ export function useSaveCapa() {
   });
 }
 
-export function useCoas(filter?: any) {
+export function useCoas(_filter?: any) {
   return useQuery<CertificateOfAnalysis[]>({
-    queryKey: queryKeys.quality.coas(filter),
-    queryFn: async ({ signal }) => {
-      const res = await apiClient.get('/quality/coas', { params: filter, signal });
-      return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
+    queryKey: queryKeys.quality.coas(_filter),
+    queryFn: async () => {
+      return await liveDataStore.getCoas();
     },
     staleTime: 1000 * 30,
     refetchOnWindowFocus: false,
@@ -77,8 +73,7 @@ export function useSaveCoa() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (coa: CertificateOfAnalysis) => {
-      const res = await apiClient.post('/quality/coas', coa);
-      return res.data?.data || res.data || coa;
+      return await liveDataStore.saveCoa(coa);
     },
     onSuccess: (savedCoa) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.quality.coas() });
@@ -86,6 +81,7 @@ export function useSaveCoa() {
     },
   });
 }
+
 
 export function useInspectionPlans() {
   return useQuery<InspectionPlan[]>({

@@ -154,14 +154,16 @@ export function useItemApprovalsQueue() {
   });
 }
 
+import { liveDataStore } from '../services/liveDataStore';
+
 // 4. MACHINES
 export function useMachines() {
   return useQuery<MachineMaster[]>({
     queryKey: queryKeys.masterData.machines(),
     queryFn: async () => {
-      const res = await apiClient.get('/machines');
-      return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
+      return await liveDataStore.getMachines();
     },
+    staleTime: 1000 * 30,
   });
 }
 
@@ -169,8 +171,7 @@ export function useSaveMachine() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (machine: MachineMaster) => {
-      const res = await apiClient.post('/machines', machine);
-      return res.data?.data || res.data || machine;
+      return await liveDataStore.saveMachine(machine);
     },
     onSuccess: (savedMachine) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.masterData.machines() });
@@ -183,8 +184,7 @@ export function useDeleteMachine() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const res = await apiClient.delete(`/machines/${id}`);
-      return res.data;
+      return await liveDataStore.deleteMachine(id);
     },
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.masterData.machines() });
@@ -198,9 +198,9 @@ export function useCustomers() {
   return useQuery<Customer[]>({
     queryKey: queryKeys.sales.customers(),
     queryFn: async () => {
-      const res = await apiClient.get('/customers');
-      return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
+      return await liveDataStore.getCustomers();
     },
+    staleTime: 1000 * 30,
   });
 }
 
@@ -208,8 +208,7 @@ export function useSaveCustomer() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (customer: Customer) => {
-      const res = await apiClient.post('/customers', customer);
-      return res.data?.data || res.data || customer;
+      return await liveDataStore.saveCustomer(customer);
     },
     onSuccess: (savedCustomer) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sales.customers() });
@@ -217,3 +216,4 @@ export function useSaveCustomer() {
     },
   });
 }
+

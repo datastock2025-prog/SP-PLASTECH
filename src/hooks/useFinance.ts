@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '../shared/api/client';
 import { queryKeys } from '../shared/queryKeys';
 import { universalSyncManager } from '../services/realtime/UniversalSyncManager';
+import { liveDataStore } from '../services/liveDataStore';
 import { Account, JournalEntry } from '../types';
 
 // ============================================================================
@@ -12,9 +12,10 @@ export function useAccounts() {
   return useQuery<Account[]>({
     queryKey: queryKeys.finance.accounts(),
     queryFn: async () => {
-      const res = await apiClient.get('/finance/accounts');
-      return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
+      return await liveDataStore.getAccounts();
     },
+    staleTime: 1000 * 30,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -22,8 +23,7 @@ export function useSaveAccount() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (acc: Account) => {
-      const res = await apiClient.post('/finance/accounts', acc);
-      return res.data?.data || res.data || acc;
+      return await liveDataStore.saveAccount(acc);
     },
     onSuccess: (savedAcc) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.accounts() });
@@ -32,13 +32,14 @@ export function useSaveAccount() {
   });
 }
 
-export function useJournalEntries(filter?: any) {
+export function useJournalEntries(_filter?: any) {
   return useQuery<JournalEntry[]>({
-    queryKey: queryKeys.finance.journalEntries(filter),
+    queryKey: queryKeys.finance.journalEntries(_filter),
     queryFn: async () => {
-      const res = await apiClient.get('/finance/journal-entries', { params: filter });
-      return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
+      return await liveDataStore.getJournalEntries();
     },
+    staleTime: 1000 * 30,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -46,8 +47,7 @@ export function useSaveJournalEntry() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (je: JournalEntry) => {
-      const res = await apiClient.post('/finance/journal-entries', je);
-      return res.data?.data || res.data || je;
+      return await liveDataStore.saveJournalEntry(je);
     },
     onSuccess: (savedJE) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.journalEntries() });
@@ -55,3 +55,4 @@ export function useSaveJournalEntry() {
     },
   });
 }
+

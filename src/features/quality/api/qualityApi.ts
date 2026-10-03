@@ -1,26 +1,17 @@
 import { apiClient } from '../../../shared/api/client';
 import { NonConformanceReport, CapaReport } from '../../../types';
-import { initialNcrs, initialCapas } from '../../../data/initialData';
+import { liveDataStore } from '../../../services/liveDataStore';
 import { NcrCreateFormValues } from '../types/qualitySchemas';
 
 export const qualityApi = {
   getNcrs: async (): Promise<NonConformanceReport[]> => {
-    try {
-      const response = await apiClient.get<NonConformanceReport[]>('/quality/ncrs');
-      return response.data;
-    } catch {
-      return initialNcrs;
-    }
+    return await liveDataStore.getNcrs();
   },
 
   getCapas: async (): Promise<CapaReport[]> => {
-    try {
-      const response = await apiClient.get<CapaReport[]>('/quality/capas');
-      return response.data;
-    } catch {
-      return initialCapas;
-    }
+    return await liveDataStore.getCapas();
   },
+
 
   createNcr: async (data: NcrCreateFormValues): Promise<NonConformanceReport> => {
     try {

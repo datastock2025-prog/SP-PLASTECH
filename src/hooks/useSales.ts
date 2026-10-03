@@ -1,19 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '../shared/api/client';
 import { queryKeys } from '../shared/queryKeys';
 import { universalSyncManager } from '../services/realtime/UniversalSyncManager';
+import { liveDataStore } from '../services/liveDataStore';
 import { SalesOrder, Quotation, ReturnMerchandise } from '../types';
 
 // ============================================================================
 // SALES & CRM — TANSTACK REACT QUERY HOOKS
 // ============================================================================
 
-export function useSalesOrders(filter?: any) {
+export function useSalesOrders(_filter?: any) {
   return useQuery<SalesOrder[]>({
-    queryKey: queryKeys.sales.orders(filter),
-    queryFn: async ({ signal }) => {
-      const res = await apiClient.get('/sales-orders', { params: filter, signal });
-      return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
+    queryKey: queryKeys.sales.orders(_filter),
+    queryFn: async () => {
+      return await liveDataStore.getSalesOrders();
     },
     staleTime: 1000 * 30,
     refetchOnWindowFocus: false,
@@ -24,8 +23,7 @@ export function useSaveSalesOrder() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (so: SalesOrder) => {
-      const res = await apiClient.post('/sales-orders', so);
-      return res.data?.data || res.data || so;
+      return await liveDataStore.saveSalesOrder(so);
     },
     onSuccess: (savedSO) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sales.orders() });
@@ -35,12 +33,11 @@ export function useSaveSalesOrder() {
   });
 }
 
-export function useQuotations(filter?: any) {
+export function useQuotations(_filter?: any) {
   return useQuery<Quotation[]>({
-    queryKey: queryKeys.sales.quotations(filter),
-    queryFn: async ({ signal }) => {
-      const res = await apiClient.get('/sales/quotations', { params: filter, signal });
-      return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
+    queryKey: queryKeys.sales.quotations(_filter),
+    queryFn: async () => {
+      return await liveDataStore.getQuotations();
     },
     staleTime: 1000 * 30,
     refetchOnWindowFocus: false,
@@ -51,8 +48,7 @@ export function useSaveQuotation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (quote: Quotation) => {
-      const res = await apiClient.post('/sales/quotations', quote);
-      return res.data?.data || res.data || quote;
+      return await liveDataStore.saveQuotation(quote);
     },
     onSuccess: (savedQuote) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sales.quotations() });
@@ -64,9 +60,8 @@ export function useSaveQuotation() {
 export function useSalesRmas() {
   return useQuery<ReturnMerchandise[]>({
     queryKey: queryKeys.sales.rmas(),
-    queryFn: async ({ signal }) => {
-      const res = await apiClient.get('/sales/rmas', { signal });
-      return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
+    queryFn: async () => {
+      return await liveDataStore.getRmas();
     },
     staleTime: 1000 * 30,
     refetchOnWindowFocus: false,
@@ -77,8 +72,7 @@ export function useSaveSalesRma() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (rma: ReturnMerchandise) => {
-      const res = await apiClient.post('/sales/rmas', rma);
-      return res.data?.data || res.data || rma;
+      return await liveDataStore.saveRma(rma);
     },
     onSuccess: (savedRma) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sales.rmas() });
@@ -86,3 +80,4 @@ export function useSaveSalesRma() {
     },
   });
 }
+

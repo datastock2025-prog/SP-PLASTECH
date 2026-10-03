@@ -1,27 +1,18 @@
 import { apiClient } from '../../../shared/api/client';
 import { WorkOrder, MachineMaster } from '../../../types';
-import { initialWorkOrders, initialMachines } from '../../../data/initialData';
+import { liveDataStore } from '../../../services/liveDataStore';
 import { INITIAL_MOLDS, MoldMaster } from '../../../data/manufacturingData';
 import { WorkOrderLogFormValues, CreateWorkOrderFormValues } from '../types/manufacturingSchemas';
 
 export const manufacturingApi = {
   getWorkOrders: async (): Promise<WorkOrder[]> => {
-    try {
-      const response = await apiClient.get<WorkOrder[]>('/manufacturing/work-orders');
-      return response.data;
-    } catch {
-      return initialWorkOrders;
-    }
+    return await liveDataStore.getWorkOrders();
   },
 
   getMachines: async (): Promise<MachineMaster[]> => {
-    try {
-      const response = await apiClient.get<MachineMaster[]>('/manufacturing/machines');
-      return response.data;
-    } catch {
-      return initialMachines;
-    }
+    return await liveDataStore.getMachines();
   },
+
 
   getMolds: async (): Promise<MoldMaster[]> => {
     try {
