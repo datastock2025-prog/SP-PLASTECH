@@ -39,14 +39,24 @@ export class OfflineIndexedDbAdapter implements IDatabaseAdapter {
     }
 
     if (filter?.orderBy) {
-      const col = filter.orderBy.column;
-      const asc = filter.orderBy.ascending ?? true;
-      items.sort((a: any, b: any) => {
-        const aVal = a[col];
-        const bVal = b[col];
-        if (aVal === bVal) return 0;
-        return (aVal > bVal ? 1 : -1) * (asc ? 1 : -1);
-      });
+      let col: string | undefined;
+      let asc = true;
+
+      if (typeof filter.orderBy === 'string') {
+        col = filter.orderBy;
+      } else if (typeof filter.orderBy === 'object' && filter.orderBy !== null) {
+        col = filter.orderBy.column;
+        asc = filter.orderBy.ascending ?? true;
+      }
+
+      if (col) {
+        items.sort((a: any, b: any) => {
+          const aVal = a[col!];
+          const bVal = b[col!];
+          if (aVal === bVal) return 0;
+          return (aVal > bVal ? 1 : -1) * (asc ? 1 : -1);
+        });
+      }
     }
 
     if (filter?.offset !== undefined || filter?.limit !== undefined) {
