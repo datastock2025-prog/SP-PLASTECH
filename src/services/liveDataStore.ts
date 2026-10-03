@@ -2,6 +2,7 @@ import axios from 'axios';
 import { db } from '../shared/db';
 import { adminEventBus } from './adminService';
 import { universalSyncManager } from './realtime/UniversalSyncManager';
+import { itemService } from './itemService';
 import {
   ItemMaster,
   BomMaster,
@@ -160,27 +161,14 @@ class LiveDataStore {
   // 3. Items & Resins (Live DB)
   // --------------------------------------------------------------------------
   public async getItems(): Promise<ItemMaster[]> {
-    try {
-      const res = await this.api.get('/items');
-      const data = res.data?.data || res.data;
-      return Array.isArray(data) ? data : [];
-    } catch {
-      return [];
-    }
+    return itemService.getItems();
   }
 
   public async updateItem(item: ItemMaster): Promise<ItemMaster> {
-    try {
-      const res = await this.api.put(`/items/${item.code}`, item);
-      const updated = res.data?.data || item;
-      adminEventBus.emit('ITEM_SAVED', updated);
-      universalSyncManager.broadcastMutation('ITEMS', 'UPDATE', updated);
-      return updated;
-    } catch {
-      adminEventBus.emit('ITEM_SAVED', item);
-      universalSyncManager.broadcastMutation('ITEMS', 'UPDATE', item);
-      return item;
-    }
+    const saved = await itemService.saveItem(item);
+    adminEventBus.emit('ITEM_SAVED', saved);
+    universalSyncManager.broadcastMutation('ITEMS', 'UPDATE', saved);
+    return saved;
   }
 
   // --------------------------------------------------------------------------
@@ -192,18 +180,13 @@ class LiveDataStore {
         orderBy: { column: 'created_at', ascending: false },
       });
 
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         return data;
       }
-    } catch {}
-
-    try {
-      const res = await this.api.get('/work-orders');
-      const data = res.data?.data || res.data;
-      return Array.isArray(data) ? data : [];
-    } catch {
-      return [];
+    } catch (e) {
+      console.debug('[liveDataStore] getWorkOrders error:', e);
     }
+    return [];
   }
 
   public async saveWorkOrder(wo: WorkOrder): Promise<WorkOrder> {
@@ -215,19 +198,13 @@ class LiveDataStore {
         status: wo.status,
         updated_at: new Date().toISOString(),
       });
-    } catch {}
-
-    try {
-      const res = await this.api.post('/work-orders', wo);
-      const saved = res.data?.data || wo;
-      adminEventBus.emit('WORK_ORDER_SAVED', saved);
-      universalSyncManager.broadcastMutation('WORK_ORDERS', 'INSERT', saved);
-      return saved;
-    } catch {
-      adminEventBus.emit('WORK_ORDER_SAVED', wo);
-      universalSyncManager.broadcastMutation('WORK_ORDERS', 'INSERT', wo);
-      return wo;
+    } catch (e) {
+      console.debug('[liveDataStore] saveWorkOrder error:', e);
     }
+
+    adminEventBus.emit('WORK_ORDER_SAVED', wo);
+    universalSyncManager.broadcastMutation('WORK_ORDERS', 'INSERT', wo);
+    return wo;
   }
 
   // --------------------------------------------------------------------------
@@ -239,18 +216,13 @@ class LiveDataStore {
         orderBy: { column: 'created_at', ascending: false },
       });
 
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         return data;
       }
-    } catch {}
-
-    try {
-      const res = await this.api.get('/purchase-orders');
-      const data = res.data?.data || res.data;
-      return Array.isArray(data) ? data : [];
-    } catch {
-      return [];
+    } catch (e) {
+      console.debug('[liveDataStore] getPurchaseOrders error:', e);
     }
+    return [];
   }
 
   public async savePurchaseOrder(po: PurchaseOrder): Promise<PurchaseOrder> {
@@ -261,7 +233,9 @@ class LiveDataStore {
         status: (po as any).status,
         updated_at: new Date().toISOString(),
       });
-    } catch {}
+    } catch (e) {
+      console.debug('[liveDataStore] savePurchaseOrder error:', e);
+    }
 
     adminEventBus.emit('PURCHASE_ORDER_SAVED', po);
     universalSyncManager.broadcastMutation('PURCHASE_ORDERS', 'UPDATE', po);
@@ -277,18 +251,13 @@ class LiveDataStore {
         orderBy: { column: 'created_at', ascending: false },
       });
 
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         return data;
       }
-    } catch {}
-
-    try {
-      const res = await this.api.get('/sales-orders');
-      const data = res.data?.data || res.data;
-      return Array.isArray(data) ? data : [];
-    } catch {
-      return [];
+    } catch (e) {
+      console.debug('[liveDataStore] getSalesOrders error:', e);
     }
+    return [];
   }
 
   public async saveSalesOrder(so: SalesOrder): Promise<SalesOrder> {
@@ -302,7 +271,9 @@ class LiveDataStore {
         total_value: (so as any).totalValue || (so as any).totalAmount || 0,
         updated_at: new Date().toISOString(),
       });
-    } catch {}
+    } catch (e) {
+      console.debug('[liveDataStore] saveSalesOrder error:', e);
+    }
 
     adminEventBus.emit('SALES_ORDER_SAVED', so);
     universalSyncManager.broadcastMutation('SALES_ORDERS', 'UPDATE', so);
@@ -318,18 +289,13 @@ class LiveDataStore {
         orderBy: { column: 'name', ascending: true },
       });
 
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         return data;
       }
-    } catch {}
-
-    try {
-      const res = await this.api.get('/customers');
-      const data = res.data?.data || res.data;
-      return Array.isArray(data) ? data : [];
-    } catch {
-      return [];
+    } catch (e) {
+      console.debug('[liveDataStore] getCustomers error:', e);
     }
+    return [];
   }
 
   public async saveCustomer(customer: Customer): Promise<Customer> {
@@ -343,7 +309,9 @@ class LiveDataStore {
         status: (customer as any).status || 'Active',
         updated_at: new Date().toISOString(),
       });
-    } catch {}
+    } catch (e) {
+      console.debug('[liveDataStore] saveCustomer error:', e);
+    }
 
     adminEventBus.emit('CUSTOMER_SAVED', customer);
     universalSyncManager.broadcastMutation('CUSTOMERS', 'UPDATE', customer);

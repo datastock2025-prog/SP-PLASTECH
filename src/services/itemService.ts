@@ -92,14 +92,32 @@ class ItemService {
   }
 
   public async getItems(): Promise<ItemMaster[]> {
-    // 1. Fetch from Vendor-Agnostic Database Gateway (Supabase / NestJS REST / Prisma)
+    // 1. Load baseline catalog items from local repository
+    const baseCatalog = loadLocalItems();
+
+    // 2. Fetch latest overrides / newly created items from Vendor-Agnostic DB
     try {
       const data = await db.findMany<ItemMaster>('items', {
         orderBy: { column: 'created_at', ascending: false },
       });
 
       if (Array.isArray(data) && data.length > 0) {
-        this.cache = data.filter((i: ItemMaster) => !DUMMY_CODES.has(i.code));
+        const itemMap = new Map<string, ItemMaster>();
+        baseCatalog.forEach((item) => {
+          if (item && item.code) {
+            itemMap.set(item.code.toUpperCase(), item);
+          }
+        });
+
+        // Overlay DB records over the base catalog
+        data.forEach((item: any) => {
+          if (item && item.code && !DUMMY_CODES.has(item.code)) {
+            const existing = itemMap.get(item.code.toUpperCase()) || {};
+            itemMap.set(item.code.toUpperCase(), { ...existing, ...item });
+          }
+        });
+
+        this.cache = Array.from(itemMap.values());
         saveLocalItems(this.cache);
         return this.cache;
       }
@@ -107,10 +125,8 @@ class ItemService {
       console.debug('[ItemService] db.findMany items note:', e);
     }
 
-    // 2. Fallback to resilient local cache seeded with Document Item Master Catalog
-    if (!this.cache || this.cache.length === 0) {
-      this.cache = loadLocalItems();
-    }
+    // 3. Fallback to resilient cached catalog
+    this.cache = baseCatalog;
     return this.cache;
   }
 
