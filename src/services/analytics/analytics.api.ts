@@ -26,12 +26,14 @@ import {
 } from './analyticsMockData';
 import { UniversalQueryEngine } from './universalQueryEngine';
 
+import { getApiBaseUrl } from '../../shared/config';
+
 export class AnalyticsApi {
   private api: any;
 
   constructor() {
     this.api = axios.create({
-      baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api',
+      baseURL: getApiBaseUrl('/api'),
       withCredentials: true,
       timeout: 10000,
     });

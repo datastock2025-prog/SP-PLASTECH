@@ -1,6 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
+import { getApiBaseUrl } from '../../shared/config';
 
-const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3000/api';
+const API_BASE = getApiBaseUrl('/api');
 
 // ============================================================================
 // TypeScript Interfaces for Module-7: People (HR) (All 10 Screens)

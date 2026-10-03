@@ -2,7 +2,9 @@ import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'ax
 import { useAuthStore } from '../store/auth.store';
 import { ApiResponse, RequestOptions } from '../types/api.types';
 
-const BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3000';
+import { getApiBaseUrl } from '../shared/config';
+
+const BASE_URL = getApiBaseUrl('');
 
 let isRefreshing = false;
 let failedQueue: Array<{

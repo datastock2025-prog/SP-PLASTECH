@@ -9,7 +9,9 @@ import {
   RecentRecord,
 } from './home-tools.types';
 
-const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3000/api';
+import { getApiBaseUrl } from '../../../shared/config';
+
+const API_BASE = getApiBaseUrl('/api');
 
 export class HomeToolsApi {
   private static instance: HomeToolsApi;

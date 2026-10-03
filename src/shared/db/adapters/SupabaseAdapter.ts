@@ -54,7 +54,26 @@ export class SupabaseAdapter implements IDatabaseAdapter {
     }
 
     if (filter?.orderBy) {
-      query = query.order(filter.orderBy.column, { ascending: filter.orderBy.ascending ?? true });
+      let sortCol: string | undefined;
+      let isAscending = true;
+
+      if (typeof filter.orderBy === 'string') {
+        sortCol = filter.orderBy;
+      } else if (typeof filter.orderBy === 'object' && filter.orderBy !== null) {
+        sortCol = (filter.orderBy as any).column || (filter.orderBy as any).field;
+        isAscending = (filter.orderBy as any).ascending ?? true;
+      }
+
+      // Strictly validate column name: must be non-empty and NOT the string 'undefined' or 'null'
+      if (
+        sortCol &&
+        typeof sortCol === 'string' &&
+        sortCol.trim().length > 0 &&
+        sortCol.trim() !== 'undefined' &&
+        sortCol.trim() !== 'null'
+      ) {
+        query = query.order(sortCol.trim(), { ascending: isAscending });
+      }
     }
 
     if (filter?.limit) {

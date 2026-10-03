@@ -274,10 +274,10 @@ class SalesDataService {
 
   public async getMonthlyPlans(): Promise<MonthlyPlanOrder[]> {
     try {
-      const { data, error } = await supabase
-        .from('monthly_plan_orders')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data, error } = await db.findMany<any>('monthly_plan_orders', {
+        orderBy: 'created_at',
+        ascending: false,
+      });
 
       if (!error && Array.isArray(data) && data.length > 0) {
         const mapped: MonthlyPlanOrder[] = data.map((d: any) => ({
