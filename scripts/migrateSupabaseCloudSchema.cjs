@@ -32,7 +32,7 @@ const ALL_TABLES = [
   'customer_po_versions',
   'dispatch_documents',
   'purchase_orders',
-  'audit_logs',
+  'work_orders',
   'quotations',
   'rmas',
   'boms',
@@ -40,7 +40,15 @@ const ALL_TABLES = [
   'quality_capas',
   'quality_coas',
   'accounts',
-  'journal_entries'
+  'journal_entries',
+  'audit_logs',
+  'users',
+  'profiles',
+  'company_settings',
+  'reason_codes',
+  'warehouse_bins',
+  'supplier_price_lists',
+  'qc_inspections'
 ];
 
 async function verifyAndMigrate() {
