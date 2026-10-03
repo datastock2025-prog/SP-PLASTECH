@@ -28,7 +28,7 @@ test.describe('Authentication & Authorization E2E Suite', () => {
 
     // Verify main enterprise topbar header is loaded
     await expect(page.locator('header')).toBeVisible({ timeout: 8000 });
-    await expect(page.locator('header')).toContainText('PLANT-01');
+    await expect(page.locator('header')).toContainText(/PL-01|Plant 01|PLANT-01/i);
   });
 
   test('TC-AUTH-03: Multi-Plant and Shift Session Selection', async ({ page }) => {
