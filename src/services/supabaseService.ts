@@ -266,7 +266,71 @@ export const SupabaseDataService = {
     }
   },
 
-  // 10. COMPANY SETTINGS
+  // 10. COMMERCIAL & QUALITY EXTENDED MODULES
+  async getQuotations(): Promise<DbResult<any[]>> {
+    try {
+      const data = await db.findMany('quotations', { orderBy: { column: 'created_at', ascending: false } });
+      return { data: data || [], error: null };
+    } catch (err: any) {
+      return { data: null, error: err.message };
+    }
+  },
+
+  async upsertQuotation(quotation: Record<string, any>): Promise<DbResult<any>> {
+    try {
+      const data = await db.upsert('quotations', quotation, 'id');
+      return { data, error: null };
+    } catch (err: any) {
+      return { data: null, error: err.message };
+    }
+  },
+
+  async getRmas(): Promise<DbResult<any[]>> {
+    try {
+      const data = await db.findMany('rmas', { orderBy: { column: 'created_at', ascending: false } });
+      return { data: data || [], error: null };
+    } catch (err: any) {
+      return { data: null, error: err.message };
+    }
+  },
+
+  async upsertRma(rma: Record<string, any>): Promise<DbResult<any>> {
+    try {
+      const data = await db.upsert('rmas', rma, 'id');
+      return { data, error: null };
+    } catch (err: any) {
+      return { data: null, error: err.message };
+    }
+  },
+
+  async getQualityNcrs(): Promise<DbResult<any[]>> {
+    try {
+      const data = await db.findMany('quality_ncrs', { orderBy: { column: 'created_at', ascending: false } });
+      return { data: data || [], error: null };
+    } catch (err: any) {
+      return { data: null, error: err.message };
+    }
+  },
+
+  async getQualityCapas(): Promise<DbResult<any[]>> {
+    try {
+      const data = await db.findMany('quality_capas', { orderBy: { column: 'created_at', ascending: false } });
+      return { data: data || [], error: null };
+    } catch (err: any) {
+      return { data: null, error: err.message };
+    }
+  },
+
+  async getQualityCoas(): Promise<DbResult<any[]>> {
+    try {
+      const data = await db.findMany('quality_coas', { orderBy: { column: 'created_at', ascending: false } });
+      return { data: data || [], error: null };
+    } catch (err: any) {
+      return { data: null, error: err.message };
+    }
+  },
+
+  // 11. COMPANY SETTINGS
   async getCompanySettings(): Promise<DbResult<any>> {
     try {
       const data = await db.findMany('company_settings', { limit: 1 });
