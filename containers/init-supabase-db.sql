@@ -415,6 +415,18 @@ CREATE TABLE IF NOT EXISTS public.users (
   updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id TEXT PRIMARY KEY,
+  email TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  role TEXT DEFAULT 'USER',
+  plant_id TEXT DEFAULT 'PLANT-01',
+  shift TEXT DEFAULT 'Shift A',
+  status TEXT DEFAULT 'active',
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS public.company_settings (
   id TEXT PRIMARY KEY DEFAULT 'primary',
   company_name TEXT DEFAULT 'SP-PLASTECH',
@@ -481,7 +493,7 @@ DECLARE
     'order_relationships', 'customer_po_versions', 'dispatch_documents',
     'purchase_orders', 'work_orders', 'audit_logs', 'quotations', 'rmas', 'boms',
     'quality_ncrs', 'quality_capas', 'quality_coas', 'accounts', 'journal_entries',
-    'users', 'company_settings', 'reason_codes', 'warehouse_bins', 'supplier_price_lists', 'qc_inspections'
+    'users', 'profiles', 'company_settings', 'reason_codes', 'warehouse_bins', 'supplier_price_lists', 'qc_inspections'
   ];
 BEGIN
   FOREACH t IN ARRAY tables LOOP
@@ -612,6 +624,11 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON public.users USING btree (email);
 CREATE INDEX IF NOT EXISTS idx_users_role ON public.users USING btree (role);
 CREATE INDEX IF NOT EXISTS idx_users_plant_shift ON public.users USING btree (plant_id, shift);
 CREATE INDEX IF NOT EXISTS idx_users_status_created ON public.users USING btree (status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles USING btree (email);
+CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles USING btree (role);
+CREATE INDEX IF NOT EXISTS idx_profiles_plant_shift ON public.profiles USING btree (plant_id, shift);
+CREATE INDEX IF NOT EXISTS idx_profiles_status_created ON public.profiles USING btree (status, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_company_settings_id ON public.company_settings USING btree (id);
 

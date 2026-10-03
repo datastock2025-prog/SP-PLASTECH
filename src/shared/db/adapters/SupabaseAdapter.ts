@@ -93,6 +93,12 @@ export class SupabaseAdapter implements IDatabaseAdapter {
     if (error) {
       if (error.code === 'PGRST205' || error.code === '42P01' || error.message?.includes('schema cache')) {
         console.debug(`[SupabaseAdapter] Table "${table}" pending schema cache sync. Falling back to local store.`);
+        // Graceful user/profile schema fallback
+        if (table === 'users') {
+          return this.findMany<T>('profiles', filter);
+        } else if (table === 'profiles') {
+          return this.findMany<T>('users', filter);
+        }
       } else if (error.message?.includes('aborted') || error.name === 'AbortError') {
         // Safe lifecycle unmount cancellation
       } else {
@@ -113,6 +119,11 @@ export class SupabaseAdapter implements IDatabaseAdapter {
     if (error) {
       if (error.code === 'PGRST205' || error.code === '42P01' || error.message?.includes('schema cache')) {
         console.debug(`[SupabaseAdapter] Table "${table}" pending schema cache sync.`);
+        if (table === 'users') {
+          return this.findOne<T>('profiles', idOrKey, keyField);
+        } else if (table === 'profiles') {
+          return this.findOne<T>('users', idOrKey, keyField);
+        }
       }
       return null;
     }
