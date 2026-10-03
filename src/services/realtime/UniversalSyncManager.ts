@@ -90,7 +90,7 @@ export class UniversalSyncManager {
 
     try {
       tableMap.forEach(({ table, domain }) => {
-        db.subscribeToChanges(table, (payload) => {
+        db.subscribe(table, '*', (payload) => {
           this.handleRealtimeEvent(domain, payload);
         });
       });

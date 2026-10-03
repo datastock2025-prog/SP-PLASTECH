@@ -188,12 +188,11 @@ class LiveDataStore {
   // --------------------------------------------------------------------------
   public async getWorkOrders(): Promise<WorkOrder[]> {
     try {
-      const { data, error } = await db.findMany<WorkOrder>('work_orders', {
-        orderBy: 'created_at',
-        ascending: false,
+      const data = await db.findMany<WorkOrder>('work_orders', {
+        orderBy: { column: 'created_at', ascending: false },
       });
 
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data) && data.length > 0) {
         return data;
       }
     } catch {}
@@ -236,12 +235,11 @@ class LiveDataStore {
   // --------------------------------------------------------------------------
   public async getPurchaseOrders(): Promise<PurchaseOrder[]> {
     try {
-      const { data, error } = await db.findMany<PurchaseOrder>('purchase_orders', {
-        orderBy: 'created_at',
-        ascending: false,
+      const data = await db.findMany<PurchaseOrder>('purchase_orders', {
+        orderBy: { column: 'created_at', ascending: false },
       });
 
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data) && data.length > 0) {
         return data;
       }
     } catch {}
@@ -275,12 +273,11 @@ class LiveDataStore {
   // --------------------------------------------------------------------------
   public async getSalesOrders(): Promise<SalesOrder[]> {
     try {
-      const { data, error } = await db.findMany<SalesOrder>('sales_orders', {
-        orderBy: 'created_at',
-        ascending: false,
+      const data = await db.findMany<SalesOrder>('sales_orders', {
+        orderBy: { column: 'created_at', ascending: false },
       });
 
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data) && data.length > 0) {
         return data;
       }
     } catch {}
@@ -317,12 +314,11 @@ class LiveDataStore {
   // --------------------------------------------------------------------------
   public async getCustomers(): Promise<Customer[]> {
     try {
-      const { data, error } = await db.findMany<Customer>('customers', {
-        orderBy: 'name',
-        ascending: true,
+      const data = await db.findMany<Customer>('customers', {
+        orderBy: { column: 'name', ascending: true },
       });
 
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data) && data.length > 0) {
         return data;
       }
     } catch {}
@@ -359,12 +355,11 @@ class LiveDataStore {
   // --------------------------------------------------------------------------
   public async getNcrs(): Promise<NonConformanceReport[]> {
     try {
-      const { data, error } = await db.findMany<NonConformanceReport>('quality_ncrs', {
-        orderBy: 'created_at',
-        ascending: false,
+      const data = await db.findMany<NonConformanceReport>('quality_ncrs', {
+        orderBy: { column: 'created_at', ascending: false },
       });
 
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data) && data.length > 0) {
         return data;
       }
     } catch {}
@@ -390,12 +385,11 @@ class LiveDataStore {
 
   public async getCapas(): Promise<CapaReport[]> {
     try {
-      const { data, error } = await db.findMany<CapaReport>('quality_capas', {
-        orderBy: 'created_at',
-        ascending: false,
+      const data = await db.findMany<CapaReport>('quality_capas', {
+        orderBy: { column: 'created_at', ascending: false },
       });
 
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data) && data.length > 0) {
         return data;
       }
     } catch {}
@@ -419,12 +413,11 @@ class LiveDataStore {
 
   public async getCoas(): Promise<CertificateOfAnalysis[]> {
     try {
-      const { data, error } = await db.findMany<CertificateOfAnalysis>('quality_coas', {
-        orderBy: 'created_at',
-        ascending: false,
+      const data = await db.findMany<CertificateOfAnalysis>('quality_coas', {
+        orderBy: { column: 'created_at', ascending: false },
       });
 
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data) && data.length > 0) {
         return data;
       }
     } catch {}
@@ -453,12 +446,11 @@ class LiveDataStore {
   // --------------------------------------------------------------------------
   public async getBoms(): Promise<BomMaster[]> {
     try {
-      const { data, error } = await db.findMany<BomMaster>('boms', {
-        orderBy: 'created_at',
-        ascending: false,
+      const data = await db.findMany<BomMaster>('boms', {
+        orderBy: { column: 'created_at', ascending: false },
       });
 
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data) && data.length > 0) {
         return data;
       }
     } catch {}
@@ -483,12 +475,11 @@ class LiveDataStore {
 
   public async getMachines(): Promise<MachineMaster[]> {
     try {
-      const { data, error } = await db.findMany<MachineMaster>('machines', {
-        orderBy: 'machine_code',
-        ascending: true,
+      const data = await db.findMany<MachineMaster>('machines', {
+        orderBy: { column: 'machine_code', ascending: true },
       });
 
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data) && data.length > 0) {
         return data;
       }
     } catch {}
@@ -583,12 +574,11 @@ class LiveDataStore {
   // --------------------------------------------------------------------------
   public async getAccounts(): Promise<Account[]> {
     try {
-      const { data, error } = await db.findMany<Account>('accounts', {
-        orderBy: 'code',
-        ascending: true,
+      const data = await db.findMany<Account>('accounts', {
+        orderBy: { column: 'code', ascending: true },
       });
 
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data) && data.length > 0) {
         return data;
       }
     } catch {}
@@ -621,12 +611,11 @@ class LiveDataStore {
 
   public async getJournalEntries(): Promise<JournalEntry[]> {
     try {
-      const { data, error } = await db.findMany<JournalEntry>('journal_entries', {
-        orderBy: 'created_at',
-        ascending: false,
+      const data = await db.findMany<JournalEntry>('journal_entries', {
+        orderBy: { column: 'created_at', ascending: false },
       });
 
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data) && data.length > 0) {
         return data;
       }
     } catch {}
@@ -661,12 +650,11 @@ class LiveDataStore {
   // --------------------------------------------------------------------------
   public async getQuotations(): Promise<Quotation[]> {
     try {
-      const { data, error } = await db.findMany<Quotation>('quotations', {
-        orderBy: 'created_at',
-        ascending: false,
+      const data = await db.findMany<Quotation>('quotations', {
+        orderBy: { column: 'created_at', ascending: false },
       });
 
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data) && data.length > 0) {
         return data;
       }
     } catch {}
@@ -691,12 +679,11 @@ class LiveDataStore {
 
   public async getRmas(): Promise<ReturnMerchandise[]> {
     try {
-      const { data, error } = await db.findMany<ReturnMerchandise>('rmas', {
-        orderBy: 'created_at',
-        ascending: false,
+      const data = await db.findMany<ReturnMerchandise>('rmas', {
+        orderBy: { column: 'created_at', ascending: false },
       });
 
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data) && data.length > 0) {
         return data;
       }
     } catch {}

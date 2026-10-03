@@ -115,12 +115,11 @@ class SalesDataService {
 
   public async getSalesOrders(): Promise<PlasticSalesOrder[]> {
     try {
-      const { data, error } = await db.findMany<any>('sales_orders', {
-        orderBy: 'created_at',
-        ascending: false,
+      const data = await db.findMany<any>('sales_orders', {
+        orderBy: { column: 'created_at', ascending: false },
       });
 
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data) && data.length > 0) {
         const mapped: PlasticSalesOrder[] = data.map((d: any) => ({
           id: d.id,
           linkType: d.link_type || 'STANDARD',
@@ -274,12 +273,11 @@ class SalesDataService {
 
   public async getMonthlyPlans(): Promise<MonthlyPlanOrder[]> {
     try {
-      const { data, error } = await db.findMany<any>('monthly_plan_orders', {
-        orderBy: 'created_at',
-        ascending: false,
+      const data = await db.findMany<any>('monthly_plan_orders', {
+        orderBy: { column: 'created_at', ascending: false },
       });
 
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data) && data.length > 0) {
         const mapped: MonthlyPlanOrder[] = data.map((d: any) => ({
           id: d.id,
           customer: d.customer,
