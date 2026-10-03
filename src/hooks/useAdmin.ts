@@ -102,6 +102,61 @@ export function useDeleteAdminUser() {
   });
 }
 
+export function useChangeAdminUserPassword() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, newPassword }: { userId: string; newPassword: string }) => {
+      return adminService.resetUserPassword(userId, newPassword);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.users() });
+    },
+  });
+}
+
+export function useGenerateAdminUserOtp() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      return adminService.generateTempOtp(userId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.users() });
+    },
+  });
+}
+
+export function useVerifyAdminUserOtp() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, code }: { userId: string; code: string }) => {
+      return adminService.verifyUserOtp(userId, code);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.users() });
+    },
+  });
+}
+
+export function useProvisionAdminUserRbac() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      userId,
+      rbacData,
+    }: {
+      userId: string;
+      rbacData: { roleId: string; plantIds: string[]; department?: string; designation?: string; assignedShift?: string };
+    }) => {
+      return adminService.provisionUserRbac(userId, rbacData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.users() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.roles() });
+    },
+  });
+}
+
 // ============================================================================
 // 3. ROLES & PERMISSIONS & SOD
 // ============================================================================

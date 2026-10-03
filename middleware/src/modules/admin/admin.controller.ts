@@ -13,6 +13,10 @@ import { AdminService } from './admin.service';
 import {
   CreateUserDto,
   UpdateUserDto,
+  ChangePasswordDto,
+  GenerateTempOtpDto,
+  VerifyUserOtpDto,
+  ProvisionRbacDto,
   CreateUserGroupDto,
   AddMemberDto,
   CreateRoleDto,
@@ -92,6 +96,33 @@ export class AdminController {
   async resetPin(@Param('id') id: string, @Body('pin') pin: string, @Req() req: any) {
     const actorId = req.user?.id || 'USR-ADMIN-01';
     const result = await this.adminService.resetUserPin(id, pin || '1234', actorId);
+    return result;
+  }
+
+  @Post('users/:id/change-password')
+  async changePassword(@Param('id') id: string, @Body() dto: ChangePasswordDto, @Req() req: any) {
+    const actorId = req.user?.id || 'USR-ADMIN-01';
+    const result = await this.adminService.changeUserPassword(id, dto, actorId);
+    return result;
+  }
+
+  @Post('users/:id/generate-temp-otp')
+  async generateTempOtp(@Param('id') id: string, @Body() dto: GenerateTempOtpDto, @Req() req: any) {
+    const actorId = req.user?.id || 'USR-ADMIN-01';
+    const result = await this.adminService.generateTempOtp(id, dto, actorId);
+    return result;
+  }
+
+  @Post('users/:id/verify-otp')
+  async verifyOtp(@Param('id') id: string, @Body() dto: VerifyUserOtpDto) {
+    const result = await this.adminService.verifyUserOtp(id, dto);
+    return result;
+  }
+
+  @Put('users/:id/provision-rbac')
+  async provisionRbac(@Param('id') id: string, @Body() dto: ProvisionRbacDto, @Req() req: any) {
+    const actorId = req.user?.id || 'USR-ADMIN-01';
+    const result = await this.adminService.provisionUserRbac(id, dto, actorId);
     return result;
   }
 

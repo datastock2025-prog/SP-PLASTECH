@@ -29,6 +29,32 @@ export type CreateUserDto = z.infer<typeof CreateUserDtoSchema>;
 export const UpdateUserDtoSchema = CreateUserDtoSchema.partial();
 export type UpdateUserDto = z.infer<typeof UpdateUserDtoSchema>;
 
+export const ChangePasswordDtoSchema = z.object({
+  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+  pin: z.string().length(4).optional(),
+});
+export type ChangePasswordDto = z.infer<typeof ChangePasswordDtoSchema>;
+
+export const GenerateTempOtpDtoSchema = z.object({
+  validHours: z.number().int().min(1).max(72).default(24),
+  generatedBy: z.string().default('Super Admin'),
+});
+export type GenerateTempOtpDto = z.infer<typeof GenerateTempOtpDtoSchema>;
+
+export const VerifyUserOtpDtoSchema = z.object({
+  code: z.string().min(4).max(8),
+});
+export type VerifyUserOtpDto = z.infer<typeof VerifyUserOtpDtoSchema>;
+
+export const ProvisionRbacDtoSchema = z.object({
+  roleId: z.string().min(1),
+  plantIds: z.array(z.string()).min(1),
+  assignedShift: z.string().optional(),
+  department: z.string().optional(),
+  designation: z.string().optional(),
+});
+export type ProvisionRbacDto = z.infer<typeof ProvisionRbacDtoSchema>;
+
 // ==========================================
 // SCREEN 2: USER GROUPS & CREWS
 // ==========================================

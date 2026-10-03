@@ -62,6 +62,8 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
   const [copiedOtp, setCopiedOtp] = useState(false);
   const [adminNewPassword, setAdminNewPassword] = useState('');
   const [adminNewUserId, setAdminNewUserId] = useState('');
+  const [testOtpInput, setTestOtpInput] = useState('');
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [activeCredTab, setActiveCredTab] = useState<'otp' | 'password' | 'userId' | 'history'>('otp');
 
   useEffect(() => {
@@ -207,6 +209,32 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
       showToast(`✓ New 24-hour Temporary OTP (${res.code}) generated and copied to clipboard.`);
     } catch (err: any) {
       showToast(`Error: ${err.message}`);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!credModalUser || !testOtpInput.trim()) {
+      showToast('Please enter the 6-digit OTP to verify.');
+      return;
+    }
+    setIsVerifyingOtp(true);
+    try {
+      const res = await adminService.verifyUserOtp(credModalUser.id, testOtpInput.trim());
+      if (res.success) {
+        refetchUsers();
+        const updated = users.find((u) => u.id === credModalUser.id);
+        if (updated) {
+          setCredModalUser({ ...updated });
+        }
+        setTestOtpInput('');
+        showToast('✓ OTP verified successfully via NestJS Middleware API.');
+      } else {
+        showToast(`Verification failed: ${res.message}`);
+      }
+    } catch (err: any) {
+      showToast(`Error: ${err.message}`);
+    } finally {
+      setIsVerifyingOtp(false);
     }
   };
 
@@ -867,15 +895,34 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = (_ms
                     </div>
                   </div>
 
-                  <div className="flex justify-center pt-2">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
                     <button
                       type="button"
                       onClick={handleRegenerateTempOtp}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0F8B8D] hover:bg-[#0c7274] text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+                      className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#0F8B8D] hover:bg-[#0c7274] text-white font-bold text-xs shadow-md transition-all cursor-pointer w-full sm:w-auto"
                     >
                       <RefreshCw className="w-4 h-4" />
                       <span>Generate Fresh 24-Hour Temp OTP</span>
                     </button>
+
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={testOtpInput}
+                        onChange={(e) => setTestOtpInput(e.target.value.replace(/\D/g, ''))}
+                        placeholder="Enter 6-digit OTP"
+                        className="px-3 py-2 rounded-xl border border-slate-300 font-mono text-xs w-36 text-center focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
+                      />
+                      <button
+                        type="button"
+                        disabled={isVerifyingOtp || !testOtpInput}
+                        onClick={handleVerifyOtp}
+                        className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                      >
+                        {isVerifyingOtp ? 'Verifying...' : 'Verify OTP API'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

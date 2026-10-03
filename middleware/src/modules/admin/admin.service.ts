@@ -7,6 +7,14 @@ import {
   CreateUserDtoSchema,
   UpdateUserDto,
   UpdateUserDtoSchema,
+  ChangePasswordDto,
+  ChangePasswordDtoSchema,
+  GenerateTempOtpDto,
+  GenerateTempOtpDtoSchema,
+  VerifyUserOtpDto,
+  VerifyUserOtpDtoSchema,
+  ProvisionRbacDto,
+  ProvisionRbacDtoSchema,
   CreateUserGroupDto,
   CreateUserGroupDtoSchema,
   AddMemberDto,
@@ -265,6 +273,167 @@ export class AdminService {
       [pinHash, actorId, userId]
     );
     return { success: true, message: `PIN for user ${userId} reset to default.` };
+  }
+
+  public async changeUserPassword(userId: string, dto: ChangePasswordDto, actorId: string = 'USR-ADMIN-01') {
+    const parsed = ChangePasswordDtoSchema.parse(dto);
+    const existing = await this.getUserById(userId);
+    const passwordHash = await bcrypt.hash(parsed.newPassword, 10);
+    let pinUpdateSql = '';
+    const params: any[] = [passwordHash, actorId, userId];
+
+    if (parsed.pin) {
+      const pinHash = await bcrypt.hash(parsed.pin, 10);
+      params.push(pinHash);
+      pinUpdateSql = `, pin_hash = $${params.length}`;
+    }
+
+    await this.db.query(
+      `UPDATE auth_users SET
+        password_hash = $1,
+        temp_otp_is_used = true,
+        version = version + 1,
+        updated_by = $2,
+        updated_at = NOW()
+        ${pinUpdateSql}
+       WHERE id = $3 AND deleted_at IS NULL`,
+      params
+    );
+
+    // Invalidate prior active sessions to enforce re-login
+    await this.db.query(
+      `UPDATE auth_active_sessions SET is_revoked = true WHERE user_id = $1`,
+      [userId]
+    );
+
+    await this.logSecurityEvent(existing.tenant_id, actorId, 'USER_PASSWORD_CHANGED', 'INFO', {
+      targetUserId: userId,
+      changedBy: actorId,
+    });
+
+    return { success: true, message: `Password successfully updated for user ${userId}.` };
+  }
+
+  public async generateTempOtp(userId: string, dto: GenerateTempOtpDto, actorId: string = 'USR-ADMIN-01') {
+    const parsed = GenerateTempOtpDtoSchema.parse(dto);
+    const existing = await this.getUserById(userId);
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + (parsed.validHours || 24) * 60 * 60 * 1000);
+
+    await this.db.query(
+      `UPDATE auth_users SET
+        temp_otp = $1,
+        temp_otp_expires_at = $2,
+        temp_otp_is_used = false,
+        updated_by = $3,
+        updated_at = NOW()
+       WHERE id = $4 AND deleted_at IS NULL`,
+      [otpCode, expiresAt.toISOString(), actorId, userId]
+    );
+
+    await this.logSecurityEvent(existing.tenant_id, actorId, 'TEMP_OTP_GENERATED', 'INFO', {
+      targetUserId: userId,
+      expiresAt: expiresAt.toISOString(),
+      generatedBy: parsed.generatedBy || actorId,
+    });
+
+    return {
+      success: true,
+      userId,
+      code: otpCode,
+      expiresAt: expiresAt.toISOString(),
+      validHours: parsed.validHours || 24,
+      generatedBy: parsed.generatedBy || actorId,
+      message: `24-hour Temporary OTP generated successfully.`,
+    };
+  }
+
+  public async verifyUserOtp(userId: string, dto: VerifyUserOtpDto) {
+    const parsed = VerifyUserOtpDtoSchema.parse(dto);
+    const res = await this.db.query(
+      `SELECT id, temp_otp, temp_otp_expires_at, temp_otp_is_used, status, tenant_id
+       FROM auth_users
+       WHERE id = $1 AND deleted_at IS NULL`,
+      [userId]
+    );
+
+    if (res.rows.length === 0) {
+      throw new NotFoundException(`User ${userId} not found.`);
+    }
+
+    const user = res.rows[0];
+    if (!user.temp_otp || user.temp_otp !== parsed.code) {
+      throw new BadRequestException('Invalid or incorrect OTP code.');
+    }
+
+    if (user.temp_otp_is_used) {
+      throw new BadRequestException('This OTP has already been used.');
+    }
+
+    if (user.temp_otp_expires_at && new Date() > new Date(user.temp_otp_expires_at)) {
+      throw new BadRequestException('OTP code has expired. Please request a new code.');
+    }
+
+    // Mark OTP as used and activate account if pending
+    await this.db.query(
+      `UPDATE auth_users SET
+        temp_otp_is_used = true,
+        status = CASE WHEN status = 'Pending Verification' THEN 'Active' ELSE status END,
+        updated_at = NOW()
+       WHERE id = $1`,
+      [userId]
+    );
+
+    await this.logSecurityEvent(user.tenant_id, userId, 'TEMP_OTP_VERIFIED', 'INFO', {
+      targetUserId: userId,
+    });
+
+    return {
+      success: true,
+      verified: true,
+      message: 'OTP successfully verified. Account authenticated.',
+    };
+  }
+
+  public async provisionUserRbac(userId: string, dto: ProvisionRbacDto, actorId: string = 'USR-ADMIN-01') {
+    const parsed = ProvisionRbacDtoSchema.parse(dto);
+    const existing = await this.getUserById(userId);
+
+    const plantIdsJson = JSON.stringify(parsed.plantIds);
+    const department = parsed.department || existing.department;
+    const designation = parsed.designation || existing.designation;
+    const assignedShift = parsed.assignedShift || existing.assigned_shift;
+
+    await this.db.query(
+      `UPDATE auth_users SET
+        role_id = $1,
+        plant_ids = $2,
+        department = $3,
+        designation = $4,
+        assigned_shift = $5,
+        version = version + 1,
+        updated_by = $6,
+        updated_at = NOW()
+       WHERE id = $7 AND deleted_at IS NULL`,
+      [parsed.roleId, plantIdsJson, department, designation, assignedShift, actorId, userId]
+    );
+
+    await this.logSecurityEvent(existing.tenant_id, actorId, 'USER_RBAC_PROVISIONED', 'INFO', {
+      targetUserId: userId,
+      roleId: parsed.roleId,
+      plantIds: parsed.plantIds,
+      provisionedBy: actorId,
+    });
+
+    return {
+      success: true,
+      userId,
+      roleId: parsed.roleId,
+      plantIds: parsed.plantIds,
+      department,
+      designation,
+      message: `RBAC permissions and multi-plant access provisioned for user ${userId}.`,
+    };
   }
 
   // ============================================================================

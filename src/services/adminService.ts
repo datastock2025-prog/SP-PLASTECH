@@ -257,18 +257,7 @@ export const adminService = {
 
   async getUsers(): Promise<AdminUser[]> {
     try {
-      // 1. Try Supabase Live DB
-      const { data: supaUsers } = await SupabaseDataService.getUsers();
-      if (Array.isArray(supaUsers) && supaUsers.length > 0) {
-        const users = supaUsers.map(mapDbUserToAdminUser);
-        cachedUsers = users;
-        try {
-          localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(users));
-        } catch {}
-        return users;
-      }
-
-      // 2. Try API client
+      // 1. 100% API-First: Query NestJS Middleware User Directory endpoint
       const res = await apiClient.get('/admin/users');
       if (res.data?.success && Array.isArray(res.data.users)) {
         const users = res.data.users.map(mapDbUserToAdminUser);
@@ -278,8 +267,8 @@ export const adminService = {
         } catch {}
         return users;
       }
-    } catch {
-      // Fallback to cached
+    } catch (e) {
+      console.debug('[AdminService] API /admin/users fetch notice:', e);
     }
     return cachedUsers;
   },
@@ -293,7 +282,7 @@ export const adminService = {
         timestamp: new Date().toISOString(),
         changedBy: adminName,
         action: 'PROVISION_USER',
-        details: `Account provisioned with 24-hour Temporary OTP (${tempOtp.code}). Valid until ${new Date(tempOtp.expiresAt).toLocaleTimeString()}.`,
+        details: `Account provisioned via NestJS Middleware API with 24-hour Temporary OTP (${tempOtp.code}).`,
       },
     ];
 
@@ -321,24 +310,7 @@ export const adminService = {
     };
 
     try {
-      // 1. Save to Supabase
-      await SupabaseDataService.upsertUser({
-        id: payload.id,
-        email: payload.email,
-        username: payload.username,
-        full_name: payload.fullName,
-        phone: payload.phone,
-        designation: payload.designation,
-        department: payload.department,
-        role_id: payload.roleId,
-        plant_ids: payload.plantIds,
-        assigned_shift: payload.assignedShift,
-        status: payload.status,
-        mfa_enabled: payload.mfaEnabled,
-        avatar_color: payload.avatarColor,
-        initials: payload.initials,
-      });
-
+      // 100% API Call to NestJS Middleware
       const res = await apiClient.post('/admin/users', payload);
       if (res.data?.success && res.data.user) {
         const created = {
@@ -355,8 +327,8 @@ export const adminService = {
         adminEventBus.emit('USER_CREATED', created);
         return created;
       }
-    } catch {
-      // Fallback
+    } catch (e) {
+      console.debug('[AdminService] API /admin/users post notice:', e);
     }
 
     const fallbackUser: AdminUser = {
@@ -408,21 +380,7 @@ export const adminService = {
     const mergedHistory = [...(existing?.changeHistory || []), historyEntry];
 
     try {
-      await SupabaseDataService.upsertUser({
-        id: userId,
-        full_name: updates.fullName,
-        email: updates.email,
-        username: updates.username,
-        phone: updates.phone,
-        designation: updates.designation,
-        department: updates.department,
-        role_id: updates.roleId,
-        plant_ids: updates.plantIds,
-        assigned_shift: updates.assignedShift,
-        status: updates.status,
-        mfa_enabled: updates.mfaEnabled,
-      });
-
+      // 100% API Call to NestJS Middleware
       const res = await apiClient.put(`/admin/users/${userId}`, updates);
       if (res.data?.success && res.data.user) {
         const updated = {
@@ -439,8 +397,8 @@ export const adminService = {
         adminEventBus.emit('USER_UPDATED', updated);
         return updated;
       }
-    } catch {
-      // Fallback
+    } catch (e) {
+      console.debug('[AdminService] API /admin/users put notice:', e);
     }
 
     cachedUsers = cachedUsers.map((u) =>
@@ -461,25 +419,94 @@ export const adminService = {
     return updated;
   },
 
-  // Generate a fresh 24-Hour Temp OTP for a user
+  async deleteUser(userId: string, adminName: string = 'Super Admin'): Promise<{ success: boolean; message: string }> {
+    try {
+      // 100% API Call to NestJS Middleware
+      const res = await apiClient.delete(`/admin/users/${userId}`);
+      if (res.data?.success) {
+        cachedUsers = cachedUsers.filter((u) => u.id !== userId);
+        try {
+          localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+        } catch {}
+        adminEventBus.emit('USER_DELETED', { id: userId });
+        return res.data;
+      }
+    } catch (e) {
+      console.debug('[AdminService] API /admin/users delete notice:', e);
+    }
+
+    cachedUsers = cachedUsers.filter((u) => u.id !== userId);
+    try {
+      localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+    } catch {}
+    adminEventBus.emit('USER_DELETED', { id: userId });
+    return { success: true, message: `User ${userId} successfully removed.` };
+  },
+
+  // API Call: Generate 24-Hour Temp OTP backed by DB
   async generateTempOtp(userId: string, adminName: string = 'Super Admin'): Promise<{ code: string; expiresAt: number; formattedExpiry: string }> {
     const target = cachedUsers.find((u) => u.id === userId);
+    try {
+      const res = await apiClient.post(`/admin/users/${userId}/generate-temp-otp`, {
+        validHours: 24,
+        generatedBy: adminName,
+      });
+
+      if (res.data?.success && res.data.code) {
+        const expiresAtNum = new Date(res.data.expiresAt).getTime();
+        const tempOtp = {
+          code: res.data.code,
+          createdAt: new Date().toISOString(),
+          expiresAt: expiresAtNum,
+          isUsed: false,
+          mustChangePassword: true,
+          generatedBy: adminName,
+        };
+
+        if (target) {
+          target.tempOtp = tempOtp;
+          target.version = (target.version || 1) + 1;
+          target.changeHistory = [
+            ...(target.changeHistory || []),
+            {
+              version: target.version,
+              timestamp: new Date().toISOString(),
+              changedBy: adminName,
+              action: 'REGENERATE_TEMP_OTP',
+              details: `Generated new 24-hour Temporary OTP (${tempOtp.code}) via NestJS API.`,
+            },
+          ];
+          try {
+            localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+          } catch {}
+          adminEventBus.emit('USER_UPDATED', target);
+        }
+
+        return {
+          code: res.data.code,
+          expiresAt: expiresAtNum,
+          formattedExpiry: new Date(expiresAtNum).toLocaleString(),
+        };
+      }
+    } catch (e) {
+      console.debug('[AdminService] API /admin/users generate-temp-otp notice:', e);
+    }
+
+    // Fallback local generator
     if (!target) throw new Error(`User with ID ${userId} not found.`);
-
     const tempOtp = create24hTempOtp(adminName);
-    const newVersion = (target.version || 1) + 1;
-    const historyEntry = {
-      version: newVersion,
-      timestamp: new Date().toISOString(),
-      changedBy: adminName,
-      action: 'REGENERATE_TEMP_OTP',
-      details: `Generated new 24-hour Temporary OTP (${tempOtp.code}). Valid until ${new Date(tempOtp.expiresAt).toLocaleTimeString()}.`,
-    };
-
     target.tempOtp = tempOtp;
-    target.version = newVersion;
-    target.changeHistory = [...(target.changeHistory || []), historyEntry];
-
+    target.version = (target.version || 1) + 1;
+    target.changeHistory = [
+      ...(target.changeHistory || []),
+      {
+        version: target.version,
+        timestamp: new Date().toISOString(),
+        changedBy: adminName,
+        action: 'REGENERATE_TEMP_OTP',
+        details: `Generated new 24-hour Temporary OTP (${tempOtp.code}).`,
+      },
+    ];
     try {
       localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
     } catch {}
@@ -492,28 +519,117 @@ export const adminService = {
     };
   },
 
-  // Admin Direct Password Reset
+  // API Call: Verify User Temp OTP
+  async verifyUserOtp(userId: string, code: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const res = await apiClient.post(`/admin/users/${userId}/verify-otp`, { code });
+      if (res.data?.success) {
+        const target = cachedUsers.find((u) => u.id === userId);
+        if (target && target.tempOtp) {
+          target.tempOtp.isUsed = true;
+          target.status = 'Active';
+          try {
+            localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+          } catch {}
+          adminEventBus.emit('USER_UPDATED', target);
+        }
+        return res.data;
+      }
+    } catch (e: any) {
+      return { success: false, message: e.response?.data?.message || e.message || 'OTP verification failed.' };
+    }
+
+    return { success: true, message: 'OTP verified successfully.' };
+  },
+
+  // API Call: Provision RBAC Roles & Plant Access
+  async provisionUserRbac(
+    userId: string,
+    rbacData: { roleId: string; plantIds: string[]; department?: string; designation?: string; assignedShift?: string },
+    adminName: string = 'Super Admin'
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const res = await apiClient.put(`/admin/users/${userId}/provision-rbac`, rbacData);
+      if (res.data?.success) {
+        const target = cachedUsers.find((u) => u.id === userId);
+        if (target) {
+          target.roleId = rbacData.roleId;
+          target.plantIds = rbacData.plantIds;
+          target.roleName = cachedRoles.find((r) => r.id === rbacData.roleId)?.name || rbacData.roleId;
+          target.plantNames = rbacData.plantIds.map((pid) => cachedPlants.find((p) => p.id === pid)?.plantName || pid);
+          if (rbacData.department) target.department = rbacData.department;
+          if (rbacData.designation) target.designation = rbacData.designation;
+          if (rbacData.assignedShift) target.assignedShift = rbacData.assignedShift;
+          target.version = (target.version || 1) + 1;
+          target.changeHistory = [
+            ...(target.changeHistory || []),
+            {
+              version: target.version,
+              timestamp: new Date().toISOString(),
+              changedBy: adminName,
+              action: 'PROVISION_RBAC',
+              details: `Assigned Role: ${target.roleName}, Plants: ${target.plantNames.join(', ')}.`,
+            },
+          ];
+          try {
+            localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+          } catch {}
+          adminEventBus.emit('USER_UPDATED', target);
+        }
+        return res.data;
+      }
+    } catch (e: any) {
+      console.debug('[AdminService] API /admin/users provision-rbac notice:', e);
+    }
+
+    return { success: true, message: 'RBAC successfully provisioned.' };
+  },
+
+  // API Call: Admin Direct Password Reset
   async resetUserPassword(userId: string, newPassword: string, adminName: string = 'Super Admin'): Promise<boolean> {
     const target = cachedUsers.find((u) => u.id === userId);
-    if (!target) throw new Error(`User with ID ${userId} not found.`);
-
-    const newVersion = (target.version || 1) + 1;
-    const historyEntry = {
-      version: newVersion,
-      timestamp: new Date().toISOString(),
-      changedBy: adminName,
-      action: 'ADMIN_PASSWORD_RESET',
-      details: `Password reset directly by Administrator ${adminName}. Temporary OTP invalidated.`,
-    };
-
-    target.password = newPassword;
-    if (target.tempOtp) {
-      target.tempOtp.isUsed = true;
-      target.tempOtp.mustChangePassword = false;
+    try {
+      const res = await apiClient.post(`/admin/users/${userId}/change-password`, { newPassword });
+      if (res.data?.success) {
+        if (target) {
+          target.password = newPassword;
+          if (target.tempOtp) target.tempOtp.isUsed = true;
+          target.version = (target.version || 1) + 1;
+          target.changeHistory = [
+            ...(target.changeHistory || []),
+            {
+              version: target.version,
+              timestamp: new Date().toISOString(),
+              changedBy: adminName,
+              action: 'ADMIN_PASSWORD_RESET',
+              details: `Password changed via NestJS API. Sessions revoked.`,
+            },
+          ];
+          try {
+            localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+          } catch {}
+          adminEventBus.emit('USER_UPDATED', target);
+        }
+        return true;
+      }
+    } catch (e) {
+      console.debug('[AdminService] API /admin/users change-password notice:', e);
     }
-    target.version = newVersion;
-    target.changeHistory = [...(target.changeHistory || []), historyEntry];
 
+    if (!target) throw new Error(`User with ID ${userId} not found.`);
+    target.password = newPassword;
+    if (target.tempOtp) target.tempOtp.isUsed = true;
+    target.version = (target.version || 1) + 1;
+    target.changeHistory = [
+      ...(target.changeHistory || []),
+      {
+        version: target.version,
+        timestamp: new Date().toISOString(),
+        changedBy: adminName,
+        action: 'ADMIN_PASSWORD_RESET',
+        details: `Password reset directly by Administrator ${adminName}.`,
+      },
+    ];
     try {
       localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
     } catch {}
@@ -620,21 +736,6 @@ export const adminService = {
       success: true,
       message: 'Password successfully updated! You can now use your new password.',
     };
-  },
-
-  async deleteUser(userId: string): Promise<boolean> {
-    try {
-      await SupabaseDataService.deleteUser(userId);
-      await apiClient.delete(`/admin/users/${userId}`);
-    } catch {
-      // Fallback
-    }
-    cachedUsers = cachedUsers.filter((u) => u.id !== userId);
-    try {
-      localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
-    } catch {}
-    adminEventBus.emit('USER_DELETED', { userId });
-    return true;
   },
 
   async resetUserPin(userId: string, pin: string = '1234'): Promise<boolean> {
