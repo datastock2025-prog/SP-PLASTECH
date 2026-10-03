@@ -91,7 +91,13 @@ export class SupabaseAdapter implements IDatabaseAdapter {
 
     const { data, error } = await query;
     if (error) {
-      console.debug(`[SupabaseAdapter] findMany(${table}) note:`, error.message);
+      if (error.code === 'PGRST205' || error.code === '42P01' || error.message?.includes('schema cache')) {
+        console.debug(`[SupabaseAdapter] Table "${table}" pending schema cache sync. Falling back to local store.`);
+      } else if (error.message?.includes('aborted') || error.name === 'AbortError') {
+        // Safe lifecycle unmount cancellation
+      } else {
+        console.warn(`[SupabaseAdapter] findMany(${table}) query issue:`, error.message);
+      }
       return [];
     }
     return (data || []) as T[];
@@ -105,7 +111,9 @@ export class SupabaseAdapter implements IDatabaseAdapter {
       .maybeSingle();
 
     if (error) {
-      console.debug(`[SupabaseAdapter] findOne(${table}, ${idOrKey}) note:`, error.message);
+      if (error.code === 'PGRST205' || error.code === '42P01' || error.message?.includes('schema cache')) {
+        console.debug(`[SupabaseAdapter] Table "${table}" pending schema cache sync.`);
+      }
       return null;
     }
     return (data as T) || null;
@@ -133,7 +141,9 @@ export class SupabaseAdapter implements IDatabaseAdapter {
       .select();
 
     if (error) {
-      console.debug(`[SupabaseAdapter] upsert(${table}) note:`, error.message);
+      if (error.code !== 'PGRST205' && error.code !== '42P01') {
+        console.debug(`[SupabaseAdapter] upsert(${table}) note:`, error.message);
+      }
       return Array.isArray(record) ? record[0] : record;
     }
     return (Array.isArray(data) ? data[0] : data) as T;
