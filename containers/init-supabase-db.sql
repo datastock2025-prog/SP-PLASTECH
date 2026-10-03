@@ -303,6 +303,92 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
   timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS public.quotations (
+  id VARCHAR(64) PRIMARY KEY,
+  quote_number VARCHAR(64) UNIQUE NOT NULL,
+  customer_id VARCHAR(64) NOT NULL,
+  customer_name VARCHAR(255),
+  total_value NUMERIC(15,2) DEFAULT 0.00,
+  status VARCHAR(32) DEFAULT 'Draft',
+  valid_until DATE,
+  items JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.rmas (
+  id VARCHAR(64) PRIMARY KEY,
+  rma_number VARCHAR(64) UNIQUE NOT NULL,
+  customer_id VARCHAR(64),
+  customer_name VARCHAR(255),
+  status VARCHAR(32) DEFAULT 'Pending',
+  reason TEXT,
+  items JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.boms (
+  id VARCHAR(64) PRIMARY KEY,
+  item_code VARCHAR(64) NOT NULL,
+  version VARCHAR(32) DEFAULT 'v1.0',
+  status VARCHAR(32) DEFAULT 'Active',
+  components JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.quality_ncrs (
+  id VARCHAR(64) PRIMARY KEY,
+  ncr_number VARCHAR(64) UNIQUE NOT NULL,
+  severity VARCHAR(32) DEFAULT 'Medium',
+  status VARCHAR(32) DEFAULT 'Open',
+  description TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.quality_capas (
+  id VARCHAR(64) PRIMARY KEY,
+  capa_number VARCHAR(64) UNIQUE NOT NULL,
+  status VARCHAR(32) DEFAULT 'In Progress',
+  root_cause TEXT,
+  action_plan TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.quality_coas (
+  id VARCHAR(64) PRIMARY KEY,
+  coa_number VARCHAR(64) UNIQUE NOT NULL,
+  item_code VARCHAR(64) NOT NULL,
+  lot_number VARCHAR(64),
+  status VARCHAR(32) DEFAULT 'Approved',
+  parameters JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.accounts (
+  id VARCHAR(64) PRIMARY KEY,
+  code VARCHAR(32) UNIQUE NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  type VARCHAR(64) NOT NULL,
+  balance NUMERIC(15,2) DEFAULT 0.00,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.journal_entries (
+  id VARCHAR(64) PRIMARY KEY,
+  je_number VARCHAR(64) UNIQUE NOT NULL,
+  date DATE NOT NULL,
+  status VARCHAR(32) DEFAULT 'Posted',
+  lines JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- 5. ROW LEVEL SECURITY (RLS) POLICIES (SECURITY ENFORCEMENT)
 ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.items ENABLE ROW LEVEL SECURITY;
@@ -317,37 +403,35 @@ ALTER TABLE public.customer_po_versions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dispatch_documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.purchase_orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.quotations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rmas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.boms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.quality_ncrs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.quality_capas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.quality_coas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.journal_entries ENABLE ROW LEVEL SECURITY;
 
--- Read policies
-CREATE POLICY "Allow public read access on suppliers" ON public.suppliers FOR SELECT TO anon, authenticated, service_role USING (true);
-CREATE POLICY "Allow public read access on customers" ON public.customers FOR SELECT TO anon, authenticated, service_role USING (true);
-CREATE POLICY "Allow public read access on items" ON public.items FOR SELECT TO anon, authenticated, service_role USING (true);
-CREATE POLICY "Allow public read access on purchase orders" ON public.purchase_orders FOR SELECT TO anon, authenticated, service_role USING (true);
-CREATE POLICY "Allow public read access on sales orders" ON public.sales_orders FOR SELECT TO anon, authenticated, service_role USING (true);
-CREATE POLICY "Allow public read access on sales order lines" ON public.sales_order_lines FOR SELECT TO anon, authenticated, service_role USING (true);
-CREATE POLICY "Allow public read access on monthly plan orders" ON public.monthly_plan_orders FOR SELECT TO anon, authenticated, service_role USING (true);
-CREATE POLICY "Allow public read access on order relationships" ON public.order_relationships FOR SELECT TO anon, authenticated, service_role USING (true);
-CREATE POLICY "Allow public read access on customer po versions" ON public.customer_po_versions FOR SELECT TO anon, authenticated, service_role USING (true);
-CREATE POLICY "Allow public read access on dispatch documents" ON public.dispatch_documents FOR SELECT TO anon, authenticated, service_role USING (true);
-
--- Insert & update policies
-CREATE POLICY "Allow authenticated insert on suppliers" ON public.suppliers FOR INSERT TO anon, authenticated, service_role WITH CHECK (true);
-CREATE POLICY "Allow authenticated update on suppliers" ON public.suppliers FOR UPDATE TO anon, authenticated, service_role USING (true) WITH CHECK (true);
-CREATE POLICY "Allow authenticated insert on items" ON public.items FOR INSERT TO anon, authenticated, service_role WITH CHECK (true);
-CREATE POLICY "Allow authenticated update on items" ON public.items FOR UPDATE TO anon, authenticated, service_role USING (true) WITH CHECK (true);
-CREATE POLICY "Allow authenticated insert on sales orders" ON public.sales_orders FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
-CREATE POLICY "Allow authenticated insert on sales order lines" ON public.sales_order_lines FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
-CREATE POLICY "Allow authenticated insert on monthly plan orders" ON public.monthly_plan_orders FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
-CREATE POLICY "Allow authenticated insert on order relationships" ON public.order_relationships FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
-CREATE POLICY "Allow authenticated insert on customer po versions" ON public.customer_po_versions FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
-CREATE POLICY "Allow authenticated insert on dispatch documents" ON public.dispatch_documents FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
-CREATE POLICY "Allow authenticated insert on purchase orders" ON public.purchase_orders FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
-
--- Audit logs append-only policy
-CREATE POLICY "Allow authenticated insert audit logs" ON public.audit_logs FOR INSERT TO anon, authenticated, service_role WITH CHECK (true);
-CREATE POLICY "Allow read audit logs" ON public.audit_logs FOR SELECT TO anon, authenticated, service_role USING (true);
+-- Universal RLS Policies for All Tables
+DO $$
+DECLARE
+  t text;
+  tables text[] := ARRAY[
+    'suppliers', 'items', 'customers', 'warehouses', 'machines',
+    'sales_orders', 'sales_order_lines', 'monthly_plan_orders',
+    'order_relationships', 'customer_po_versions', 'dispatch_documents',
+    'purchase_orders', 'audit_logs', 'quotations', 'rmas', 'boms',
+    'quality_ncrs', 'quality_capas', 'quality_coas', 'accounts', 'journal_entries'
+  ];
+BEGIN
+  FOREACH t IN ARRAY tables LOOP
+    EXECUTE format('DROP POLICY IF EXISTS "Public access on %s" ON public.%I', t, t);
+    EXECUTE format('CREATE POLICY "Public access on %s" ON public.%I FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true)', t, t);
+  END LOOP;
+END $$;
 
 -- 6. GRANT TABLE PRIVILEGES
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+
 

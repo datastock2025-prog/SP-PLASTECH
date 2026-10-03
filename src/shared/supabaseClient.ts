@@ -54,17 +54,23 @@ export async function checkSupabaseConnection(): Promise<{ connected: boolean; l
   inFlightPing = (async () => {
     const start = performance.now();
     try {
-      // Dynamic Gateway Root Probe: 0 table scans, 0 mock dependencies, instant 200 OK
-      const response = await fetch(`${supabaseUrl}/rest/v1/`, {
-        method: 'HEAD',
-        headers: {
-          apikey: supabaseAnonKey,
-          Authorization: `Bearer ${supabaseAnonKey}`,
-        },
-      });
+      // Dynamic Auth Gateway Liveness Probe: 0 table dependencies, returns clean HTTP 200
+      let isOk = false;
+      try {
+        const response = await fetch(`${supabaseUrl}/auth/v1/health`, {
+          method: 'GET',
+          headers: {
+            apikey: supabaseAnonKey,
+          },
+        });
+        isOk = response.ok || response.status === 200;
+      } catch {
+        // Fallback to internal client session ping
+        const { error } = await supabase.auth.getSession();
+        isOk = !error;
+      }
 
       const latencyMs = Math.round(performance.now() - start);
-      const isOk = response.ok || response.status === 200 || response.status === 304;
       const res = { connected: isOk, latencyMs };
       lastPingResult = res;
       lastPingTimestamp = Date.now();

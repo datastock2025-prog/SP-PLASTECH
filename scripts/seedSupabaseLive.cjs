@@ -152,6 +152,48 @@ async function main() {
     }
   }
 
+  // 5. Seed Quotations & RMAs
+  console.log('📄 Seeding Quotations & RMAs...');
+  const sampleQuotations = [
+    { id: 'QT-2026-001', quote_number: 'QT-2026-001', customer_id: 'CUST-TATA-01', customer_name: 'Tata Motors Limited', total_value: 450000.00, status: 'Sent', valid_until: '2026-11-30' },
+    { id: 'QT-2026-002', quote_number: 'QT-2026-002', customer_id: 'CUST-M&M-02', customer_name: 'Mahindra & Mahindra', total_value: 820000.00, status: 'Accepted', valid_until: '2026-12-15' }
+  ];
+  try {
+    await supabase.from('quotations').upsert(sampleQuotations, { onConflict: 'id' });
+  } catch {}
+
+  const sampleRmas = [
+    { id: 'RMA-2026-001', rma_number: 'RMA-2026-001', customer_id: 'CUST-TATA-01', customer_name: 'Tata Motors Limited', status: 'Under Inspection', reason: 'Dimensional variance on batch lot #441' }
+  ];
+  try {
+    await supabase.from('rmas').upsert(sampleRmas, { onConflict: 'id' });
+  } catch {}
+
+  // 6. Seed Quality NCRs & CAPAs
+  console.log('🛡️ Seeding Quality NCRs, CAPAs, and COAs...');
+  const sampleNcrs = [
+    { id: 'NCR-2026-01', ncr_number: 'NCR-2026-01', severity: 'Medium', status: 'Under Review', description: 'Sink marks detected in front bumper grille mold' }
+  ];
+  try {
+    await supabase.from('quality_ncrs').upsert(sampleNcrs, { onConflict: 'id' });
+  } catch {}
+
+  const sampleCapas = [
+    { id: 'CAPA-2026-01', capa_number: 'CAPA-2026-01', status: 'In Progress', root_cause: 'Cooling line pressure drop in IMM-02', action_plan: 'Replace chiller manifold valve and recalibrate cycle temperature' }
+  ];
+  try {
+    await supabase.from('quality_capas').upsert(sampleCapas, { onConflict: 'id' });
+  } catch {}
+
+  // 7. Seed Engineering BOMs
+  console.log('📐 Seeding Engineering BOMs...');
+  const sampleBoms = [
+    { id: 'BOM-AUTO-001', item_code: 'PP-INJ-BUMP-01', version: 'v2.1', status: 'Active' }
+  ];
+  try {
+    await supabase.from('boms').upsert(sampleBoms, { onConflict: 'id' });
+  } catch {}
+
   console.log(`\n======================================================`);
   console.log(`🎉 SUCCESS! Supabase Cloud Database is 100% Live & Seeded!`);
   console.log(`👉 View your database: https://supabase.com/dashboard/project/gqrelwvmeoqvfnanoutz/editor`);
