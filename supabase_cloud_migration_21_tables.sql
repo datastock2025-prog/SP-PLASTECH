@@ -359,6 +359,75 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
   timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Admin Module & Master Control Tables
+CREATE TABLE IF NOT EXISTS public.users (
+  id TEXT PRIMARY KEY,
+  email TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  role TEXT DEFAULT 'USER',
+  plant_id TEXT DEFAULT 'PLANT-01',
+  shift TEXT DEFAULT 'Shift A',
+  status TEXT DEFAULT 'active',
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS public.company_settings (
+  id TEXT PRIMARY KEY DEFAULT 'primary',
+  company_name TEXT DEFAULT 'SP-PLASTECH',
+  gstin TEXT,
+  cin TEXT,
+  pan TEXT,
+  config JSONB DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS public.reason_codes (
+  id TEXT PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  department TEXT,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS public.warehouse_bins (
+  id TEXT PRIMARY KEY,
+  bin_code TEXT UNIQUE NOT NULL,
+  warehouse_id TEXT NOT NULL,
+  aisle TEXT,
+  rack TEXT,
+  shelf TEXT,
+  capacity NUMERIC(12,2) DEFAULT 1000,
+  occupied NUMERIC(12,2) DEFAULT 0,
+  status TEXT DEFAULT 'available',
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS public.supplier_price_lists (
+  id TEXT PRIMARY KEY,
+  supplier_id TEXT NOT NULL,
+  item_code TEXT NOT NULL,
+  base_price NUMERIC(12,4) NOT NULL,
+  effective_from DATE NOT NULL,
+  effective_to DATE,
+  formula_type TEXT,
+  status TEXT DEFAULT 'active',
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS public.qc_inspections (
+  id TEXT PRIMARY KEY,
+  inspection_number TEXT UNIQUE NOT NULL,
+  item_code TEXT NOT NULL,
+  lot_number TEXT,
+  inspector_id TEXT,
+  result TEXT DEFAULT 'PASSED',
+  parameters JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 3. Row Level Security Policies (Universal Public / Authenticated Access)
 DO $$
 DECLARE
@@ -368,7 +437,8 @@ DECLARE
     'sales_orders', 'sales_order_lines', 'monthly_plan_orders',
     'order_relationships', 'customer_po_versions', 'dispatch_documents',
     'purchase_orders', 'work_orders', 'audit_logs', 'quotations', 'rmas', 'boms',
-    'quality_ncrs', 'quality_capas', 'quality_coas', 'accounts', 'journal_entries'
+    'quality_ncrs', 'quality_capas', 'quality_coas', 'accounts', 'journal_entries',
+    'users', 'company_settings', 'reason_codes', 'warehouse_bins', 'supplier_price_lists', 'qc_inspections'
   ];
 BEGIN
   FOREACH t IN ARRAY tables LOOP
@@ -493,5 +563,30 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_record_id ON public.audit_logs USING b
 CREATE INDEX IF NOT EXISTS idx_audit_logs_action_entity ON public.audit_logs USING btree (action_type, entity_name);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_user_email ON public.audit_logs USING btree (user_email);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON public.audit_logs USING btree (timestamp DESC);
+
+-- 9. Admin Module, System Configuration & Master Controls
+CREATE INDEX IF NOT EXISTS idx_users_email ON public.users USING btree (email);
+CREATE INDEX IF NOT EXISTS idx_users_role ON public.users USING btree (role);
+CREATE INDEX IF NOT EXISTS idx_users_plant_shift ON public.users USING btree (plant_id, shift);
+CREATE INDEX IF NOT EXISTS idx_users_status_created ON public.users USING btree (status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_company_settings_id ON public.company_settings USING btree (id);
+
+CREATE INDEX IF NOT EXISTS idx_reason_codes_code ON public.reason_codes USING btree (code);
+CREATE INDEX IF NOT EXISTS idx_reason_codes_category ON public.reason_codes USING btree (category);
+CREATE INDEX IF NOT EXISTS idx_reason_codes_is_active ON public.reason_codes USING btree (is_active);
+
+CREATE INDEX IF NOT EXISTS idx_warehouse_bins_bin_code ON public.warehouse_bins USING btree (bin_code);
+CREATE INDEX IF NOT EXISTS idx_warehouse_bins_wh_id ON public.warehouse_bins USING btree (warehouse_id);
+CREATE INDEX IF NOT EXISTS idx_warehouse_bins_status ON public.warehouse_bins USING btree (status);
+
+CREATE INDEX IF NOT EXISTS idx_sup_price_supplier_item ON public.supplier_price_lists USING btree (supplier_id, item_code);
+CREATE INDEX IF NOT EXISTS idx_sup_price_item_code ON public.supplier_price_lists USING btree (item_code);
+CREATE INDEX IF NOT EXISTS idx_sup_price_effective ON public.supplier_price_lists USING btree (effective_from, effective_to);
+
+CREATE INDEX IF NOT EXISTS idx_qc_insp_number ON public.qc_inspections USING btree (inspection_number);
+CREATE INDEX IF NOT EXISTS idx_qc_insp_item_lot ON public.qc_inspections USING btree (item_code, lot_number);
+CREATE INDEX IF NOT EXISTS idx_qc_insp_result_created ON public.qc_inspections USING btree (result, created_at DESC);
+
 
 
