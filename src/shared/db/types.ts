@@ -9,9 +9,10 @@ export interface QueryFilter {
   where?: Record<string, any>;
   whereIn?: Record<string, any[]>;
   whereLike?: Record<string, string>;
-  orderBy?: { column: string; ascending?: boolean };
+  orderBy?: string | { column?: string; ascending?: boolean };
   limit?: number;
   offset?: number;
+  signal?: AbortSignal;
 }
 
 export interface DbResult<T> {

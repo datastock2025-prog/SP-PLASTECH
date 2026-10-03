@@ -11,10 +11,12 @@ import { SalesOrder, Quotation, ReturnMerchandise } from '../types';
 export function useSalesOrders(filter?: any) {
   return useQuery<SalesOrder[]>({
     queryKey: queryKeys.sales.orders(filter),
-    queryFn: async () => {
-      const res = await apiClient.get('/sales-orders', { params: filter });
+    queryFn: async ({ signal }) => {
+      const res = await apiClient.get('/sales-orders', { params: filter, signal });
       return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
     },
+    staleTime: 1000 * 30,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -36,10 +38,12 @@ export function useSaveSalesOrder() {
 export function useQuotations(filter?: any) {
   return useQuery<Quotation[]>({
     queryKey: queryKeys.sales.quotations(filter),
-    queryFn: async () => {
-      const res = await apiClient.get('/sales/quotations', { params: filter });
+    queryFn: async ({ signal }) => {
+      const res = await apiClient.get('/sales/quotations', { params: filter, signal });
       return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
     },
+    staleTime: 1000 * 30,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -60,10 +64,12 @@ export function useSaveQuotation() {
 export function useSalesRmas() {
   return useQuery<ReturnMerchandise[]>({
     queryKey: queryKeys.sales.rmas(),
-    queryFn: async () => {
-      const res = await apiClient.get('/sales/rmas');
+    queryFn: async ({ signal }) => {
+      const res = await apiClient.get('/sales/rmas', { signal });
       return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
     },
+    staleTime: 1000 * 30,
+    refetchOnWindowFocus: false,
   });
 }
 

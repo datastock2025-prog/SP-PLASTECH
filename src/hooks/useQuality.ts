@@ -11,10 +11,12 @@ import { NonConformanceReport, CapaReport, CertificateOfAnalysis, InspectionPlan
 export function useNcrs(filter?: any) {
   return useQuery<NonConformanceReport[]>({
     queryKey: queryKeys.quality.ncrs(filter),
-    queryFn: async () => {
-      const res = await apiClient.get('/quality/ncrs', { params: filter });
+    queryFn: async ({ signal }) => {
+      const res = await apiClient.get('/quality/ncrs', { params: filter, signal });
       return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
     },
+    staleTime: 1000 * 30,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -36,10 +38,12 @@ export function useSaveNcr() {
 export function useCapas(filter?: any) {
   return useQuery<CapaReport[]>({
     queryKey: queryKeys.quality.capas(filter),
-    queryFn: async () => {
-      const res = await apiClient.get('/quality/capas', { params: filter });
+    queryFn: async ({ signal }) => {
+      const res = await apiClient.get('/quality/capas', { params: filter, signal });
       return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
     },
+    staleTime: 1000 * 30,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -60,10 +64,12 @@ export function useSaveCapa() {
 export function useCoas(filter?: any) {
   return useQuery<CertificateOfAnalysis[]>({
     queryKey: queryKeys.quality.coas(filter),
-    queryFn: async () => {
-      const res = await apiClient.get('/quality/coas', { params: filter });
+    queryFn: async ({ signal }) => {
+      const res = await apiClient.get('/quality/coas', { params: filter, signal });
       return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
     },
+    staleTime: 1000 * 30,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -84,9 +90,11 @@ export function useSaveCoa() {
 export function useInspectionPlans() {
   return useQuery<InspectionPlan[]>({
     queryKey: queryKeys.quality.inspectionPlans(),
-    queryFn: async () => {
-      const res = await apiClient.get('/quality/inspection-plans');
+    queryFn: async ({ signal }) => {
+      const res = await apiClient.get('/quality/inspection-plans', { signal });
       return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
     },
+    staleTime: 1000 * 30,
+    refetchOnWindowFocus: false,
   });
 }

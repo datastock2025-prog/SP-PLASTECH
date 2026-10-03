@@ -85,6 +85,10 @@ export class SupabaseAdapter implements IDatabaseAdapter {
       query = query.range(filter.offset, filter.offset + limit - 1);
     }
 
+    if (filter?.signal) {
+      query = query.abortSignal(filter.signal);
+    }
+
     const { data, error } = await query;
     if (error) {
       console.debug(`[SupabaseAdapter] findMany(${table}) note:`, error.message);

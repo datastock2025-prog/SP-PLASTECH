@@ -24,6 +24,7 @@ export function useItems(filter?: any) {
       return items;
     },
     staleTime: 1000 * 30, // 30 seconds fresh cache
+    refetchOnWindowFocus: false,
   });
 }
 
