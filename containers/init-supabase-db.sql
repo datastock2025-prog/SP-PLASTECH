@@ -303,6 +303,19 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
   timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS public.work_orders (
+  id TEXT PRIMARY KEY,
+  wo_number TEXT UNIQUE,
+  item_code TEXT NOT NULL,
+  machine_id TEXT,
+  target_qty NUMERIC(12, 2) DEFAULT 0,
+  produced_qty NUMERIC(12, 2) DEFAULT 0,
+  scrap_qty NUMERIC(12, 2) DEFAULT 0,
+  status TEXT DEFAULT 'planned',
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS public.quotations (
   id VARCHAR(64) PRIMARY KEY,
   quote_number VARCHAR(64) UNIQUE NOT NULL,
@@ -402,6 +415,7 @@ ALTER TABLE public.order_relationships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.customer_po_versions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dispatch_documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.purchase_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.work_orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.quotations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.rmas ENABLE ROW LEVEL SECURITY;
@@ -420,7 +434,7 @@ DECLARE
     'suppliers', 'items', 'customers', 'warehouses', 'machines',
     'sales_orders', 'sales_order_lines', 'monthly_plan_orders',
     'order_relationships', 'customer_po_versions', 'dispatch_documents',
-    'purchase_orders', 'audit_logs', 'quotations', 'rmas', 'boms',
+    'purchase_orders', 'work_orders', 'audit_logs', 'quotations', 'rmas', 'boms',
     'quality_ncrs', 'quality_capas', 'quality_coas', 'accounts', 'journal_entries'
   ];
 BEGIN
