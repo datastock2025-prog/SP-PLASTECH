@@ -135,7 +135,15 @@ export interface ItemMaster {
   hsnCode?: string;
   alloc?: number | string;
   category?: string;
+  id?: string;
+  sellingPrice?: number;
+  minStock?: number;
+  maxStock?: number;
+  reorderPoint?: number;
+  valuationMethod?: string;
+  cycleTimeSec?: number;
 }
+
 
 export interface BomLine {
   id?: string;
