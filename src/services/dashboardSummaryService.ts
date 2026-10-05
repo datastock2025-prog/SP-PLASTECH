@@ -37,11 +37,11 @@ export const dashboardSummaryService = {
     }
 
     try {
-      // Direct live PostgreSQL queries against Supabase Cloud tables
+      // Direct live PostgreSQL queries against Supabase Cloud tables without artificial limits
       const [items, workOrders, customers] = await Promise.all([
-        db.findMany<ItemMaster>('items', { limit: 50 }),
-        db.findMany<WorkOrder>('work_orders', { limit: 50 }),
-        db.findMany<Customer>('customers', { limit: 50 }),
+        db.findMany<ItemMaster>('items', { orderBy: { column: 'created_at', ascending: false } }),
+        db.findMany<WorkOrder>('work_orders', { orderBy: { column: 'created_at', ascending: false } }),
+        db.findMany<Customer>('customers', { orderBy: { column: 'name', ascending: true } }),
       ]);
 
       const payload: DashboardSummaryPayload = {
