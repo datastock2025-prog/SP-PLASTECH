@@ -30,23 +30,48 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
   },
 });
 
-// Singleton in-flight request deduplication & TTL Cache
+// Singleton in-flight request deduplication & Session/Memory TTL Cache
+const SESSION_HEALTH_KEY = 'sp_supabase_health_ok';
+const SESSION_HEALTH_TS_KEY = 'sp_supabase_health_ts';
+const PING_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes in-memory TTL
+const SESSION_TTL_MS = 15 * 60 * 1000; // 15 minutes session storage TTL
+
 let inFlightPing: Promise<{ connected: boolean; latencyMs?: number; error?: string }> | null = null;
 let lastPingResult: { connected: boolean; latencyMs?: number; error?: string } | null = null;
 let lastPingTimestamp = 0;
-const PING_CACHE_TTL_MS = 8000; // 8 seconds TTL
 
 /**
- * Generic Health Check Utility
- * Fully dynamic and table-agnostic: does NOT query 'items' or any business table.
- * Probes the PostgREST / Kong gateway root directly.
+ * Optimized Supabase Health Check Utility
+ * - Session-level caching prevents redundant HTTP requests on component remounts / tab switches.
+ * - In-flight deduplication ensures multiple simultaneous callers share a single request.
+ * - Fully non-blocking for application startup & authentication.
  */
-export async function checkSupabaseConnection(): Promise<{ connected: boolean; latencyMs?: number; error?: string }> {
+export async function checkSupabaseConnection(
+  forceRefresh = false
+): Promise<{ connected: boolean; latencyMs?: number; error?: string }> {
   const now = Date.now();
-  if (lastPingResult && now - lastPingTimestamp < PING_CACHE_TTL_MS) {
+
+  // 1. In-memory TTL check (Fast path: 0ms)
+  if (!forceRefresh && lastPingResult && now - lastPingTimestamp < PING_CACHE_TTL_MS) {
     return lastPingResult;
   }
 
+  // 2. Browser sessionStorage check (Prevents redundant HTTP on navigation/remount)
+  if (!forceRefresh && typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
+    try {
+      const isHealthy = sessionStorage.getItem(SESSION_HEALTH_KEY);
+      const storedTs = parseInt(sessionStorage.getItem(SESSION_HEALTH_TS_KEY) || '0', 10);
+      if (isHealthy === 'true' && now - storedTs < SESSION_TTL_MS) {
+        lastPingResult = { connected: true, latencyMs: 1 };
+        lastPingTimestamp = now;
+        return lastPingResult;
+      }
+    } catch {
+      // Session storage unavailable; proceed to network check
+    }
+  }
+
+  // 3. Deduplicate in-flight network requests
   if (inFlightPing) {
     return inFlightPing;
   }
@@ -54,7 +79,6 @@ export async function checkSupabaseConnection(): Promise<{ connected: boolean; l
   inFlightPing = (async () => {
     const start = performance.now();
     try {
-      // Dynamic Auth Gateway Liveness Probe: 0 table dependencies, returns clean HTTP 200
       let isOk = false;
       try {
         const response = await fetch(`${supabaseUrl}/auth/v1/health`, {
@@ -65,18 +89,27 @@ export async function checkSupabaseConnection(): Promise<{ connected: boolean; l
         });
         isOk = response.ok || response.status === 200;
       } catch {
-        // Fallback to internal client session ping
+        // Non-blocking fallback to internal client session ping
         const { error } = await supabase.auth.getSession();
         isOk = !error;
       }
 
-      const latencyMs = Math.round(performance.now() - start);
+      const latencyMs = Math.max(1, Math.round(performance.now() - start));
       const res = { connected: isOk, latencyMs };
       lastPingResult = res;
       lastPingTimestamp = Date.now();
+
+      // Store in session storage if healthy
+      if (isOk && typeof sessionStorage !== 'undefined') {
+        try {
+          sessionStorage.setItem(SESSION_HEALTH_KEY, 'true');
+          sessionStorage.setItem(SESSION_HEALTH_TS_KEY, String(lastPingTimestamp));
+        } catch {}
+      }
+
       return res;
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown connection failure';
+      const message = err instanceof Error ? err.message : 'Connection probe failed';
       const res = { connected: false, error: message };
       lastPingResult = res;
       lastPingTimestamp = Date.now();

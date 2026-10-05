@@ -167,16 +167,20 @@ export class UniversalSyncManager {
   }
 
   private startHealthChecks() {
-    // Initial quick check
+    // Initial non-blocking check
     checkSupabaseConnection().then((res) => {
       this.setConnectionState(res.connected || (typeof navigator !== 'undefined' && navigator.onLine));
     });
 
     if (typeof window !== 'undefined') {
-      window.addEventListener('online', () => this.setConnectionState(true));
+      window.addEventListener('online', () => {
+        this.setConnectionState(true);
+        // Verify on network restore
+        checkSupabaseConnection(true).then((res) => this.setConnectionState(res.connected));
+      });
       window.addEventListener('offline', () => this.setConnectionState(false));
 
-      // Periodic check every 15 seconds
+      // Relaxed periodic heartbeat (5 minutes) instead of aggressive 15-second polling
       this.healthCheckTimer = setInterval(async () => {
         if (!navigator.onLine) {
           this.setConnectionState(false);
@@ -184,7 +188,7 @@ export class UniversalSyncManager {
         }
         const res = await checkSupabaseConnection();
         this.setConnectionState(res.connected || navigator.onLine);
-      }, 15000);
+      }, 5 * 60 * 1000);
     }
   }
 }
