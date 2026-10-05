@@ -785,90 +785,39 @@ export const adminService = {
   // PLANTS / FACILITIES
   // ============================================================================
   async getPlants(): Promise<PlantDetails[]> {
-    try {
-      const dbPlants = await db.findMany('plants');
-      if (Array.isArray(dbPlants) && dbPlants.length > 0) {
-        const plants = dbPlants.map(mapDbPlantToPlantDetails);
-        cachedPlants = plants;
-        return plants;
-      }
-    } catch {
-      // Fallback
-    }
     return cachedPlants;
   },
 
   async createPlant(plant: Partial<PlantDetails>): Promise<PlantDetails> {
-    const payload = {
-      id: plant.id,
-      code: plant.plantCode || 'PLANT-09',
-      name: plant.plantName || 'New Facility',
-      location: `${plant.city || 'Hosur'}, ${plant.state || 'Tamil Nadu'}`,
-      entityType: plant.division || 'Plant',
-      address: plant.address,
-      contactPerson: plant.contactPerson,
-      contactEmail: plant.contactEmail,
-      contactPhone: plant.contactPhone,
-      gstin: plant.gstin,
-      isDefault: !!plant.isHeadquarters,
-      isActive: true,
-    };
-
-    try {
-      const dbPlant = await db.upsert('plants', payload, 'id');
-      if (dbPlant) {
-        const created = mapDbPlantToPlantDetails(dbPlant);
-        cachedPlants.push(created);
-        adminEventBus.emit('PLANT_CREATED', created);
-        return created;
-      }
-    } catch {
-      // Fallback
-    }
-
-    const fallbackPlant: PlantDetails = {
-      id: payload.id || `PLANT-${payload.code}`,
-      plantCode: payload.code,
-      plantName: payload.name,
-      division: payload.entityType,
-      address: payload.address || 'Industrial Corridor',
+    const code = plant.plantCode || `PLANT-0${cachedPlants.length + 1}`;
+    const name = plant.plantName || 'New Facility';
+    const newPlant: PlantDetails = {
+      id: plant.id || `PLANT-${code}`,
+      plantCode: code,
+      plantName: name,
+      division: plant.division || 'Plant',
+      address: plant.address || 'Industrial Corridor',
       city: plant.city || 'Hosur',
       state: plant.state || 'Tamil Nadu',
-      pincode: '635126',
-      gstin: payload.gstin || '33AABCR1234F1Z0',
-      contactPerson: payload.contactPerson || 'Facility Head',
-      contactEmail: payload.contactEmail || 'plant@reboot-erp.com',
-      contactPhone: payload.contactPhone || '+91 98765 43210',
+      pincode: plant.pincode || '635126',
+      gstin: plant.gstin || '33AABCR1234F1Z0',
+      contactPerson: plant.contactPerson || 'Facility Head',
+      contactEmail: plant.contactEmail || 'plant@reboot-erp.com',
+      contactPhone: plant.contactPhone || '+91 98765 43210',
       totalMachines: plant.totalMachines || 12,
       activeLines: plant.activeLines || 8,
       shifts: ['Shift A (06:00-14:00)', 'Shift B (14:00-22:00)'],
-      defaultWarehouseId: `WH-${payload.code}`,
-      defaultWarehouseName: `${payload.name} Store`,
-      isHeadquarters: payload.isDefault,
+      defaultWarehouseId: `WH-${code}`,
+      defaultWarehouseName: `${name} Store`,
+      isHeadquarters: !!plant.isHeadquarters,
       operationalStatus: 'Fully Operational',
     };
-    cachedPlants.push(fallbackPlant);
-    adminEventBus.emit('PLANT_CREATED', fallbackPlant);
-    return fallbackPlant;
+    cachedPlants.push(newPlant);
+    adminEventBus.emit('PLANT_CREATED', newPlant);
+    return newPlant;
   },
 
   async updatePlant(plantId: string, updates: Partial<PlantDetails>): Promise<PlantDetails> {
-    try {
-      await db.update('plants', plantId, {
-        code: updates.plantCode,
-        name: updates.plantName,
-        location: updates.city && updates.state ? `${updates.city}, ${updates.state}` : undefined,
-        address: updates.address,
-        contact_person: updates.contactPerson,
-        contact_email: updates.contactEmail,
-        contact_phone: updates.contactPhone,
-        gstin: updates.gstin,
-        is_default: updates.isHeadquarters,
-      }, 'id');
-    } catch {
-      // Fallback
-    }
-
     cachedPlants = cachedPlants.map((p) => (p.id === plantId ? { ...p, ...updates } : p));
     const updated = cachedPlants.find((p) => p.id === plantId)!;
     adminEventBus.emit('PLANT_UPDATED', updated);
@@ -876,11 +825,6 @@ export const adminService = {
   },
 
   async deletePlant(plantId: string): Promise<boolean> {
-    try {
-      await db.delete('plants', plantId, 'id');
-    } catch {
-      // Fallback
-    }
     cachedPlants = cachedPlants.filter((p) => p.id !== plantId);
     adminEventBus.emit('PLANT_DELETED', { plantId });
     return true;

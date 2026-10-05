@@ -372,73 +372,12 @@ export const App: React.FC = () => {
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [rmas, setRmas] = useState<ReturnMerchandise[]>([]);
 
-  // Sync Item Master & All Core Entities with Live Database Store & Cross-Browser Mesh
+  // Cross-Browser Mesh & Realtime Invalidation Bridge (Lazy-loading on-demand per view)
   useEffect(() => {
-    // 0. Initialize UniversalSyncManager ↔ TanStack React Query Realtime Invalidation Bridge
+    // Initialize UniversalSyncManager ↔ TanStack React Query Realtime Invalidation Bridge
     const cleanupBridge = initializeUniversalSyncBridge();
 
-    // 1. Critical Immediate Master Data (First Paint Priority)
-    itemService.getItems().then((fetched) => {
-      if (Array.isArray(fetched)) setItems(fetched);
-    });
-
-    liveDataStore.getWorkOrders().then((woList) => {
-      if (Array.isArray(woList)) {
-        const cleanList = woList.filter((w) => !['WO-1188', 'WO-1189', 'WO-1190', 'WO-1191', 'WO-1192', 'WO-1193'].includes(w.id));
-        setWorkOrders(cleanList);
-      }
-    });
-
-    liveDataStore.getCustomers().then((custList) => {
-      if (Array.isArray(custList)) setCustomers(custList);
-    });
-
-    // 2. Secondary Operational Data (Staggered Phase 1 - 80ms delay)
-    const t1 = setTimeout(() => {
-      liveDataStore.getPurchaseOrders().then((poList) => {
-        if (Array.isArray(poList)) setPurchaseOrders(poList);
-      });
-      liveDataStore.getSalesOrders().then((soList) => {
-        if (Array.isArray(soList)) setSalesOrders(soList);
-      });
-      liveDataStore.getQuotations().then((qList) => {
-        if (Array.isArray(qList)) setQuotations(qList);
-      });
-    }, 80);
-
-    // 3. Technical & Engineering Data (Staggered Phase 2 - 200ms delay)
-    const t2 = setTimeout(() => {
-      liveDataStore.getBoms().then((bomList) => {
-        if (Array.isArray(bomList)) setBoms(bomList);
-      });
-      liveDataStore.getMachines().then((mList) => {
-        if (Array.isArray(mList)) setMachines(mList);
-      });
-      liveDataStore.getRmas().then((rmaList) => {
-        if (Array.isArray(rmaList)) setRmas(rmaList);
-      });
-    }, 200);
-
-    // 4. Quality & Finance Background Entities (Staggered Phase 3 - 350ms idle delay)
-    const t3 = setTimeout(() => {
-      liveDataStore.getNcrs().then((ncrList) => {
-        if (Array.isArray(ncrList)) setNcrs(ncrList);
-      });
-      liveDataStore.getCapas().then((capaList) => {
-        if (Array.isArray(capaList)) setCapas(capaList);
-      });
-      liveDataStore.getCoas().then((coaList) => {
-        if (Array.isArray(coaList)) setCoas(coaList);
-      });
-      liveDataStore.getAccounts().then((accList) => {
-        if (Array.isArray(accList)) setAccounts(accList);
-      });
-      liveDataStore.getJournalEntries().then((jeList) => {
-        if (Array.isArray(jeList)) setJournalEntries(jeList);
-      });
-    }, 350);
-
-    // Cross-Browser / Multi-Tab Synchronization Listeners
+    // Cross-Browser / Multi-Tab Synchronization Listeners (Triggered only on live mutation events)
     const unsubSaved = adminEventBus.on('ITEM_SAVED', (savedItem: ItemMaster) => {
       setItems((prev) => {
         const idx = prev.findIndex((i) => i.code === savedItem.code);
@@ -543,9 +482,6 @@ export const App: React.FC = () => {
     });
 
     return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
       cleanupBridge?.();
       unsubSaved?.();
       unsubDeleted?.();
