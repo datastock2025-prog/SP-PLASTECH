@@ -17,6 +17,7 @@ import { adminEventBus } from './services/adminService';
 import { liveDataStore } from './services/liveDataStore';
 import { universalSyncManager } from './services/realtime/UniversalSyncManager';
 import { initializeUniversalSyncBridge } from './services/realtime/UniversalSyncBridge';
+import { dashboardSummaryService } from './services/dashboardSummaryService';
 import { SessionTimeoutModal, MfaVerificationModal, CookieConsentModal } from './security';
 import { UserProfilePreferencesView } from './components/profile/UserProfilePreferencesView';
 
@@ -372,12 +373,26 @@ export const App: React.FC = () => {
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [rmas, setRmas] = useState<ReturnMerchandise[]>([]);
 
-  // Cross-Browser Mesh & Realtime Invalidation Bridge (Lazy-loading on-demand per view)
+  // Cross-Browser Mesh & Realtime Invalidation Bridge (Single RPC Consolidated Hydration)
   useEffect(() => {
-    // Initialize UniversalSyncManager ↔ TanStack React Query Realtime Invalidation Bridge
+    // 0. Initialize UniversalSyncManager ↔ TanStack React Query Realtime Invalidation Bridge
     const cleanupBridge = initializeUniversalSyncBridge();
 
-    // Cross-Browser / Multi-Tab Synchronization Listeners (Triggered only on live mutation events)
+    // 1. Single Consolidated PostgreSQL RPC Fetch (Replaces 15 separate round-trips)
+    dashboardSummaryService.getDashboardSummary().then((summary) => {
+      if (summary.items && summary.items.length > 0) setItems(summary.items);
+      if (summary.work_orders && summary.work_orders.length > 0) {
+        const cleanList = summary.work_orders.filter((w) => !['WO-1188', 'WO-1189', 'WO-1190', 'WO-1191', 'WO-1192', 'WO-1193'].includes(w.id));
+        setWorkOrders(cleanList);
+      }
+      if (summary.customers && summary.customers.length > 0) setCustomers(summary.customers);
+      if (summary.purchase_orders && summary.purchase_orders.length > 0) setPurchaseOrders(summary.purchase_orders);
+      if (summary.sales_orders && summary.sales_orders.length > 0) setSalesOrders(summary.sales_orders);
+      if (summary.machines && summary.machines.length > 0) setMachines(summary.machines);
+      if (summary.quality_ncrs && summary.quality_ncrs.length > 0) setNcrs(summary.quality_ncrs);
+    });
+
+    // 2. Cross-Browser / Multi-Tab Synchronization Listeners (Triggered only on live mutation events)
     const unsubSaved = adminEventBus.on('ITEM_SAVED', (savedItem: ItemMaster) => {
       setItems((prev) => {
         const idx = prev.findIndex((i) => i.code === savedItem.code);
