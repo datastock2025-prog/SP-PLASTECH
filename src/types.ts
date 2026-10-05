@@ -105,6 +105,8 @@ export interface ItemMaster {
   meltTemp?: string;
   approvedBy?: string;
   tolerance?: string;
+  storageForm?: string;
+  samplingMethod?: string;
   netWeightGrams?: number;
   cycleTime?: number;
   partWeightGrams?: number;
