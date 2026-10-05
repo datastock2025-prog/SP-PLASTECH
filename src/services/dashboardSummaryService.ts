@@ -1,4 +1,3 @@
-import { supabase } from '../shared/supabaseClient';
 import { db } from '../shared/db';
 import {
   ItemMaster,
@@ -28,8 +27,8 @@ const SUMMARY_TTL_MS = 60 * 1000; // 60s memory cache
 
 export const dashboardSummaryService = {
   /**
-   * Fetch all core screen data in ONE single consolidated PostgreSQL RPC call
-   * Endpoint: POST https://gqrelwvmeoqvfnanoutz.supabase.co/rest/v1/rpc/get_dashboard_summary
+   * Fetch primary live PostgreSQL data directly from Supabase Cloud tables
+   * Identical, deterministic API calls across all browsers (Chrome, Brave, Edge, etc.)
    */
   async getDashboardSummary(force = false): Promise<DashboardSummaryPayload> {
     const now = Date.now();
@@ -38,39 +37,14 @@ export const dashboardSummaryService = {
     }
 
     try {
-      // 1. Single Consolidated Supabase RPC Call to PostgreSQL
-      const { data, error } = await supabase.rpc('get_dashboard_summary');
-
-      if (!error && data && typeof data === 'object') {
-        const payload: DashboardSummaryPayload = {
-          items: Array.isArray(data.items) ? data.items : [],
-          work_orders: Array.isArray(data.work_orders) ? data.work_orders : [],
-          purchase_orders: Array.isArray(data.purchase_orders) ? data.purchase_orders : [],
-          sales_orders: Array.isArray(data.sales_orders) ? data.sales_orders : [],
-          customers: Array.isArray(data.customers) ? data.customers : [],
-          machines: Array.isArray(data.machines) ? data.machines : [],
-          quality_ncrs: Array.isArray(data.quality_ncrs) ? data.quality_ncrs : [],
-          plants: Array.isArray(data.plants) ? data.plants : [],
-          server_time: data.server_time,
-        };
-
-        cachedSummary = payload;
-        cachedSummaryTimestamp = now;
-        return payload;
-      }
-    } catch {
-      // RPC fallback to consolidated query
-    }
-
-    // 2. Resilient fallback to live db if RPC is pending deployment
-    try {
+      // Direct live PostgreSQL queries against Supabase Cloud tables
       const [items, workOrders, customers] = await Promise.all([
         db.findMany<ItemMaster>('items', { limit: 50 }),
         db.findMany<WorkOrder>('work_orders', { limit: 50 }),
         db.findMany<Customer>('customers', { limit: 50 }),
       ]);
 
-      const fallback: DashboardSummaryPayload = {
+      const payload: DashboardSummaryPayload = {
         items: items || [],
         work_orders: workOrders || [],
         purchase_orders: [],
@@ -82,9 +56,9 @@ export const dashboardSummaryService = {
         server_time: new Date().toISOString(),
       };
 
-      cachedSummary = fallback;
+      cachedSummary = payload;
       cachedSummaryTimestamp = now;
-      return fallback;
+      return payload;
     } catch {
       return {
         items: [],
