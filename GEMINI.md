@@ -2,16 +2,16 @@
 
 ## 1. Project Overview
 - **Domain**: Plastic Manufacturing ERP (MRP, BOM, Production Scheduling, Procurement, Item Master).
-- **Architecture**: Hybrid Monorepo. Frontend (React/Vite) -> Middleware (Next.js) -> Database (PostgreSQL/Supabase).
-- **Deployment**: Frontend on Cloudflare Pages. Middleware/Backend currently local Podman, migrating to Cloud.
+- **Architecture**: Hybrid Monorepo. Frontend (React/Vite) -> Backend (Node.js/Prisma) -> Database (PostgreSQL/Supabase).
+- **Deployment**: Frontend on Cloudflare Pages. Backend on Cloud/Podman.
 
 ## 2. Tech Stack
 - **Frontend**: React 18+, Vite, TypeScript, TailwindCSS.
 - **State & Data Fetching**: TanStack Query (React Query) v5 (MANDATORY for all API calls).
 - **Validation**: Zod (MANDATORY for all API responses and form inputs).
 - **Database**: PostgreSQL via Supabase (RLS enabled, Multi-tenant).
-- **Middleware**: Next.js (API routes / Server Actions).
-- **Hosting**: Cloudflare Pages (Frontend), Cloudflare Workers/Pages Functions (Edge API).
+- **Backend Service**: Node.js / Prisma (REST API Service in `backend/`).
+- **Hosting**: Cloudflare Pages (Frontend), Cloudflare Workers/Edge & Container Backend.
 
 ## 3. STRICT ENTERPRISE RULES (AI MUST FOLLOW)
 1. **NO Raw Fetches**: Never use `useEffect` + `fetch`/`axios` for data fetching. ALWAYS use `useQuery` or `useMutation` from TanStack Query.

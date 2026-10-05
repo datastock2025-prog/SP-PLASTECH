@@ -16,7 +16,6 @@ services:
       VITE_SUPABASE_URL: http://localhost:8000
       VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlYm9vdC1kZXYiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTYwMDAwMDAwMCwiZXhwIjoxOTAwMDAwMDAwfQ.reboot_dev_anon_secure_token_key_2026
       BACKEND_URL: http://backend:3000
-      MIDDLEWARE_URL: http://middleware:3001
       DISABLE_HMR: ${DISABLE_HMR:-false}
     ports:
       - "127.0.0.1:3000:3000"
@@ -25,8 +24,6 @@ services:
       - frontend_node_modules:/workspace/node_modules
     depends_on:
       backend:
-        condition: service_started
-      middleware:
         condition: service_started
       kong:
         condition: service_started
@@ -46,27 +43,6 @@ services:
       - "127.0.0.1:3002:3000"
     volumes:
       - ./backend:/app:Z
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  middleware:
-    build:
-      context: ./middleware
-      dockerfile: Dockerfile
-    working_dir: /app
-    command: npm run start:dev
-    environment:
-      PORT: 3001
-      DATABASE_URL: postgresql://reboot:reboot_dev@postgres:5432/reboot_erp
-      CORS_ORIGIN: http://localhost:3000
-      SUPABASE_URL: http://kong:8000
-      SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlYm9vdC1kZXYiLCJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjAwMDAwMDAwLCJleHAiOjE5MDAwMDAwMDB9.reboot_dev_service_role_secure_token_key_2026
-    ports:
-      - "127.0.0.1:3001:3001"
-    volumes:
-      - ./middleware:/app:Z
-      - middleware_node_modules:/app/node_modules
     depends_on:
       postgres:
         condition: service_healthy
@@ -149,5 +125,4 @@ services:
 
 volumes:
   frontend_node_modules:
-  middleware_node_modules:
   postgres_data:
