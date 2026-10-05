@@ -21,3 +21,22 @@
 5. **Multi-Tenant Isolation**: Every database query must include `tenant_id` filtering. Never leak data across tenants.
 6. **Cloudflare Cache Rules**: Dynamic API responses must include `Cache-Control: no-store, no-cache, must-revalidate`.
 7. **Form Submissions**: All form submissions must use `useMutation` with `queryClient.invalidateQueries()` to ensure cross-browser consistency.
+
+**API CALL**
+Rule 1: Enforce TanStack Query (React Query) for ALL Data Fetching
+Replace all useEffect + fetch/axios calls with useQuery or useMutation.
+Configure staleTime: 1000 * 60 * 5 (5 minutes) and refetchOnWindowFocus: true to ensure cross-browser consistency without spamming the server.
+Use queryClient.invalidateQueries() after any mutation to keep all browsers synchronized.
+Rule 2: Implement Strict Cursor-Based Pagination
+NEVER fetch "all" records. Implement a useInfiniteQuery or paginated useQuery with limit and cursor (or offset) parameters.
+Ensure the Supabase/PostgreSQL query uses .range(start, end) or WHERE id > cursor LIMIT 50.
+Rule 3: Centralized, Type-Safe API Client
+Route all requests through a single api-client.ts file that reads the base URL from import.meta.env.VITE_API_BASE_URL.
+Use Zod to validate the API response schema before it reaches the UI, preventing silent failures.
+Rule 4: Cloudflare Cache Bypass for Dynamic Data
+Ensure any API route or Cloudflare Function returning dynamic user/tenant data includes these headers:
+Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate
+Pragma: no-cache
+Expires: 0
+Rule 5: Single Source of Truth (SSOT)
+Remove any reliance on localStorage or component-level state for shared API data. The TanStack Query cache is the SSOT.

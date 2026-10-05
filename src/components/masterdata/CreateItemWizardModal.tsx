@@ -555,7 +555,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   const [runnerWeight, setRunnerWeight] = useState<number | string>(
     editItem?.runnerWeightGrams ?? 0
   );
-  const [moldTool, setMoldTool] = useState<string>(editItem?.moldToolId || 'MOLD-001');
+  const [moldTool, setMoldTool] = useState<string>(editItem?.moldToolId || '');
 
   // Computed Shot Weight Formula: Part Weight + Runner Weight = Single Shot Weight
   const numPartWeight = Number(partWeight) || 0;

@@ -187,6 +187,50 @@ export const itemEndpoints = {
   },
 
   /**
+   * Get Single Item by Code with Zod Validation
+   */
+  async getItemByCode(code: string): Promise<ItemMasterDto | null> {
+    const { data, error } = await supabase
+      .from('items')
+      .select('*')
+      .eq('code', code)
+      .maybeSingle();
+
+    if (error || !data) {
+      return null;
+    }
+
+    const normalized = {
+      id: String(data.id || data.code),
+      code: String(data.code || ''),
+      name: String(data.name || ''),
+      category: String(data.category || 'Finished Good'),
+      type: String(data.entity_type || data.type || 'Finished Good'),
+      stock: data.stock ?? 0,
+      avail: data.avail ?? data.stock ?? 0,
+      wh: String(data.wh || 'FG_WH_A'),
+      plant: String(data.plant || 'Plant 1 - Pimpri Auto-Hub'),
+      lot: Boolean(data.lot ?? true),
+      qc: Boolean(data.qc ?? true),
+      status: String(data.status || 'active'),
+      baseUOM: String(data.unit || data.baseUOM || 'PCS'),
+      desc: String(data.description || data.desc || ''),
+      icon: String(data.icon || '◇'),
+      approval: String(data.approval || 'approved'),
+      cost: Number(data.cost || 0),
+      sellingPrice: Number(data.selling_price || data.sellingPrice || 0),
+      minStock: Number(data.min_stock || 100),
+      maxStock: Number(data.max_stock || 5000),
+      reorderPoint: Number(data.reorder_point || 500),
+      cavityCount: Number(data.cavity_count || 1),
+      cycleTimeSec: Number(data.cycle_time || 0),
+      createdOn: data.created_at ? new Date(data.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    };
+
+    return ItemMasterSchema.parse(normalized);
+  },
+
+  /**
    * Save or Update Item Record with Zod Validation
    */
   async saveItem(item: ItemMasterDto): Promise<ItemMasterDto> {

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../shared/queryKeys';
 import { broadcastLocalMutation } from '../services/realtime/supabaseRealtime';
 import { itemService } from '../services/itemService';
+import { itemEndpoints } from '../lib/api-client';
 import {
   masterDataGovernanceService,
   MasterDataChangeRecord,
@@ -22,8 +23,26 @@ export function useItems(filter?: any) {
       const items = await itemService.getItems();
       return items;
     },
-    staleTime: 1000 * 30, // 30 seconds fresh cache
-    refetchOnWindowFocus: false,
+    staleTime: 1000 * 60 * 5, // Rule 1: 5 minutes fresh cache
+    refetchOnWindowFocus: true, // Rule 1: Refetch on focus for cross-browser synchronization
+  });
+}
+
+// Rule 2: Strict Paginated Items Query with Cursor / Offset parameters
+export function usePaginatedItems(params: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  category?: string;
+  status?: string;
+}) {
+  return useQuery({
+    queryKey: ['masterData', 'paginatedItems', params],
+    queryFn: async () => {
+      return await itemEndpoints.getItemsPaginated(params);
+    },
+    staleTime: 1000 * 60 * 5, // Rule 1: 5 minutes
+    refetchOnWindowFocus: true, // Rule 1: refetch on focus
   });
 }
 
@@ -35,7 +54,8 @@ export function useItemDetail(code?: string) {
       return await itemService.getItemByCode(code);
     },
     enabled: !!code,
-    staleTime: 1000 * 30,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -46,9 +66,9 @@ export function useSaveItem() {
       return await itemService.saveItem(item);
     },
     onSuccess: (savedItem) => {
-      queryClient.invalidateQueries({ queryKey: ['masterData', 'items'] });
-      queryClient.invalidateQueries({ queryKey: ['masterData', 'itemDetail', savedItem.code] });
-      queryClient.invalidateQueries({ queryKey: ['masterData', 'auditLedger'] });
+      queryClient.invalidateQueries({ queryKey: ['masterData'] });
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       broadcastLocalMutation('ITEMS', 'UPDATE', savedItem);
     },
   });
@@ -61,9 +81,9 @@ export function useDeleteItem() {
       return await itemService.deleteItem(code);
     },
     onSuccess: (_, code) => {
-      queryClient.invalidateQueries({ queryKey: ['masterData', 'items'] });
-      queryClient.invalidateQueries({ queryKey: ['masterData', 'itemDetail', code] });
-      queryClient.invalidateQueries({ queryKey: ['masterData', 'auditLedger'] });
+      queryClient.invalidateQueries({ queryKey: ['masterData'] });
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       broadcastLocalMutation('ITEMS', 'DELETE', { code });
     },
   });
@@ -84,10 +104,9 @@ export function useApproveItem() {
       return await itemService.approveItem(item, reviewerName, comment);
     },
     onSuccess: (approvedItem) => {
-      queryClient.invalidateQueries({ queryKey: ['masterData', 'items'] });
-      queryClient.invalidateQueries({ queryKey: ['masterData', 'itemDetail', approvedItem.code] });
-      queryClient.invalidateQueries({ queryKey: ['masterData', 'auditLedger'] });
-      queryClient.invalidateQueries({ queryKey: ['masterData', 'approvalsQueue'] });
+      queryClient.invalidateQueries({ queryKey: ['masterData'] });
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       broadcastLocalMutation('ITEMS', 'UPDATE', approvedItem);
     },
   });
@@ -108,11 +127,25 @@ export function useRejectItem() {
       return await itemService.rejectItem(item, reviewerName, reason);
     },
     onSuccess: (rejectedItem) => {
-      queryClient.invalidateQueries({ queryKey: ['masterData', 'items'] });
-      queryClient.invalidateQueries({ queryKey: ['masterData', 'itemDetail', rejectedItem.code] });
-      queryClient.invalidateQueries({ queryKey: ['masterData', 'auditLedger'] });
-      queryClient.invalidateQueries({ queryKey: ['masterData', 'approvalsQueue'] });
+      queryClient.invalidateQueries({ queryKey: ['masterData'] });
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       broadcastLocalMutation('ITEMS', 'UPDATE', rejectedItem);
+    },
+  });
+}
+
+export function useBulkImportItems() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (items: any[]) => {
+      return await itemEndpoints.bulkImport(items);
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['masterData'] });
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+      broadcastLocalMutation('ITEMS', 'UPDATE', { count: result.importedCount });
     },
   });
 }
@@ -124,8 +157,9 @@ export function useBulkSyncCatalog() {
       return await itemService.syncLiveCatalog();
     },
     onSuccess: (catalog) => {
-      queryClient.invalidateQueries({ queryKey: ['masterData', 'items'] });
-      queryClient.invalidateQueries({ queryKey: ['masterData', 'auditLedger'] });
+      queryClient.invalidateQueries({ queryKey: ['masterData'] });
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       broadcastLocalMutation('ITEMS', 'UPDATE', { count: catalog.length });
     },
   });

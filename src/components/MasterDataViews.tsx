@@ -71,6 +71,13 @@ import {
   GovernancePermissionsModal,
 } from './masterdata/GovernanceModals';
 import { AdminApprovalsModal } from './masterdata/AdminApprovalsModal';
+import {
+  useSaveItem,
+  useDeleteItem,
+  useApproveItem,
+  useRejectItem,
+  useBulkImportItems,
+} from '../hooks/useMasterData';
 import { itemService } from '../services/itemService';
 import { itemEndpoints, ItemMasterDto } from '../lib/api-client';
 import {
@@ -1164,6 +1171,13 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   const [machinePage, setMachinePage] = useState<number>(1);
   const [machinePageSize, setMachinePageSize] = useState<number>(10);
 
+  // TanStack Query Mutations (Rule 1 & Rule 3: Enforce React Query for all data operations)
+  const saveItemMutation = useSaveItem();
+  const deleteItemMutation = useDeleteItem();
+  const approveItemMutation = useApproveItem();
+  const rejectItemMutation = useRejectItem();
+  const bulkImportMutation = useBulkImportItems();
+
   // 10-Step Item Wizard State
   const [isItemWizardOpen, setIsItemWizardOpen] = useState<boolean>(false);
   const [wizardEditItem, setWizardEditItem] = useState<ItemMaster | null>(null);
@@ -1172,8 +1186,8 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   const [isImportModalOpen, setIsImportModalOpen] = useState<boolean>(false);
 
   const handleBulkImport = async (importedItems: ItemMasterDto[]) => {
-    // 1. Centralized type-safe API call to database
-    await itemEndpoints.bulkImport(importedItems);
+    // 1. Centralized type-safe API mutation via TanStack Query
+    await bulkImportMutation.mutateAsync(importedItems);
     // 2. Hydrate local UI items
     importedItems.forEach((dto) => {
       const converted: ItemMaster = {
@@ -1305,14 +1319,14 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   const handleApplyApproval = (req: MasterDataChangeRequest) => {
     if (req.requestType === 'CREATE' && req.payload) {
       const approvedItem = { ...req.payload, approval: 'approved' as const, status: 'active' as const };
-      itemService.saveItem(approvedItem);
+      saveItemMutation.mutate(approvedItem);
       onCreateItem(approvedItem);
     } else if (req.requestType === 'UPDATE' && req.payload) {
       const approvedItem = { ...req.payload, approval: 'approved' as const, status: 'active' as const };
-      itemService.saveItem(approvedItem);
+      saveItemMutation.mutate(approvedItem);
       onUpdateItem(approvedItem);
     } else if (req.requestType === 'DELETE') {
-      itemService.deleteItem(req.itemCode);
+      deleteItemMutation.mutate(req.itemCode);
       onDeleteItem(req.itemCode);
     }
   };
@@ -1321,7 +1335,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
     const itm = items.find((i) => i.code === req.itemCode);
     if (itm && itm.approval === 'pending') {
       const rejectedItem = { ...itm, approval: 'rejected' as const, status: 'inactive' as const };
-      itemService.saveItem(rejectedItem);
+      saveItemMutation.mutate(rejectedItem);
       onUpdateItem(rejectedItem);
     }
   };
@@ -1338,7 +1352,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
       approvedBy: autoApprove ? (currentUser?.name || 'Admin Authority') : undefined,
     };
 
-    itemService.saveItem(itemToSave);
+    saveItemMutation.mutate(itemToSave);
     if (exists) {
       onUpdateItem(itemToSave);
     } else {
@@ -1398,7 +1412,11 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
       return;
     }
     const updated: ItemMaster = { ...item, approval: 'approved', status: 'active' };
-    itemService.saveItem(updated);
+    approveItemMutation.mutate({
+      item: updated,
+      reviewerName: currentUser?.name || 'Admin Authority',
+      comment: 'Approved and released SKU to live shopfloor',
+    });
     onUpdateItem(updated);
     masterDataGovernanceService.recordAudit({
       entityType: 'ITEM_MASTER',
@@ -1421,7 +1439,11 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
       return;
     }
     const updated: ItemMaster = { ...item, approval: 'rejected', status: 'inactive' };
-    itemService.saveItem(updated);
+    rejectItemMutation.mutate({
+      item: updated,
+      reviewerName: currentUser?.name || 'Admin Authority',
+      reason: 'Rejected in QA / Engineering review',
+    });
     onUpdateItem(updated);
     masterDataGovernanceService.recordAudit({
       entityType: 'ITEM_MASTER',
@@ -2430,7 +2452,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                                     createdOn: 'Today',
                                   };
                                   onCreateItem(clone);
-                                  itemService.saveItem(clone);
+                                  saveItemMutation.mutate(clone);
                                   masterDataGovernanceService.submitChangeRequest({
                                     requestType: 'CREATE',
                                     itemCode: clone.code,
@@ -2476,7 +2498,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                                     `Delete ${item.code}?`,
                                     `Are you sure you want to permanently delete SKU ${item.code} (${item.name}) from the live master catalog?`,
                                     () => {
-                                      itemService.deleteItem(item.code);
+                                      deleteItemMutation.mutate(item.code);
                                       onDeleteItem(item.code);
                                       masterDataGovernanceService.recordAudit({
                                         entityType: 'ITEM_MASTER',
@@ -4406,7 +4428,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               `Delete ${code}?`,
               `Are you sure you want to permanently delete SKU ${code} from Master Catalog?`,
               () => {
-                itemService.deleteItem(code);
+                deleteItemMutation.mutate(code);
                 onDeleteItem(code);
                 showToast(`Item ${code} deleted.`);
                 setQuickModifyItem(null);
