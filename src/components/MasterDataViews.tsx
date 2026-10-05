@@ -1066,6 +1066,66 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
   );
 };
 
+export function normalizeItemMaster(i: any): ItemMaster {
+  if (!i) return i;
+  const cycle = Number(i.standardCycleTime ?? i.standard_cycle_time ?? i.cycleTime ?? i.cycle_time ?? 0);
+  const cavities = Number(i.cavityCount ?? i.cavity_count ?? 1);
+  const partWt = Number(i.partWeightGrams ?? i.part_weight_grams ?? i.netWeightGrams ?? 0);
+  const runnerWt = Number(i.runnerWeightGrams ?? i.runner_weight_grams ?? 0);
+  const shotWt = Number(i.shotWeightGrams ?? i.shot_weight_grams ?? ((partWt * cavities) + runnerWt) ?? 0);
+  const resin = i.resinType || i.resin_type || i.polymerGrade || i.polymer_grade || '';
+  const costVal = Number(i.standardCost ?? i.standard_cost ?? i.cost ?? 0);
+
+  // Auto-detect finished goods if type is missing or generic
+  let itemType: ItemType = i.type || i.item_type || 'Finished Good';
+  if (!itemType || itemType === 'STORE' || itemType === 'Plant Asset' || (itemType as any) === 'Other') {
+    if (String(i.code || '').startsWith('120') || i.cat === 'SACL' || i.cat === 'INJECTION MOLDING' || cycle > 0) {
+      itemType = 'Finished Good';
+    } else if (String(i.code || '').startsWith('RM-') || i.cat?.includes('RESIN')) {
+      itemType = 'Raw Material';
+    } else if (String(i.code || '').startsWith('MB-') || i.cat?.includes('COLOR')) {
+      itemType = 'Masterbatch';
+    }
+  }
+
+  return {
+    ...i,
+    code: (i.code || i.item_code || '').trim(),
+    name: (i.name || i.item_name || '').trim(),
+    type: itemType,
+    cat: i.cat || i.category || (itemType === 'Finished Good' ? 'INJECTION MOLDING' : 'RESIN RAW MATERIAL'),
+    wh: i.wh || i.warehouse || (itemType === 'Finished Good' ? 'FG_WH_A' : 'RAW_STORE_1'),
+    plant: i.plant || 'Plant 1 - Pimpri Auto-Hub',
+    stock: String(i.stock ?? i.on_hand_stock ?? '0'),
+    avail: String(i.avail ?? i.available_stock ?? '0'),
+    baseUOM: i.baseUOM || i.base_uom || 'PCS',
+    standardCycleTime: cycle > 0 ? cycle : (itemType === 'Finished Good' ? 30 : 0),
+    cycleTime: cycle > 0 ? cycle : (itemType === 'Finished Good' ? 30 : 0),
+    cavityCount: cavities,
+    partWeightGrams: partWt,
+    runnerWeightGrams: runnerWt,
+    shotWeightGrams: shotWt,
+    netWeightGrams: partWt,
+    resinType: resin || (itemType === 'Finished Good' ? 'PP / PVC Polymer' : 'PP Homopolymer'),
+    polymerGrade: resin || (itemType === 'Finished Good' ? 'PP / PVC Polymer' : 'PP Homopolymer'),
+    mfi: i.mfi || i.melt_flow_index || (itemType === 'Raw Material' ? '12.5 g/10min' : ''),
+    density: i.density || i.specific_density || (itemType === 'Raw Material' ? '0.905 g/cm³' : ''),
+    safetyStock: String(i.safetyStock ?? i.safety_stock ?? (itemType === 'Raw Material' ? '2500' : '200')),
+    reorderLevel: String(i.reorderLevel ?? i.reorder_level ?? (itemType === 'Raw Material' ? '5000' : '500')),
+    leadTime: i.leadTime || i.lead_time || (itemType === 'Raw Material' ? '7 Days' : '3 Days'),
+    supplier: i.supplier || (itemType === 'Raw Material' ? 'Reliance Industries Ltd' : 'In-House Production'),
+    standardCost: costVal,
+    cost: costVal,
+    moldToolId: i.moldToolId || i.mold_tool_id || (itemType === 'Finished Good' ? `MOLD-${(i.code || '').replace(/\D/g, '').slice(-4) || '1001'}` : ''),
+    approval: (i.approval || i.approval_status || 'approved') as ApprovalStatus,
+    status: (i.status || 'active') as any,
+    lot: i.lot ?? true,
+    qc: i.qc ?? true,
+    icon: i.icon || (itemType === 'Finished Good' ? '📦' : itemType === 'Raw Material' ? '🧪' : '◇'),
+    createdOn: i.createdOn || i.created_at || '2026-09-25',
+  };
+}
+
 export const MasterDataViews: React.FC<MasterDataProps> = ({
   view,
   items,
@@ -1550,8 +1610,10 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
      ITEM MASTER LIST & DETAIL (100k+ Scalable Architecture & Mold Tooling Specs)
   ---------------------------------------------------- */
   const renderViewContent = () => {
+    const normalizedItems = (items || []).map(normalizeItemMaster);
+
     if (view === 'itemList') {
-      const filteredItems = items.filter((i) => {
+      const filteredItems = normalizedItems.filter((i) => {
         if (!i) return false;
 
         // Task 5: Never show rejected items to non-admins
@@ -1607,11 +1669,11 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
         return 0;
       });
 
-      const lowStockCount = items.filter((i) => i && i.status === 'low').length;
-      const pendingCount = items.filter((i) => i && i.approval === 'pending').length;
-      const draftCount = items.filter((i) => i && i.approval === 'draft').length;
-      const fgCount = items.filter((i) => i && i.type === 'Finished Good').length;
-      const rejectedCount = items.filter((i) => i && (i.approval === 'rejected' || i.status === 'rejected')).length;
+      const lowStockCount = normalizedItems.filter((i) => i && i.status === 'low').length;
+      const pendingCount = normalizedItems.filter((i) => i && i.approval === 'pending').length;
+      const draftCount = normalizedItems.filter((i) => i && i.approval === 'draft').length;
+      const fgCount = normalizedItems.filter((i) => i && (i.type === 'Finished Good' || i.type === 'Semi-Finished Good')).length;
+      const rejectedCount = normalizedItems.filter((i) => i && (i.approval === 'rejected' || i.status === 'rejected')).length;
 
       const totalItemPages = Math.max(1, Math.ceil(sortedItems.length / itemPageSize));
       const safeItemPage = Math.min(Math.max(1, itemPage), totalItemPages);
@@ -2508,9 +2570,11 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
     ---------------------------------------------------- */
     if (view === 'itemDetail') {
       const effectiveCode = typeof selectedCode === 'object' ? (selectedCode as any)?.code : selectedCode;
-      const item = items.find(
+      const found = normalizedItems.find(
         (i) => i.code === effectiveCode || (effectiveCode && i.code?.toLowerCase() === String(effectiveCode).toLowerCase())
-      ) || (effectiveCode ? null : (items.length > 0 ? items[0] : null));
+      ) || (effectiveCode ? null : (normalizedItems.length > 0 ? normalizedItems[0] : null));
+
+      const item = found ? normalizeItemMaster(found) : null;
 
       if (!item) {
         return (

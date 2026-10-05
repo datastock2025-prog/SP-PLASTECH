@@ -1,4 +1,5 @@
 import { db } from '../shared/db';
+import { itemService } from './itemService';
 import {
   ItemMaster,
   WorkOrder,
@@ -39,7 +40,7 @@ export const dashboardSummaryService = {
     try {
       // Direct live PostgreSQL queries against Supabase Cloud tables without artificial limits
       const [items, workOrders, customers] = await Promise.all([
-        db.findMany<ItemMaster>('items', { orderBy: { column: 'created_at', ascending: false } }),
+        itemService.getItems(),
         db.findMany<WorkOrder>('work_orders', { orderBy: { column: 'created_at', ascending: false } }),
         db.findMany<Customer>('customers', { orderBy: { column: 'name', ascending: true } }),
       ]);

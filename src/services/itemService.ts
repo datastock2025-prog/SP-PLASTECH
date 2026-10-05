@@ -109,11 +109,51 @@ class ItemService {
           }
         });
 
-        // Overlay DB records over the base catalog
-        data.forEach((item: any) => {
-          if (item && item.code && !DUMMY_CODES.has(item.code)) {
-            const existing = itemMap.get(item.code.toUpperCase()) || {};
-            itemMap.set(item.code.toUpperCase(), { ...existing, ...item });
+        // Overlay DB records over the base catalog with intelligent property normalization
+        data.forEach((dbItem: any) => {
+          if (dbItem && dbItem.code && !DUMMY_CODES.has(dbItem.code)) {
+            const key = dbItem.code.toUpperCase();
+            const existing = itemMap.get(key) || ({} as ItemMaster);
+
+            const merged: ItemMaster = {
+              ...existing,
+              ...dbItem,
+              code: dbItem.code || existing.code,
+              name: dbItem.name || existing.name,
+              type: dbItem.type || existing.type || 'Finished Good',
+              cat: dbItem.cat || dbItem.category || existing.cat || 'INJECTION MOLDING',
+              wh: dbItem.wh || dbItem.warehouse || existing.wh || 'FG_WH_A',
+              plant: dbItem.plant || existing.plant || 'Plant 1 - Pimpri Auto-Hub',
+              stock: String(dbItem.stock ?? existing.stock ?? '0'),
+              avail: String(dbItem.avail ?? existing.avail ?? '0'),
+              baseUOM: dbItem.baseUOM || dbItem.base_uom || existing.baseUOM || 'PCS',
+              standardCycleTime: Number(dbItem.standardCycleTime ?? dbItem.standard_cycle_time ?? dbItem.cycleTime ?? dbItem.cycle_time ?? existing.standardCycleTime ?? existing.cycleTime ?? 0),
+              cycleTime: Number(dbItem.cycleTime ?? dbItem.cycle_time ?? dbItem.standardCycleTime ?? dbItem.standard_cycle_time ?? existing.cycleTime ?? existing.standardCycleTime ?? 0),
+              cavityCount: Number(dbItem.cavityCount ?? dbItem.cavity_count ?? existing.cavityCount ?? 1),
+              partWeightGrams: Number(dbItem.partWeightGrams ?? dbItem.part_weight_grams ?? existing.partWeightGrams ?? existing.netWeightGrams ?? 0),
+              runnerWeightGrams: Number(dbItem.runnerWeightGrams ?? dbItem.runner_weight_grams ?? existing.runnerWeightGrams ?? 0),
+              shotWeightGrams: Number(dbItem.shotWeightGrams ?? dbItem.shot_weight_grams ?? existing.shotWeightGrams ?? 0),
+              netWeightGrams: Number(dbItem.netWeightGrams ?? dbItem.partWeightGrams ?? existing.netWeightGrams ?? 0),
+              resinType: dbItem.resinType || dbItem.resin_type || dbItem.polymerGrade || dbItem.polymer_grade || existing.resinType || existing.polymerGrade || '',
+              polymerGrade: dbItem.polymerGrade || dbItem.polymer_grade || dbItem.resinType || dbItem.resin_type || existing.polymerGrade || existing.resinType || '',
+              mfi: dbItem.mfi || dbItem.melt_flow_index || existing.mfi || '',
+              density: dbItem.density || dbItem.specific_density || existing.density || '',
+              safetyStock: String(dbItem.safetyStock ?? dbItem.safety_stock ?? existing.safetyStock ?? '0'),
+              reorderLevel: String(dbItem.reorderLevel ?? dbItem.reorder_level ?? existing.reorderLevel ?? '0'),
+              leadTime: dbItem.leadTime || dbItem.lead_time || existing.leadTime || '3 Days',
+              supplier: dbItem.supplier || existing.supplier || '',
+              standardCost: Number(dbItem.standardCost ?? dbItem.standard_cost ?? dbItem.cost ?? existing.standardCost ?? existing.cost ?? 0),
+              cost: Number(dbItem.cost ?? dbItem.standard_cost ?? dbItem.standardCost ?? existing.cost ?? existing.standardCost ?? 0),
+              moldToolId: dbItem.moldToolId || dbItem.mold_tool_id || existing.moldToolId || '',
+              approval: dbItem.approval || dbItem.approval_status || existing.approval || 'approved',
+              status: dbItem.status || existing.status || 'active',
+              lot: dbItem.lot ?? existing.lot ?? true,
+              qc: dbItem.qc ?? existing.qc ?? true,
+              icon: dbItem.icon || existing.icon || '◇',
+              createdOn: dbItem.createdOn || dbItem.created_at || existing.createdOn || '2026-09-25',
+            };
+
+            itemMap.set(key, merged);
           }
         });
 
