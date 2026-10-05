@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { db } from '../shared/db';
 import { adminEventBus } from './adminService';
-import { universalSyncManager } from './realtime/UniversalSyncManager';
+import { broadcastLocalMutation } from './realtime/supabaseRealtime';
 import { itemService } from './itemService';
 import {
   initialAccounts,
@@ -142,7 +142,7 @@ class LiveDataStore {
       };
 
       adminEventBus.emit('PRODUCTION_LOGGED', result);
-      universalSyncManager.broadcastMutation('WORK_ORDERS', 'UPDATE', result.workOrder);
+      broadcastLocalMutation('WORK_ORDERS', 'UPDATE', result.workOrder);
       return result;
     }
   }
@@ -182,7 +182,7 @@ class LiveDataStore {
   public async updateItem(item: ItemMaster): Promise<ItemMaster> {
     const saved = await itemService.saveItem(item);
     adminEventBus.emit('ITEM_SAVED', saved);
-    universalSyncManager.broadcastMutation('ITEMS', 'UPDATE', saved);
+    broadcastLocalMutation('ITEMS', 'UPDATE', saved);
     return saved;
   }
 
@@ -218,7 +218,7 @@ class LiveDataStore {
     }
 
     adminEventBus.emit('WORK_ORDER_SAVED', wo);
-    universalSyncManager.broadcastMutation('WORK_ORDERS', 'INSERT', wo);
+    broadcastLocalMutation('WORK_ORDERS', 'INSERT', wo);
     return wo;
   }
 
@@ -253,7 +253,7 @@ class LiveDataStore {
     }
 
     adminEventBus.emit('PURCHASE_ORDER_SAVED', po);
-    universalSyncManager.broadcastMutation('PURCHASE_ORDERS', 'UPDATE', po);
+    broadcastLocalMutation('PURCHASE_ORDERS', 'UPDATE', po);
     return po;
   }
 
@@ -291,7 +291,7 @@ class LiveDataStore {
     }
 
     adminEventBus.emit('SALES_ORDER_SAVED', so);
-    universalSyncManager.broadcastMutation('SALES_ORDERS', 'UPDATE', so);
+    broadcastLocalMutation('SALES_ORDERS', 'UPDATE', so);
     return so;
   }
 
@@ -329,7 +329,7 @@ class LiveDataStore {
     }
 
     adminEventBus.emit('CUSTOMER_SAVED', customer);
-    universalSyncManager.broadcastMutation('CUSTOMERS', 'UPDATE', customer);
+    broadcastLocalMutation('CUSTOMERS', 'UPDATE', customer);
     return customer;
   }
 
@@ -366,7 +366,7 @@ class LiveDataStore {
     }
 
     adminEventBus.emit('NCR_SAVED', ncr);
-    universalSyncManager.broadcastMutation('QUALITY_NCRS', 'UPDATE', ncr);
+    broadcastLocalMutation('QUALITY_NCRS', 'UPDATE', ncr);
     return ncr;
   }
 
@@ -398,7 +398,7 @@ class LiveDataStore {
     }
 
     adminEventBus.emit('CAPA_SAVED', capa);
-    universalSyncManager.broadcastMutation('QUALITY_CAPAS', 'UPDATE', capa);
+    broadcastLocalMutation('QUALITY_CAPAS', 'UPDATE', capa);
     return capa;
   }
 
@@ -432,7 +432,7 @@ class LiveDataStore {
     }
 
     adminEventBus.emit('COA_SAVED', coa);
-    universalSyncManager.broadcastMutation('QUALITY_COAS', 'UPDATE', coa);
+    broadcastLocalMutation('QUALITY_COAS', 'UPDATE', coa);
     return coa;
   }
 
@@ -468,7 +468,7 @@ class LiveDataStore {
     }
 
     adminEventBus.emit('BOM_SAVED', bom);
-    universalSyncManager.broadcastMutation('BOMS', 'UPDATE', bom);
+    broadcastLocalMutation('BOMS', 'UPDATE', bom);
     return bom;
   }
 
@@ -503,7 +503,7 @@ class LiveDataStore {
 
     adminEventBus.emit('MACHINE_SAVED', machine);
     adminEventBus.emit('MACHINES_SYNCED');
-    universalSyncManager.broadcastMutation('MACHINES', 'UPDATE', machine);
+    broadcastLocalMutation('MACHINES', 'UPDATE', machine);
     return machine;
   }
 
@@ -516,7 +516,7 @@ class LiveDataStore {
 
     adminEventBus.emit('MACHINE_DELETED', { id });
     adminEventBus.emit('MACHINES_SYNCED');
-    universalSyncManager.broadcastMutation('MACHINES', 'DELETE', { id });
+    broadcastLocalMutation('MACHINES', 'DELETE', { id });
     return true;
   }
 
@@ -553,7 +553,7 @@ class LiveDataStore {
     }
 
     adminEventBus.emit('ACCOUNT_SAVED', acc);
-    universalSyncManager.broadcastMutation('ACCOUNTS', 'UPDATE', acc);
+    broadcastLocalMutation('ACCOUNTS', 'UPDATE', acc);
     return acc;
   }
 
@@ -586,7 +586,7 @@ class LiveDataStore {
     }
 
     adminEventBus.emit('JOURNAL_ENTRY_SAVED', je);
-    universalSyncManager.broadcastMutation('JOURNAL_ENTRIES', 'UPDATE', je);
+    broadcastLocalMutation('JOURNAL_ENTRIES', 'UPDATE', je);
     return je;
   }
 
@@ -622,7 +622,7 @@ class LiveDataStore {
     }
 
     adminEventBus.emit('QUOTATION_SAVED', quote);
-    universalSyncManager.broadcastMutation('QUOTATIONS', 'UPDATE', quote);
+    broadcastLocalMutation('QUOTATIONS', 'UPDATE', quote);
     return quote;
   }
 
@@ -654,7 +654,7 @@ class LiveDataStore {
     }
 
     adminEventBus.emit('RMA_SAVED', rma);
-    universalSyncManager.broadcastMutation('RMAS', 'UPDATE', rma);
+    broadcastLocalMutation('RMAS', 'UPDATE', rma);
     return rma;
   }
 }

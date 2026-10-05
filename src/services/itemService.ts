@@ -2,7 +2,7 @@ import { ItemMaster } from '../types';
 import { db } from '../shared/db';
 import { itemEndpoints } from '../lib/api-client';
 import { adminEventBus } from './adminService';
-import { universalSyncManager } from './realtime/UniversalSyncManager';
+import { broadcastLocalMutation } from './realtime/supabaseRealtime';
 import { masterDataGovernanceService } from './masterDataGovernanceService';
 import { DOCUMENT_ITEM_MASTER_CATALOG } from '../data/masterItemsCatalog';
 
@@ -209,7 +209,7 @@ class ItemService {
 
     // 4. Reactive Events & WebSocket Sync Broadcast
     adminEventBus.emit('ITEM_SAVED', enrichedItem);
-    universalSyncManager.broadcastMutation('ITEMS', isNew ? 'INSERT' : 'UPDATE', enrichedItem);
+    broadcastLocalMutation('ITEMS', isNew ? 'INSERT' : 'UPDATE', enrichedItem);
     return enrichedItem;
   }
 
@@ -254,7 +254,7 @@ class ItemService {
 
     adminEventBus.emit('ITEM_SAVED', updated);
     adminEventBus.emit('ITEM_APPROVED', updated);
-    universalSyncManager.broadcastMutation('ITEMS', 'UPDATE', updated);
+    broadcastLocalMutation('ITEMS', 'UPDATE', updated);
     return updated;
   }
 
@@ -297,7 +297,7 @@ class ItemService {
 
     adminEventBus.emit('ITEM_SAVED', updated);
     adminEventBus.emit('ITEM_REJECTED', updated);
-    universalSyncManager.broadcastMutation('ITEMS', 'UPDATE', updated);
+    broadcastLocalMutation('ITEMS', 'UPDATE', updated);
     return updated;
   }
 
@@ -327,7 +327,7 @@ class ItemService {
     });
 
     adminEventBus.emit('ITEM_DELETED', { code });
-    universalSyncManager.broadcastMutation('ITEMS', 'DELETE', { code });
+    broadcastLocalMutation('ITEMS', 'DELETE', { code });
     return true;
   }
 
@@ -360,7 +360,7 @@ class ItemService {
 
     adminEventBus.emit('CATALOG_RELOADED', liveItems);
     adminEventBus.emit('ITEMS_SYNCED', { data: liveItems });
-    universalSyncManager.broadcastMutation('ITEMS', 'UPDATE', { count: liveItems.length });
+    broadcastLocalMutation('ITEMS', 'UPDATE', { count: liveItems.length });
     return liveItems;
   }
 

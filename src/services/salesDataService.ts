@@ -1,5 +1,5 @@
 import { db } from '../shared/db';
-import { universalSyncManager } from './realtime/UniversalSyncManager';
+import { broadcastLocalMutation } from './realtime/supabaseRealtime';
 import {
   PlasticSalesOrder,
   MonthlyPlanOrder,
@@ -237,7 +237,7 @@ class SalesDataService {
 
     // 3. Emit reactive event & broadcast to all connected browsers
     adminEventBus.emit('SALES_ORDER_CREATED', order);
-    universalSyncManager.broadcastMutation('SALES_ORDERS', 'INSERT', order);
+    broadcastLocalMutation('SALES_ORDERS', 'INSERT', order);
     return order;
   }
 
@@ -339,7 +339,7 @@ class SalesDataService {
     }
 
     adminEventBus.emit('MONTHLY_PLAN_CREATED', plan);
-    universalSyncManager.broadcastMutation('MONTHLY_PLANS', 'INSERT', plan);
+    broadcastLocalMutation('MONTHLY_PLANS', 'INSERT', plan);
     return plan;
   }
 
@@ -424,7 +424,7 @@ class SalesDataService {
       console.warn('Error saving delivery cache:', e);
     }
     adminEventBus.emit('DELIVERY_CREATED', delivery);
-    universalSyncManager.broadcastMutation('DELIVERIES', 'INSERT', delivery);
+    broadcastLocalMutation('DELIVERIES', 'INSERT', delivery);
     return updated;
   }
 

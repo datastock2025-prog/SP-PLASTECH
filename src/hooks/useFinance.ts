@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../shared/queryKeys';
-import { universalSyncManager } from '../services/realtime/UniversalSyncManager';
+import { broadcastLocalMutation } from '../services/realtime/supabaseRealtime';
 import { liveDataStore } from '../services/liveDataStore';
 import { Account, JournalEntry } from '../types';
 
@@ -27,7 +27,7 @@ export function useSaveAccount() {
     },
     onSuccess: (savedAcc) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.accounts() });
-      universalSyncManager.broadcastMutation('ACCOUNTS', 'UPDATE', savedAcc);
+      broadcastLocalMutation('ACCOUNTS', 'UPDATE', savedAcc);
     },
   });
 }
@@ -51,7 +51,7 @@ export function useSaveJournalEntry() {
     },
     onSuccess: (savedJE) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.journalEntries() });
-      universalSyncManager.broadcastMutation('JOURNAL_ENTRIES', 'UPDATE', savedJE);
+      broadcastLocalMutation('JOURNAL_ENTRIES', 'UPDATE', savedJE);
     },
   });
 }

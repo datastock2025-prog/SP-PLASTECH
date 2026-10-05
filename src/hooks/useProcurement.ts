@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../shared/queryKeys';
-import { universalSyncManager } from '../services/realtime/UniversalSyncManager';
+import { broadcastLocalMutation } from '../services/realtime/supabaseRealtime';
 import { liveDataStore } from '../services/liveDataStore';
 import { supplierService } from '../services/procurement/supplierService';
 import { db } from '../shared/db';
@@ -30,7 +30,7 @@ export function useSavePurchaseOrder() {
     onSuccess: (savedPO) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.procurement.purchaseOrders() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
-      universalSyncManager.broadcastMutation('PURCHASE_ORDERS', 'UPDATE', savedPO);
+      broadcastLocalMutation('PURCHASE_ORDERS', 'UPDATE', savedPO);
     },
   });
 }

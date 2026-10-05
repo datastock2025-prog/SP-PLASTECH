@@ -15,8 +15,7 @@ import { workspaceRbacService, normalizeRoleKey } from './services/workspaceRbac
 import { itemService } from './services/itemService';
 import { adminEventBus } from './services/adminService';
 import { liveDataStore } from './services/liveDataStore';
-import { universalSyncManager } from './services/realtime/UniversalSyncManager';
-import { initializeUniversalSyncBridge } from './services/realtime/UniversalSyncBridge';
+import { initializeSupabaseRealtime } from './services/realtime/supabaseRealtime';
 import { dashboardSummaryService } from './services/dashboardSummaryService';
 import { SessionTimeoutModal, MfaVerificationModal, CookieConsentModal } from './security';
 import { UserProfilePreferencesView } from './components/profile/UserProfilePreferencesView';
@@ -373,10 +372,10 @@ export const App: React.FC = () => {
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [rmas, setRmas] = useState<ReturnMerchandise[]>([]);
 
-  // Cross-Browser Mesh & Realtime Invalidation Bridge (Single RPC Consolidated Hydration)
+  // Cross-Browser Realtime WebSocket Invalidation Bridge (Supabase Realtime CDC)
   useEffect(() => {
-    // 0. Initialize UniversalSyncManager ↔ TanStack React Query Realtime Invalidation Bridge
-    const cleanupBridge = initializeUniversalSyncBridge();
+    // 0. Initialize native Supabase Realtime PostgreSQL CDC WebSocket Mesh
+    const cleanupRealtime = initializeSupabaseRealtime();
 
     // 1. Single Consolidated PostgreSQL RPC Fetch (Replaces 15 separate round-trips)
     dashboardSummaryService.getDashboardSummary().then((summary) => {
@@ -497,7 +496,7 @@ export const App: React.FC = () => {
     });
 
     return () => {
-      cleanupBridge?.();
+      cleanupRealtime?.();
       unsubSaved?.();
       unsubDeleted?.();
       unsubWoSynced?.();

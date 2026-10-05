@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../shared/queryKeys';
-import { universalSyncManager } from '../services/realtime/UniversalSyncManager';
+import { broadcastLocalMutation } from '../services/realtime/supabaseRealtime';
 import { liveDataStore } from '../services/liveDataStore';
 import { NonConformanceReport, CapaReport, CertificateOfAnalysis, InspectionPlan } from '../types';
 
@@ -28,7 +28,7 @@ export function useSaveNcr() {
     onSuccess: (savedNcr) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.quality.ncrs() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
-      universalSyncManager.broadcastMutation('QUALITY_NCRS', 'UPDATE', savedNcr);
+      broadcastLocalMutation('QUALITY_NCRS', 'UPDATE', savedNcr);
     },
   });
 }
@@ -52,7 +52,7 @@ export function useSaveCapa() {
     },
     onSuccess: (savedCapa) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.quality.capas() });
-      universalSyncManager.broadcastMutation('QUALITY_CAPAS', 'UPDATE', savedCapa);
+      broadcastLocalMutation('QUALITY_CAPAS', 'UPDATE', savedCapa);
     },
   });
 }
@@ -76,7 +76,7 @@ export function useSaveCoa() {
     },
     onSuccess: (savedCoa) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.quality.coas() });
-      universalSyncManager.broadcastMutation('QUALITY_COAS', 'UPDATE', savedCoa);
+      broadcastLocalMutation('QUALITY_COAS', 'UPDATE', savedCoa);
     },
   });
 }

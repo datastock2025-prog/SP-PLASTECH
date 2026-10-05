@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../shared/queryKeys';
-import { universalSyncManager } from '../services/realtime/UniversalSyncManager';
+import { broadcastLocalMutation } from '../services/realtime/supabaseRealtime';
 import { WorkOrder, BomMaster } from '../types';
 import { liveDataStore, ProductionEntryPayload, ProductionEntryResult } from '../services/liveDataStore';
 
@@ -36,7 +36,7 @@ export function useSaveWorkOrder() {
     onSuccess: (savedWO) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.manufacturing.workOrders() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
-      universalSyncManager.broadcastMutation('WORK_ORDERS', 'UPDATE', savedWO);
+      broadcastLocalMutation('WORK_ORDERS', 'UPDATE', savedWO);
     },
   });
 }
@@ -50,7 +50,7 @@ export function useLogProductionEntry() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.manufacturing.workOrders() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
-      universalSyncManager.broadcastMutation('WORK_ORDERS', 'UPDATE', result.workOrder);
+      broadcastLocalMutation('WORK_ORDERS', 'UPDATE', result.workOrder);
     },
   });
 }
@@ -73,7 +73,7 @@ export function useSaveBom() {
     },
     onSuccess: (savedBom) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.engineering.boms() });
-      universalSyncManager.broadcastMutation('BOMS', 'UPDATE', savedBom);
+      broadcastLocalMutation('BOMS', 'UPDATE', savedBom);
     },
   });
 }

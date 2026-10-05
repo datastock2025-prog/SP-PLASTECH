@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../shared/queryKeys';
-import { universalSyncManager } from '../services/realtime/UniversalSyncManager';
+import { broadcastLocalMutation } from '../services/realtime/supabaseRealtime';
 import { liveDataStore } from '../services/liveDataStore';
 import { SalesOrder, Quotation, ReturnMerchandise } from '../types';
 
@@ -28,7 +28,7 @@ export function useSaveSalesOrder() {
     onSuccess: (savedSO) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sales.orders() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
-      universalSyncManager.broadcastMutation('SALES_ORDERS', 'UPDATE', savedSO);
+      broadcastLocalMutation('SALES_ORDERS', 'UPDATE', savedSO);
     },
   });
 }
@@ -52,7 +52,7 @@ export function useSaveQuotation() {
     },
     onSuccess: (savedQuote) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sales.quotations() });
-      universalSyncManager.broadcastMutation('QUOTATIONS', 'UPDATE', savedQuote);
+      broadcastLocalMutation('QUOTATIONS', 'UPDATE', savedQuote);
     },
   });
 }
@@ -76,7 +76,7 @@ export function useSaveSalesRma() {
     },
     onSuccess: (savedRma) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sales.rmas() });
-      universalSyncManager.broadcastMutation('RMAS', 'UPDATE', savedRma);
+      broadcastLocalMutation('RMAS', 'UPDATE', savedRma);
     },
   });
 }

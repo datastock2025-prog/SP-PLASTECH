@@ -89,7 +89,7 @@ export class RestApiAdapter implements IDatabaseAdapter {
     _event: 'INSERT' | 'UPDATE' | 'DELETE' | '*',
     _callback: (payload: RealtimeChangeEvent<T>) => void
   ): () => void {
-    // REST API adapter uses WebSocket / SSE via universalSyncManager
+    // REST API adapter subscription (realtime handled via Supabase Realtime CDC)
     return () => {};
   }
 }

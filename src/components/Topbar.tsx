@@ -57,7 +57,7 @@ import { GlobalCommandPalette } from './common/GlobalCommandPalette';
 import { QuickActionModal } from './common/QuickActionModal';
 import { SecurityIndicators } from '../security';
 import { adminService, adminEventBus } from '../services/adminService';
-import { universalSyncManager } from '../services/realtime/UniversalSyncManager';
+import { checkSupabaseConnection } from '../shared/supabaseClient';
 
 export interface PlantEntity {
   id: string;
@@ -264,12 +264,22 @@ export const Topbar: React.FC<TopbarProps> = ({
     return (localStorage.getItem('sp_density') as any) || 'standard';
   });
 
-  // Real-Time Cross-Browser Sync Status (Pass/Fail)
-  const [isSyncConnected, setIsSyncConnected] = useState<boolean>(() => universalSyncManager.getConnectionStatus());
+  // Real-Time Supabase WebSocket Mesh Connection Status
+  const [isSyncConnected, setIsSyncConnected] = useState<boolean>(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
   useEffect(() => {
-    return universalSyncManager.onConnectionChange((connected) => {
-      setIsSyncConnected(connected);
-    });
+    const checkStatus = () => {
+      checkSupabaseConnection().then((res) => setIsSyncConnected(res.connected || (typeof navigator !== 'undefined' && navigator.onLine)));
+    };
+    checkStatus();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', checkStatus);
+      window.addEventListener('offline', () => setIsSyncConnected(false));
+      const interval = setInterval(checkStatus, 30000);
+      return () => {
+        window.removeEventListener('online', checkStatus);
+        clearInterval(interval);
+      };
+    }
   }, []);
 
   const [pinnedActionIds, setPinnedActionIds] = useState<string[]>(() => {

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../shared/queryKeys';
-import { universalSyncManager } from '../services/realtime/UniversalSyncManager';
+import { broadcastLocalMutation } from '../services/realtime/supabaseRealtime';
 import { itemService } from '../services/itemService';
 import {
   masterDataGovernanceService,
@@ -49,7 +49,7 @@ export function useSaveItem() {
       queryClient.invalidateQueries({ queryKey: ['masterData', 'items'] });
       queryClient.invalidateQueries({ queryKey: ['masterData', 'itemDetail', savedItem.code] });
       queryClient.invalidateQueries({ queryKey: ['masterData', 'auditLedger'] });
-      universalSyncManager.broadcastMutation('ITEMS', 'UPDATE', savedItem);
+      broadcastLocalMutation('ITEMS', 'UPDATE', savedItem);
     },
   });
 }
@@ -64,7 +64,7 @@ export function useDeleteItem() {
       queryClient.invalidateQueries({ queryKey: ['masterData', 'items'] });
       queryClient.invalidateQueries({ queryKey: ['masterData', 'itemDetail', code] });
       queryClient.invalidateQueries({ queryKey: ['masterData', 'auditLedger'] });
-      universalSyncManager.broadcastMutation('ITEMS', 'DELETE', { code });
+      broadcastLocalMutation('ITEMS', 'DELETE', { code });
     },
   });
 }
@@ -88,7 +88,7 @@ export function useApproveItem() {
       queryClient.invalidateQueries({ queryKey: ['masterData', 'itemDetail', approvedItem.code] });
       queryClient.invalidateQueries({ queryKey: ['masterData', 'auditLedger'] });
       queryClient.invalidateQueries({ queryKey: ['masterData', 'approvalsQueue'] });
-      universalSyncManager.broadcastMutation('ITEMS', 'UPDATE', approvedItem);
+      broadcastLocalMutation('ITEMS', 'UPDATE', approvedItem);
     },
   });
 }
@@ -112,7 +112,7 @@ export function useRejectItem() {
       queryClient.invalidateQueries({ queryKey: ['masterData', 'itemDetail', rejectedItem.code] });
       queryClient.invalidateQueries({ queryKey: ['masterData', 'auditLedger'] });
       queryClient.invalidateQueries({ queryKey: ['masterData', 'approvalsQueue'] });
-      universalSyncManager.broadcastMutation('ITEMS', 'UPDATE', rejectedItem);
+      broadcastLocalMutation('ITEMS', 'UPDATE', rejectedItem);
     },
   });
 }
@@ -126,7 +126,7 @@ export function useBulkSyncCatalog() {
     onSuccess: (catalog) => {
       queryClient.invalidateQueries({ queryKey: ['masterData', 'items'] });
       queryClient.invalidateQueries({ queryKey: ['masterData', 'auditLedger'] });
-      universalSyncManager.broadcastMutation('ITEMS', 'UPDATE', { count: catalog.length });
+      broadcastLocalMutation('ITEMS', 'UPDATE', { count: catalog.length });
     },
   });
 }
@@ -174,7 +174,7 @@ export function useSaveMachine() {
     },
     onSuccess: (savedMachine) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.masterData.machines() });
-      universalSyncManager.broadcastMutation('MACHINES', 'UPDATE', savedMachine);
+      broadcastLocalMutation('MACHINES', 'UPDATE', savedMachine);
     },
   });
 }
@@ -187,7 +187,7 @@ export function useDeleteMachine() {
     },
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.masterData.machines() });
-      universalSyncManager.broadcastMutation('MACHINES', 'DELETE', { id });
+      broadcastLocalMutation('MACHINES', 'DELETE', { id });
     },
   });
 }
@@ -211,7 +211,7 @@ export function useSaveCustomer() {
     },
     onSuccess: (savedCustomer) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sales.customers() });
-      universalSyncManager.broadcastMutation('CUSTOMERS', 'UPDATE', savedCustomer);
+      broadcastLocalMutation('CUSTOMERS', 'UPDATE', savedCustomer);
     },
   });
 }
