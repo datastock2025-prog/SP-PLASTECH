@@ -1,4 +1,4 @@
-# SP-PLASTECH ERP - AI Workspace Memory
+# SP-PLASTECH ERP — AI Behavioral Rules & System Protocols
 
 ## 1. Project Overview
 - **Domain**: Plastic Manufacturing ERP (MRP, BOM, Production Scheduling, Procurement, Item Master).
