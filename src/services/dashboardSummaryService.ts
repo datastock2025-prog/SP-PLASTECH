@@ -74,4 +74,13 @@ export const dashboardSummaryService = {
       };
     }
   },
+
+  /**
+   * Invalidate memory cache immediately on mutation events
+   */
+  invalidateCache(): void {
+    cachedSummary = null;
+    cachedSummaryTimestamp = 0;
+  },
 };
+

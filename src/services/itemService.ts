@@ -1,9 +1,11 @@
 import { ItemMaster } from '../types';
 import { db } from '../shared/db';
+import { supabase } from '../shared/supabaseClient';
 import { itemEndpoints } from '../lib/api-client';
 import { adminEventBus } from './adminService';
 import { broadcastLocalMutation } from './realtime/supabaseRealtime';
 import { masterDataGovernanceService } from './masterDataGovernanceService';
+import { dashboardSummaryService } from './dashboardSummaryService';
 import { DOCUMENT_ITEM_MASTER_CATALOG } from '../data/masterItemsCatalog';
 
 // Stale dummy codes to filter out
@@ -24,6 +26,64 @@ function initializeBaseCatalog(): ItemMaster[] {
   }));
 }
 
+function mapDbRowToItemMaster(dbItem: any, fallback?: ItemMaster): ItemMaster {
+  const partWeight = Number(dbItem.part_weight_grams ?? dbItem.partWeightGrams ?? fallback?.partWeightGrams ?? 0);
+  const runnerWeight = Number(dbItem.runner_weight_grams ?? dbItem.runnerWeightGrams ?? fallback?.runnerWeightGrams ?? 0);
+  const shotWeight = Number((partWeight + runnerWeight).toFixed(2));
+  const cycleTimeVal = Number(
+    dbItem.cycle_time_seconds ?? dbItem.cycle_time ?? dbItem.cycleTimeSec ?? dbItem.cycleTime ?? dbItem.standardCycleTime ?? fallback?.cycleTime ?? 0
+  );
+
+  return {
+    ...fallback,
+    ...dbItem,
+    id: String(dbItem.id || dbItem.code || fallback?.id || ''),
+    code: String(dbItem.code || fallback?.code || ''),
+    name: String(dbItem.name || fallback?.name || ''),
+    type: String(dbItem.entity_type || dbItem.type || fallback?.type || 'Finished Good'),
+    cat: String(dbItem.category || dbItem.cat || fallback?.cat || 'INJECTION MOLDING'),
+    category: String(dbItem.category || dbItem.cat || fallback?.category || 'Finished Good'),
+    wh: String(dbItem.wh || dbItem.warehouse || fallback?.wh || 'FG_WH_A'),
+    plant: String(dbItem.plant || fallback?.plant || 'Plant 1 - Pimpri Auto-Hub'),
+    stock: String(dbItem.stock ?? fallback?.stock ?? '0'),
+    avail: String(dbItem.avail ?? dbItem.stock ?? fallback?.avail ?? '0'),
+    baseUOM: String(dbItem.unit || dbItem.base_uom || dbItem.baseUOM || fallback?.baseUOM || 'PCS'),
+    standardCycleTime: cycleTimeVal,
+    cycleTime: cycleTimeVal,
+    cycleTimeSec: cycleTimeVal,
+    cavityCount: Number(dbItem.cavity_count ?? dbItem.cavityCount ?? fallback?.cavityCount ?? 1),
+    partWeightGrams: partWeight,
+    netWeightGrams: partWeight,
+    runnerWeightGrams: runnerWeight,
+    shotWeightGrams: shotWeight,
+    resinType: String(dbItem.resin_type || dbItem.resinType || dbItem.polymerGrade || fallback?.resinType || ''),
+    polymerGrade: String(dbItem.resin_type || dbItem.resinType || dbItem.polymerGrade || fallback?.polymerGrade || ''),
+    mfi: String(dbItem.mfi || dbItem.melt_flow_index || fallback?.mfi || ''),
+    density: String(dbItem.density || dbItem.specific_density || fallback?.density || ''),
+    safetyStock: String(dbItem.safety_stock ?? dbItem.safetyStock ?? fallback?.safetyStock ?? '0'),
+    reorderLevel: String(dbItem.reorder_point ?? dbItem.reorder_level ?? dbItem.reorderLevel ?? fallback?.reorderLevel ?? '0'),
+    reorderPoint: Number(dbItem.reorder_point ?? dbItem.reorderPoint ?? fallback?.reorderPoint ?? 0),
+    minStock: Number(dbItem.min_stock ?? dbItem.minStock ?? fallback?.minStock ?? 0),
+    maxStock: Number(dbItem.max_stock ?? dbItem.maxStock ?? fallback?.maxStock ?? 5000),
+    leadTime: String(dbItem.leadTime || dbItem.lead_time || fallback?.leadTime || '3 Days'),
+    supplier: String(dbItem.supplier || fallback?.supplier || ''),
+    standardCost: Number(dbItem.cost ?? dbItem.standard_cost ?? dbItem.standardCost ?? fallback?.standardCost ?? 0),
+    cost: Number(dbItem.cost ?? dbItem.standard_cost ?? dbItem.standardCost ?? fallback?.cost ?? 0),
+    sellingPrice: Number(dbItem.selling_price ?? dbItem.sellingPrice ?? fallback?.sellingPrice ?? 0),
+    valuationMethod: String(dbItem.valuation_method || dbItem.valuationMethod || fallback?.valuationMethod || 'FIFO'),
+    moldToolId: String(dbItem.mold_code || dbItem.moldToolId || dbItem.mold_tool_id || fallback?.moldToolId || ''),
+    approval: String(dbItem.approval || dbItem.approval_status || fallback?.approval || 'approved') as any,
+    status: String(dbItem.status || fallback?.status || 'active') as any,
+    lot: Boolean(dbItem.lot ?? fallback?.lot ?? true),
+    qc: Boolean(dbItem.qc ?? fallback?.qc ?? true),
+    icon: String(dbItem.icon || fallback?.icon || '◇'),
+    color: String(dbItem.color || fallback?.color || ''),
+    hsnCode: String(dbItem.hsn_code || dbItem.hsnCode || fallback?.hsnCode || ''),
+    itemGroup: String(dbItem.item_group || dbItem.itemGroup || fallback?.itemGroup || ''),
+    createdOn: dbItem.created_at ? new Date(dbItem.created_at).toISOString().split('T')[0] : (fallback?.createdOn || '2026-09-25'),
+  };
+}
+
 class ItemService {
   private cache: ItemMaster[] = initializeBaseCatalog();
 
@@ -31,14 +91,16 @@ class ItemService {
     if (typeof window !== 'undefined') {
       adminEventBus.on('ITEMS_SYNCED', (event: any) => {
         if (event?.data) {
-          const item = event.data;
-          const idx = this.cache.findIndex((i) => i.code === item.code);
-          if (idx >= 0) {
-            this.cache[idx] = { ...this.cache[idx], ...item };
-          } else {
-            this.cache.unshift(item);
-          }
-          adminEventBus.emit('ITEM_SAVED', item);
+          const items = Array.isArray(event.data) ? event.data : [event.data];
+          items.forEach((item: ItemMaster) => {
+            const idx = this.cache.findIndex((i) => i.code === item.code);
+            if (idx >= 0) {
+              this.cache[idx] = { ...this.cache[idx], ...item };
+            } else {
+              this.cache.unshift(item);
+            }
+          });
+          dashboardSummaryService.invalidateCache();
         }
       });
     }
@@ -52,80 +114,38 @@ class ItemService {
   }
 
   public async getItems(): Promise<ItemMaster[]> {
-    // 1. Load baseline in-memory catalog
-    const baseCatalog = initializeBaseCatalog();
-
-    // 2. Fetch latest live overrides from PostgreSQL Database (Single Source of Truth)
+    // 1. Fetch latest live items directly from Supabase Cloud PostgreSQL (Single Source of Truth)
     try {
-      const data = await db.findMany<ItemMaster>('items', {
-        orderBy: { column: 'created_at', ascending: false },
-      });
+      const { data, error } = await supabase
+        .from('items')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-      if (Array.isArray(data) && data.length > 0) {
-        const itemMap = new Map<string, ItemMaster>();
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const baseCatalog = initializeBaseCatalog();
+        const fallbackMap = new Map<string, ItemMaster>();
         baseCatalog.forEach((item) => {
-          if (item && item.code) {
-            itemMap.set(item.code.toUpperCase(), item);
-          }
+          if (item && item.code) fallbackMap.set(item.code.toUpperCase(), item);
         });
 
-        // Overlay DB records over the base catalog with intelligent property normalization
-        data.forEach((dbItem: any) => {
-          if (dbItem && dbItem.code && !DUMMY_CODES.has(dbItem.code)) {
-            const key = dbItem.code.toUpperCase();
-            const existing = itemMap.get(key) || ({} as ItemMaster);
+        const itemsList = data
+          .filter((row: any) => row && row.code && !DUMMY_CODES.has(row.code))
+          .map((row: any) => {
+            const fallback = fallbackMap.get(row.code.toUpperCase());
+            return mapDbRowToItemMaster(row, fallback);
+          });
 
-            const merged: ItemMaster = {
-              ...existing,
-              ...dbItem,
-              code: dbItem.code || existing.code,
-              name: dbItem.name || existing.name,
-              type: dbItem.type || existing.type || 'Finished Good',
-              cat: dbItem.cat || dbItem.category || existing.cat || 'INJECTION MOLDING',
-              wh: dbItem.wh || dbItem.warehouse || existing.wh || 'FG_WH_A',
-              plant: dbItem.plant || existing.plant || 'Plant 1 - Pimpri Auto-Hub',
-              stock: String(dbItem.stock ?? existing.stock ?? '0'),
-              avail: String(dbItem.avail ?? existing.avail ?? '0'),
-              baseUOM: dbItem.baseUOM || dbItem.base_uom || existing.baseUOM || 'PCS',
-              standardCycleTime: Number(dbItem.standardCycleTime ?? dbItem.standard_cycle_time ?? dbItem.cycleTime ?? dbItem.cycle_time ?? existing.standardCycleTime ?? existing.cycleTime ?? 0),
-              cycleTime: Number(dbItem.cycleTime ?? dbItem.cycle_time ?? dbItem.standardCycleTime ?? dbItem.standard_cycle_time ?? existing.cycleTime ?? existing.standardCycleTime ?? 0),
-              cavityCount: Number(dbItem.cavityCount ?? dbItem.cavity_count ?? existing.cavityCount ?? 1),
-              partWeightGrams: Number(dbItem.partWeightGrams ?? dbItem.part_weight_grams ?? existing.partWeightGrams ?? existing.netWeightGrams ?? 0),
-              runnerWeightGrams: Number(dbItem.runnerWeightGrams ?? dbItem.runner_weight_grams ?? existing.runnerWeightGrams ?? 0),
-              shotWeightGrams: Number(dbItem.shotWeightGrams ?? dbItem.shot_weight_grams ?? existing.shotWeightGrams ?? 0),
-              netWeightGrams: Number(dbItem.netWeightGrams ?? dbItem.partWeightGrams ?? existing.netWeightGrams ?? 0),
-              resinType: dbItem.resinType || dbItem.resin_type || dbItem.polymerGrade || dbItem.polymer_grade || existing.resinType || existing.polymerGrade || '',
-              polymerGrade: dbItem.polymerGrade || dbItem.polymer_grade || dbItem.resinType || dbItem.resin_type || existing.polymerGrade || existing.resinType || '',
-              mfi: dbItem.mfi || dbItem.melt_flow_index || existing.mfi || '',
-              density: dbItem.density || dbItem.specific_density || existing.density || '',
-              safetyStock: String(dbItem.safetyStock ?? dbItem.safety_stock ?? existing.safetyStock ?? '0'),
-              reorderLevel: String(dbItem.reorderLevel ?? dbItem.reorder_level ?? existing.reorderLevel ?? '0'),
-              leadTime: dbItem.leadTime || dbItem.lead_time || existing.leadTime || '3 Days',
-              supplier: dbItem.supplier || existing.supplier || '',
-              standardCost: Number(dbItem.standardCost ?? dbItem.standard_cost ?? dbItem.cost ?? existing.standardCost ?? existing.cost ?? 0),
-              cost: Number(dbItem.cost ?? dbItem.standard_cost ?? dbItem.standardCost ?? existing.cost ?? existing.standardCost ?? 0),
-              moldToolId: dbItem.moldToolId || dbItem.mold_tool_id || existing.moldToolId || '',
-              approval: dbItem.approval || dbItem.approval_status || existing.approval || 'approved',
-              status: dbItem.status || existing.status || 'active',
-              lot: dbItem.lot ?? existing.lot ?? true,
-              qc: dbItem.qc ?? existing.qc ?? true,
-              icon: dbItem.icon || existing.icon || '◇',
-              createdOn: dbItem.createdOn || dbItem.created_at || existing.createdOn || '2026-09-25',
-            };
-
-            itemMap.set(key, merged);
-          }
-        });
-
-        this.cache = Array.from(itemMap.values());
+        this.cache = itemsList;
         return this.cache;
       }
     } catch (e) {
-      console.debug('[ItemService] db.findMany items note:', e);
+      console.debug('[ItemService] Supabase getItems note:', e);
     }
 
-    // 3. Fallback to resilient cached catalog
-    this.cache = baseCatalog;
+    // 2. Resilient fallback if cloud network is offline
+    if (!this.cache || this.cache.length === 0) {
+      this.cache = initializeBaseCatalog();
+    }
     return this.cache;
   }
 
@@ -134,56 +154,35 @@ class ItemService {
     const cleanCode = code.trim();
 
     try {
-      const data = await db.findOne<ItemMaster>('items', cleanCode, 'code');
-      if (data) return data;
+      const dto = await itemEndpoints.getItemByCode(cleanCode);
+      if (dto) {
+        return mapDbRowToItemMaster(dto);
+      }
     } catch {}
 
     return this.cache.find((i) => i.code.toLowerCase() === cleanCode.toLowerCase());
   }
 
   public async saveItem(item: ItemMaster, actorName: string = 'Master Data Lead'): Promise<ItemMaster> {
-    // Ensure injection molding and material parameter consistency
-    const partWeight = Number(item.partWeightGrams || item.netWeightGrams || 0);
-    const runnerWeight = Number(item.runnerWeightGrams || 0);
-    const cavities = Number(item.cavityCount || 1);
-    const calculatedShot = Number((partWeight + runnerWeight).toFixed(2));
+    // 1. Persist directly to Supabase Cloud PostgreSQL with Zod validation
+    const savedDto = await itemEndpoints.saveItem(item as any);
+    const enrichedItem = mapDbRowToItemMaster(savedDto, item);
 
-    const enrichedItem: ItemMaster = {
-      ...item,
-      partWeightGrams: partWeight,
-      runnerWeightGrams: runnerWeight,
-      cavityCount: cavities,
-      shotWeightGrams: calculatedShot,
-      netWeightGrams: partWeight,
-      standardCycleTime: Number(item.cycleTime || item.standardCycleTime || 0),
-      cycleTime: Number(item.cycleTime || item.standardCycleTime || 0),
-      status: item.status || 'active',
-      approval: item.approval || 'approved',
-    };
+    // 2. Invalidate dashboard summary cache
+    dashboardSummaryService.invalidateCache();
 
+    // 3. Update Memory Cache
     const existingIdx = this.cache.findIndex((i) => i.code === enrichedItem.code);
     const previousSnapshot = existingIdx >= 0 ? { ...this.cache[existingIdx] } : null;
     const isNew = existingIdx < 0;
 
-    // 1. Vendor-Agnostic Database Gateway Upsert
-    // 1. Centralized Enterprise Database Gateway & API Client Upsert
-    try {
-      await Promise.allSettled([
-        db.upsert('items', enrichedItem, 'code'),
-        itemEndpoints.saveItem(enrichedItem as any),
-      ]);
-    } catch (e) {
-      console.debug('[ItemService] DB/API save note:', e);
-    }
-
-    // 2. Update Memory Cache
     if (existingIdx >= 0) {
       this.cache[existingIdx] = enrichedItem;
     } else {
       this.cache.unshift(enrichedItem);
     }
 
-    // 3. Record Immutable Audit Ledger Entry with exact diff
+    // 4. Record Immutable Audit Ledger Entry with exact diff
     const diffRecord: Record<string, { before: any; after: any }> = {};
     if (previousSnapshot) {
       if (previousSnapshot.status !== enrichedItem.status) diffRecord.status = { before: previousSnapshot.status, after: enrichedItem.status };
@@ -207,7 +206,7 @@ class ItemService {
       diff: Object.keys(diffRecord).length > 0 ? diffRecord : undefined,
     });
 
-    // 4. Reactive Events & WebSocket Sync Broadcast
+    // 5. Reactive Events & WebSocket Sync Broadcast
     adminEventBus.emit('ITEM_SAVED', enrichedItem);
     broadcastLocalMutation('ITEMS', isNew ? 'INSERT' : 'UPDATE', enrichedItem);
     return enrichedItem;
@@ -226,11 +225,12 @@ class ItemService {
     };
 
     try {
-      await Promise.allSettled([
-        db.upsert('items', updated, 'code'),
-        itemEndpoints.saveItem(updated as any),
-      ]);
-    } catch {}
+      await itemEndpoints.saveItem(updated as any);
+    } catch (err) {
+      console.warn('[itemService.approveItem] Notice:', err);
+    }
+
+    dashboardSummaryService.invalidateCache();
 
     const idx = this.cache.findIndex((i) => i.code === item.code);
     if (idx >= 0) {
@@ -270,11 +270,12 @@ class ItemService {
     };
 
     try {
-      await Promise.allSettled([
-        db.upsert('items', updated, 'code'),
-        itemEndpoints.saveItem(updated as any),
-      ]);
-    } catch {}
+      await itemEndpoints.saveItem(updated as any);
+    } catch (err) {
+      console.warn('[itemService.rejectItem] Notice:', err);
+    }
+
+    dashboardSummaryService.invalidateCache();
 
     const idx = this.cache.findIndex((i) => i.code === item.code);
     if (idx >= 0) {
@@ -306,11 +307,10 @@ class ItemService {
 
     // 1. Centralized Database Gateway & API Client Delete
     try {
-      await Promise.allSettled([
-        db.delete('items', code, 'code'),
-        itemEndpoints.deleteItem(code),
-      ]);
+      await itemEndpoints.deleteItem(code);
     } catch {}
+
+    dashboardSummaryService.invalidateCache();
 
     // 2. Cache Update
     this.cache = this.cache.filter((i) => i.code !== code);
@@ -338,13 +338,14 @@ class ItemService {
       status: item.status || 'active',
     }));
 
-    // Upsert into Vendor-Agnostic Database Gateway
+    // Upsert into Supabase Cloud DB
     try {
-      await db.upsert('items', liveItems, 'code');
+      await itemEndpoints.bulkImport(liveItems as any);
     } catch (e) {
-      console.debug('[ItemService] bulk db.upsert note:', e);
+      console.debug('[ItemService] bulk import note:', e);
     }
 
+    dashboardSummaryService.invalidateCache();
     this.cache = liveItems;
 
     masterDataGovernanceService.recordAudit({

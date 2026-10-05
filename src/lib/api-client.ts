@@ -69,22 +69,36 @@ export const ItemMasterSchema = z.object({
   reorder_level: z.union([z.string(), z.number()]).optional(),
   safetyStock: z.union([z.string(), z.number()]).optional(),
   safety_stock: z.union([z.string(), z.number()]).optional(),
+  valuationMethod: z.string().optional().default('FIFO'),
+  valuation_method: z.string().optional(),
   leadTime: z.string().optional(),
   lead_time: z.string().optional(),
   supplier: z.string().optional(),
   cavityCount: z.number().optional().default(1),
   cavity_count: z.number().optional(),
   cycleTimeSec: z.number().optional().default(0),
+  cycleTime: z.number().optional(),
   cycle_time: z.number().optional(),
+  cycle_time_seconds: z.number().optional(),
   standardCycleTime: z.number().optional(),
   partWeightGrams: z.number().optional(),
   part_weight_grams: z.number().optional(),
+  netWeightGrams: z.number().optional(),
   runnerWeightGrams: z.number().optional(),
   runner_weight_grams: z.number().optional(),
   shotWeightGrams: z.number().optional(),
   shot_weight_grams: z.number().optional(),
+  moldToolId: z.string().optional(),
+  mold_tool_id: z.string().optional(),
+  mold_code: z.string().optional(),
   resinType: z.string().optional(),
   resin_type: z.string().optional(),
+  polymerGrade: z.string().optional(),
+  color: z.string().optional(),
+  hsnCode: z.string().optional(),
+  hsn_code: z.string().optional(),
+  itemGroup: z.string().optional(),
+  item_group: z.string().optional(),
   createdOn: z.string().optional(),
 }).passthrough();
 
@@ -103,6 +117,60 @@ export type PaginatedItemsResponse = z.infer<typeof PaginatedItemsResponseSchema
 // ============================================================================
 // 3. TYPED DATA ENDPOINTS (Provider-Agnostic with Direct Database Bridge)
 // ============================================================================
+
+function mapSupabaseRowToItemDto(row: any): ItemMasterDto {
+  const partWeight = Number(row.part_weight_grams ?? row.partWeightGrams ?? 0);
+  const runnerWeight = Number(row.runner_weight_grams ?? row.runnerWeightGrams ?? 0);
+  const shotWeight = Number((partWeight + runnerWeight).toFixed(2));
+  const cycleTimeVal = Number(
+    row.cycle_time_seconds ?? row.cycle_time ?? row.cycleTimeSec ?? row.cycleTime ?? row.standardCycleTime ?? 0
+  );
+
+  const normalized = {
+    id: String(row.id || row.code || ''),
+    code: String(row.code || ''),
+    name: String(row.name || ''),
+    category: String(row.category || row.cat || 'Finished Good'),
+    cat: String(row.category || row.cat || 'Finished Good'),
+    type: String(row.entity_type || row.type || 'Finished Good'),
+    stock: row.stock ?? 0,
+    avail: row.avail ?? row.stock ?? 0,
+    wh: String(row.wh || 'FG_WH_A'),
+    plant: String(row.plant || 'Plant 1 - Pimpri Auto-Hub'),
+    lot: Boolean(row.lot ?? true),
+    qc: Boolean(row.qc ?? true),
+    status: String(row.status || 'active'),
+    baseUOM: String(row.unit || row.baseUOM || 'PCS'),
+    desc: String(row.description || row.desc || ''),
+    icon: String(row.icon || '◇'),
+    approval: String(row.approval || 'approved'),
+    cost: Number(row.cost || 0),
+    standardCost: Number(row.cost || row.standardCost || 0),
+    sellingPrice: Number(row.selling_price || row.sellingPrice || 0),
+    minStock: Number(row.min_stock ?? row.minStock ?? 0),
+    maxStock: Number(row.max_stock ?? row.maxStock ?? 5000),
+    reorderPoint: Number(row.reorder_point ?? row.reorderPoint ?? 0),
+    safetyStock: Number(row.safety_stock ?? row.safetyStock ?? 0),
+    valuationMethod: String(row.valuation_method || row.valuationMethod || 'FIFO'),
+    cavityCount: Number(row.cavity_count ?? row.cavityCount ?? 1),
+    cycleTimeSec: cycleTimeVal,
+    cycleTime: cycleTimeVal,
+    standardCycleTime: cycleTimeVal,
+    partWeightGrams: partWeight,
+    netWeightGrams: partWeight,
+    runnerWeightGrams: runnerWeight,
+    shotWeightGrams: shotWeight,
+    moldToolId: String(row.mold_code || row.moldToolId || row.mold_tool_id || ''),
+    resinType: String(row.resin_type || row.resinType || row.polymerGrade || ''),
+    polymerGrade: String(row.resin_type || row.resinType || row.polymerGrade || ''),
+    color: String(row.color || ''),
+    hsnCode: String(row.hsn_code || row.hsnCode || ''),
+    itemGroup: String(row.item_group || row.itemGroup || row.category || ''),
+    createdOn: row.created_at ? new Date(row.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+  };
+
+  return ItemMasterSchema.parse(normalized);
+}
 
 export const itemEndpoints = {
   /**
@@ -147,34 +215,7 @@ export const itemEndpoints = {
     }
 
     const rawList = Array.isArray(data) ? data : [];
-    const normalizedItems = rawList.map((row: any) => ({
-      id: String(row.id || row.code),
-      code: String(row.code || ''),
-      name: String(row.name || ''),
-      category: String(row.category || 'Raw Material'),
-      type: String(row.entity_type || row.type || 'Raw Material'),
-      stock: row.stock ?? 0,
-      avail: row.avail ?? row.stock ?? 0,
-      wh: String(row.wh || 'RM-WH-01'),
-      lot: Boolean(row.lot ?? true),
-      qc: Boolean(row.qc ?? true),
-      status: String(row.status || 'active'),
-      baseUOM: String(row.unit || row.baseUOM || 'KG'),
-      desc: String(row.description || row.desc || ''),
-      icon: String(row.icon || '◇'),
-      approval: String(row.approval || 'approved'),
-      cost: Number(row.cost || 0),
-      sellingPrice: Number(row.selling_price || row.sellingPrice || 0),
-      minStock: Number(row.min_stock || 100),
-      maxStock: Number(row.max_stock || 5000),
-      reorderPoint: Number(row.reorder_point || 500),
-      cavityCount: Number(row.cavity_count || 1),
-      cycleTimeSec: Number(row.cycle_time || 0),
-      createdOn: row.created_at ? new Date(row.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-    }));
-
-    // Zod validation on all items
-    const parsedItems = z.array(ItemMasterSchema).parse(normalizedItems);
+    const parsedItems = rawList.map(mapSupabaseRowToItemDto);
     const total = count ?? parsedItems.length;
 
     return {
@@ -200,58 +241,58 @@ export const itemEndpoints = {
       return null;
     }
 
-    const normalized = {
-      id: String(data.id || data.code),
-      code: String(data.code || ''),
-      name: String(data.name || ''),
-      category: String(data.category || 'Finished Good'),
-      type: String(data.entity_type || data.type || 'Finished Good'),
-      stock: data.stock ?? 0,
-      avail: data.avail ?? data.stock ?? 0,
-      wh: String(data.wh || 'FG_WH_A'),
-      plant: String(data.plant || 'Plant 1 - Pimpri Auto-Hub'),
-      lot: Boolean(data.lot ?? true),
-      qc: Boolean(data.qc ?? true),
-      status: String(data.status || 'active'),
-      baseUOM: String(data.unit || data.baseUOM || 'PCS'),
-      desc: String(data.description || data.desc || ''),
-      icon: String(data.icon || '◇'),
-      approval: String(data.approval || 'approved'),
-      cost: Number(data.cost || 0),
-      sellingPrice: Number(data.selling_price || data.sellingPrice || 0),
-      minStock: Number(data.min_stock || 100),
-      maxStock: Number(data.max_stock || 5000),
-      reorderPoint: Number(data.reorder_point || 500),
-      cavityCount: Number(data.cavity_count || 1),
-      cycleTimeSec: Number(data.cycle_time || 0),
-      createdOn: data.created_at ? new Date(data.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-    };
-
-    return ItemMasterSchema.parse(normalized);
+    return mapSupabaseRowToItemDto(data);
   },
 
   /**
-   * Save or Update Item Record with Zod Validation
+   * Save or Update Item Record with Zod Validation directly into Supabase Cloud PostgreSQL
    */
   async saveItem(item: ItemMasterDto): Promise<ItemMasterDto> {
     const validated = ItemMasterSchema.parse(item);
 
+    const partWeight = Number(validated.partWeightGrams ?? (validated as any).netWeightGrams ?? validated.part_weight_grams ?? 0);
+    const runnerWeight = Number(validated.runnerWeightGrams ?? validated.runner_weight_grams ?? 0);
+    const cycleTime = Number(
+      validated.cycleTimeSec ?? (validated as any).cycleTime ?? (validated as any).standardCycleTime ?? validated.cycle_time_seconds ?? validated.cycle_time ?? 0
+    );
+
     const dbPayload = {
       code: validated.code,
       name: validated.name,
-      category: validated.category,
-      entity_type: validated.type,
-      unit: validated.baseUOM,
+      category: validated.category || validated.cat || 'Finished Good',
+      entity_type: validated.type || 'Finished Good',
+      unit: validated.baseUOM || validated.base_uom || 'PCS',
       stock: typeof validated.stock === 'number' ? validated.stock : parseFloat(String(validated.stock)) || 0,
-      cost: validated.cost || 0,
-      selling_price: validated.sellingPrice || 0,
+      cost: Number(validated.cost ?? (validated as any).standardCost ?? 0),
+      selling_price: Number(validated.sellingPrice || 0),
       status: validated.status || 'active',
       approval: validated.approval || 'approved',
-      min_stock: validated.minStock || 100,
-      max_stock: validated.maxStock || 5000,
-      reorder_point: validated.reorderPoint || 500,
-      cavity_count: validated.cavityCount || 1,
-      cycle_time: validated.cycleTimeSec || 0,
+      min_stock: Number(validated.minStock ?? 0),
+      max_stock: Number(validated.maxStock ?? 5000),
+      reorder_point: Number(
+        validated.reorderPoint !== undefined
+          ? validated.reorderPoint
+          : (validated as any).reorderLevel
+          ? parseFloat(String((validated as any).reorderLevel)) || 0
+          : 0
+      ),
+      safety_stock: Number(
+        (validated as any).safetyStock
+          ? parseFloat(String((validated as any).safetyStock)) || 0
+          : (validated as any).safety_stock
+          ? parseFloat(String((validated as any).safety_stock)) || 0
+          : 0
+      ),
+      cavity_count: Number(validated.cavityCount ?? validated.cavity_count ?? 1),
+      cycle_time_seconds: cycleTime,
+      part_weight_grams: partWeight,
+      runner_weight_grams: runnerWeight,
+      mold_code: (validated as any).moldToolId || (validated as any).mold_tool_id || (validated as any).mold_code || null,
+      resin_type: validated.resinType || validated.resin_type || (validated as any).polymerGrade || '',
+      color: (validated as any).color || '',
+      hsn_code: (validated as any).hsn_code || (validated as any).hsnCode || '',
+      valuation_method: (validated as any).valuationMethod || (validated as any).valuation || 'FIFO',
+      item_group: (validated as any).itemGroup || (validated as any).item_group || validated.category || null,
       updated_at: new Date().toISOString(),
     };
 
@@ -262,10 +303,11 @@ export const itemEndpoints = {
       .single();
 
     if (error) {
-      console.warn('[itemEndpoints.saveItem] Database notice:', error.message);
+      console.error('[itemEndpoints.saveItem] Supabase Upsert Error:', error.message);
+      throw new Error(`Database save failed: ${error.message}`);
     }
 
-    return validated;
+    return mapSupabaseRowToItemDto(data || dbPayload);
   },
 
   /**
@@ -289,17 +331,35 @@ export const itemEndpoints = {
     for (let i = 0; i < items.length; i++) {
       try {
         const validated = ItemMasterSchema.parse(items[i]);
+        const partWeight = Number(validated.partWeightGrams ?? (validated as any).netWeightGrams ?? 0);
+        const runnerWeight = Number(validated.runnerWeightGrams ?? 0);
+        const cycleTime = Number(validated.cycleTimeSec ?? (validated as any).cycleTime ?? (validated as any).standardCycleTime ?? 0);
+
         validItems.push({
           code: validated.code,
           name: validated.name,
-          category: validated.category,
-          entity_type: validated.type,
-          unit: validated.baseUOM,
+          category: validated.category || validated.cat || 'Finished Good',
+          entity_type: validated.type || 'Finished Good',
+          unit: validated.baseUOM || validated.base_uom || 'PCS',
           stock: typeof validated.stock === 'number' ? validated.stock : parseFloat(String(validated.stock)) || 0,
-          cost: validated.cost || 0,
-          selling_price: validated.sellingPrice || 0,
+          cost: Number(validated.cost ?? (validated as any).standardCost ?? 0),
+          selling_price: Number(validated.sellingPrice || 0),
           status: validated.status || 'active',
           approval: validated.approval || 'approved',
+          min_stock: Number(validated.minStock ?? 0),
+          max_stock: Number(validated.maxStock ?? 5000),
+          reorder_point: Number(validated.reorderPoint ?? 0),
+          safety_stock: Number((validated as any).safetyStock ?? 0),
+          cavity_count: Number(validated.cavityCount ?? 1),
+          cycle_time_seconds: cycleTime,
+          part_weight_grams: partWeight,
+          runner_weight_grams: runnerWeight,
+          mold_code: (validated as any).moldToolId || null,
+          resin_type: validated.resinType || (validated as any).polymerGrade || '',
+          color: (validated as any).color || '',
+          hsn_code: (validated as any).hsn_code || (validated as any).hsnCode || '',
+          valuation_method: (validated as any).valuationMethod || 'FIFO',
+          item_group: (validated as any).itemGroup || validated.category || null,
           updated_at: new Date().toISOString(),
         });
       } catch (err: any) {
@@ -323,3 +383,4 @@ export const itemEndpoints = {
     };
   },
 };
+
