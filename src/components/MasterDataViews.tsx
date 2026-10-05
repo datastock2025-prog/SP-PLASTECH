@@ -3172,17 +3172,17 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                         <div className="kv"><label>Packaging Spec</label><div className="v">{item.packagingStandard || '—'}</div></div>
                         <div className="kv"><label>Box Dimensions</label><div className="v mono">{item.boxDimensions || '—'}</div></div>
                         <div className="kv"><label>HSN / SAC Code</label><div className="v mono">{item.hsnCode || '—'}</div></div>
-                        <div className="kv"><label>Storage Form</label><div className="v">Flat Packed on Pallet</div></div>
+                        <div className="kv"><label>Storage Form</label><div className="v">{item.storageForm || '—'}</div></div>
                       </>
                     ) : (
                       <>
                         <div className="kv"><label>Machine Fitment</label><div className="v mono">{item.moldToolId || '—'}</div></div>
                         <div className="kv"><label>OEM Part Number</label><div className="v mono">{item.code}</div></div>
                         <div className="kv"><label>Maintenance Interval</label><div className="v">{item.pmInterval || '—'}</div></div>
-                        <div className="kv"><label>Critical Spare</label><div className="v font-bold text-amber-700">{item.criticality === 'Class-A Critical' ? 'Yes (PM Essential)' : 'Standard'}</div></div>
+                        <div className="kv"><label>Critical Spare</label><div className="v font-bold text-amber-700">{item.criticality || 'Standard'}</div></div>
                       </>
                     )}
-                    <div className="kv"><label>Country of Origin</label><div className="v">{item.countryOrigin || 'India'}</div></div>
+                    <div className="kv"><label>Country of Origin</label><div className="v">{item.countryOrigin || '—'}</div></div>
                   </div>
                 </div>
 
@@ -3712,8 +3712,8 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               <div className="kv-grid">
                 <div className="kv"><label>Incoming IQC Mandatory</label><div className="v">{item.qc ? 'Yes (Mandatory Gate)' : 'No (Direct Store Acceptance)'}</div></div>
                 <div className="kv"><label>Certificate of Analysis (COA)</label><div className="v">{item.qc ? 'Mandatory Gate' : 'Optional'}</div></div>
-                <div className="kv"><label>Statistical Sampling</label><div className="v">{item.qc ? 'AQL 1.0 General Level II' : 'Standard Visual Inspection'}</div></div>
-                <div className="kv"><label>Dimensional Tolerance</label><div className="v mono">{item.tolerance || (isFg ? '±0.05 mm' : 'Standard Raw Spec')}</div></div>
+                <div className="kv"><label>Statistical Sampling</label><div className="v">{item.samplingMethod || (item.qc ? 'AQL Level II' : 'Standard Visual Inspection')}</div></div>
+                <div className="kv"><label>Dimensional Tolerance</label><div className="v mono">{item.tolerance || '—'}</div></div>
               </div>
             </div>
           )}

@@ -57,11 +57,11 @@
 - `WORKSPACE_MEMORY.md` — Permanent workspace architecture and security protocols.
 - `DAILY_ACTIVITY_LOG.md` — Append-only day-wise change tracker.
 
-### 3. Verification & Results
-- **TypeScript Typecheck (`tsc --noEmit`)**: 0 errors.
-- **Production Build (`vite build`)**: 2,969 modules transformed, bundle generated in 1m 25s.
-- **CI/CD Pipeline**: GitHub Actions triggered, typecheck and bundle build jobs completed successfully.
-- **Podman & Supabase Live Sync Engine**:
-  - `podman-machine-default` VM connected and postgres container `reboot-v1-postgres-1` initialized.
-  - Automated sync verified with identical record counts across all core tables (121 Customers, 411 Suppliers, 1,000 Master Items, 3 Warehouses, 5 Machines).
+### 4. Realtime CDC WebSocket & Item Master TanStack Query CRUD Migration
+- **Supabase Realtime CDC WebSocket Mesh**: Replaced `UniversalSyncManager` and `UniversalSyncBridge` (BroadcastChannel) with [`src/services/realtime/supabaseRealtime.ts`](file:///c:/Users/charu/Reboot-v1/src/services/realtime/supabaseRealtime.ts) subscribing to `postgres_changes` across all ERP tables.
+- **TanStack Query (React Query v5)**: Wired `useSaveItem`, `useDeleteItem`, `useApproveItem`, `useRejectItem`, `useBulkImportItems` across Item Master Catalog and Details view.
+- **Zod Validation**: Added runtime schema parsing in `api-client.ts` (`ItemMasterSchema`).
+- **Eliminated Static Values & Fallbacks**: Removed hardcoded strings across Item Master tabs to display true database values and clean empty states (`"—"`).
+- **Verification**: `tsc --noEmit` 0 errors, `vite build` succeeded, GitHub Actions CI/CD completed with success.
+
 
