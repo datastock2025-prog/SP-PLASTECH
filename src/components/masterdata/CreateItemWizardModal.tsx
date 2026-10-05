@@ -1031,7 +1031,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       baseUOM,
       approval: 'draft',
       createdOn: 'Today',
-      standardCycleTime: isFgItem ? (Number(cycleTime) || 24.5) : 0,
+      standardCycleTime: isFgItem ? (Number(cycleTime) || 0) : 0,
       cycleTime: isFgItem ? (Number(cycleTime) || 0) : 0,
       partWeightGrams: isFgItem ? numPartWeight : undefined,
       cavityCount: isFgItem ? numCavities : undefined,
@@ -1123,7 +1123,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       baseUOM,
       approval: isApprovedDirectly ? 'approved' : 'pending',
       createdOn: editItem?.createdOn || 'Today',
-      standardCycleTime: isFgItem ? (Number(cycleTime) || 24.5) : 0,
+      standardCycleTime: isFgItem ? (Number(cycleTime) || 0) : 0,
       cycleTime: isFgItem ? (Number(cycleTime) || 0) : 0,
       partWeightGrams: isFgItem ? numPartWeight : undefined,
       cavityCount: isFgItem ? numCavities : undefined,
@@ -3704,30 +3704,30 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                       {(selectedType === 'Finished Good' || selectedType === 'Semi-Finished Good') ? (
                         <>
                           <div className="text-slate-800 font-mono text-[11px]">
-                            Cycle: <strong>{cycleTime || 24.5}s</strong> &bull; Cavities: <strong>{cavityCount || 1}</strong>
+                            Cycle: <strong>{cycleTime ? `${cycleTime}s` : '—'}</strong> &bull; Cavities: <strong>{cavityCount ? `${cavityCount} cav` : '—'}</strong>
                           </div>
                           <div className="text-[#0066CC] font-mono text-[11px] font-semibold">
-                            Part: {partWeight}g + Runner: {runnerWeight}g = Shot: {calculatedSingleShotWeight}g
+                            Part: {partWeight ? `${partWeight}g` : '—'} + Runner: {runnerWeight ? `${runnerWeight}g` : '0g'} = Shot: {calculatedSingleShotWeight > 0 ? `${calculatedSingleShotWeight}g` : '—'}
                           </div>
                         </>
                       ) : (selectedType === 'Raw Material' || selectedType === 'Regrind') ? (
                         <>
-                          <div className="text-slate-800 font-mono text-[11px]">MFI: <strong>{mfi || '11.0'} g/10min</strong> &bull; Dens: <strong>{density || '0.905'}</strong></div>
-                          <div className="text-emerald-700 text-[11px] font-semibold">Resin: {resinType || 'PP'} ({polymerGrade || 'Virgin'}) &bull; Regrind: {regrindAllowance || '20'}%</div>
+                          <div className="text-slate-800 font-mono text-[11px]">MFI: <strong>{mfi ? `${mfi} g/10min` : '—'}</strong> &bull; Dens: <strong>{density || '—'}</strong></div>
+                          <div className="text-emerald-700 text-[11px] font-semibold">Resin: {resinType || '—'} ({polymerGrade || '—'}) {regrindAllowance ? `• Regrind: ${regrindAllowance}%` : ''}</div>
                         </>
                       ) : (selectedType === 'Masterbatch' || selectedType === 'Colorant' || selectedType === 'Additive') ? (
                         <>
-                          <div className="text-slate-800 font-mono text-[11px]">LDR Dosage: <strong>{masterbatchDosage || '2.5'}%</strong> &bull; Heat: <strong>{heatStability || '280°C'}</strong></div>
-                          <div className="text-purple-700 text-[11px] font-semibold">Color: {color || 'Custom'} &bull; Carrier: {carrierResin || 'Universal'}</div>
+                          <div className="text-slate-800 font-mono text-[11px]">LDR Dosage: <strong>{masterbatchDosage ? `${masterbatchDosage}%` : '—'}</strong> &bull; Heat: <strong>{heatStability || '—'}</strong></div>
+                          <div className="text-purple-700 text-[11px] font-semibold">Color: {color || '—'} &bull; Carrier: {carrierResin || '—'}</div>
                         </>
                       ) : selectedType === 'Packaging Material' ? (
                         <>
-                          <div className="text-slate-800 font-mono text-[11px]">Dim: <strong>{boxDimensions || 'Standard Box'}</strong></div>
-                          <div className="text-amber-800 text-[11px] font-semibold">Pack: {unitsPerPack || 250} pcs/box &bull; {packagingStandard || '5-Ply'}</div>
+                          <div className="text-slate-800 font-mono text-[11px]">Dim: <strong>{boxDimensions || '—'}</strong></div>
+                          <div className="text-amber-800 text-[11px] font-semibold">Pack: {unitsPerPack ? `${unitsPerPack} pcs/box` : '—'} &bull; {packagingStandard || '—'}</div>
                         </>
                       ) : (
                         <>
-                          <div className="text-slate-800 font-mono text-[11px]">Fitment: <strong>{machineFitment || 'All Machines'}</strong></div>
+                          <div className="text-slate-800 font-mono text-[11px]">Fitment: <strong>{machineFitment || '—'}</strong></div>
                           <div className="text-slate-700 text-[11px] font-semibold">Class: {spareClass} &bull; Lead: {leadTimeDays}d</div>
                         </>
                       )}

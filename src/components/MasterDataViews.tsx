@@ -241,13 +241,13 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
     setActiveTab('specs');
   }, [item]);
 
-  const cycle = Number(form.standardCycleTime || form.cycleTime || 24.5);
-  const cavities = Number(form.cavityCount || 1);
-  const partWt = Number(form.partWeightGrams || 25);
-  const runnerWt = Number(form.runnerWeightGrams || 0);
-  const singleShotWt = Number((partWt + runnerWt).toFixed(2));
-  const totalMoldShotWt = Number(((partWt * cavities) + runnerWt).toFixed(2));
-  const hourlyOutput = cycle > 0 ? Math.round((3600 / cycle) * cavities) : 0;
+  const cycle = Number(form.standardCycleTime ?? form.cycleTime ?? 0);
+  const cavities = Number(form.cavityCount ?? (form.moldToolId ? 1 : 0));
+  const partWt = Number(form.partWeightGrams ?? form.netWeightGrams ?? 0);
+  const runnerWt = Number(form.runnerWeightGrams ?? 0);
+  const singleShotWt = (partWt > 0 || runnerWt > 0) ? Number((partWt + runnerWt).toFixed(2)) : 0;
+  const totalMoldShotWt = (partWt > 0 || runnerWt > 0) ? Number(((partWt * Math.max(1, cavities)) + runnerWt).toFixed(2)) : 0;
+  const hourlyOutput = cycle > 0 && cavities > 0 ? Math.round((3600 / cycle) * cavities) : 0;
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -500,9 +500,9 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
                   <input
                     type="text"
                     disabled={!isAdmin}
-                    value={form.moldToolId || 'MOLD-001'}
+                    value={form.moldToolId || ''}
                     onChange={(e) => setForm({ ...form, moldToolId: e.target.value.toUpperCase() })}
-                    placeholder="MOLD-001"
+                    placeholder="e.g. MOLD-001"
                     className="w-full py-1.5 px-3 border border-slate-300 rounded-lg text-xs font-mono disabled:bg-slate-100"
                   />
                 </div>
@@ -2138,12 +2138,12 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                     pagedItems.map((item) => {
                       const isSelected = selectedItemCodes.includes(item.code);
                       const isFg = item.type === 'Finished Good' || item.type === 'Semi-Finished Good';
-                      const cycle = Number(item.standardCycleTime || item.cycleTime || 24.5);
-                      const cavities = Number(item.cavityCount || 1);
-                      const partWt = Number(item.partWeightGrams || 25);
-                      const runnerWt = Number(item.runnerWeightGrams || 0);
-                      const shotWt = item.shotWeightGrams || Number((partWt + runnerWt).toFixed(2));
-                      const hourlyOutput = cycle > 0 ? Math.round((3600 / cycle) * cavities) : 0;
+                      const cycle = Number(item.standardCycleTime ?? item.cycleTime ?? 0);
+                      const cavities = Number(item.cavityCount ?? (item.moldToolId ? 1 : 0));
+                      const partWt = Number(item.partWeightGrams ?? item.netWeightGrams ?? 0);
+                      const runnerWt = Number(item.runnerWeightGrams ?? 0);
+                      const shotWt = item.shotWeightGrams || (partWt > 0 ? Number((partWt + runnerWt).toFixed(2)) : 0);
+                      const hourlyOutput = cycle > 0 && cavities > 0 ? Math.round((3600 / cycle) * cavities) : 0;
                       const stockData = getItemStockData(item);
 
                       return (
@@ -2211,104 +2211,168 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                           {/* Dynamic Col 5: Tooling / Material Spec */}
                           <td className="p-3 font-mono text-[11px]">
                             {isFg ? (
-                              <>
-                                <div className="text-[#14213D] font-bold">{item.moldToolId || 'MOLD-001'}</div>
-                                <div className="text-[10px] text-gray-500">{cavities} Cavit{cavities === 1 ? 'y' : 'ies'}</div>
-                              </>
+                              item.moldToolId ? (
+                                <>
+                                  <div className="text-[#14213D] font-bold">{item.moldToolId}</div>
+                                  <div className="text-[10px] text-gray-500">{cavities > 0 ? `${cavities} Cavit${cavities === 1 ? 'y' : 'ies'}` : '—'}</div>
+                                </>
+                              ) : (
+                                <span className="text-gray-400 italic text-[11px]">No Tool Linked</span>
+                              )
                             ) : (item.type === 'Raw Material' || item.type === 'Regrind') ? (
-                              <>
-                                <div className="text-emerald-900 font-bold">{item.resinType || 'Polypropylene (PP)'}</div>
-                                <div className="text-[10px] text-slate-500 truncate">{item.polymerGrade || 'Virgin Polymer'}</div>
-                              </>
+                              (item.resinType || item.polymerGrade) ? (
+                                <>
+                                  <div className="text-emerald-900 font-bold">{item.resinType || item.polymerGrade}</div>
+                                  <div className="text-[10px] text-slate-500 truncate">{item.polymerGrade || item.cat || '—'}</div>
+                                </>
+                              ) : (
+                                <span className="text-gray-400 italic text-[11px]">No Resin Spec</span>
+                              )
                             ) : (item.type === 'Masterbatch' || item.type === 'Colorant' || item.type === 'Additive') ? (
-                              <>
-                                <div className="text-purple-900 font-bold truncate">{item.color || 'Custom Shade'}</div>
-                                <div className="text-[10px] text-slate-500 truncate">{item.carrierResin || item.resinType || 'Universal Carrier'}</div>
-                              </>
+                              item.color ? (
+                                <>
+                                  <div className="text-purple-900 font-bold truncate">{item.color}</div>
+                                  <div className="text-[10px] text-slate-500 truncate">{item.carrierResin || item.resinType || '—'}</div>
+                                </>
+                              ) : (
+                                <span className="text-gray-400 italic text-[11px]">No Color Spec</span>
+                              )
                             ) : item.type === 'Packaging Material' ? (
-                              <>
-                                <div className="text-amber-900 font-bold truncate">{item.packagingStandard || item.cat || 'Standard Box'}</div>
-                                <div className="text-[10px] text-slate-500">{item.boxDimensions || '600x400x350 mm'}</div>
-                              </>
+                              (item.packagingStandard || item.boxDimensions) ? (
+                                <>
+                                  <div className="text-amber-900 font-bold truncate">{item.packagingStandard || item.cat || '—'}</div>
+                                  <div className="text-[10px] text-slate-500">{item.boxDimensions || '—'}</div>
+                                </>
+                              ) : (
+                                <span className="text-gray-400 italic text-[11px]">No Pack Spec</span>
+                              )
                             ) : (
-                              <>
-                                <div className="text-slate-900 font-bold truncate">{item.machineCompat || 'All Machines'}</div>
-                                <div className="text-[10px] text-slate-500">{item.moldToolId || 'PLANT-ASSET'}</div>
-                              </>
+                              (item.machineCompat || item.moldToolId) ? (
+                                <>
+                                  <div className="text-slate-900 font-bold truncate">{item.machineCompat || '—'}</div>
+                                  <div className="text-[10px] text-slate-500">{item.moldToolId || '—'}</div>
+                                </>
+                              ) : (
+                                <span className="text-gray-400 italic text-[11px]">No Fitment Spec</span>
+                              )
                             )}
                           </td>
 
                           {/* Dynamic Col 6: Process & Attributes */}
                           <td className="p-3 font-mono text-[11px]">
                             {isFg ? (
-                              <>
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="font-bold text-amber-700">{cycle}s</span>
-                                  <span className="text-gray-400">&bull;</span>
-                                  <span className="text-gray-700">{shotWt}g Shot</span>
-                                  <span className="text-gray-400">&bull;</span>
-                                  <span className="text-emerald-700 font-bold">{hourlyOutput} pcs/h</span>
-                                </div>
-                                <div className="mt-0.5">
-                                  <span className="inline-flex items-center text-[9px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
-                                    MOLD SPEC GATE
-                                  </span>
-                                </div>
-                              </>
+                              (cycle > 0 || shotWt > 0) ? (
+                                <>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    {cycle > 0 && <span className="font-bold text-amber-700">{cycle}s</span>}
+                                    {cycle > 0 && shotWt > 0 && <span className="text-gray-400">&bull;</span>}
+                                    {shotWt > 0 && <span className="text-gray-700">{shotWt}g Shot</span>}
+                                    {hourlyOutput > 0 && (
+                                      <>
+                                        <span className="text-gray-400">&bull;</span>
+                                        <span className="text-emerald-700 font-bold">{hourlyOutput} pcs/h</span>
+                                      </>
+                                    )}
+                                  </div>
+                                  <div className="mt-0.5">
+                                    <span className="inline-flex items-center text-[9px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
+                                      MOLD SPEC GATE
+                                    </span>
+                                  </div>
+                                </>
+                              ) : (
+                                <span className="text-gray-400 italic text-[11px]">No Process Data</span>
+                              )
                             ) : (item.type === 'Raw Material' || item.type === 'Regrind') ? (
-                              <>
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="font-bold text-emerald-800">MFI: {item.mfi || '12.0'}</span>
-                                  <span className="text-gray-400">&bull;</span>
-                                  <span className="text-slate-600">Dens: {item.density || '0.905'}</span>
-                                  <span className="text-gray-400">&bull;</span>
-                                  <span className="text-emerald-700 font-bold">Regrind: {item.regrind || '20%'}</span>
-                                </div>
-                                <div className="mt-0.5">
-                                  <span className="inline-flex items-center text-[9px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                                    RESIN FEEDSTOCK
-                                  </span>
-                                </div>
-                              </>
+                              (item.mfi || item.density || item.regrind) ? (
+                                <>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    {item.mfi && <span className="font-bold text-emerald-800">MFI: {item.mfi}</span>}
+                                    {item.density && (
+                                      <>
+                                        <span className="text-gray-400">&bull;</span>
+                                        <span className="text-slate-600">Dens: {item.density}</span>
+                                      </>
+                                    )}
+                                    {item.regrind && (
+                                      <>
+                                        <span className="text-gray-400">&bull;</span>
+                                        <span className="text-emerald-700 font-bold">Regrind: {item.regrind}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                  <div className="mt-0.5">
+                                    <span className="inline-flex items-center text-[9px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                                      RESIN FEEDSTOCK
+                                    </span>
+                                  </div>
+                                </>
+                              ) : (
+                                <span className="text-gray-400 italic text-[11px]">No Rheology Data</span>
+                              )
                             ) : (item.type === 'Masterbatch' || item.type === 'Colorant' || item.type === 'Additive') ? (
-                              <>
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="font-bold text-purple-800">LDR: {item.masterbatchDosage || '2.5%'}</span>
-                                  <span className="text-gray-400">&bull;</span>
-                                  <span className="text-slate-600">Heat: {item.heatStability || '280°C'}</span>
-                                </div>
-                                <div className="mt-0.5">
-                                  <span className="inline-flex items-center text-[9px] font-bold text-purple-800 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200">
-                                    COLOR MASTERBATCH
-                                  </span>
-                                </div>
-                              </>
+                              (item.masterbatchDosage || item.heatStability) ? (
+                                <>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    {item.masterbatchDosage && <span className="font-bold text-purple-800">LDR: {item.masterbatchDosage}</span>}
+                                    {item.heatStability && (
+                                      <>
+                                        <span className="text-gray-400">&bull;</span>
+                                        <span className="text-slate-600">Heat: {item.heatStability}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                  <div className="mt-0.5">
+                                    <span className="inline-flex items-center text-[9px] font-bold text-purple-800 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200">
+                                      COLOR MASTERBATCH
+                                    </span>
+                                  </div>
+                                </>
+                              ) : (
+                                <span className="text-gray-400 italic text-[11px]">No Dosage Data</span>
+                              )
                             ) : item.type === 'Packaging Material' ? (
-                              <>
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="font-bold text-amber-800">{item.unitsPerPack || 250} pcs/box</span>
-                                  <span className="text-gray-400">&bull;</span>
-                                  <span className="text-slate-600">HSN: {item.hsCode || '48191010'}</span>
-                                </div>
-                                <div className="mt-0.5">
-                                  <span className="inline-flex items-center text-[9px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
-                                    PACKAGING SPEC
-                                  </span>
-                                </div>
-                              </>
+                              (item.unitsPerPack || item.hsCode) ? (
+                                <>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    {item.unitsPerPack && <span className="font-bold text-amber-800">{item.unitsPerPack} pcs/box</span>}
+                                    {item.hsCode && (
+                                      <>
+                                        <span className="text-gray-400">&bull;</span>
+                                        <span className="text-slate-600">HSN: {item.hsCode}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                  <div className="mt-0.5">
+                                    <span className="inline-flex items-center text-[9px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                                      PACKAGING SPEC
+                                    </span>
+                                  </div>
+                                </>
+                              ) : (
+                                <span className="text-gray-400 italic text-[11px]">No Logistics Data</span>
+                              )
                             ) : (
-                              <>
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="font-bold text-slate-800">Lead: {item.leadTime || '7d'}</span>
-                                  <span className="text-gray-400">&bull;</span>
-                                  <span className="text-slate-600">Buffer: {item.safetyStock || '2'} {item.baseUOM}</span>
-                                </div>
-                                <div className="mt-0.5">
-                                  <span className="inline-flex items-center text-[9px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
-                                    PLANT ASSET
-                                  </span>
-                                </div>
-                              </>
+                              (item.leadTime || item.safetyStock) ? (
+                                <>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    {item.leadTime && <span className="font-bold text-slate-800">Lead: {item.leadTime}</span>}
+                                    {item.safetyStock && (
+                                      <>
+                                        <span className="text-gray-400">&bull;</span>
+                                        <span className="text-slate-600">Buffer: {item.safetyStock} {item.baseUOM}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                  <div className="mt-0.5">
+                                    <span className="inline-flex items-center text-[9px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
+                                      PLANT ASSET
+                                    </span>
+                                  </div>
+                                </>
+                              ) : (
+                                <span className="text-gray-400 italic text-[11px]">No Maintenance Data</span>
+                              )
                             )}
                           </td>
 
