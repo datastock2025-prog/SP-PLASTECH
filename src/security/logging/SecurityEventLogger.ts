@@ -1,4 +1,5 @@
 import { SecurityEvent } from '../types';
+import { db } from '../../shared/db';
 
 type SecurityEventListener = (event: SecurityEvent) => void;
 
@@ -79,16 +80,11 @@ class SecurityEventLoggerClass {
       this.flushLogsToServer();
     }, 60000); // every minute
   }
-
   private async flushLogsToServer(): Promise<void> {
-    if (!this.batchEndpoint || this.inMemoryLogs.length === 0) return;
+    if (this.inMemoryLogs.length === 0) return;
     try {
       const logsToSend = [...this.inMemoryLogs];
-      await fetch(this.batchEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ events: logsToSend }),
-      });
+      await db.upsert('security_audit_logs', logsToSend, 'id');
     } catch {
       // Ignore background flush failures
     }

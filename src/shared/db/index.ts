@@ -22,38 +22,14 @@ export { DualSyncHybridAdapter } from './adapters/DualSyncHybridAdapter';
  * - 'offline_db': Client-side persistent resilient store
  */
 function createDatabaseAdapter(): IDatabaseAdapter {
-  const provider =
-    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_DB_PROVIDER) || 'hybrid_sync';
+  const url =
+    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) ||
+    'https://gqrelwvmeoqvfnanoutz.supabase.co';
+  const anonKey =
+    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) ||
+    'sb_publishable_RN013pGcuejquwnEeW-n3Q_Ly2qVu2R';
 
-  switch (provider.toLowerCase()) {
-    case 'hybrid_sync':
-    case 'hybrid':
-    case 'dual_sync':
-    case 'dual':
-      return new DualSyncHybridAdapter();
-
-    case 'rest_api':
-    case 'rest':
-    case 'nestjs':
-      return new RestApiAdapter();
-
-    case 'offline_db':
-    case 'local':
-    case 'indexeddb':
-      return new OfflineIndexedDbAdapter();
-
-    case 'supabase':
-    default: {
-      const url =
-        (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) ||
-        'https://gqrelwvmeoqvfnanoutz.supabase.co';
-      const anonKey =
-        (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) ||
-        'sb_publishable_RN013pGcuejquwnEeW-n3Q_Ly2qVu2R';
-
-      return new SupabaseAdapter(url, anonKey, supabase);
-    }
-  }
+  return new SupabaseAdapter(url, anonKey, supabase);
 }
 
 /**

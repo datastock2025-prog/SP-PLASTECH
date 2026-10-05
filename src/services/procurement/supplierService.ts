@@ -1,6 +1,6 @@
 import { SupplierMaster } from '../../types/procurement';
 import { DOCUMENT_LIVE_SUPPLIERS_CATALOG } from '../../data/liveSuppliersCatalog';
-import { apiClient } from '../../shared/api/client';
+import { db } from '../../shared/db';
 import { adminEventBus } from '../adminService';
 
 const STORAGE_KEY = 'reboot_erp_procurement_suppliers_catalog';
@@ -108,9 +108,11 @@ class SupplierService {
 
   public async getSuppliers(): Promise<SupplierMaster[]> {
     try {
-      const res = await apiClient.get<any>('/procurement/suppliers');
-      if (res && res.data && Array.isArray(res.data.suppliers) && res.data.suppliers.length > 0) {
-        this.cache = res.data.suppliers.filter((s: SupplierMaster) => !DUMMY_SUPPLIER_IDS.has(s.id));
+      const data = await db.findMany<any>('suppliers', {
+        orderBy: { column: 'name', ascending: true },
+      });
+      if (Array.isArray(data) && data.length > 0) {
+        this.cache = data.filter((s: SupplierMaster) => !DUMMY_SUPPLIER_IDS.has(s.id));
         saveLocalSuppliers(this.cache);
         return this.cache;
       }
@@ -131,9 +133,9 @@ class SupplierService {
       createdDate: supplier.createdDate || new Date().toISOString().split('T')[0],
     };
 
-    // Try backend API sync
+    // Supabase Cloud direct upsert
     try {
-      await apiClient.post('/procurement/suppliers', enrichedSupplier);
+      await db.upsert('suppliers', enrichedSupplier, 'id');
     } catch {
       // Offline fallback
     }
@@ -167,7 +169,7 @@ class SupplierService {
     saveLocalSuppliers(this.cache);
 
     try {
-      await apiClient.post('/procurement/suppliers/bulk-sync', { suppliers: this.cache });
+      await db.upsert('suppliers', this.cache, 'id');
     } catch {
       // Offline sync successful locally
     }

@@ -1,8 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '../shared/api/client';
 import { queryKeys } from '../shared/queryKeys';
 import { universalSyncManager } from '../services/realtime/UniversalSyncManager';
 import { liveDataStore } from '../services/liveDataStore';
+import { supplierService } from '../services/procurement/supplierService';
+import { db } from '../shared/db';
 import { PurchaseOrder } from '../types';
 
 // ============================================================================
@@ -34,13 +35,11 @@ export function useSavePurchaseOrder() {
   });
 }
 
-
 export function useSuppliers() {
   return useQuery<any[]>({
     queryKey: queryKeys.procurement.suppliers(),
     queryFn: async () => {
-      const res = await apiClient.get('/procurement/vendors');
-      return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
+      return await supplierService.getSuppliers();
     },
   });
 }
@@ -49,8 +48,12 @@ export function useSupplierPriceLists() {
   return useQuery<any[]>({
     queryKey: queryKeys.procurement.priceLists(),
     queryFn: async () => {
-      const res = await apiClient.get('/procurement/prices');
-      return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
+      try {
+        const data = await db.findMany<any>('supplier_price_lists');
+        return Array.isArray(data) ? data : [];
+      } catch {
+        return [];
+      }
     },
   });
 }

@@ -1,4 +1,4 @@
-import { apiClient } from '../shared/api/client';
+import { db } from '../shared/db';
 import {
   AdminUser,
   AdminRole,
@@ -257,10 +257,9 @@ export const adminService = {
 
   async getUsers(): Promise<AdminUser[]> {
     try {
-      // 1. 100% API-First: Query NestJS Middleware User Directory endpoint
-      const res = await apiClient.get('/admin/users');
-      if (res.data?.success && Array.isArray(res.data.users)) {
-        const users = res.data.users.map(mapDbUserToAdminUser);
+      const dbUsers = await db.findMany('users');
+      if (Array.isArray(dbUsers) && dbUsers.length > 0) {
+        const users = dbUsers.map(mapDbUserToAdminUser);
         cachedUsers = users;
         try {
           localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(users));
@@ -268,7 +267,7 @@ export const adminService = {
         return users;
       }
     } catch (e) {
-      console.debug('[AdminService] API /admin/users fetch notice:', e);
+      console.debug('[AdminService] Supabase users fetch notice:', e);
     }
     return cachedUsers;
   },
@@ -282,7 +281,7 @@ export const adminService = {
         timestamp: new Date().toISOString(),
         changedBy: adminName,
         action: 'PROVISION_USER',
-        details: `Account provisioned via NestJS Middleware API with 24-hour Temporary OTP (${tempOtp.code}).`,
+        details: `Account provisioned with 24-hour Temporary OTP (${tempOtp.code}).`,
       },
     ];
 
@@ -310,11 +309,25 @@ export const adminService = {
     };
 
     try {
-      // 100% API Call to NestJS Middleware
-      const res = await apiClient.post('/admin/users', payload);
-      if (res.data?.success && res.data.user) {
+      const dbUser = await db.upsert('users', {
+        id: payload.id,
+        email: payload.email,
+        username: payload.username,
+        full_name: payload.fullName,
+        phone: payload.phone,
+        designation: payload.designation,
+        department: payload.department,
+        role_id: payload.roleId,
+        tenant_id: payload.tenantId,
+        plant_ids: payload.plantIds,
+        assigned_shift: payload.assignedShift,
+        status: payload.status,
+        mfa_enabled: payload.mfaEnabled,
+      }, 'id');
+
+      if (dbUser) {
         const created = {
-          ...mapDbUserToAdminUser(res.data.user),
+          ...mapDbUserToAdminUser(dbUser),
           tempOtp,
           password: payload.password,
           version: initialVersion,
@@ -328,7 +341,7 @@ export const adminService = {
         return created;
       }
     } catch (e) {
-      console.debug('[AdminService] API /admin/users post notice:', e);
+      console.debug('[AdminService] Supabase users create notice:', e);
     }
 
     const fallbackUser: AdminUser = {
@@ -380,11 +393,22 @@ export const adminService = {
     const mergedHistory = [...(existing?.changeHistory || []), historyEntry];
 
     try {
-      // 100% API Call to NestJS Middleware
-      const res = await apiClient.put(`/admin/users/${userId}`, updates);
-      if (res.data?.success && res.data.user) {
+      const dbUpdates: Record<string, any> = {};
+      if (updates.fullName) dbUpdates.full_name = updates.fullName;
+      if (updates.email) dbUpdates.email = updates.email;
+      if (updates.phone) dbUpdates.phone = updates.phone;
+      if (updates.designation) dbUpdates.designation = updates.designation;
+      if (updates.department) dbUpdates.department = updates.department;
+      if (updates.roleId) dbUpdates.role_id = updates.roleId;
+      if (updates.plantIds) dbUpdates.plant_ids = updates.plantIds;
+      if (updates.assignedShift) dbUpdates.assigned_shift = updates.assignedShift;
+      if (updates.status) dbUpdates.status = updates.status;
+      if (updates.mfaEnabled !== undefined) dbUpdates.mfa_enabled = updates.mfaEnabled;
+
+      const updatedDb = await db.update('users', userId, dbUpdates, 'id');
+      if (updatedDb) {
         const updated = {
-          ...mapDbUserToAdminUser(res.data.user),
+          ...mapDbUserToAdminUser(updatedDb),
           version: newVersion,
           changeHistory: mergedHistory,
           password: existing?.password,
@@ -398,7 +422,7 @@ export const adminService = {
         return updated;
       }
     } catch (e) {
-      console.debug('[AdminService] API /admin/users put notice:', e);
+      console.debug('[AdminService] Supabase users update notice:', e);
     }
 
     cachedUsers = cachedUsers.map((u) =>
@@ -421,18 +445,9 @@ export const adminService = {
 
   async deleteUser(userId: string, adminName: string = 'Super Admin'): Promise<{ success: boolean; message: string }> {
     try {
-      // 100% API Call to NestJS Middleware
-      const res = await apiClient.delete(`/admin/users/${userId}`);
-      if (res.data?.success) {
-        cachedUsers = cachedUsers.filter((u) => u.id !== userId);
-        try {
-          localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
-        } catch {}
-        adminEventBus.emit('USER_DELETED', { id: userId });
-        return res.data;
-      }
+      await db.delete('users', userId, 'id');
     } catch (e) {
-      console.debug('[AdminService] API /admin/users delete notice:', e);
+      console.debug('[AdminService] Supabase users delete notice:', e);
     }
 
     cachedUsers = cachedUsers.filter((u) => u.id !== userId);
@@ -443,56 +458,9 @@ export const adminService = {
     return { success: true, message: `User ${userId} successfully removed.` };
   },
 
-  // API Call: Generate 24-Hour Temp OTP backed by DB
+  // Generate 24-Hour Temp OTP backed by DB
   async generateTempOtp(userId: string, adminName: string = 'Super Admin'): Promise<{ code: string; expiresAt: number; formattedExpiry: string }> {
     const target = cachedUsers.find((u) => u.id === userId);
-    try {
-      const res = await apiClient.post(`/admin/users/${userId}/generate-temp-otp`, {
-        validHours: 24,
-        generatedBy: adminName,
-      });
-
-      if (res.data?.success && res.data.code) {
-        const expiresAtNum = new Date(res.data.expiresAt).getTime();
-        const tempOtp = {
-          code: res.data.code,
-          createdAt: new Date().toISOString(),
-          expiresAt: expiresAtNum,
-          isUsed: false,
-          mustChangePassword: true,
-          generatedBy: adminName,
-        };
-
-        if (target) {
-          target.tempOtp = tempOtp;
-          target.version = (target.version || 1) + 1;
-          target.changeHistory = [
-            ...(target.changeHistory || []),
-            {
-              version: target.version,
-              timestamp: new Date().toISOString(),
-              changedBy: adminName,
-              action: 'REGENERATE_TEMP_OTP',
-              details: `Generated new 24-hour Temporary OTP (${tempOtp.code}) via NestJS API.`,
-            },
-          ];
-          try {
-            localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
-          } catch {}
-          adminEventBus.emit('USER_UPDATED', target);
-        }
-
-        return {
-          code: res.data.code,
-          expiresAt: expiresAtNum,
-          formattedExpiry: new Date(expiresAtNum).toLocaleString(),
-        };
-      }
-    } catch (e) {
-      console.debug('[AdminService] API /admin/users generate-temp-otp notice:', e);
-    }
-
-    // Fallback local generator
     if (!target) throw new Error(`User with ID ${userId} not found.`);
     const tempOtp = create24hTempOtp(adminName);
     target.tempOtp = tempOtp;
@@ -507,8 +475,10 @@ export const adminService = {
         details: `Generated new 24-hour Temporary OTP (${tempOtp.code}).`,
       },
     ];
+
     try {
       localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+      await db.update('users', userId, { updated_at: new Date().toISOString() }, 'id');
     } catch {}
     adminEventBus.emit('USER_UPDATED', target);
 
@@ -519,103 +489,69 @@ export const adminService = {
     };
   },
 
-  // API Call: Verify User Temp OTP
+  // Verify User Temp OTP
   async verifyUserOtp(userId: string, code: string): Promise<{ success: boolean; message: string }> {
-    try {
-      const res = await apiClient.post(`/admin/users/${userId}/verify-otp`, { code });
-      if (res.data?.success) {
-        const target = cachedUsers.find((u) => u.id === userId);
-        if (target && target.tempOtp) {
-          target.tempOtp.isUsed = true;
-          target.status = 'Active';
-          try {
-            localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
-          } catch {}
-          adminEventBus.emit('USER_UPDATED', target);
-        }
-        return res.data;
+    const target = cachedUsers.find((u) => u.id === userId);
+    if (target && target.tempOtp) {
+      if (target.tempOtp.code === code.trim() && Date.now() <= target.tempOtp.expiresAt) {
+        target.tempOtp.isUsed = true;
+        target.status = 'Active';
+        try {
+          localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+          await db.update('users', userId, { status: 'Active' }, 'id');
+        } catch {}
+        adminEventBus.emit('USER_UPDATED', target);
+        return { success: true, message: 'OTP verified successfully.' };
       }
-    } catch (e: any) {
-      return { success: false, message: e.response?.data?.message || e.message || 'OTP verification failed.' };
     }
-
     return { success: true, message: 'OTP verified successfully.' };
   },
 
-  // API Call: Provision RBAC Roles & Plant Access
+  // Provision RBAC Roles & Plant Access
   async provisionUserRbac(
     userId: string,
     rbacData: { roleId: string; plantIds: string[]; department?: string; designation?: string; assignedShift?: string },
     adminName: string = 'Super Admin'
   ): Promise<{ success: boolean; message: string }> {
-    try {
-      const res = await apiClient.put(`/admin/users/${userId}/provision-rbac`, rbacData);
-      if (res.data?.success) {
-        const target = cachedUsers.find((u) => u.id === userId);
-        if (target) {
-          target.roleId = rbacData.roleId;
-          target.plantIds = rbacData.plantIds;
-          target.roleName = cachedRoles.find((r) => r.id === rbacData.roleId)?.name || rbacData.roleId;
-          target.plantNames = rbacData.plantIds.map((pid) => cachedPlants.find((p) => p.id === pid)?.plantName || pid);
-          if (rbacData.department) target.department = rbacData.department;
-          if (rbacData.designation) target.designation = rbacData.designation;
-          if (rbacData.assignedShift) target.assignedShift = rbacData.assignedShift;
-          target.version = (target.version || 1) + 1;
-          target.changeHistory = [
-            ...(target.changeHistory || []),
-            {
-              version: target.version,
-              timestamp: new Date().toISOString(),
-              changedBy: adminName,
-              action: 'PROVISION_RBAC',
-              details: `Assigned Role: ${target.roleName}, Plants: ${target.plantNames.join(', ')}.`,
-            },
-          ];
-          try {
-            localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
-          } catch {}
-          adminEventBus.emit('USER_UPDATED', target);
-        }
-        return res.data;
-      }
-    } catch (e: any) {
-      console.debug('[AdminService] API /admin/users provision-rbac notice:', e);
+    const target = cachedUsers.find((u) => u.id === userId);
+    if (target) {
+      target.roleId = rbacData.roleId;
+      target.plantIds = rbacData.plantIds;
+      target.roleName = cachedRoles.find((r) => r.id === rbacData.roleId)?.name || rbacData.roleId;
+      target.plantNames = rbacData.plantIds.map((pid) => cachedPlants.find((p) => p.id === pid)?.plantName || pid);
+      if (rbacData.department) target.department = rbacData.department;
+      if (rbacData.designation) target.designation = rbacData.designation;
+      if (rbacData.assignedShift) target.assignedShift = rbacData.assignedShift;
+      target.version = (target.version || 1) + 1;
+      target.changeHistory = [
+        ...(target.changeHistory || []),
+        {
+          version: target.version,
+          timestamp: new Date().toISOString(),
+          changedBy: adminName,
+          action: 'PROVISION_RBAC',
+          details: `Assigned Role: ${target.roleName}, Plants: ${target.plantNames.join(', ')}.`,
+        },
+      ];
+      try {
+        localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+        await db.update('users', userId, {
+          role_id: rbacData.roleId,
+          plant_ids: rbacData.plantIds,
+          department: rbacData.department || target.department,
+          designation: rbacData.designation || target.designation,
+          assigned_shift: rbacData.assignedShift || target.assignedShift,
+        }, 'id');
+      } catch {}
+      adminEventBus.emit('USER_UPDATED', target);
     }
 
     return { success: true, message: 'RBAC successfully provisioned.' };
   },
 
-  // API Call: Admin Direct Password Reset
+  // Admin Direct Password Reset
   async resetUserPassword(userId: string, newPassword: string, adminName: string = 'Super Admin'): Promise<boolean> {
     const target = cachedUsers.find((u) => u.id === userId);
-    try {
-      const res = await apiClient.post(`/admin/users/${userId}/change-password`, { newPassword });
-      if (res.data?.success) {
-        if (target) {
-          target.password = newPassword;
-          if (target.tempOtp) target.tempOtp.isUsed = true;
-          target.version = (target.version || 1) + 1;
-          target.changeHistory = [
-            ...(target.changeHistory || []),
-            {
-              version: target.version,
-              timestamp: new Date().toISOString(),
-              changedBy: adminName,
-              action: 'ADMIN_PASSWORD_RESET',
-              details: `Password changed via NestJS API. Sessions revoked.`,
-            },
-          ];
-          try {
-            localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
-          } catch {}
-          adminEventBus.emit('USER_UPDATED', target);
-        }
-        return true;
-      }
-    } catch (e) {
-      console.debug('[AdminService] API /admin/users change-password notice:', e);
-    }
-
     if (!target) throw new Error(`User with ID ${userId} not found.`);
     target.password = newPassword;
     if (target.tempOtp) target.tempOtp.isUsed = true;
@@ -632,6 +568,7 @@ export const adminService = {
     ];
     try {
       localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+      await db.update('users', userId, { updated_at: new Date().toISOString() }, 'id');
     } catch {}
     adminEventBus.emit('USER_UPDATED', target);
     return true;
@@ -740,7 +677,7 @@ export const adminService = {
 
   async resetUserPin(userId: string, pin: string = '1234'): Promise<boolean> {
     try {
-      await apiClient.post(`/admin/users/${userId}/reset-pin`, { pin });
+      await db.update('users', userId, { updated_at: new Date().toISOString() }, 'id');
       return true;
     } catch {
       return true;
@@ -752,9 +689,9 @@ export const adminService = {
   // ============================================================================
   async getRoles(): Promise<AdminRole[]> {
     try {
-      const res = await apiClient.get('/admin/roles');
-      if (res.data?.success && Array.isArray(res.data.roles)) {
-        cachedRoles = res.data.roles.map((r: any) => ({
+      const dbRoles = await db.findMany('roles');
+      if (Array.isArray(dbRoles) && dbRoles.length > 0) {
+        cachedRoles = dbRoles.map((r: any) => ({
           id: r.id,
           name: r.name,
           code: r.id.replace('ROLE-', ''),
@@ -782,13 +719,13 @@ export const adminService = {
     };
 
     try {
-      const res = await apiClient.post('/admin/roles', payload);
-      if (res.data?.success && res.data.role) {
+      const dbRole = await db.upsert('roles', payload, 'id');
+      if (dbRole) {
         const created: AdminRole = {
-          id: res.data.role.id,
-          name: res.data.role.name,
-          code: res.data.role.id.replace('ROLE-', ''),
-          description: res.data.role.description || '',
+          id: dbRole.id,
+          name: dbRole.name,
+          code: dbRole.id.replace('ROLE-', ''),
+          description: dbRole.description || '',
           isSystemRole: false,
           userCount: 0,
           createdDate: new Date().toISOString().split('T')[0],
@@ -819,11 +756,10 @@ export const adminService = {
 
   async updateRole(roleId: string, updates: Partial<AdminRole>): Promise<AdminRole> {
     try {
-      await apiClient.put(`/admin/roles/${roleId}`, {
+      await db.update('roles', roleId, {
         name: updates.name,
         description: updates.description,
-        permissions: updates.permissions ? Object.keys(updates.permissions) : undefined,
-      });
+      }, 'id');
     } catch {
       // Fallback
     }
@@ -836,7 +772,7 @@ export const adminService = {
 
   async deleteRole(roleId: string): Promise<boolean> {
     try {
-      await apiClient.delete(`/admin/roles/${roleId}`);
+      await db.delete('roles', roleId, 'id');
     } catch {
       // Fallback
     }
@@ -850,9 +786,9 @@ export const adminService = {
   // ============================================================================
   async getPlants(): Promise<PlantDetails[]> {
     try {
-      const res = await apiClient.get('/admin/plants');
-      if (res.data?.success && Array.isArray(res.data.plants)) {
-        const plants = res.data.plants.map(mapDbPlantToPlantDetails);
+      const dbPlants = await db.findMany('plants');
+      if (Array.isArray(dbPlants) && dbPlants.length > 0) {
+        const plants = dbPlants.map(mapDbPlantToPlantDetails);
         cachedPlants = plants;
         return plants;
       }
@@ -879,9 +815,9 @@ export const adminService = {
     };
 
     try {
-      const res = await apiClient.post('/admin/plants', payload);
-      if (res.data?.success && res.data.plant) {
-        const created = mapDbPlantToPlantDetails(res.data.plant);
+      const dbPlant = await db.upsert('plants', payload, 'id');
+      if (dbPlant) {
+        const created = mapDbPlantToPlantDetails(dbPlant);
         cachedPlants.push(created);
         adminEventBus.emit('PLANT_CREATED', created);
         return created;
@@ -918,17 +854,17 @@ export const adminService = {
 
   async updatePlant(plantId: string, updates: Partial<PlantDetails>): Promise<PlantDetails> {
     try {
-      await apiClient.put(`/admin/plants/${plantId}`, {
+      await db.update('plants', plantId, {
         code: updates.plantCode,
         name: updates.plantName,
         location: updates.city && updates.state ? `${updates.city}, ${updates.state}` : undefined,
         address: updates.address,
-        contactPerson: updates.contactPerson,
-        contactEmail: updates.contactEmail,
-        contactPhone: updates.contactPhone,
+        contact_person: updates.contactPerson,
+        contact_email: updates.contactEmail,
+        contact_phone: updates.contactPhone,
         gstin: updates.gstin,
-        isDefault: updates.isHeadquarters,
-      });
+        is_default: updates.isHeadquarters,
+      }, 'id');
     } catch {
       // Fallback
     }
@@ -941,7 +877,7 @@ export const adminService = {
 
   async deletePlant(plantId: string): Promise<boolean> {
     try {
-      await apiClient.delete(`/admin/plants/${plantId}`);
+      await db.delete('plants', plantId, 'id');
     } catch {
       // Fallback
     }
@@ -955,9 +891,9 @@ export const adminService = {
   // ============================================================================
   async getNumberingSequences(): Promise<NumberingSequence[]> {
     try {
-      const res = await apiClient.get('/admin/numbering');
-      if (res.data?.success && Array.isArray(res.data.sequences)) {
-        const seqs = res.data.sequences.map(mapDbSequenceToNumbering);
+      const dbSeqs = await db.findMany('numbering_sequences');
+      if (Array.isArray(dbSeqs) && dbSeqs.length > 0) {
+        const seqs = dbSeqs.map(mapDbSequenceToNumbering);
         cachedSequences = seqs;
         return seqs;
       }
@@ -968,22 +904,13 @@ export const adminService = {
   },
 
   async generateNextNumber(moduleName: string, documentType: string): Promise<string> {
-    try {
-      const res = await apiClient.post('/admin/numbering/generate', {
-        module: moduleName,
-        documentType,
-      });
-      if (res.data?.success && res.data.documentNumber) {
-        return res.data.documentNumber;
-      }
-    } catch {
-      // Fallback
-    }
-
     const seq = cachedSequences.find((s) => s.documentType === documentType || s.module === moduleName);
     if (seq) {
       seq.currentSequence += 1;
       const numStr = seq.currentSequence.toString().padStart(seq.zeroPadding, '0');
+      try {
+        await db.upsert('numbering_sequences', seq, 'id');
+      } catch {}
       return `${seq.prefix}2026-${numStr}`;
     }
     return `${documentType.slice(0, 3).toUpperCase()}-2026-0001`;
@@ -994,20 +921,19 @@ export const adminService = {
   // ============================================================================
   async getWorkflows(): Promise<ApprovalWorkflow[]> {
     try {
-      const res = await apiClient.get('/admin/workflows');
-      if (res.data?.success && Array.isArray(res.data.workflows)) {
-        cachedWorkflows = res.data.workflows.map((w: any) => ({
+      const dbWfs = await db.findMany('approval_workflows');
+      if (Array.isArray(dbWfs) && dbWfs.length > 0) {
+        cachedWorkflows = dbWfs.map((w: any) => ({
           id: w.id,
-          workflowName: w.name,
-          module: w.module,
-          documentType: w.document_type,
+          workflowName: w.name || w.workflow_name || w.workflowName || 'Workflow',
+          module: w.module || 'Procurement',
+          documentType: w.document_type || w.documentType || 'General',
           description: w.description || '',
-          minValue: parseFloat(w.min_amount || 0),
-          maxValue: w.max_amount ? parseFloat(w.max_amount) : undefined,
-          isActive: w.is_active,
+          triggerCondition: w.trigger_condition || w.triggerCondition || 'Amount > 0',
+          isActive: w.is_active !== undefined ? w.is_active : true,
           tiers: Array.isArray(w.tiers) ? w.tiers : JSON.parse(w.tiers || '[]'),
           lastModifiedDate: w.updated_at ? new Date(w.updated_at).toISOString().split('T')[0] : '2026-01-01',
-          lastModifiedBy: w.updated_by || 'Admin',
+          modifiedBy: w.updated_by || w.modifiedBy || 'Admin',
         }));
         return cachedWorkflows;
       }
@@ -1022,18 +948,20 @@ export const adminService = {
   // ============================================================================
   async getParameters(): Promise<SystemParameter[]> {
     try {
-      const res = await apiClient.get('/admin/parameters');
-      if (res.data?.success && Array.isArray(res.data.parameters)) {
-        cachedParameters = res.data.parameters.map((p: any) => ({
+      const dbParams = await db.findMany('system_parameters');
+      if (Array.isArray(dbParams) && dbParams.length > 0) {
+        cachedParameters = dbParams.map((p: any) => ({
           id: p.id,
-          category: p.param_group,
-          key: p.param_key,
-          name: p.param_name,
-          currentValue: p.param_value,
-          defaultValue: p.default_value,
-          dataType: p.value_type.toLowerCase() as any,
+          category: p.param_group || p.category || 'GENERAL',
+          key: p.param_key || p.key || 'KEY',
+          name: p.param_name || p.name || 'Param',
+          currentValue: p.param_value || p.currentValue || '',
+          defaultValue: p.default_value || p.defaultValue || '',
+          dataType: (p.value_type || p.dataType || 'STRING').toLowerCase() as any,
+          valueType: (p.value_type || p.dataType || 'STRING') as any,
           description: p.description || '',
           requiresRestart: false,
+          requiresServerRestart: false,
           isEncrypted: false,
           lastModified: p.updated_at ? new Date(p.updated_at).toISOString().split('T')[0] : '2026-01-01',
           modifiedBy: p.updated_by || 'Admin',
@@ -1048,7 +976,7 @@ export const adminService = {
 
   async updateParameter(paramId: string, paramValue: string): Promise<boolean> {
     try {
-      await apiClient.put(`/admin/parameters/${paramId}`, { paramValue });
+      await db.update('system_parameters', paramId, { param_value: paramValue }, 'id');
     } catch {
       // Fallback
     }
@@ -1062,33 +990,6 @@ export const adminService = {
   // SYSTEM HEALTH
   // ============================================================================
   async getSystemHealth(): Promise<AdminSystemHealth> {
-    try {
-      const res = await apiClient.get('/admin/system-health');
-      if (res.data?.success) {
-        return {
-          serverStatus: 'Operational',
-          uptimeSeconds: Math.round(res.data.uptimeSeconds || 3600),
-          uptimeFormatted: `${Math.floor((res.data.uptimeSeconds || 3600) / 3600)}h ${Math.floor(((res.data.uptimeSeconds || 3600) % 3600) / 60)}m`,
-          cpuUsagePct: 18,
-          memoryUsagePct: Math.min(100, Math.round((res.data.memoryUsageMB / 1024) * 100)),
-          memoryUsedGb: parseFloat((res.data.memoryUsageMB / 1024).toFixed(2)),
-          memoryTotalGb: 8.0,
-          diskUsagePct: 24,
-          diskUsedGb: 120,
-          diskTotalGb: 500,
-          activeSessionsCount: res.data.database?.stats?.activeSessions || 7,
-          databaseConnections: res.data.database?.pool?.totalCount || 5,
-          dbLatencyMs: 3.8,
-          backgroundJobsPending: 0,
-          backgroundJobsProcessing: 2,
-          backgroundJobsFailed: 0,
-          lastBackupTime: 'Today at 03:00 AM IST',
-          sslCertificateExpiryDays: 284,
-        };
-      }
-    } catch {
-      // Fallback
-    }
     return systemHealth;
   },
 
@@ -1222,8 +1123,8 @@ export const adminService = {
   // ============================================================================
   async getSodRules(): Promise<SodConflictRule[]> {
     try {
-      const res = await apiClient.get<SodConflictRule[]>('/admin/sod-rules');
-      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+      const data = await db.findMany<SodConflictRule>('sod_rules');
+      if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_sod_rules') : null;
     if (raw) {
@@ -1234,8 +1135,8 @@ export const adminService = {
 
   async getSodViolations(): Promise<SodViolation[]> {
     try {
-      const res = await apiClient.get<SodViolation[]>('/admin/sod-violations');
-      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+      const data = await db.findMany<SodViolation>('sod_violations');
+      if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_sod_violations') : null;
     if (raw) {
@@ -1249,8 +1150,8 @@ export const adminService = {
   // ============================================================================
   async getWarehouseLocations(): Promise<WarehouseLocationConfig[]> {
     try {
-      const res = await apiClient.get<WarehouseLocationConfig[]>('/admin/warehouses');
-      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+      const data = await db.findMany<WarehouseLocationConfig>('warehouses');
+      if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_warehouses') : null;
     if (raw) {
@@ -1262,11 +1163,11 @@ export const adminService = {
   async saveWarehouseLocation(wh: Partial<WarehouseLocationConfig>): Promise<WarehouseLocationConfig> {
     try {
       if (wh.id) {
-        const res = await apiClient.put<WarehouseLocationConfig>(`/admin/warehouses/${wh.id}`, wh);
-        if (res.data) return res.data;
+        const updatedDb = await db.update<WarehouseLocationConfig>('warehouses', wh.id, wh, 'id');
+        if (updatedDb && (updatedDb as WarehouseLocationConfig).id) return updatedDb as WarehouseLocationConfig;
       } else {
-        const res = await apiClient.post<WarehouseLocationConfig>('/admin/warehouses', wh);
-        if (res.data) return res.data;
+        const createdDb = await db.upsert<WarehouseLocationConfig>('warehouses', wh as any, 'id');
+        if (createdDb && (createdDb as WarehouseLocationConfig).id) return createdDb as WarehouseLocationConfig;
       }
     } catch {}
     const existing = await this.getWarehouseLocations();
@@ -1285,8 +1186,10 @@ export const adminService = {
   // ============================================================================
   async getMachines(plantId?: string): Promise<MachineWorkCenterConfig[]> {
     try {
-      const res = await apiClient.get<MachineWorkCenterConfig[]>('/admin/machines', { params: { plantId } });
-      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+      const data = await db.findMany<MachineWorkCenterConfig>('machines');
+      if (Array.isArray(data) && data.length > 0) {
+        return plantId ? data.filter((m) => m.plantId === plantId) : data;
+      }
     } catch {}
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_machines') : null;
     let list: MachineWorkCenterConfig[] = [...mockMachineWorkCenters];
@@ -1302,11 +1205,11 @@ export const adminService = {
   async saveMachine(machine: Partial<MachineWorkCenterConfig>): Promise<MachineWorkCenterConfig> {
     try {
       if (machine.id) {
-        const res = await apiClient.put<MachineWorkCenterConfig>(`/admin/machines/${machine.id}`, machine);
-        if (res.data) return res.data;
+        const updatedDb = await db.update<MachineWorkCenterConfig>('machines', machine.id, machine, 'id');
+        if (updatedDb && (updatedDb as MachineWorkCenterConfig).id) return updatedDb as MachineWorkCenterConfig;
       } else {
-        const res = await apiClient.post<MachineWorkCenterConfig>('/admin/machines', machine);
-        if (res.data) return res.data;
+        const createdDb = await db.upsert<MachineWorkCenterConfig>('machines', machine as any, 'id');
+        if (createdDb && (createdDb as MachineWorkCenterConfig).id) return createdDb as MachineWorkCenterConfig;
       }
     } catch {}
     const existing = await this.getMachines();
@@ -1325,8 +1228,10 @@ export const adminService = {
   // ============================================================================
   async getShifts(plantId?: string): Promise<ShiftCalendarConfig[]> {
     try {
-      const res = await apiClient.get<ShiftCalendarConfig[]>('/admin/shifts', { params: { plantId } });
-      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+      const data = await db.findMany<ShiftCalendarConfig>('shifts');
+      if (Array.isArray(data) && data.length > 0) {
+        return plantId ? data.filter((s) => s.appliesToPlants?.includes(plantId) || s.appliesToPlants?.includes('All Plants')) : data;
+      }
     } catch {}
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_shifts') : null;
     let list: ShiftCalendarConfig[] = [...mockShifts];
@@ -1341,8 +1246,10 @@ export const adminService = {
 
   async getHolidays(plantId?: string): Promise<HolidayOvertimeRule[]> {
     try {
-      const res = await apiClient.get<HolidayOvertimeRule[]>('/admin/holidays', { params: { plantId } });
-      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+      const data = await db.findMany<HolidayOvertimeRule>('holidays');
+      if (Array.isArray(data) && data.length > 0) {
+        return plantId ? data.filter((h) => h.affectedPlants?.includes(plantId) || h.affectedPlants?.includes('All Plants')) : data;
+      }
     } catch {}
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_holidays') : null;
     let list: HolidayOvertimeRule[] = [...mockHolidays];
@@ -1358,11 +1265,11 @@ export const adminService = {
   async saveShift(shift: Partial<ShiftCalendarConfig>): Promise<ShiftCalendarConfig> {
     try {
       if (shift.id) {
-        const res = await apiClient.put<ShiftCalendarConfig>(`/admin/shifts/${shift.id}`, shift);
-        if (res.data) return res.data;
+        const updatedDb = await db.update<ShiftCalendarConfig>('shifts', shift.id, shift, 'id');
+        if (updatedDb && (updatedDb as ShiftCalendarConfig).id) return updatedDb as ShiftCalendarConfig;
       } else {
-        const res = await apiClient.post<ShiftCalendarConfig>('/admin/shifts', shift);
-        if (res.data) return res.data;
+        const createdDb = await db.upsert<ShiftCalendarConfig>('shifts', shift as any, 'id');
+        if (createdDb && (createdDb as ShiftCalendarConfig).id) return createdDb as ShiftCalendarConfig;
       }
     } catch {}
     const existing = await this.getShifts();
@@ -1378,11 +1285,11 @@ export const adminService = {
   async saveHoliday(holiday: Partial<HolidayOvertimeRule>): Promise<HolidayOvertimeRule> {
     try {
       if (holiday.id) {
-        const res = await apiClient.put<HolidayOvertimeRule>(`/admin/holidays/${holiday.id}`, holiday);
-        if (res.data) return res.data;
+        const updatedDb = await db.update<HolidayOvertimeRule>('holidays', holiday.id, holiday, 'id');
+        if (updatedDb && (updatedDb as HolidayOvertimeRule).id) return updatedDb as HolidayOvertimeRule;
       } else {
-        const res = await apiClient.post<HolidayOvertimeRule>('/admin/holidays', holiday);
-        if (res.data) return res.data;
+        const createdDb = await db.upsert<HolidayOvertimeRule>('holidays', holiday as any, 'id');
+        if (createdDb && (createdDb as HolidayOvertimeRule).id) return createdDb as HolidayOvertimeRule;
       }
     } catch {}
     const existing = await this.getHolidays();
@@ -1400,8 +1307,12 @@ export const adminService = {
   // ============================================================================
   async getReasonCodes(category?: string): Promise<ReasonCodeItem[]> {
     try {
-      const res = await apiClient.get<ReasonCodeItem[]>('/admin/reason-codes', { params: { category } });
-      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+      const data = await db.findMany<ReasonCodeItem>('reason_codes');
+      if (Array.isArray(data) && data.length > 0) {
+        return category && category !== 'ALL'
+          ? data.filter((r) => r.subCategory === category || r.department === category)
+          : data;
+      }
     } catch {}
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_reason_codes') : null;
     let list: ReasonCodeItem[] = [...mockReasonCodes];
@@ -1417,11 +1328,11 @@ export const adminService = {
   async saveReasonCode(code: Partial<ReasonCodeItem>): Promise<ReasonCodeItem> {
     try {
       if (code.id) {
-        const res = await apiClient.put<ReasonCodeItem>(`/admin/reason-codes/${code.id}`, code);
-        if (res.data) return res.data;
+        const updatedDb = await db.update<ReasonCodeItem>('reason_codes', code.id, code, 'id');
+        if (updatedDb && (updatedDb as ReasonCodeItem).id) return updatedDb as ReasonCodeItem;
       } else {
-        const res = await apiClient.post<ReasonCodeItem>('/admin/reason-codes', code);
-        if (res.data) return res.data;
+        const createdDb = await db.upsert<ReasonCodeItem>('reason_codes', code as any, 'id');
+        if (createdDb && (createdDb as ReasonCodeItem).id) return createdDb as ReasonCodeItem;
       }
     } catch {}
     const existing = await this.getReasonCodes();
@@ -1436,7 +1347,7 @@ export const adminService = {
 
   async deleteReasonCode(codeId: string): Promise<boolean> {
     try {
-      await apiClient.delete(`/admin/reason-codes/${codeId}`);
+      await db.delete('reason_codes', codeId, 'id');
     } catch {}
     const existing = await this.getReasonCodes();
     const filtered = existing.filter((r) => r.id !== codeId);
@@ -1451,8 +1362,8 @@ export const adminService = {
   // ============================================================================
   async getCompanyProfile(): Promise<CompanyProfile> {
     try {
-      const res = await apiClient.get<CompanyProfile>('/admin/company-profile');
-      if (res.data) return res.data;
+      const data = await db.findMany<CompanyProfile>('company_profile');
+      if (Array.isArray(data) && data.length > 0) return data[0];
     } catch {}
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_company_profile') : null;
     if (raw) {
@@ -1463,8 +1374,7 @@ export const adminService = {
 
   async updateCompanyProfile(profile: Partial<CompanyProfile>): Promise<CompanyProfile> {
     try {
-      const res = await apiClient.put<CompanyProfile>('/admin/company-profile', profile);
-      if (res.data) return res.data;
+      await db.upsert('company_profile', profile, 'id');
     } catch {}
     const existing = await this.getCompanyProfile();
     const updated = { ...existing, ...profile };
@@ -1480,8 +1390,8 @@ export const adminService = {
   // ============================================================================
   async createNumberingSequence(seq: Partial<NumberingSequence>): Promise<NumberingSequence> {
     try {
-      const res = await apiClient.post<NumberingSequence>('/admin/numbering-series', seq);
-      if (res.data) return res.data;
+      const createdDb = await db.upsert<NumberingSequence>('numbering_sequences', seq as any, 'id');
+      if (createdDb && (createdDb as NumberingSequence).id) return createdDb as NumberingSequence;
     } catch {}
     const existing = await this.getNumberingSequences();
     const created: NumberingSequence = {
@@ -1502,8 +1412,7 @@ export const adminService = {
 
   async updateNumberingSequence(id: string, seq: Partial<NumberingSequence>): Promise<NumberingSequence> {
     try {
-      const res = await apiClient.put<NumberingSequence>(`/admin/numbering-series/${id}`, seq);
-      if (res.data) return res.data;
+      await db.update('numbering_sequences', id, seq, 'id');
     } catch {}
     cachedSequences = cachedSequences.map((s) => (s.id === id ? { ...s, ...seq } : s));
     return cachedSequences.find((s) => s.id === id)!;
@@ -1518,8 +1427,8 @@ export const adminService = {
 
   async createApprovalWorkflow(wf: Partial<ApprovalWorkflow>): Promise<ApprovalWorkflow> {
     try {
-      const res = await apiClient.post<ApprovalWorkflow>('/admin/approval-workflows', wf);
-      if (res.data) return res.data;
+      const createdDb = await db.upsert<ApprovalWorkflow>('approval_workflows', wf as any, 'id');
+      if (createdDb && (createdDb as ApprovalWorkflow).id) return createdDb as ApprovalWorkflow;
     } catch {}
     const created: ApprovalWorkflow = {
       id: `WF-${Date.now().toString().slice(-4)}`,
@@ -1539,8 +1448,7 @@ export const adminService = {
 
   async updateApprovalWorkflow(id: string, wf: Partial<ApprovalWorkflow>): Promise<ApprovalWorkflow> {
     try {
-      const res = await apiClient.put<ApprovalWorkflow>(`/admin/approval-workflows/${id}`, wf);
-      if (res.data) return res.data;
+      await db.update('approval_workflows', id, wf, 'id');
     } catch {}
     cachedWorkflows = cachedWorkflows.map((w) => (w.id === id ? { ...w, ...wf } : w));
     return cachedWorkflows.find((w) => w.id === id)!;
@@ -1551,8 +1459,8 @@ export const adminService = {
   // ============================================================================
   async getSecurityPolicy(): Promise<SecurityPolicySettings> {
     try {
-      const res = await apiClient.get<SecurityPolicySettings>('/admin/security/policy');
-      if (res.data) return res.data;
+      const data = await db.findMany<SecurityPolicySettings>('security_policy');
+      if (Array.isArray(data) && data.length > 0) return data[0];
     } catch {}
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_security_policy') : null;
     if (raw) {
@@ -1563,8 +1471,7 @@ export const adminService = {
 
   async updateSecurityPolicy(policy: Partial<SecurityPolicySettings>): Promise<SecurityPolicySettings> {
     try {
-      const res = await apiClient.put<SecurityPolicySettings>('/admin/security/policy', policy);
-      if (res.data) return res.data;
+      await db.upsert('security_policy', policy, 'id');
     } catch {}
     const existing = await this.getSecurityPolicy();
     const updated = { ...existing, ...policy };
@@ -1580,8 +1487,8 @@ export const adminService = {
   // ============================================================================
   async getAuditLogs(filter?: any): Promise<AuditLogEntry[]> {
     try {
-      const res = await apiClient.get<AuditLogEntry[]>('/admin/audit-logs', { params: filter });
-      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+      const data = await db.findMany<AuditLogEntry>('audit_logs', filter ? { where: filter } : undefined);
+      if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_audit_logs') : null;
     if (raw) {
@@ -1592,8 +1499,8 @@ export const adminService = {
 
   async getLoginAuditRecords(params?: any): Promise<SecurityLoginAuditRecord[]> {
     try {
-      const res = await apiClient.get<SecurityLoginAuditRecord[]>('/admin/security/login-audit', { params });
-      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+      const data = await db.findMany<SecurityLoginAuditRecord>('login_audit_records', params ? { where: params } : undefined);
+      if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_login_audit') : null;
     if (raw) {
@@ -1607,8 +1514,8 @@ export const adminService = {
   // ============================================================================
   async getIntegrations(): Promise<IntegrationConnector[]> {
     try {
-      const res = await apiClient.get<IntegrationConnector[]>('/admin/integrations');
-      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+      const data = await db.findMany<IntegrationConnector>('integrations');
+      if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_integrations') : null;
     if (raw) {
@@ -1620,11 +1527,11 @@ export const adminService = {
   async saveIntegration(connector: Partial<IntegrationConnector>): Promise<IntegrationConnector> {
     try {
       if (connector.id) {
-        const res = await apiClient.put<IntegrationConnector>(`/admin/integrations/${connector.id}`, connector);
-        if (res.data) return res.data;
+        const updatedDb = await db.update<IntegrationConnector>('integrations', connector.id, connector, 'id');
+        if (updatedDb && (updatedDb as IntegrationConnector).id) return updatedDb as IntegrationConnector;
       } else {
-        const res = await apiClient.post<IntegrationConnector>('/admin/integrations', connector);
-        if (res.data) return res.data;
+        const createdDb = await db.upsert<IntegrationConnector>('integrations', connector as any, 'id');
+        if (createdDb && (createdDb as IntegrationConnector).id) return createdDb as IntegrationConnector;
       }
     } catch {}
     const existing = await this.getIntegrations();
@@ -1642,8 +1549,8 @@ export const adminService = {
   // ============================================================================
   async getBackupRetentionPolicy(): Promise<DataRetentionPolicy[]> {
     try {
-      const res = await apiClient.get<DataRetentionPolicy[]>('/admin/backup-retention-policy');
-      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+      const data = await db.findMany<DataRetentionPolicy>('data_retention_policies');
+      if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_backup_retention') : null;
     if (raw) {
@@ -1654,8 +1561,9 @@ export const adminService = {
 
   async saveBackupRetentionPolicy(policy: Partial<DataRetentionPolicy>): Promise<DataRetentionPolicy> {
     try {
-      const res = await apiClient.put<DataRetentionPolicy>('/admin/backup-retention-policy', policy);
-      if (res.data) return res.data;
+      if (policy.id) {
+        await db.update('data_retention_policies', policy.id, policy, 'id');
+      }
     } catch {}
     const existing = await this.getBackupRetentionPolicy();
     const updated = existing.map((p) => (p.id === policy.id ? { ...p, ...policy } : p));
@@ -1667,8 +1575,8 @@ export const adminService = {
 
   async getBackups(): Promise<BackupRecord[]> {
     try {
-      const res = await apiClient.get<BackupRecord[]>('/admin/backups');
-      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+      const data = await db.findMany<BackupRecord>('backups');
+      if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
     return defaultBackups;
   },
@@ -1678,8 +1586,8 @@ export const adminService = {
   // ============================================================================
   async getLicenseDetails(): Promise<LicenseSubscriptionDetails> {
     try {
-      const res = await apiClient.get<LicenseSubscriptionDetails>('/admin/license-subscription');
-      if (res.data) return res.data;
+      const data = await db.findMany<LicenseSubscriptionDetails>('license_details');
+      if (Array.isArray(data) && data.length > 0) return data[0];
     } catch {}
     return mockLicenseDetails;
   },
@@ -1689,8 +1597,8 @@ export const adminService = {
   // ============================================================================
   async getQuickActions(): Promise<any[]> {
     try {
-      const res = await apiClient.get<any[]>('/admin/quick-actions');
-      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+      const data = await db.findMany<any>('quick_actions');
+      if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_quick_actions') : null;
     if (raw) {
@@ -1701,8 +1609,7 @@ export const adminService = {
 
   async saveQuickActions(actions: any[]): Promise<any[]> {
     try {
-      const res = await apiClient.put<any[]>('/admin/quick-actions', { actions });
-      if (Array.isArray(res.data)) return res.data;
+      await db.upsert('quick_actions', { actions }, 'id');
     } catch {}
     try {
       localStorage.setItem('reboot_admin_quick_actions', JSON.stringify(actions));
@@ -1715,8 +1622,8 @@ export const adminService = {
   // ============================================================================
   async getMultiContextPolicies(): Promise<MultiContextScopePolicy[]> {
     try {
-      const res = await apiClient.get<MultiContextScopePolicy[]>('/admin/multi-context-policies');
-      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+      const data = await db.findMany<MultiContextScopePolicy>('multi_context_policies');
+      if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_multi_context') : null;
     if (raw) {
@@ -1727,8 +1634,9 @@ export const adminService = {
 
   async saveMultiContextPolicy(policy: Partial<MultiContextScopePolicy>): Promise<MultiContextScopePolicy> {
     try {
-      const res = await apiClient.put<MultiContextScopePolicy>('/admin/multi-context-policies', policy);
-      if (res.data) return res.data;
+      if (policy.id) {
+        await db.update('multi_context_policies', policy.id, policy, 'id');
+      }
     } catch {}
     const existing = await this.getMultiContextPolicies();
     const updated = existing.map((p) => (p.id === policy.id ? { ...p, ...policy } as MultiContextScopePolicy : p));
@@ -1743,8 +1651,8 @@ export const adminService = {
   // ============================================================================
   async getUserGroups(): Promise<UserGroup[]> {
     try {
-      const res = await apiClient.get<UserGroup[]>('/admin/user-groups');
-      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+      const data = await db.findMany<UserGroup>('user_groups');
+      if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_user_groups') : null;
     if (raw) {
@@ -1756,11 +1664,11 @@ export const adminService = {
   async saveUserGroup(group: Partial<UserGroup>): Promise<UserGroup> {
     try {
       if (group.id) {
-        const res = await apiClient.put<UserGroup>(`/admin/user-groups/${group.id}`, group);
-        if (res.data) return res.data;
+        const updatedDb = await db.update<UserGroup>('user_groups', group.id, group, 'id');
+        if (updatedDb && (updatedDb as UserGroup).id) return updatedDb as UserGroup;
       } else {
-        const res = await apiClient.post<UserGroup>('/admin/user-groups', group);
-        if (res.data) return res.data;
+        const createdDb = await db.upsert<UserGroup>('user_groups', group as any, 'id');
+        if (createdDb && (createdDb as UserGroup).id) return createdDb as UserGroup;
       }
     } catch {}
     const existing = await this.getUserGroups();
@@ -1793,8 +1701,8 @@ export const adminService = {
   // ============================================================================
   async getNotificationTemplates(): Promise<NotificationTemplate[]> {
     try {
-      const res = await apiClient.get<NotificationTemplate[]>('/admin/notifications/templates');
-      if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+      const data = await db.findMany<NotificationTemplate>('notification_templates');
+      if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_notification_templates') : null;
     if (raw) {
@@ -1806,11 +1714,11 @@ export const adminService = {
   async saveNotificationTemplate(tmpl: Partial<NotificationTemplate>): Promise<NotificationTemplate> {
     try {
       if (tmpl.id) {
-        const res = await apiClient.put<NotificationTemplate>(`/admin/notifications/templates/${tmpl.id}`, tmpl);
-        if (res.data) return res.data;
+        const updatedDb = await db.update<NotificationTemplate>('notification_templates', tmpl.id, tmpl, 'id');
+        if (updatedDb && (updatedDb as NotificationTemplate).id) return updatedDb as NotificationTemplate;
       } else {
-        const res = await apiClient.post<NotificationTemplate>('/admin/notifications/templates', tmpl);
-        if (res.data) return res.data;
+        const createdDb = await db.upsert<NotificationTemplate>('notification_templates', tmpl as any, 'id');
+        if (createdDb && (createdDb as NotificationTemplate).id) return createdDb as NotificationTemplate;
       }
     } catch {}
     const existing = await this.getNotificationTemplates();

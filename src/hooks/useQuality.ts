@@ -1,5 +1,4 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '../shared/api/client';
 import { queryKeys } from '../shared/queryKeys';
 import { universalSyncManager } from '../services/realtime/UniversalSyncManager';
 import { liveDataStore } from '../services/liveDataStore';
@@ -83,12 +82,18 @@ export function useSaveCoa() {
 }
 
 
+import { db } from '../shared/db';
+
 export function useInspectionPlans() {
   return useQuery<InspectionPlan[]>({
     queryKey: queryKeys.quality.inspectionPlans(),
-    queryFn: async ({ signal }) => {
-      const res = await apiClient.get('/quality/inspection-plans', { signal });
-      return Array.isArray(res.data?.data || res.data) ? (res.data?.data || res.data) : [];
+    queryFn: async () => {
+      try {
+        const res = await db.findMany<InspectionPlan>('inspection_plans');
+        return Array.isArray(res) ? res : [];
+      } catch {
+        return [];
+      }
     },
     staleTime: 1000 * 30,
     refetchOnWindowFocus: false,
