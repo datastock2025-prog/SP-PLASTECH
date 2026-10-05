@@ -64,6 +64,7 @@ import {
 } from 'lucide-react';
 import { PaginationBar } from './common/PaginationBar';
 import { CreateItemWizardModal } from './masterdata/CreateItemWizardModal';
+import { ItemGridImportModal } from './masterdata/ItemGridImportModal';
 import { ManufacturingBomWizardModal } from './engineering/bomWizard/ManufacturingBomWizardModal';
 import {
   AuditHistoryModal,
@@ -71,6 +72,7 @@ import {
 } from './masterdata/GovernanceModals';
 import { AdminApprovalsModal } from './masterdata/AdminApprovalsModal';
 import { itemService } from '../services/itemService';
+import { itemEndpoints, ItemMasterDto } from '../lib/api-client';
 import {
   masterDataGovernanceService,
   MasterDataChangeRecord,
@@ -1106,6 +1108,48 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   const [isItemWizardOpen, setIsItemWizardOpen] = useState<boolean>(false);
   const [wizardEditItem, setWizardEditItem] = useState<ItemMaster | null>(null);
 
+  // Grid In / Out (Bulk Import & Export) State
+  const [isImportModalOpen, setIsImportModalOpen] = useState<boolean>(false);
+
+  const handleBulkImport = async (importedItems: ItemMasterDto[]) => {
+    // 1. Centralized type-safe API call to database
+    await itemEndpoints.bulkImport(importedItems);
+    // 2. Hydrate local UI items
+    importedItems.forEach((dto) => {
+      const converted: ItemMaster = {
+        code: dto.code,
+        name: dto.name,
+        type: (dto.type as any) || 'Finished Good',
+        cat: dto.category || dto.cat || 'INJECTION MOLDING',
+        wh: dto.wh || 'FG_WH_A',
+        plant: dto.plant || 'Plant 1 - Pimpri Auto-Hub',
+        stock: String(dto.stock || '0'),
+        avail: String(dto.avail || '0'),
+        lot: dto.lot ?? true,
+        qc: dto.qc ?? true,
+        icon: dto.icon || '◇',
+        desc: dto.desc || '',
+        baseUOM: dto.base_uom || dto.baseUOM || 'PCS',
+        standardCycleTime: dto.cycle_time || dto.standardCycleTime || dto.cycleTimeSec || 0,
+        cavityCount: dto.cavity_count || dto.cavityCount || 1,
+        partWeightGrams: dto.part_weight_grams || dto.partWeightGrams || 0,
+        runnerWeightGrams: dto.runner_weight_grams || dto.runnerWeightGrams || 0,
+        shotWeightGrams: dto.shot_weight_grams || dto.shotWeightGrams || 0,
+        resinType: dto.resin_type || dto.resinType || '',
+        standardCost: dto.standard_cost || dto.standardCost || dto.cost || 0,
+        cost: dto.standard_cost || dto.standardCost || dto.cost || 0,
+        safetyStock: String(dto.safety_stock || dto.safetyStock || '0'),
+        reorderLevel: String(dto.reorder_level || dto.reorderLevel || '0'),
+        leadTime: dto.lead_time || dto.leadTime || '3 Days',
+        supplier: dto.supplier || '',
+        status: (dto.status as any) || 'active',
+        approval: (dto.approval_status as any) || (dto.approval as any) || 'approved',
+        createdOn: dto.createdOn || new Date().toISOString(),
+      };
+      onUpdateItem(converted);
+    });
+  };
+
   // Task 1: 3-Dots Action Dropdown Menu State
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState<boolean>(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -1613,7 +1657,29 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                 High-throughput polymer parts catalog with injection molding tooling specs, live shot calculations &amp; RBAC governance.
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              {/* Grid In (Bulk Import) Button */}
+              <button
+                type="button"
+                onClick={() => setIsImportModalOpen(true)}
+                className="btn btn-secondary border border-teal-300 bg-teal-50 text-[#0F8B8D] hover:bg-teal-100 flex items-center gap-1.5 px-3 py-2 text-xs font-bold shadow-xs cursor-pointer"
+                title="Bulk Import Items (CSV / Excel) with Zod Validation"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>Grid In</span>
+              </button>
+
+              {/* Grid Out (Export Catalog) Button */}
+              <button
+                type="button"
+                onClick={handleExportCatalogCsv}
+                className="btn btn-secondary border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 flex items-center gap-1.5 px-3 py-2 text-xs font-bold shadow-xs cursor-pointer"
+                title="Export Catalog to CSV / Excel"
+              >
+                <Download className="w-3.5 h-3.5 text-slate-500" />
+                <span>Grid Out</span>
+              </button>
+
               {/* + Create Item Primary 3D Button */}
               <button
                 className="btn btn-primary shadow-md flex items-center gap-2 px-4 py-2 text-xs font-bold"
@@ -4147,6 +4213,14 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
         editItem={wizardEditItem}
         allItems={items}
         showToast={showToast}
+      />
+
+      {/* Grid In Bulk Import Modal with Zod Validation */}
+      <ItemGridImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImport={handleBulkImport}
+        onSuccessToast={showToast}
       />
 
       {/* 9-Step Manufacturing BOM Wizard Modal */}
