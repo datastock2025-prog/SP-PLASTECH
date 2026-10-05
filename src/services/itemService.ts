@@ -1,13 +1,12 @@
 import { ItemMaster } from '../types';
 import { db } from '../shared/db';
+import { itemEndpoints } from '../lib/api-client';
 import { adminEventBus } from './adminService';
 import { universalSyncManager } from './realtime/UniversalSyncManager';
 import { masterDataGovernanceService } from './masterDataGovernanceService';
 import { DOCUMENT_ITEM_MASTER_CATALOG } from '../data/masterItemsCatalog';
 
-const STORAGE_KEY = 'reboot_erp_item_master_catalog';
-
-// Stale dummy codes to filter out if previously cached in localStorage
+// Stale dummy codes to filter out
 const DUMMY_CODES = new Set([
   'RM-PP-NAT-001',
   'RM-HD-GRN-014',
@@ -17,54 +16,16 @@ const DUMMY_CODES = new Set([
   'RES-PP-COPO-01',
 ]);
 
-function loadLocalItems(): ItemMaster[] {
-  let localSaved: ItemMaster[] = [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        localSaved = parsed.filter((i) => i && i.code && !DUMMY_CODES.has(i.code));
-      }
-    }
-  } catch (err) {
-    console.warn('Could not read items from localStorage', err);
-  }
-
-  // Create a base map from the document catalog
-  const catalogMap = new Map<string, ItemMaster>();
-  DOCUMENT_ITEM_MASTER_CATALOG.forEach((item) => {
-    catalogMap.set(item.code, {
-      ...item,
-      approval: 'approved' as const,
-      status: item.status || 'active',
-    });
-  });
-
-  // Apply all user saved items (including approved items, newly registered SKUs, edits) over the catalog map
-  localSaved.forEach((item) => {
-    if (item && item.code) {
-      catalogMap.set(item.code, item);
-    }
-  });
-
-  const merged = Array.from(catalogMap.values());
-  saveLocalItems(merged);
-  return merged;
-}
-
-function saveLocalItems(items: ItemMaster[]) {
-  try {
-    if (Array.isArray(items) && items.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-    }
-  } catch (err) {
-    console.warn('Could not save items to localStorage', err);
-  }
+function initializeBaseCatalog(): ItemMaster[] {
+  return DOCUMENT_ITEM_MASTER_CATALOG.map((item) => ({
+    ...item,
+    approval: 'approved' as const,
+    status: item.status || 'active',
+  }));
 }
 
 class ItemService {
-  private cache: ItemMaster[] = loadLocalItems();
+  private cache: ItemMaster[] = initializeBaseCatalog();
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -77,7 +38,6 @@ class ItemService {
           } else {
             this.cache.unshift(item);
           }
-          saveLocalItems(this.cache);
           adminEventBus.emit('ITEM_SAVED', item);
         }
       });
@@ -86,16 +46,16 @@ class ItemService {
 
   public getItemsSync(): ItemMaster[] {
     if (!this.cache || this.cache.length === 0) {
-      this.cache = loadLocalItems();
+      this.cache = initializeBaseCatalog();
     }
     return this.cache;
   }
 
   public async getItems(): Promise<ItemMaster[]> {
-    // 1. Load baseline catalog items from local repository
-    const baseCatalog = loadLocalItems();
+    // 1. Load baseline in-memory catalog
+    const baseCatalog = initializeBaseCatalog();
 
-    // 2. Fetch latest overrides / newly created items from Vendor-Agnostic DB
+    // 2. Fetch latest live overrides from PostgreSQL Database (Single Source of Truth)
     try {
       const data = await db.findMany<ItemMaster>('items', {
         orderBy: { column: 'created_at', ascending: false },
@@ -158,7 +118,6 @@ class ItemService {
         });
 
         this.cache = Array.from(itemMap.values());
-        saveLocalItems(this.cache);
         return this.cache;
       }
     } catch (e) {
@@ -207,19 +166,22 @@ class ItemService {
     const isNew = existingIdx < 0;
 
     // 1. Vendor-Agnostic Database Gateway Upsert
+    // 1. Centralized Enterprise Database Gateway & API Client Upsert
     try {
-      await db.upsert('items', enrichedItem, 'code');
+      await Promise.allSettled([
+        db.upsert('items', enrichedItem, 'code'),
+        itemEndpoints.saveItem(enrichedItem as any),
+      ]);
     } catch (e) {
-      console.debug('[ItemService] db.upsert note:', e);
+      console.debug('[ItemService] DB/API save note:', e);
     }
 
-    // 2. Update Memory Cache & Local Storage
+    // 2. Update Memory Cache
     if (existingIdx >= 0) {
       this.cache[existingIdx] = enrichedItem;
     } else {
       this.cache.unshift(enrichedItem);
     }
-    saveLocalItems(this.cache);
 
     // 3. Record Immutable Audit Ledger Entry with exact diff
     const diffRecord: Record<string, { before: any; after: any }> = {};
@@ -264,14 +226,16 @@ class ItemService {
     };
 
     try {
-      await db.upsert('items', updated, 'code');
+      await Promise.allSettled([
+        db.upsert('items', updated, 'code'),
+        itemEndpoints.saveItem(updated as any),
+      ]);
     } catch {}
 
     const idx = this.cache.findIndex((i) => i.code === item.code);
     if (idx >= 0) {
       this.cache[idx] = updated;
     }
-    saveLocalItems(this.cache);
 
     masterDataGovernanceService.recordAudit({
       entityType: 'ITEM_MASTER',
@@ -306,14 +270,16 @@ class ItemService {
     };
 
     try {
-      await db.upsert('items', updated, 'code');
+      await Promise.allSettled([
+        db.upsert('items', updated, 'code'),
+        itemEndpoints.saveItem(updated as any),
+      ]);
     } catch {}
 
     const idx = this.cache.findIndex((i) => i.code === item.code);
     if (idx >= 0) {
       this.cache[idx] = updated;
     }
-    saveLocalItems(this.cache);
 
     masterDataGovernanceService.recordAudit({
       entityType: 'ITEM_MASTER',
@@ -338,14 +304,16 @@ class ItemService {
   public async deleteItem(code: string, actorName: string = 'Admin'): Promise<boolean> {
     const existing = this.cache.find((i) => i.code === code);
 
-    // 1. Vendor-Agnostic Database Gateway Delete
+    // 1. Centralized Database Gateway & API Client Delete
     try {
-      await db.delete('items', code, 'code');
+      await Promise.allSettled([
+        db.delete('items', code, 'code'),
+        itemEndpoints.deleteItem(code),
+      ]);
     } catch {}
 
-    // 2. Cache & Storage Update
+    // 2. Cache Update
     this.cache = this.cache.filter((i) => i.code !== code);
-    saveLocalItems(this.cache);
 
     // 3. Audit Trail
     masterDataGovernanceService.recordAudit({
@@ -378,7 +346,6 @@ class ItemService {
     }
 
     this.cache = liveItems;
-    saveLocalItems(liveItems);
 
     masterDataGovernanceService.recordAudit({
       entityType: 'ITEM_MASTER',
@@ -404,15 +371,12 @@ class ItemService {
       status: item.status || 'active',
     }));
     this.cache = liveItems;
-    saveLocalItems(liveItems);
     adminEventBus.emit('CATALOG_RELOADED', liveItems);
     return liveItems;
   }
 
   public clearAll(): void {
     this.cache = [];
-    saveLocalItems([]);
-    localStorage.removeItem('reboot_erp_item_draft_auto');
   }
 }
 

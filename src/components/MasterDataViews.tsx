@@ -1078,7 +1078,7 @@ export function normalizeItemMaster(i: any): ItemMaster {
 
   // Auto-detect finished goods if type is missing or generic
   let itemType: ItemType = i.type || i.item_type || 'Finished Good';
-  if (!itemType || itemType === 'STORE' || itemType === 'Plant Asset' || (itemType as any) === 'Other') {
+  if (!itemType || (itemType as any) === 'STORE' || (itemType as any) === 'Plant Asset' || (itemType as any) === 'Other') {
     if (String(i.code || '').startsWith('120') || i.cat === 'SACL' || i.cat === 'INJECTION MOLDING' || cycle > 0) {
       itemType = 'Finished Good';
     } else if (String(i.code || '').startsWith('RM-') || i.cat?.includes('RESIN')) {
