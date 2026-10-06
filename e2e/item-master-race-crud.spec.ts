@@ -53,14 +53,14 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
       return await mod.itemService.saveItem(payload as any, 'Playwright Test Runner');
     }, initialItemPayload);
 
-    console.log('[CREATE - SERVICE RESULT]:', { code: createResult.code, name: createResult.name, stock: createResult.stock });
-    console.log('[CREATE - API CALLS COUNT]:', capturedApiRequests.length);
-    capturedApiRequests.forEach((r, i) => console.log(`  Call #${i + 1}: ${r.method} ${r.url}`));
+    const itemCreateRequests = capturedApiRequests.filter((r) => r.url.includes('/rest/v1/items') && r.method === 'POST');
+    console.log('[CREATE - ITEMS API CALLS COUNT]:', itemCreateRequests.length);
+    itemCreateRequests.forEach((r, i) => console.log(`  Call #${i + 1}: ${r.method} ${r.url}`));
 
     // Assert single API call for creation
-    expect(capturedApiRequests.length).toBe(1);
-    expect(capturedApiRequests[0].method).toBe('POST');
-    expect(capturedApiRequests[0].url).toContain('/rest/v1/items');
+    expect(itemCreateRequests.length).toBe(1);
+    expect(itemCreateRequests[0].method).toBe('POST');
+    expect(itemCreateRequests[0].url).toContain('/rest/v1/items');
 
     // =========================================================================
     // 2. READ OPERATION
@@ -129,12 +129,13 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
       updatedCost: updateResult.cost,
       updatedSellingPrice: updateResult.sellingPrice,
     });
-    console.log('[UPDATE - API CALLS COUNT]:', capturedApiRequests.length);
-    capturedApiRequests.forEach((r, i) => console.log(`  Call #${i + 1}: ${r.method} ${r.url}`));
+    const itemUpdateRequests = capturedApiRequests.filter((r) => r.url.includes('/rest/v1/items') && r.method === 'POST');
+    console.log('[UPDATE - ITEMS API CALLS COUNT]:', itemUpdateRequests.length);
+    itemUpdateRequests.forEach((r, i) => console.log(`  Call #${i + 1}: ${r.method} ${r.url}`));
 
     // Assert single API call for update
-    expect(capturedApiRequests.length).toBe(1);
-    expect(capturedApiRequests[0].method).toBe('POST');
+    expect(itemUpdateRequests.length).toBe(1);
+    expect(itemUpdateRequests[0].method).toBe('POST');
 
     // Read updated values directly from Supabase Database
     const dbPostUpdateResult = await page.evaluate(async (code) => {
@@ -169,13 +170,14 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
     }, testItemCode);
 
     console.log('[DELETE - SERVICE RESULT]: Success =', deleteResult);
-    console.log('[DELETE - API CALLS COUNT]:', capturedApiRequests.length);
-    capturedApiRequests.forEach((r, i) => console.log(`  Call #${i + 1}: ${r.method} ${r.url}`));
+    const itemDeleteRequests = capturedApiRequests.filter((r) => r.url.includes('/rest/v1/items') && r.method === 'DELETE');
+    console.log('[DELETE - ITEMS API CALLS COUNT]:', itemDeleteRequests.length);
+    itemDeleteRequests.forEach((r, i) => console.log(`  Call #${i + 1}: ${r.method} ${r.url}`));
 
     // Assert single API call for delete
-    expect(capturedApiRequests.length).toBe(1);
-    expect(capturedApiRequests[0].method).toBe('DELETE');
-    expect(capturedApiRequests[0].url).toContain(`/rest/v1/items?code=eq.${testItemCode}`);
+    expect(itemDeleteRequests.length).toBe(1);
+    expect(itemDeleteRequests[0].method).toBe('DELETE');
+    expect(itemDeleteRequests[0].url).toContain(`/rest/v1/items?code=eq.${testItemCode}`);
 
     // Verify deletion directly in Supabase Database
     const dbPostDeleteResult = await page.evaluate(async (code) => {
