@@ -172,6 +172,9 @@ function mapSupabaseRowToItemDto(row: any): ItemMasterDto {
   return ItemMasterSchema.parse(normalized);
 }
 
+export const ITEM_LEAN_SELECT_COLUMNS =
+  'id, code, name, category, entity_type, unit, stock, min_stock, max_stock, reorder_point, cost, selling_price, approval, status, created_at, updated_at';
+
 export const ITEM_SELECT_COLUMNS =
   'id, code, name, category, entity_type, unit, stock, min_stock, max_stock, reorder_point, cost, selling_price, approval, status, part_weight_grams, runner_weight_grams, cavity_count, cycle_time_seconds, item_group, resin_type, color, hsn_code, created_at, updated_at';
 
@@ -186,15 +189,17 @@ export const itemEndpoints = {
     search?: string;
     category?: string;
     status?: string;
+    lean?: boolean;
   }): Promise<PaginatedItemsResponse> {
     const page = Math.max(1, params.page || 1);
     const limit = Math.min(100, Math.max(10, params.limit || 50));
     const from = (page - 1) * limit;
     const to = from + limit - 1;
+    const selectCols = params.lean !== false ? ITEM_LEAN_SELECT_COLUMNS : ITEM_SELECT_COLUMNS;
 
     let query = supabase
       .from('items')
-      .select(ITEM_SELECT_COLUMNS, { count: 'exact' })
+      .select(selectCols, { count: 'exact' })
       .order('created_at', { ascending: false, nullsFirst: false })
       .range(from, to);
 

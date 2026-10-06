@@ -1,7 +1,7 @@
 import { ItemMaster } from '../types';
 import { db } from '../shared/db';
 import { supabase } from '../shared/supabaseClient';
-import { itemEndpoints, ITEM_SELECT_COLUMNS } from '../lib/api-client';
+import { itemEndpoints, ITEM_SELECT_COLUMNS, ITEM_LEAN_SELECT_COLUMNS } from '../lib/api-client';
 import { adminEventBus } from './adminService';
 import { broadcastLocalMutation } from './realtime/supabaseRealtime';
 import { masterDataGovernanceService } from './masterDataGovernanceService';
@@ -106,12 +106,13 @@ class ItemService {
     }
 
     this.inFlightItems = (async () => {
-      // 1. Fetch latest live items directly from Supabase Cloud PostgreSQL (Selective Columns for ultra-low TTFB)
+      // 1. Fetch latest live items directly from Supabase Cloud PostgreSQL (Selective Columns for ultra-low TTFB & bounded limit)
       try {
         const { data, error } = await supabase
           .from('items')
-          .select(ITEM_SELECT_COLUMNS)
-          .order('created_at', { ascending: false, nullsFirst: false });
+          .select(ITEM_LEAN_SELECT_COLUMNS)
+          .order('created_at', { ascending: false, nullsFirst: false })
+          .limit(50);
 
         if (!error && Array.isArray(data) && data.length > 0) {
           const itemsList = data
