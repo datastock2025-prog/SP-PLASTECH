@@ -251,23 +251,22 @@ class LiveDataStore {
   public async getPurchaseOrders(): Promise<PurchaseOrder[]> {
     try {
       const data = await db.findMany<any>('purchase_orders', {
-        select: 'id, po_number, supplier_id, supplier_name, order_date, delivery_date, total_amount, status, created_at, updated_at',
         orderBy: { column: 'created_at', ascending: false },
         limit: 100,
       });
 
       if (Array.isArray(data) && data.length > 0) {
         return data.map((row: any) => ({
-          id: row.id || row.po_number,
-          supplier: row.supplier_name || row.supplier_id || 'Reliance Industries Ltd',
-          supplierId: row.supplier_id,
+          id: row.id || row.po_number || row.poNumber,
+          supplier: row.supplier_name || row.supplier || row.supplier_id || 'Reliance Industries Ltd',
+          supplierId: row.supplier_id || row.supplier,
           orderDate: row.order_date || (row.created_at ? new Date(row.created_at).toISOString().split('T')[0] : '2026-09-25'),
-          expectedDeliveryDate: row.delivery_date || '2026-10-10',
-          deliveryDate: row.delivery_date || '2026-10-10',
-          totalAmount: Number(row.total_amount || 0),
+          expectedDeliveryDate: row.expected_delivery || row.delivery_date || row.expected_delivery_date || row.due_date || '2026-10-10',
+          deliveryDate: row.delivery_date || row.expected_delivery || row.expected_delivery_date || row.due_date || '2026-10-10',
+          totalAmount: Number(row.total_amount || row.total_cost || row.amount || row.total_value || 0),
           status: row.status || 'pending',
           currency: 'INR (₹)',
-          plant: 'Plant 1 - Pimpri Auto-Hub',
+          plant: row.plant || 'Plant 1 - Pimpri Auto-Hub',
           created_at: row.created_at,
         }));
       }
@@ -300,24 +299,23 @@ class LiveDataStore {
   public async getSalesOrders(): Promise<SalesOrder[]> {
     try {
       const data = await db.findMany<any>('sales_orders', {
-        select: 'id, so_number, order_type, customer_code, customer_name, customer_po_number, customer_po_date, order_date, required_delivery_date, plant_warehouse, fg_store, status, total_order_value, created_at, updated_at',
         orderBy: { column: 'created_at', ascending: false },
         limit: 100,
       });
 
       if (Array.isArray(data) && data.length > 0) {
         return data.map((row: any) => ({
-          id: row.id || row.so_number,
-          soNumber: row.so_number || row.id,
-          customer: row.customer_name || row.customer_code,
-          customerId: row.customer_code,
-          customerPoNumber: row.customer_po_number || '',
-          orderDate: row.order_date || '2026-09-25',
-          deliveryDate: row.required_delivery_date || '2026-10-15',
-          totalAmount: Number(row.total_order_value || 0),
+          id: row.id || row.so_number || row.soNumber,
+          soNumber: row.so_number || row.soNumber || row.id,
+          customer: row.customer_name || row.customer_code || row.customer,
+          customerId: row.customer_code || row.customer_id,
+          customerPoNumber: row.customer_po_number || row.po_number || '',
+          orderDate: row.order_date || (row.created_at ? new Date(row.created_at).toISOString().split('T')[0] : '2026-09-25'),
+          deliveryDate: row.required_delivery_date || row.delivery_date || row.due_date || '2026-10-15',
+          totalAmount: Number(row.total_order_value || row.total_amount || row.total_value || 0),
           status: row.status || 'Draft',
           currency: 'INR (₹)',
-          plant: row.plant_warehouse || 'Plant 1 - Pimpri Auto-Hub',
+          plant: row.plant_warehouse || row.plant || 'Plant 1 - Pimpri Auto-Hub',
           created_at: row.created_at,
         }));
       }
