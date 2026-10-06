@@ -3,7 +3,7 @@ import { queryKeys } from '../shared/queryKeys';
 import { broadcastLocalMutation } from '../services/realtime/supabaseRealtime';
 import { itemService } from '../services/itemService';
 import { itemEndpoints } from '../lib/api-client';
-import { supabase } from '../shared/supabaseClient';
+import { db } from '../shared/db';
 import {
   masterDataGovernanceService,
   MasterDataChangeRecord,
@@ -35,16 +35,12 @@ export function useItemCount() {
     queryKey: ['masterData', 'itemCount'],
     queryFn: async () => {
       try {
-        const { count, error } = await supabase
-          .from('items')
-          .select('*', { count: 'exact', head: true });
-        if (!error && typeof count === 'number') {
-          return count;
-        }
+        const count = await db.count('items');
+        return count || 0;
       } catch (e) {
         console.debug('[useItemCount] note:', e);
       }
-      return 1000;
+      return 0;
     },
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: true,

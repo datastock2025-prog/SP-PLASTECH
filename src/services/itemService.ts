@@ -1,6 +1,5 @@
 import { ItemMaster } from '../types';
 import { db } from '../shared/db';
-import { supabase } from '../shared/supabaseClient';
 import { itemEndpoints, ITEM_SELECT_COLUMNS, ITEM_LEAN_SELECT_COLUMNS } from '../lib/api-client';
 import { adminEventBus } from './adminService';
 import { broadcastLocalMutation } from './realtime/supabaseRealtime';
@@ -106,15 +105,15 @@ class ItemService {
     }
 
     this.inFlightItems = (async () => {
-      // 1. Fetch latest live items directly from Supabase Cloud PostgreSQL (Selective Columns for ultra-low TTFB & bounded limit)
+      // 1. Fetch latest live items directly via DatabaseAdapter (Selective Columns for ultra-low TTFB & bounded limit)
       try {
-        const { data, error } = await supabase
-          .from('items')
-          .select(ITEM_LEAN_SELECT_COLUMNS)
-          .order('created_at', { ascending: false, nullsFirst: false })
-          .limit(50);
+        const data = await db.findMany<any>('items', {
+          select: ITEM_LEAN_SELECT_COLUMNS,
+          orderBy: { column: 'created_at', ascending: false },
+          limit: 50,
+        });
 
-        if (!error && Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data) && data.length > 0) {
           const itemsList = data
             .filter((row: any) => row && row.code && !DUMMY_CODES.has(row.code))
             .map((row: any) => mapDbRowToItemMaster(row));
@@ -123,7 +122,7 @@ class ItemService {
           return this.cache;
         }
       } catch (e) {
-        console.debug('[ItemService] Supabase getItems note:', e);
+        console.debug('[ItemService] db getItems note:', e);
       } finally {
         this.inFlightItems = null;
       }

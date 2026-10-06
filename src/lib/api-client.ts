@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { z } from 'zod';
-import { supabase } from '../shared/supabaseClient';
+import { db } from '../shared/db';
 
 // ============================================================================
 // 1. CENTRALIZED ENTERPRISE API CLIENT (src/lib/api-client.ts)
@@ -203,7 +203,7 @@ export const ITEM_SELECT_COLUMNS =
 export const itemEndpoints = {
   /**
    * Rule 2: Strict Paginated Item Catalog Retrieval with Selective Column Projection
-   * Queries Supabase PostgreSQL with .range(from, to) and minimal column payload (low TTFB)
+   * Queries Database via vendor-agnostic DatabaseAdapter (db)
    */
   async getItemsPaginated(params: {
     page?: number;
@@ -216,37 +216,37 @@ export const itemEndpoints = {
     const page = Math.max(1, params.page || 1);
     const limit = Math.min(100, Math.max(10, params.limit || 50));
     const from = (page - 1) * limit;
-    const to = from + limit - 1;
     const selectCols = params.lean !== false ? ITEM_LEAN_SELECT_COLUMNS : ITEM_SELECT_COLUMNS;
 
-    let query = supabase
-      .from('items')
-      .select(selectCols, { count: 'exact' })
-      .order('created_at', { ascending: false, nullsFirst: false })
-      .range(from, to);
-
-    if (params.search && params.search.trim()) {
-      const s = params.search.trim();
-      query = query.or(`code.ilike.%${s}%,name.ilike.%${s}%`);
-    }
-
+    const whereObj: Record<string, any> = {};
     if (params.category && params.category !== 'All' && params.category !== 'ALL') {
-      query = query.eq('category', params.category);
+      whereObj.category = params.category;
     }
-
     if (params.status && params.status !== 'ALL') {
-      query = query.eq('status', params.status);
+      whereObj.status = params.status;
     }
 
-    const { data, count, error } = await query;
-
-    if (error) {
-      console.warn('[itemEndpoints.getItemsPaginated] Query note:', error.message);
+    const whereLikeObj: Record<string, string> = {};
+    if (params.search && params.search.trim()) {
+      whereLikeObj.name = params.search.trim();
     }
 
-    const rawList = Array.isArray(data) ? data : [];
-    const parsedItems = rawList.map(mapSupabaseRowToItemDto);
-    const total = count ?? parsedItems.length;
+    const [rawList, totalCount] = await Promise.all([
+      db.findMany<any>('items', {
+        select: selectCols,
+        where: Object.keys(whereObj).length > 0 ? whereObj : undefined,
+        whereLike: Object.keys(whereLikeObj).length > 0 ? whereLikeObj : undefined,
+        orderBy: { column: 'created_at', ascending: false },
+        limit,
+        offset: from,
+      }),
+      db.count('items', {
+        where: Object.keys(whereObj).length > 0 ? whereObj : undefined,
+      }),
+    ]);
+
+    const parsedItems = (rawList || []).map(mapSupabaseRowToItemDto);
+    const total = totalCount || parsedItems.length;
 
     return {
       items: parsedItems,
@@ -258,24 +258,18 @@ export const itemEndpoints = {
   },
 
   /**
-   * Get Single Item by Code with Zod Validation and selective column projection
+   * Get Single Item by Code with Zod Validation via DatabaseAdapter (db)
    */
   async getItemByCode(code: string): Promise<ItemMasterDto | null> {
-    const { data, error } = await supabase
-      .from('items')
-      .select(ITEM_SELECT_COLUMNS)
-      .eq('code', code)
-      .maybeSingle();
-
-    if (error || !data) {
+    const data = await db.findOne<any>('items', code, 'code');
+    if (!data) {
       return null;
     }
-
     return mapSupabaseRowToItemDto(data);
   },
 
   /**
-   * Save or Update Item Record with Zod Validation directly into Supabase Cloud PostgreSQL
+   * Save or Update Item Record with Zod Validation directly via DatabaseAdapter (db.upsert)
    */
   async saveItem(item: ItemMasterDto): Promise<ItemMasterDto> {
     const parseResult = ItemMasterSchema.safeParse(item);
@@ -325,33 +319,19 @@ export const itemEndpoints = {
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase
-      .from('items')
-      .upsert(dbPayload, { onConflict: 'code' })
-      .select(ITEM_SELECT_COLUMNS)
-      .maybeSingle();
-
-    if (error) {
-      console.error('[itemEndpoints.saveItem] Supabase Upsert Error:', error.message, error);
-      throw new Error(`Database save failed: ${error.message}`);
-    }
-
-    return mapSupabaseRowToItemDto(data || dbPayload);
+    const savedRow = await db.upsert<any>('items', dbPayload, 'code');
+    return mapSupabaseRowToItemDto(savedRow || dbPayload);
   },
 
   /**
-   * Delete Item by Code
+   * Delete Item by Code via DatabaseAdapter (db.delete)
    */
   async deleteItem(code: string): Promise<boolean> {
-    const { error } = await supabase.from('items').delete().eq('code', code);
-    if (error) {
-      console.warn('[itemEndpoints.deleteItem] Notice:', error.message);
-    }
-    return true;
+    return await db.delete('items', code, 'code');
   },
 
   /**
-   * Bulk Import Items (Grid In Functionality)
+   * Bulk Import Items via DatabaseAdapter (db.upsert)
    */
   async bulkImport(items: ItemMasterDto[]): Promise<{ importedCount: number; errors: string[] }> {
     const validItems: any[] = [];
@@ -359,36 +339,37 @@ export const itemEndpoints = {
 
     for (let i = 0; i < items.length; i++) {
       try {
-        const validated = ItemMasterSchema.parse(items[i]);
-        const partWeight = Number(validated.partWeightGrams ?? (validated as any).netWeightGrams ?? 0);
-        const runnerWeight = Number(validated.runnerWeightGrams ?? 0);
-        const cycleTime = Number(validated.cycleTimeSec ?? (validated as any).cycleTime ?? (validated as any).standardCycleTime ?? 0);
+        const parseResult = ItemMasterSchema.safeParse(items[i]);
+        const validated = parseResult.success ? parseResult.data : items[i];
+        const partWeight = Number(validated.partWeightGrams ?? (validated as any).netWeightGrams ?? (validated as any).part_weight_grams ?? 0);
+        const runnerWeight = Number(validated.runnerWeightGrams ?? (validated as any).runner_weight_grams ?? 0);
+        const cycleTime = Number(
+          validated.cycleTimeSec ?? (validated as any).cycleTime ?? (validated as any).standardCycleTime ?? (validated as any).cycle_time_seconds ?? 0
+        );
 
         validItems.push({
-          code: validated.code,
-          name: validated.name,
-          category: validated.category || validated.cat || 'Finished Good',
-          entity_type: validated.type || 'Finished Good',
-          unit: validated.baseUOM || validated.base_uom || 'PCS',
+          code: String(validated.code).trim(),
+          name: String(validated.name).trim(),
+          category: String(validated.category || validated.cat || 'Finished Good'),
+          entity_type: String(validated.type || 'Finished Good'),
+          unit: String(validated.baseUOM || validated.base_uom || 'PCS'),
           stock: typeof validated.stock === 'number' ? validated.stock : parseFloat(String(validated.stock)) || 0,
           cost: Number(validated.cost ?? (validated as any).standardCost ?? 0),
           selling_price: Number(validated.sellingPrice || 0),
-          status: validated.status || 'active',
-          approval: validated.approval || 'approved',
+          status: String(validated.status || 'active'),
+          approval: String(validated.approval || 'approved'),
           min_stock: Number(validated.minStock ?? 0),
           max_stock: Number(validated.maxStock ?? 5000),
           reorder_point: Number(validated.reorderPoint ?? 0),
-          safety_stock: Number((validated as any).safetyStock ?? 0),
           cavity_count: Number(validated.cavityCount ?? 1),
           cycle_time_seconds: cycleTime,
           part_weight_grams: partWeight,
           runner_weight_grams: runnerWeight,
-          mold_code: (validated as any).moldToolId || null,
-          resin_type: validated.resinType || (validated as any).polymerGrade || '',
-          color: (validated as any).color || '',
-          hsn_code: (validated as any).hsn_code || (validated as any).hsnCode || '',
-          valuation_method: (validated as any).valuationMethod || 'FIFO',
-          item_group: (validated as any).itemGroup || validated.category || null,
+          resin_type: String(validated.resinType || (validated as any).polymerGrade || ''),
+          color: String((validated as any).color || ''),
+          hsn_code: String((validated as any).hsn_code || (validated as any).hsnCode || ''),
+          item_group: String((validated as any).itemGroup || validated.category || ''),
+          created_at: (validated as any).created_at || new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });
       } catch (err: any) {
@@ -397,13 +378,7 @@ export const itemEndpoints = {
     }
 
     if (validItems.length > 0) {
-      const { error } = await supabase
-        .from('items')
-        .upsert(validItems, { onConflict: 'code' });
-
-      if (error) {
-        errors.push(`Bulk upsert error: ${error.message}`);
-      }
+      await db.upsert('items', validItems, 'code');
     }
 
     return {
