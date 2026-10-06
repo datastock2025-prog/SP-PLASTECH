@@ -10,6 +10,8 @@ import { initialPurchaseOrders } from '../data/initialData';
 // PROCUREMENT — TANSTACK REACT QUERY HOOKS (SSOT)
 // ============================================================================
 
+import { mapDbRowToPurchaseOrder } from '../shared/utils/dtoMappers';
+
 export function usePurchaseOrders(_filter?: any) {
   return useQuery<PurchaseOrder[]>({
     queryKey: queryKeys.procurement.purchaseOrders(_filter),
@@ -21,19 +23,7 @@ export function usePurchaseOrders(_filter?: any) {
         });
 
         if (Array.isArray(data) && data.length > 0) {
-          return data.map((row: any) => ({
-            id: row.id || row.po_number || row.poNumber,
-            supplier: row.supplier_name || row.supplier || row.supplier_id || 'Reliance Industries Ltd',
-            supplierId: row.supplier_id || row.supplier,
-            orderDate: row.order_date || (row.created_at ? new Date(row.created_at).toISOString().split('T')[0] : '2026-09-25'),
-            expectedDeliveryDate: row.expected_delivery || row.delivery_date || row.expected_delivery_date || row.due_date || '2026-10-10',
-            deliveryDate: row.delivery_date || row.expected_delivery || row.expected_delivery_date || row.due_date || '2026-10-10',
-            totalAmount: Number(row.total_amount || row.total_cost || row.amount || row.total_value || 0),
-            status: row.status || 'pending',
-            currency: 'INR (₹)',
-            plant: row.plant || 'Plant 1 - Pimpri Auto-Hub',
-            created_at: row.created_at,
-          }));
+          return data.map((row: any) => mapDbRowToPurchaseOrder(row));
         }
       } catch (e) {
         console.debug('[usePurchaseOrders] error:', e);

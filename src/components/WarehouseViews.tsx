@@ -37,6 +37,7 @@ import { QuarantineHoldView } from './warehouse/QuarantineHoldView';
 import { RegrindScrapClosedLoopView } from './warehouse/RegrindScrapClosedLoopView';
 import { SubcontractingManagementView } from './warehouse/SubcontractingManagementView';
 import { BarcodeScannerSimulatorView } from './warehouse/BarcodeScannerSimulatorView';
+import { LabelPrintingGeneratorView } from './warehouse/LabelPrintingGeneratorView';
 import { StockTransferManager } from './stockTransfer/StockTransferManager';
 import { useStockLedger, useStockTransfers, useQuarantineLots } from '../hooks/useWarehouse';
 import { usePurchaseOrders } from '../hooks/useProcurement';

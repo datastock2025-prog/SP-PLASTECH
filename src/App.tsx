@@ -18,8 +18,9 @@ import { db } from './shared/db';
 import { initializeSupabaseRealtime } from './services/realtime/supabaseRealtime';
 import { SessionTimeoutModal, MfaVerificationModal, CookieConsentModal } from './security';
 import { UserProfilePreferencesView } from './components/profile/UserProfilePreferencesView';
+import { ModuleLoadingFallback } from './components/common/ModuleLoadingFallback';
 
-// Domain Feature Modules (Bounded Contexts)
+// Core Workspace Shell Views (Immediate Initial Paint)
 import {
   LoginScreen,
   HomeView,
@@ -28,22 +29,24 @@ import {
   WorkspaceNotificationsView,
   WorkspaceSavedViewsView,
   WorkspaceRecentRecordsView,
-  MasterDataViews,
-  EngineeringViews,
-  ManufacturingViews,
-  ProcurementViews,
-  WarehouseViews,
-  SalesViews,
-  FinanceViews,
-  QualityViews,
-  MepViews,
-  HrViews,
-  ScmViews,
-  CrmViews,
-  AdminViews,
-  AnalyticsViews,
-  ReactArchitectureGuide,
 } from './modules';
+
+// Domain Feature Modules (Code-Splitted via React.lazy for Granular Module Chunking & Ultra-Low Initial Bundle Size)
+const MasterDataViews = React.lazy(() => import('./modules/masterdata').then((m) => ({ default: m.MasterDataViews })));
+const EngineeringViews = React.lazy(() => import('./modules/engineering').then((m) => ({ default: m.EngineeringViews })));
+const ManufacturingViews = React.lazy(() => import('./modules/manufacturing').then((m) => ({ default: m.ManufacturingViews })));
+const ProcurementViews = React.lazy(() => import('./modules/procurement').then((m) => ({ default: m.ProcurementViews })));
+const WarehouseViews = React.lazy(() => import('./modules/warehouse').then((m) => ({ default: m.WarehouseViews })));
+const SalesViews = React.lazy(() => import('./modules/sales').then((m) => ({ default: m.SalesViews })));
+const FinanceViews = React.lazy(() => import('./modules/finance').then((m) => ({ default: m.FinanceViews })));
+const QualityViews = React.lazy(() => import('./modules/quality').then((m) => ({ default: m.QualityViews })));
+const MepViews = React.lazy(() => import('./modules/mep').then((m) => ({ default: m.MepViews })));
+const HrViews = React.lazy(() => import('./modules/hr').then((m) => ({ default: m.HrViews })));
+const ScmViews = React.lazy(() => import('./modules/scm').then((m) => ({ default: m.ScmViews })));
+const CrmViews = React.lazy(() => import('./modules/crm').then((m) => ({ default: m.CrmViews })));
+const AdminViews = React.lazy(() => import('./modules/admin').then((m) => ({ default: m.AdminViews })));
+const AnalyticsViews = React.lazy(() => import('./modules/analytics').then((m) => ({ default: m.AnalyticsViews })));
+const ReactArchitectureGuide = React.lazy(() => import('./modules/architecture').then((m) => ({ default: m.ReactArchitectureGuide })));
 
 // Domain Seed Data & State Fixtures
 import {
@@ -1545,7 +1548,7 @@ export const App: React.FC = () => {
               onSwitchUser={handleSwitchUser}
             />
           ) : (
-            <>
+            <React.Suspense fallback={<ModuleLoadingFallback moduleName={currentView} />}>
           {currentView === 'home' && (
             <HomeView
               onNavigate={handleNavigate}
@@ -1946,7 +1949,7 @@ export const App: React.FC = () => {
               showToast={showToast}
             />
           )}
-            </>
+            </React.Suspense>
           )}
           </ErrorBoundary>
         </main>

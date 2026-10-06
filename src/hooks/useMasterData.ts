@@ -206,7 +206,6 @@ export function useItemApprovalsQueue() {
   });
 }
 
-import { db } from '../shared/db';
 import { initialMachines, initialCustomers } from '../data/initialData';
 
 // 4. MACHINES

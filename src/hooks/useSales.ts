@@ -9,6 +9,8 @@ import { initialSalesOrders, INITIAL_QUOTATIONS } from '../data/initialData';
 // SALES & CRM — TANSTACK REACT QUERY HOOKS (SSOT)
 // ============================================================================
 
+import { mapDbRowToSalesOrder } from '../shared/utils/dtoMappers';
+
 export function useSalesOrders(_filter?: any) {
   return useQuery<SalesOrder[]>({
     queryKey: queryKeys.sales.orders(_filter),
@@ -20,20 +22,7 @@ export function useSalesOrders(_filter?: any) {
         });
 
         if (Array.isArray(data) && data.length > 0) {
-          return data.map((row: any) => ({
-            id: row.id || row.so_number || row.soNumber,
-            soNumber: row.so_number || row.soNumber || row.id,
-            customer: row.customer_name || row.customer_code || row.customer,
-            customerId: row.customer_code || row.customer_id,
-            customerPoNumber: row.customer_po_number || row.po_number || '',
-            orderDate: row.order_date || (row.created_at ? new Date(row.created_at).toISOString().split('T')[0] : '2026-09-25'),
-            deliveryDate: row.required_delivery_date || row.delivery_date || row.due_date || '2026-10-15',
-            totalAmount: Number(row.total_order_value || row.total_amount || row.total_value || 0),
-            status: row.status || 'Draft',
-            currency: 'INR (₹)',
-            plant: row.plant_warehouse || row.plant || 'Plant 1 - Pimpri Auto-Hub',
-            created_at: row.created_at,
-          }));
+          return data.map((row: any) => mapDbRowToSalesOrder(row));
         }
       } catch (e) {
         console.debug('[useSalesOrders] error:', e);

@@ -9,3 +9,13 @@ export * from './prompt-builder';
 
 export { RequireAuth } from './RequireAuth';
 export { SanitizedHtml } from './SanitizedHtml';
+
+export { EntityTable } from './EntityTable';
+export type { ColumnDef, EntityTableProps } from './EntityTable';
+
+export { EntityDrawer } from './EntityDrawer';
+export type { EntityDrawerProps, TabItem } from './EntityDrawer';
+
+export { AuditHistoryDrawer } from './AuditHistoryDrawer';
+export type { AuditHistoryDrawerProps, AuditRecord } from './AuditHistoryDrawer';
+

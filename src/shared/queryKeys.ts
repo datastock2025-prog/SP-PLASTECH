@@ -89,7 +89,8 @@ export const queryKeys = {
   // 9. Warehouse & Inventory
   warehouse: {
     all: ['warehouse'] as const,
-    stockLedger: (filter?: any) => [...queryKeys.warehouse.all, 'stock', { filter }] as const,
+    stock: (filter?: any) => [...queryKeys.warehouse.all, 'stock', { filter }] as const,
+    stockLedger: (filter?: any) => [...queryKeys.warehouse.all, 'stockLedger', { filter }] as const,
     bins: () => [...queryKeys.warehouse.all, 'bins'] as const,
     transfers: () => [...queryKeys.warehouse.all, 'transfers'] as const,
     quarantine: () => [...queryKeys.warehouse.all, 'quarantine'] as const,

@@ -124,8 +124,6 @@ export function useSaveCoa() {
 }
 
 
-import { db } from '../shared/db';
-
 export function useInspectionPlans() {
   return useQuery<InspectionPlan[]>({
     queryKey: queryKeys.quality.inspectionPlans(),

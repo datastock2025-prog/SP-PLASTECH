@@ -79,7 +79,7 @@ export function isStoreInUse(storeOrBinCode?: string): { inUse: boolean; reason?
     if ((whMatch || binMatch || storeTypeMatch || lotMatch) && (Number(item.totalOnHand || 0) > 0 || (item.lots && item.lots.length > 0))) {
       return {
         inUse: true,
-        reason: `Active stock balance (${(item.totalOnHand || 0).toLocaleString()} ${item.uom || 'units'}) found for SKU ${item.sku || item.itemCode} in this store location.`,
+        reason: `Active stock balance (${(item.totalOnHand || 0).toLocaleString()} ${item.uom || 'units'}) found for SKU ${item.sku || (item as any).itemCode} in this store location.`,
       };
     }
   }
@@ -113,17 +113,40 @@ export function getWarehouseStockItem(itemCodeOrSku: string): InventoryStockItem
   if (!itemCodeOrSku) return undefined;
   const clean = String(itemCodeOrSku).trim().toUpperCase();
   return inMemoryStock.find(
-    (s) => String(s?.sku || '').toUpperCase() === clean || String(s?.itemCode || '').toUpperCase() === clean
+    (s) => String(s?.sku || '').toUpperCase() === clean || String((s as any)?.itemCode || '').toUpperCase() === clean
   );
 }
 
-export function getItemStockData(itemCode: string): { totalStock: number; allocated: number; available: number } {
-  const stock = getWarehouseStockItem(itemCode);
-  if (!stock) return { totalStock: 0, allocated: 0, available: 0 };
-  const totalStock = Number(stock.totalOnHand || 0);
-  const allocated = Number(stock.allocated || 0);
-  const available = Math.max(0, Number(stock.available != null ? stock.available : totalStock - allocated));
-  return { totalStock, allocated, available };
+export function getItemStockData(itemOrCode: string | any): {
+  totalStock: number;
+  allocated: number;
+  available: number;
+  onHand: number;
+  onHandNum: number;
+  availNum: number;
+} {
+  const code = typeof itemOrCode === 'string' ? itemOrCode : itemOrCode?.code || itemOrCode?.id || itemOrCode?.sku || '';
+  const stock = getWarehouseStockItem(code);
+  const totalStock = stock
+    ? Number(stock.totalOnHand || 0)
+    : typeof itemOrCode === 'object'
+    ? parseFloat(String(itemOrCode?.stock || 0)) || 0
+    : 0;
+  const allocated = stock ? Number(stock.allocatedToProduction || 0) : 0;
+  const available = stock
+    ? Math.max(0, Number(stock.availableToPromise != null ? stock.availableToPromise : totalStock - allocated))
+    : typeof itemOrCode === 'object'
+    ? parseFloat(String(itemOrCode?.avail || totalStock)) || 0
+    : totalStock;
+
+  return {
+    totalStock,
+    allocated,
+    available,
+    onHand: totalStock,
+    onHandNum: totalStock,
+    availNum: available,
+  };
 }
 
 export function syncItemsWithWarehouseStock(items: ItemMaster[]): ItemMaster[] {
@@ -133,8 +156,8 @@ export function syncItemsWithWarehouseStock(items: ItemMaster[]): ItemMaster[] {
     const stockInfo = getItemStockData(item.code);
     return {
       ...item,
-      stock: stockInfo.totalStock,
-      avail: stockInfo.available,
+      stock: String(stockInfo.totalStock),
+      avail: String(stockInfo.available),
     };
   });
 }
@@ -145,46 +168,60 @@ export function postPutawayTasksToWarehouse(tasks: GrnPutawayTask[], user?: any)
   const userName = user?.name || user?.username || 'Quality/Warehouse Operator';
 
   for (const task of tasks) {
-    const existing = inMemoryStock.find((s) => s.itemCode === task.itemCode || s.sku === task.itemCode);
-    const qty = Number(task.acceptedQty || 0);
+    const existing = inMemoryStock.find((s) => (s as any).itemCode === (task as any).itemCode || s.sku === (task as any).itemCode);
+    const qty = Number((task as any).acceptedQty || (task as any).receivedQty || (task as any).quantity || 0);
     if (qty <= 0) continue;
 
     const newLot: InventoryStockLot = {
-      lotNumber: task.lotNumber || `LOT-${Date.now().toString().slice(-4)}`,
-      quantity: qty,
-      availableQty: qty,
-      receivedDate: now.split('T')[0],
-      expiryDate: task.expiryDate || '2027-12-31',
-      qcStatus: 'Approved',
-      storageBin: task.targetBin || 'BIN-GEN-01',
-      inwardOriginLocation: task.targetWarehouse || 'RM-STORE-01',
-      supplierName: task.supplierName || 'Primary Supplier',
-      grnNumber: task.grnNumber || `GRN-${Date.now().toString().slice(-4)}`,
+      lotNumber: (task as any).lotNumber || `LOT-${Date.now().toString().slice(-4)}`,
+      supplierBatchNumber: (task as any).batchNumber || 'SUP-BATCH-01',
+      supplierName: (task as any).supplierName || (task as any).supplier || 'Primary Supplier',
+      receiptDate: now.split('T')[0],
+      initialQuantityKg: qty,
+      availableQuantityKg: qty,
+      allocatedQuantityKg: 0,
+      uom: (task as any).uom || 'KG',
+      mfiTested: '12.5 g/10min',
+      moisturePct: 0.02,
+      storageBin: (task as any).targetBin || (task as any).binLocation || 'BIN-GEN-01',
+      status: 'released',
+      grnReference: (task as any).grnNumber || `GRN-${Date.now().toString().slice(-4)}`,
+      expiryDate: (task as any).expiryDate || '2027-12-31',
+      inwardOriginLocation: (task as any).targetWarehouse || 'RM-STORE-01',
     };
 
     if (existing) {
       existing.totalOnHand = (existing.totalOnHand || 0) + qty;
-      existing.available = (existing.available || 0) + qty;
+      existing.availableToPromise = (existing.availableToPromise || 0) + qty;
       existing.lots = [newLot, ...(existing.lots || [])];
       db.upsert('warehouse_stock', existing).catch(console.warn);
     } else {
       const newItem: InventoryStockItem = {
-        id: `STK-${task.itemCode}-${Date.now().toString().slice(-4)}`,
-        itemCode: task.itemCode,
-        sku: task.itemCode,
-        description: task.itemName || task.itemCode,
-        category: (task as any).category || 'RAW_MATERIAL',
-        storeType: (task.targetWarehouse as StoreCategoryType) || 'RAW_MATERIALS_STORE',
-        primaryWarehouse: task.targetWarehouse || 'RM-STORE-01',
-        primaryBin: task.targetBin || 'BIN-GEN-01',
-        uom: task.uom || 'KG',
+        id: `STK-${(task as any).itemCode || (task as any).sku || Date.now()}`,
+        sku: (task as any).itemCode || (task as any).sku || 'SKU-GEN',
+        name: (task as any).itemName || (task as any).name || (task as any).itemCode || 'Material',
+        category: 'Virgin Polymer',
+        storeType: 'RM',
+        primaryWarehouse: (task as any).targetWarehouse || 'RM-STORE-01',
+        primaryBin: (task as any).targetBin || (task as any).binLocation || 'BIN-GEN-01',
+        subCategory: 'Standard Polymer',
+        uom: (task as any).uom || 'KG',
         totalOnHand: qty,
-        allocated: 0,
-        available: qty,
-        quarantine: 0,
-        safetyStock: 100,
-        reorderPoint: 200,
+        allocatedToProduction: 0,
+        reservedForOrders: 0,
+        availableToPromise: qty,
+        inTransitFromVendors: 0,
+        unitCostInr: 120,
+        totalValuationInr: qty * 120,
+        reorderPointKg: 200,
+        safetyStockKg: 100,
+        maximumStockKg: 5000,
+        economicOrderQtyKg: 1000,
+        status: 'in_stock',
+        leadTimeDays: 7,
+        abcClassification: 'A',
         lots: [newLot],
+        lastMovementDate: now.split('T')[0],
       };
       inMemoryStock.unshift(newItem);
       db.upsert('warehouse_stock', newItem).catch(console.warn);
@@ -193,19 +230,24 @@ export function postPutawayTasksToWarehouse(tasks: GrnPutawayTask[], user?: any)
     const ledgerEntry: StockMovementLedgerEntry = {
       id: `SML-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       timestamp: now,
-      itemCode: task.itemCode,
-      itemName: task.itemName || task.itemCode,
-      movementType: 'INWARD_RECEIPT',
+      ledgerDate: now.split('T')[0],
+      sku: (task as any).itemCode || (task as any).sku || '',
+      itemName: (task as any).itemName || (task as any).itemCode || 'Material Inward',
+      movementType: 'IN',
+      docType: 'RECEIPTS',
+      docNumber: (task as any).grnNumber || 'GRN-MANUAL',
+      location: (task as any).targetBin || 'BIN-GEN-01',
+      locationType: 'WAREHOUSE',
       quantity: qty,
-      uom: task.uom || 'KG',
+      qtyIn: qty,
+      qtyOut: 0,
+      uom: (task as any).uom || 'KG',
+      status: 'CLOSED',
       sourceLocation: 'RECEIVING_DOCK',
-      destinationStore: task.targetWarehouse || 'RM-STORE-01',
-      location: task.targetBin || 'BIN-GEN-01',
-      lotNumber: task.lotNumber || 'LOT-INWARD',
-      docType: 'GRN',
-      docNumber: task.grnNumber || 'GRN-MANUAL',
-      operator: userName,
-      reason: 'GRN Putaway confirmation into warehouse stock',
+      destinationStore: (task as any).targetWarehouse || 'RM-STORE-01',
+      lotNumber: (task as any).lotNumber || 'LOT-INWARD',
+      authorizedBy: userName,
+      runningBalance: qty,
     };
     inMemoryLedger.unshift(ledgerEntry);
     db.upsert('stock_movement_ledger', ledgerEntry).catch(console.warn);
@@ -213,39 +255,44 @@ export function postPutawayTasksToWarehouse(tasks: GrnPutawayTask[], user?: any)
   return true;
 }
 
-export function recordOutwardDispatchInventoryMovement(challan: any, customer?: any, items: ItemMaster[] = []): boolean {
+export function recordOutwardDispatchInventoryMovement(challan: any, customer?: any, _items: ItemMaster[] = []): boolean {
   if (!challan) return false;
   const now = new Date().toISOString();
   const challanItems = Array.isArray(challan.items) ? challan.items : [];
 
   for (const ci of challanItems) {
-    const itemCode = ci.itemCode || ci.item || '';
+    const itemCode = ci.itemCode || ci.item || ci.sku || '';
     const qty = Number(ci.dispatchQty || ci.quantity || 0);
     if (!itemCode || qty <= 0) continue;
 
-    const stock = inMemoryStock.find((s) => s.itemCode === itemCode || s.sku === itemCode);
+    const stock = inMemoryStock.find((s) => (s as any).itemCode === itemCode || s.sku === itemCode);
     if (stock) {
       stock.totalOnHand = Math.max(0, (stock.totalOnHand || 0) - qty);
-      stock.available = Math.max(0, (stock.available || 0) - qty);
+      stock.availableToPromise = Math.max(0, (stock.availableToPromise || 0) - qty);
       db.upsert('warehouse_stock', stock).catch(console.warn);
     }
 
     const ledgerEntry: StockMovementLedgerEntry = {
       id: `SML-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       timestamp: now,
-      itemCode,
+      ledgerDate: now.split('T')[0],
+      sku: itemCode,
       itemName: ci.itemName || itemCode,
-      movementType: 'OUTWARD_DISPATCH',
+      movementType: 'OUT',
+      docType: 'DISPATCHES',
+      docNumber: challan.challanNumber || challan.id || 'DC-MANUAL',
+      location: 'BAY-DISPATCH-01',
+      locationType: 'DOCK',
       quantity: qty,
+      qtyIn: 0,
+      qtyOut: qty,
       uom: ci.uom || 'PCS',
+      status: 'CLOSED',
       sourceLocation: 'FG-STORE-01',
       destinationStore: customer?.name || 'Customer Delivery',
-      location: 'BAY-DISPATCH-01',
       lotNumber: ci.lotNumber || 'LOT-DISPATCH',
-      docType: 'DELIVERY_CHALLAN',
-      docNumber: challan.challanNumber || challan.id || 'DC-MANUAL',
-      operator: challan.createdBy || 'Dispatch Officer',
-      reason: `Customer shipment for Order ${challan.orderNumber || 'SO-DIRECT'}`,
+      authorizedBy: challan.createdBy || 'Dispatch Officer',
+      runningBalance: stock ? stock.totalOnHand : 0,
     };
     inMemoryLedger.unshift(ledgerEntry);
     db.upsert('stock_movement_ledger', ledgerEntry).catch(console.warn);
@@ -256,42 +303,54 @@ export function recordOutwardDispatchInventoryMovement(challan: any, customer?: 
 export function recordProductionShiftInventoryMovement(params: {
   workOrder: WorkOrder;
   bom?: BomMaster | null;
-  items: ItemMaster[];
-  goodQty: number;
-  scrapQty: number;
-  runnerKg: number;
-  lumpsKg: number;
-  shift: string;
-  operator: string;
+  boms?: BomMaster[];
+  items?: ItemMaster[];
+  goodQty?: number;
+  shiftGood?: number;
+  scrapQty?: number;
+  shiftScrap?: number;
+  runnerKg?: number;
+  shiftRunnerKg?: number;
+  lumpsKg?: number;
+  shiftLumpsKg?: number;
+  shift?: string;
+  operator?: string;
+  destinationStore?: string | any;
 }): boolean {
-  const { workOrder, goodQty, operator, shift } = params;
-  if (!workOrder || goodQty <= 0) return false;
+  const { workOrder, operator = 'Operator', shift = 'Shift A' } = params;
+  const effectiveGood = Number(params.goodQty ?? params.shiftGood ?? 0);
+  if (!workOrder || effectiveGood <= 0) return false;
   const now = new Date().toISOString();
   const fgItemCode = workOrder.item || (workOrder as any).itemCode;
 
-  const stock = inMemoryStock.find((s) => s.itemCode === fgItemCode || s.sku === fgItemCode);
+  const stock = inMemoryStock.find((s) => (s as any).itemCode === fgItemCode || s.sku === fgItemCode);
   if (stock) {
-    stock.totalOnHand = (stock.totalOnHand || 0) + goodQty;
-    stock.available = (stock.available || 0) + goodQty;
+    stock.totalOnHand = (stock.totalOnHand || 0) + effectiveGood;
+    stock.availableToPromise = (stock.availableToPromise || 0) + effectiveGood;
     db.upsert('warehouse_stock', stock).catch(console.warn);
   }
 
   const ledgerEntry: StockMovementLedgerEntry = {
     id: `SML-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     timestamp: now,
-    itemCode: fgItemCode,
+    ledgerDate: now.split('T')[0],
+    sku: fgItemCode,
     itemName: (workOrder as any).itemName || fgItemCode,
-    movementType: 'PRODUCTION_RECEIPT',
-    quantity: goodQty,
-    uom: workOrder.uom || 'PCS',
-    sourceLocation: workOrder.machine || 'SHOP_FLOOR',
-    destinationStore: 'FG-STORE-01',
-    location: 'BIN-FG-01',
-    lotNumber: (workOrder as any).lotNumber || `LOT-PROD-${Date.now().toString().slice(-4)}`,
-    docType: 'WORK_ORDER',
+    movementType: 'IN',
+    docType: 'RECEIPTS',
     docNumber: workOrder.id,
-    operator: `${operator} (Shift ${shift})`,
-    reason: `Production floor completed batch for WO ${workOrder.id}`,
+    location: 'BIN-FG-01',
+    locationType: 'WAREHOUSE',
+    quantity: effectiveGood,
+    qtyIn: effectiveGood,
+    qtyOut: 0,
+    uom: workOrder.uom || 'PCS',
+    status: 'CLOSED',
+    sourceLocation: workOrder.machine || 'SHOP_FLOOR',
+    destinationStore: params.destinationStore ? (typeof params.destinationStore === 'string' ? params.destinationStore : (params.destinationStore as any)?.code || (params.destinationStore as any)?.label) : 'FG-STORE-01',
+    lotNumber: (workOrder as any).lotNumber || `LOT-PROD-${Date.now().toString().slice(-4)}`,
+    authorizedBy: `${operator} (Shift ${shift})`,
+    runningBalance: stock ? stock.totalOnHand : effectiveGood,
   };
   inMemoryLedger.unshift(ledgerEntry);
   db.upsert('stock_movement_ledger', ledgerEntry).catch(console.warn);

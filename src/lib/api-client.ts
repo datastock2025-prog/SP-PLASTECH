@@ -411,26 +411,30 @@ export const BOM_SELECT_COLUMNS = 'id, item_code, version, status, components, c
 
 export const bomEndpoints = {
   async getBoms(): Promise<BomDto[]> {
-    const { data, error } = await supabase
-      .from('boms')
-      .select(BOM_SELECT_COLUMNS)
-      .order('created_at', { ascending: false });
+    try {
+      const data = await db.findMany<any>('boms', {
+        select: BOM_SELECT_COLUMNS,
+        orderBy: { column: 'created_at', ascending: false },
+        limit: 100,
+      });
 
-    if (error || !Array.isArray(data)) {
+      if (!Array.isArray(data)) {
+        return [];
+      }
+      return data.map((b) => BomSchema.parse(b));
+    } catch {
       return [];
     }
-    return data.map((b) => BomSchema.parse(b));
   },
 
   async getBomById(id: string): Promise<BomDto | null> {
-    const { data, error } = await supabase
-      .from('boms')
-      .select(BOM_SELECT_COLUMNS)
-      .eq('id', id)
-      .maybeSingle();
-
-    if (error || !data) return null;
-    return BomSchema.parse(data);
+    try {
+      const data = await db.findOne<any>('boms', id, 'id');
+      if (!data) return null;
+      return BomSchema.parse(data);
+    } catch {
+      return null;
+    }
   },
 
   async saveBom(bom: Partial<BomDto>): Promise<BomDto> {
@@ -443,24 +447,17 @@ export const bomEndpoints = {
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase
-      .from('boms')
-      .upsert(payload, { onConflict: 'id' })
-      .select(BOM_SELECT_COLUMNS)
-      .single();
-
-    if (error) {
-      throw new Error(`BOM save failed: ${error.message}`);
-    }
-    return BomSchema.parse(data || payload);
+    const saved = await db.upsert<any>('boms', payload, 'id');
+    return BomSchema.parse(saved || payload);
   },
 
   async deleteBom(id: string): Promise<boolean> {
-    const { error } = await supabase.from('boms').delete().eq('id', id);
-    if (error) {
-      console.warn('[bomEndpoints.deleteBom] Note:', error.message);
+    try {
+      return await db.delete('boms', id, 'id');
+    } catch (error: any) {
+      console.warn('[bomEndpoints.deleteBom] Note:', error?.message);
+      return false;
     }
-    return true;
   },
 };
 
