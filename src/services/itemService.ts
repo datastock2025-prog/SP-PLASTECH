@@ -32,12 +32,12 @@ class ItemService {
   /**
    * Fetch live item master records directly via DatabaseAdapter (db)
    */
-  public async getItems(): Promise<ItemMaster[]> {
+  public async getItems(limit: number = 5000): Promise<ItemMaster[]> {
     try {
       const data = await db.findMany<any>('items', {
         select: ITEM_LEAN_SELECT_COLUMNS,
         orderBy: { column: 'created_at', ascending: false },
-        limit: 100,
+        limit,
       });
 
       if (Array.isArray(data) && data.length > 0) {

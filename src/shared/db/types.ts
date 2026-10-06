@@ -9,7 +9,8 @@ export interface QueryFilter {
   where?: Record<string, any>;
   whereIn?: Record<string, any[]>;
   whereLike?: Record<string, string>;
-  orderBy?: string | { column?: string; ascending?: boolean };
+  search?: { query: string; columns: string[] };
+  orderBy?: string | { column?: string; ascending?: boolean; field?: string };
   limit?: number;
   offset?: number;
   signal?: AbortSignal;

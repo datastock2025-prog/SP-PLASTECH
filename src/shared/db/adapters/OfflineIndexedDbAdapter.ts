@@ -84,6 +84,16 @@ export class OfflineIndexedDbAdapter implements IDatabaseAdapter {
       );
     }
 
+    if (filter?.search?.query && filter?.search?.columns?.length) {
+      const q = filter.search.query.toLowerCase().trim();
+      items = items.filter((item: any) =>
+        filter.search!.columns.some((col) => {
+          const val = item[col];
+          return val !== undefined && val !== null && String(val).toLowerCase().includes(q);
+        })
+      );
+    }
+
     if (filter?.orderBy) {
       let col: string | undefined;
       let asc = true;
