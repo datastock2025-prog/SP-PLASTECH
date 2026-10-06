@@ -1,8 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../shared/queryKeys';
 import { broadcastLocalMutation } from '../services/realtime/supabaseRealtime';
-import { itemService } from '../services/itemService';
 import { itemEndpoints } from '../lib/api-client';
+import { mapDbRowToItemMaster } from '../shared/utils/dtoMappers';
 import { db } from '../shared/db';
 import {
   masterDataGovernanceService,
@@ -14,6 +14,7 @@ import { ItemMaster, MachineMaster, Customer, BomMaster } from '../types';
 // ============================================================================
 // MASTER DATA — TANSTACK REACT QUERY HOOKS (v5)
 // Multi-Tenant Gateway + Strict API-First & Live Database Sync
+// TanStack Query Cache is the Single Source of Truth (SSOT)
 // ============================================================================
 
 // 1. ITEMS / ITEM MASTER CATALOG
@@ -21,8 +22,8 @@ export function useItems(filter?: any) {
   return useQuery<ItemMaster[]>({
     queryKey: queryKeys.masterData.items(filter),
     queryFn: async () => {
-      const items = await itemService.getItems();
-      return items;
+      const dtos = await itemEndpoints.getItems();
+      return dtos.map((dto) => mapDbRowToItemMaster(dto));
     },
     staleTime: 1000 * 60 * 5, // Rule 1: 5 minutes fresh cache
     refetchOnWindowFocus: true, // Rule 1: Refetch on focus for cross-browser synchronization
@@ -70,7 +71,8 @@ export function useItemDetail(code?: string) {
     queryKey: ['masterData', 'itemDetail', code],
     queryFn: async () => {
       if (!code) return undefined;
-      return await itemService.getItemByCode(code);
+      const dto = await itemEndpoints.getItemByCode(code);
+      return dto ? mapDbRowToItemMaster(dto) : undefined;
     },
     enabled: !!code,
     staleTime: 1000 * 60 * 5, // 5 minutes
@@ -82,7 +84,8 @@ export function useSaveItem() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (item: ItemMaster) => {
-      return await itemService.saveItem(item);
+      const savedDto = await itemEndpoints.saveItem(item as any);
+      return mapDbRowToItemMaster(savedDto, item);
     },
     onSuccess: (savedItem) => {
       queryClient.invalidateQueries({ queryKey: ['masterData'] });
@@ -97,7 +100,7 @@ export function useDeleteItem() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (code: string) => {
-      return await itemService.deleteItem(code);
+      return await itemEndpoints.deleteItem(code);
     },
     onSuccess: (_, code) => {
       queryClient.invalidateQueries({ queryKey: ['masterData'] });
@@ -120,7 +123,14 @@ export function useApproveItem() {
       reviewerName?: string;
       comment?: string;
     }) => {
-      return await itemService.approveItem(item, reviewerName, comment);
+      const approved: ItemMaster = {
+        ...item,
+        approval: 'approved',
+        status: 'active',
+        approvedBy: reviewerName,
+      };
+      const savedDto = await itemEndpoints.saveItem(approved as any);
+      return mapDbRowToItemMaster(savedDto, approved);
     },
     onSuccess: (approvedItem) => {
       queryClient.invalidateQueries({ queryKey: ['masterData'] });
@@ -143,7 +153,14 @@ export function useRejectItem() {
       reviewerName?: string;
       reason?: string;
     }) => {
-      return await itemService.rejectItem(item, reviewerName, reason);
+      const rejected: ItemMaster = {
+        ...item,
+        approval: 'rejected',
+        status: 'inactive',
+        approvedBy: reviewerName,
+      };
+      const savedDto = await itemEndpoints.saveItem(rejected as any);
+      return mapDbRowToItemMaster(savedDto, rejected);
     },
     onSuccess: (rejectedItem) => {
       queryClient.invalidateQueries({ queryKey: ['masterData'] });
@@ -173,7 +190,8 @@ export function useBulkSyncCatalog() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      return await itemService.syncLiveCatalog();
+      const dtos = await itemEndpoints.getItems();
+      return dtos.map((dto) => mapDbRowToItemMaster(dto));
     },
     onSuccess: (catalog) => {
       queryClient.invalidateQueries({ queryKey: ['masterData'] });

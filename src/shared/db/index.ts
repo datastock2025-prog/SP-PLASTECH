@@ -1,25 +1,20 @@
 import { IDatabaseAdapter } from './types';
 import { SupabaseAdapter } from './adapters/SupabaseAdapter';
 import { RestApiAdapter } from './adapters/RestApiAdapter';
-import { OfflineIndexedDbAdapter } from './adapters/OfflineIndexedDbAdapter';
-import { DualSyncHybridAdapter } from './adapters/DualSyncHybridAdapter';
 import { supabase } from '../supabaseClient';
 
 export * from './types';
 export { SupabaseAdapter } from './adapters/SupabaseAdapter';
 export { RestApiAdapter } from './adapters/RestApiAdapter';
-export { OfflineIndexedDbAdapter } from './adapters/OfflineIndexedDbAdapter';
-export { DualSyncHybridAdapter } from './adapters/DualSyncHybridAdapter';
 
 /**
  * Universal Database Provider Factory
  * Reads VITE_DB_PROVIDER from environment and instantiates the chosen database adapter.
+ * TanStack Query v5 cache is the Single Source of Truth (SSOT).
  *
  * Supported providers:
- * - 'hybrid_sync' (or 'dual_sync'): Connects Cloudflare to Supabase Cloud & Local testing to Local Podman / Postgres
- * - 'supabase': Supabase Cloud / Kong Gateway PostgreSQL
+ * - 'supabase': Supabase Cloud / PostgreSQL
  * - 'rest_api': NestJS BFF / Local REST API Gateway
- * - 'offline_db': Client-side persistent resilient store
  */
 function createDatabaseAdapter(): IDatabaseAdapter {
   const url =

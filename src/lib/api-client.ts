@@ -202,6 +202,21 @@ export const ITEM_SELECT_COLUMNS =
 
 export const itemEndpoints = {
   /**
+   * Fetch All Active Items with Zod Validation via DatabaseAdapter (db)
+   */
+  async getItems(limit: number = 5000): Promise<ItemMasterDto[]> {
+    const data = await db.findMany<any>('items', {
+      select: ITEM_LEAN_SELECT_COLUMNS,
+      orderBy: { column: 'created_at', ascending: false },
+      limit,
+    });
+    if (Array.isArray(data)) {
+      return data.map(mapSupabaseRowToItemDto);
+    }
+    return [];
+  },
+
+  /**
    * Rule 2: Strict Paginated Item Catalog Retrieval with Selective Column Projection
    * Queries Database via vendor-agnostic DatabaseAdapter (db)
    */
