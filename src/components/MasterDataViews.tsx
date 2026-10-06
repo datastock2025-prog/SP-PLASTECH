@@ -71,6 +71,7 @@ import {
   GovernancePermissionsModal,
 } from './masterdata/GovernanceModals';
 import { AdminApprovalsModal } from './masterdata/AdminApprovalsModal';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   useItems,
   useItemCount,
@@ -1174,9 +1175,10 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   const [machinePageSize, setMachinePageSize] = useState<number>(10);
 
   // TanStack Query SSOT Queries & Mutations (Rule 1 & Rule 3)
+  const queryClient = useQueryClient();
   const { data: queryItems, isLoading: isItemsQueryLoading } = useItems();
   const { data: exactItemCount } = useItemCount();
-  const effectiveItemsList = (queryItems && queryItems.length > 0 ? queryItems : items) || [];
+  const effectiveItemsList = (items && items.length > 0 ? items : queryItems) || [];
   const displayTotalCount = exactItemCount ?? effectiveItemsList.length;
   const isInitialCatalogLoading = isItemsQueryLoading && effectiveItemsList.length === 0;
 
@@ -1280,6 +1282,27 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
         newItems.forEach((i: ItemMaster) => onUpdateItem(i));
       }
     });
+    const unsubItemSaved = adminEventBus.on('ITEM_SAVED', (savedItem: ItemMaster) => {
+      if (savedItem) {
+        onUpdateItem(savedItem);
+        queryClient.setQueriesData({ queryKey: ['masterData', 'items'] }, (old: ItemMaster[] | undefined) => {
+          if (!old) return [savedItem];
+          const exists = old.some((i) => i.code === savedItem.code);
+          return exists ? old.map((i) => (i.code === savedItem.code ? savedItem : i)) : [savedItem, ...old];
+        });
+        queryClient.invalidateQueries({ queryKey: ['masterData'] });
+      }
+    });
+    const unsubItemDeleted = adminEventBus.on('ITEM_DELETED', ({ code }: { code: string }) => {
+      if (code) {
+        onDeleteItem(code);
+        queryClient.setQueriesData({ queryKey: ['masterData', 'items'] }, (old: ItemMaster[] | undefined) => {
+          if (!old) return [];
+          return old.filter((i) => i.code !== code);
+        });
+        queryClient.invalidateQueries({ queryKey: ['masterData'] });
+      }
+    });
 
     // Reactive Stock Sync: Update table when warehouse stock changes anywhere in ERP
     const handleWarehouseUpdate = () => {
@@ -1295,10 +1318,12 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
       unsub2();
       unsub3();
       unsub4();
+      unsubItemSaved();
+      unsubItemDeleted();
       window.removeEventListener('warehouse_stock_updated', handleWarehouseUpdate);
       window.removeEventListener('storage', handleWarehouseUpdate);
     };
-  }, []);
+  }, [queryClient, onUpdateItem, onDeleteItem]);
 
   // RBAC Permission checks
   const isSuperAdmin =

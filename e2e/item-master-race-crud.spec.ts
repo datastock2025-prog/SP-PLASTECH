@@ -48,9 +48,8 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
     capturedApiRequests.length = 0; // Reset request logger
 
     const createResult = await page.evaluate(async (payload) => {
-      // @ts-ignore
-      const mod = await import('../src/services/itemService');
-      return await mod.itemService.saveItem(payload as any, 'Playwright Test Runner');
+      const service = (window as any).__ERP_ITEM_SERVICE__ || (await import('../src/services/itemService')).itemService;
+      return await service.saveItem(payload as any, 'Playwright Test Runner');
     }, initialItemPayload);
 
     const itemCreateRequests = capturedApiRequests.filter((r) => r.url.includes('/rest/v1/items') && r.method === 'POST');
@@ -118,9 +117,8 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
     };
 
     const updateResult = await page.evaluate(async (payload) => {
-      // @ts-ignore
-      const mod = await import('../src/services/itemService');
-      return await mod.itemService.saveItem(payload as any, 'Playwright Test Runner');
+      const service = (window as any).__ERP_ITEM_SERVICE__ || (await import('../src/services/itemService')).itemService;
+      return await service.saveItem(payload as any, 'Playwright Test Runner');
     }, updatedItemPayload);
 
     console.log('[UPDATE - SERVICE RESULT]:', {
@@ -164,9 +162,8 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
     capturedApiRequests.length = 0;
 
     const deleteResult = await page.evaluate(async (code) => {
-      // @ts-ignore
-      const mod = await import('../src/services/itemService');
-      return await mod.itemService.deleteItem(code, 'Playwright Test Runner');
+      const service = (window as any).__ERP_ITEM_SERVICE__ || (await import('../src/services/itemService')).itemService;
+      return await service.deleteItem(code, 'Playwright Test Runner');
     }, testItemCode);
 
     console.log('[DELETE - SERVICE RESULT]: Success =', deleteResult);

@@ -172,10 +172,13 @@ function mapSupabaseRowToItemDto(row: any): ItemMasterDto {
   return ItemMasterSchema.parse(normalized);
 }
 
+export const ITEM_SELECT_COLUMNS =
+  'id, code, name, category, entity_type, stock, avail, wh, plant, lot, qc, status, approval, base_uom, unit, cost, standard_cost, selling_price, min_stock, max_stock, reorder_point, safety_stock, valuation_method, lead_time, supplier, cavity_count, cycle_time_seconds, part_weight_grams, runner_weight_grams, resin_type, polymer_grade, color, hsn_code, item_group, created_at';
+
 export const itemEndpoints = {
   /**
-   * Rule 2: Strict Paginated Item Catalog Retrieval
-   * Queries Supabase PostgreSQL with .range(from, to)
+   * Rule 2: Strict Paginated Item Catalog Retrieval with Selective Column Projection
+   * Queries Supabase PostgreSQL with .range(from, to) and minimal column payload (low TTFB)
    */
   async getItemsPaginated(params: {
     page?: number;
@@ -191,8 +194,8 @@ export const itemEndpoints = {
 
     let query = supabase
       .from('items')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
+      .select(ITEM_SELECT_COLUMNS, { count: 'exact' })
+      .order('created_at', { ascending: false, nullsFirst: false })
       .range(from, to);
 
     if (params.search && params.search.trim()) {
@@ -228,12 +231,12 @@ export const itemEndpoints = {
   },
 
   /**
-   * Get Single Item by Code with Zod Validation
+   * Get Single Item by Code with Zod Validation and selective column projection
    */
   async getItemByCode(code: string): Promise<ItemMasterDto | null> {
     const { data, error } = await supabase
       .from('items')
-      .select('*')
+      .select(ITEM_SELECT_COLUMNS)
       .eq('code', code)
       .maybeSingle();
 
@@ -293,6 +296,7 @@ export const itemEndpoints = {
       hsn_code: (validated as any).hsn_code || (validated as any).hsnCode || '',
       valuation_method: (validated as any).valuationMethod || (validated as any).valuation || 'FIFO',
       item_group: (validated as any).itemGroup || (validated as any).item_group || validated.category || null,
+      created_at: (validated as any).created_at || (validated as any).createdOn || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 

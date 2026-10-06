@@ -367,6 +367,12 @@ export const App: React.FC = () => {
 
   // Cross-Browser Realtime WebSocket Invalidation Bridge (Supabase Realtime CDC)
   useEffect(() => {
+    // 0. Expose services globally for testing & external hooks
+    if (typeof window !== 'undefined') {
+      (window as any).__ERP_ITEM_SERVICE__ = itemService;
+      (window as any).__ERP_EVENT_BUS__ = adminEventBus;
+    }
+
     // 0. Initialize native Supabase Realtime PostgreSQL CDC WebSocket Mesh
     const cleanupRealtime = initializeSupabaseRealtime();
 
@@ -1632,16 +1638,16 @@ export const App: React.FC = () => {
               selectedId={viewParams.id}
               onNavigate={handleNavigate}
               onUpdateItem={(updated) => {
-                setItems((prev) => prev.map((i) => (i.code === updated.code ? updated : i)));
-                itemService.saveItem(updated).catch(console.warn);
+                setItems((prev) => {
+                  const exists = prev.some((i) => i.code === updated.code);
+                  return exists ? prev.map((i) => (i.code === updated.code ? updated : i)) : [updated, ...prev];
+                });
               }}
               onDeleteItem={(code) => {
                 setItems((prev) => prev.filter((i) => i.code !== code));
-                itemService.deleteItem(code).catch(console.warn);
               }}
               onCreateItem={(newItem) => {
-                setItems((prev) => [newItem, ...prev]);
-                itemService.saveItem(newItem).catch(console.warn);
+                setItems((prev) => [newItem, ...prev.filter((i) => i.code !== newItem.code)]);
               }}
               onUpdateBom={(updated) => {
                 setBoms((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
@@ -1713,7 +1719,6 @@ export const App: React.FC = () => {
               currentUser={currentUser}
               onUpdateItem={(updated) => {
                 setItems((prev) => prev.map((i) => (i.code === updated.code ? updated : i)));
-                itemService.saveItem(updated).catch(console.warn);
               }}
               onNavigate={handleNavigate}
               openDrawer={openDrawer}
@@ -1734,7 +1739,6 @@ export const App: React.FC = () => {
               onNavigate={handleNavigate}
               onUpdateItem={(updated) => {
                 setItems((prev) => prev.map((i) => (i.code === updated.code ? updated : i)));
-                itemService.saveItem(updated).catch(console.warn);
               }}
               onUpdatePO={(updated) => {
                 setPurchaseOrders((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
