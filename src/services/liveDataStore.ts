@@ -191,14 +191,31 @@ class LiveDataStore {
   // --------------------------------------------------------------------------
   public async getWorkOrders(): Promise<WorkOrder[]> {
     try {
-      const data = await db.findMany<WorkOrder>('work_orders', {
-        select: 'id, item_code, machine_id, target_qty, actual_qty, scrap_qty, status, priority, plant, shift, start_date, due_date, progress, notes, created_at',
+      const data = await db.findMany<any>('work_orders', {
+        select: 'id, wo_number, item_code, machine_id, target_qty, produced_qty, scrap_qty, status, created_at, updated_at',
         orderBy: { column: 'created_at', ascending: false },
         limit: 100,
       });
 
       if (Array.isArray(data) && data.length > 0) {
-        return data;
+        return data.map((row: any) => ({
+          id: row.id || row.wo_number,
+          item: row.item_code,
+          itemCode: row.item_code,
+          machine: row.machine_id,
+          machineId: row.machine_id,
+          target: Number(row.target_qty || 0),
+          actual: Number(row.produced_qty || 0),
+          scrap: Number(row.scrap_qty || 0),
+          status: row.status || 'planned',
+          priority: row.priority || 'Medium',
+          plant: row.plant || 'Plant 1 - Pimpri Auto-Hub',
+          shift: row.shift || 'Shift A',
+          startDate: row.created_at ? new Date(row.created_at).toISOString().split('T')[0] : '2026-09-25',
+          dueDate: row.due_date || '2026-10-15',
+          progress: Number(row.target_qty) > 0 ? Math.round((Number(row.produced_qty || 0) / Number(row.target_qty)) * 100) : 0,
+          created_at: row.created_at,
+        }));
       }
     } catch (e) {
       console.debug('[liveDataStore] getWorkOrders error:', e);
@@ -229,14 +246,26 @@ class LiveDataStore {
   // --------------------------------------------------------------------------
   public async getPurchaseOrders(): Promise<PurchaseOrder[]> {
     try {
-      const data = await db.findMany<PurchaseOrder>('purchase_orders', {
-        select: 'id, supplier_id, order_date, expected_delivery_date, total_amount, status, currency, plant, notes, created_at',
+      const data = await db.findMany<any>('purchase_orders', {
+        select: 'id, po_number, supplier_id, supplier_name, order_date, delivery_date, total_amount, status, created_at, updated_at',
         orderBy: { column: 'created_at', ascending: false },
         limit: 100,
       });
 
       if (Array.isArray(data) && data.length > 0) {
-        return data;
+        return data.map((row: any) => ({
+          id: row.id || row.po_number,
+          supplier: row.supplier_name || row.supplier_id || 'Reliance Industries Ltd',
+          supplierId: row.supplier_id,
+          orderDate: row.order_date || (row.created_at ? new Date(row.created_at).toISOString().split('T')[0] : '2026-09-25'),
+          expectedDeliveryDate: row.delivery_date || '2026-10-10',
+          deliveryDate: row.delivery_date || '2026-10-10',
+          totalAmount: Number(row.total_amount || 0),
+          status: row.status || 'pending',
+          currency: 'INR (₹)',
+          plant: 'Plant 1 - Pimpri Auto-Hub',
+          created_at: row.created_at,
+        }));
       }
     } catch (e) {
       console.debug('[liveDataStore] getPurchaseOrders error:', e);
@@ -266,14 +295,27 @@ class LiveDataStore {
   // --------------------------------------------------------------------------
   public async getSalesOrders(): Promise<SalesOrder[]> {
     try {
-      const data = await db.findMany<SalesOrder>('sales_orders', {
-        select: 'id, customer_id, order_date, delivery_date, total_amount, status, currency, plant, notes, created_at',
+      const data = await db.findMany<any>('sales_orders', {
+        select: 'id, so_number, order_type, customer_code, customer_name, customer_po_number, customer_po_date, order_date, required_delivery_date, plant_warehouse, fg_store, status, total_order_value, created_at, updated_at',
         orderBy: { column: 'created_at', ascending: false },
         limit: 100,
       });
 
       if (Array.isArray(data) && data.length > 0) {
-        return data;
+        return data.map((row: any) => ({
+          id: row.id || row.so_number,
+          soNumber: row.so_number || row.id,
+          customer: row.customer_name || row.customer_code,
+          customerId: row.customer_code,
+          customerPoNumber: row.customer_po_number || '',
+          orderDate: row.order_date || '2026-09-25',
+          deliveryDate: row.required_delivery_date || '2026-10-15',
+          totalAmount: Number(row.total_order_value || 0),
+          status: row.status || 'Draft',
+          currency: 'INR (₹)',
+          plant: row.plant_warehouse || 'Plant 1 - Pimpri Auto-Hub',
+          created_at: row.created_at,
+        }));
       }
     } catch (e) {
       console.debug('[liveDataStore] getSalesOrders error:', e);

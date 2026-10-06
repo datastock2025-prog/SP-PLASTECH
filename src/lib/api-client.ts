@@ -173,7 +173,7 @@ function mapSupabaseRowToItemDto(row: any): ItemMasterDto {
 }
 
 export const ITEM_SELECT_COLUMNS =
-  'id, code, name, category, entity_type, stock, avail, wh, plant, lot, qc, status, approval, base_uom, unit, cost, standard_cost, selling_price, min_stock, max_stock, reorder_point, safety_stock, valuation_method, lead_time, supplier, cavity_count, cycle_time_seconds, part_weight_grams, runner_weight_grams, resin_type, polymer_grade, color, hsn_code, item_group, created_at';
+  'id, code, name, category, entity_type, unit, stock, min_stock, max_stock, reorder_point, cost, selling_price, approval, status, part_weight_grams, runner_weight_grams, cavity_count, cycle_time, item_group, resin_type, color, hsn_code, created_at, updated_at';
 
 export const itemEndpoints = {
   /**
