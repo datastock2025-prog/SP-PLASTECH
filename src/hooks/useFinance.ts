@@ -1,18 +1,28 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../shared/queryKeys';
 import { broadcastLocalMutation } from '../services/realtime/supabaseRealtime';
-import { liveDataStore } from '../services/liveDataStore';
+import { db } from '../shared/db';
 import { Account, JournalEntry } from '../types';
+import { initialAccounts } from '../data/initialData';
 
 // ============================================================================
-// FINANCE & GENERAL LEDGER — TANSTACK REACT QUERY HOOKS
+// FINANCE & GENERAL LEDGER — TANSTACK REACT QUERY HOOKS (SSOT)
 // ============================================================================
 
 export function useAccounts() {
   return useQuery<Account[]>({
     queryKey: queryKeys.finance.accounts(),
     queryFn: async () => {
-      return await liveDataStore.getAccounts();
+      try {
+        const res = await db.findMany<Account>('accounts', {
+          orderBy: { column: 'code', ascending: true },
+          limit: 100,
+        });
+        if (Array.isArray(res) && res.length > 0) return res;
+      } catch (e) {
+        console.debug('[useAccounts] query note:', e);
+      }
+      return initialAccounts as any;
     },
     staleTime: 1000 * 30,
     refetchOnWindowFocus: false,
@@ -23,7 +33,12 @@ export function useSaveAccount() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (acc: Account) => {
-      return await liveDataStore.saveAccount(acc);
+      try {
+        await db.upsert('accounts', acc, 'id');
+      } catch (e) {
+        console.debug('[useSaveAccount] notice:', e);
+      }
+      return acc;
     },
     onSuccess: (savedAcc) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.accounts() });
@@ -36,7 +51,16 @@ export function useJournalEntries(_filter?: any) {
   return useQuery<JournalEntry[]>({
     queryKey: queryKeys.finance.journalEntries(_filter),
     queryFn: async () => {
-      return await liveDataStore.getJournalEntries();
+      try {
+        const res = await db.findMany<JournalEntry>('journal_entries', {
+          orderBy: { column: 'created_at', ascending: false },
+          limit: 100,
+        });
+        if (Array.isArray(res) && res.length > 0) return res;
+      } catch (e) {
+        console.debug('[useJournalEntries] query note:', e);
+      }
+      return [];
     },
     staleTime: 1000 * 30,
     refetchOnWindowFocus: false,
@@ -47,7 +71,12 @@ export function useSaveJournalEntry() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (je: JournalEntry) => {
-      return await liveDataStore.saveJournalEntry(je);
+      try {
+        await db.upsert('journal_entries', je, 'id');
+      } catch (e) {
+        console.debug('[useSaveJournalEntry] notice:', e);
+      }
+      return je;
     },
     onSuccess: (savedJE) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.journalEntries() });

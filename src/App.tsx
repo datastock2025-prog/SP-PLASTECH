@@ -14,7 +14,7 @@ import { ROLE_DEFAULT_VIEW } from './data/roleDefaultViews';
 import { workspaceRbacService, normalizeRoleKey } from './services/workspaceRbacService';
 import { itemService } from './services/itemService';
 import { adminEventBus } from './services/adminService';
-import { liveDataStore } from './services/liveDataStore';
+import { db } from './shared/db';
 import { initializeSupabaseRealtime } from './services/realtime/supabaseRealtime';
 import { SessionTimeoutModal, MfaVerificationModal, CookieConsentModal } from './security';
 import { UserProfilePreferencesView } from './components/profile/UserProfilePreferencesView';
@@ -380,18 +380,18 @@ export const App: React.FC = () => {
     itemService.getItems().then((fetched) => {
       if (Array.isArray(fetched) && fetched.length > 0) setItems(fetched);
     });
-    liveDataStore.getWorkOrders().then((woList) => {
+    db.findMany<any>('work_orders', { orderBy: { column: 'created_at', ascending: false }, limit: 100 }).then((woList) => {
       if (Array.isArray(woList) && woList.length > 0) {
         const cleanList = woList.filter((w) => !['WO-1188', 'WO-1189', 'WO-1190', 'WO-1191', 'WO-1192', 'WO-1193'].includes(w.id));
         setWorkOrders(cleanList);
       }
-    });
-    liveDataStore.getPurchaseOrders().then((poList) => {
+    }).catch(console.debug);
+    db.findMany<any>('purchase_orders', { orderBy: { column: 'created_at', ascending: false }, limit: 100 }).then((poList) => {
       if (Array.isArray(poList) && poList.length > 0) setPurchaseOrders(poList);
-    });
-    liveDataStore.getSalesOrders().then((soList) => {
+    }).catch(console.debug);
+    db.findMany<any>('sales_orders', { orderBy: { column: 'created_at', ascending: false }, limit: 100 }).then((soList) => {
       if (Array.isArray(soList) && soList.length > 0) setSalesOrders(soList);
-    });
+    }).catch(console.debug);
 
     // 2. Cross-Browser / Multi-Tab Synchronization Listeners (Triggered only on live mutation events)
     const unsubSaved = adminEventBus.on('ITEM_SAVED', (savedItem: ItemMaster) => {
@@ -411,24 +411,24 @@ export const App: React.FC = () => {
     });
 
     const unsubWoSynced = adminEventBus.on('WORK_ORDERS_SYNCED', () => {
-      liveDataStore.getWorkOrders().then((woList) => {
+      db.findMany<any>('work_orders', { orderBy: { column: 'created_at', ascending: false }, limit: 100 }).then((woList) => {
         if (Array.isArray(woList)) {
           const cleanList = woList.filter((w) => !['WO-1188', 'WO-1189', 'WO-1190', 'WO-1191', 'WO-1192', 'WO-1193'].includes(w.id));
           setWorkOrders(cleanList);
         }
-      });
+      }).catch(console.debug);
     });
 
     const unsubPoSynced = adminEventBus.on('PURCHASE_ORDERS_SYNCED', () => {
-      liveDataStore.getPurchaseOrders().then((poList) => {
+      db.findMany<any>('purchase_orders', { orderBy: { column: 'created_at', ascending: false }, limit: 100 }).then((poList) => {
         if (Array.isArray(poList)) setPurchaseOrders(poList);
-      });
+      }).catch(console.debug);
     });
 
     const unsubSoSynced = adminEventBus.on('SALES_ORDERS_SYNCED', () => {
-      liveDataStore.getSalesOrders().then((soList) => {
+      db.findMany<any>('sales_orders', { orderBy: { column: 'created_at', ascending: false }, limit: 100 }).then((soList) => {
         if (Array.isArray(soList)) setSalesOrders(soList);
-      });
+      }).catch(console.debug);
     });
 
     const unsubItemsSynced = adminEventBus.on('ITEMS_SYNCED', () => {
@@ -438,63 +438,63 @@ export const App: React.FC = () => {
     });
 
     const unsubNcrsSynced = adminEventBus.on('QUALITY_NCRS_SYNCED', () => {
-      liveDataStore.getNcrs().then((ncrList) => {
-        if (Array.isArray(ncrList)) setNcrs(ncrList);
-      });
+      db.findMany<NonConformanceReport>('ncrs').then((ncrList) => {
+        if (Array.isArray(ncrList) && ncrList.length > 0) setNcrs(ncrList);
+      }).catch(console.debug);
     });
 
     const unsubCapasSynced = adminEventBus.on('QUALITY_CAPAS_SYNCED', () => {
-      liveDataStore.getCapas().then((capaList) => {
-        if (Array.isArray(capaList)) setCapas(capaList);
-      });
+      db.findMany<CapaReport>('capas').then((capaList) => {
+        if (Array.isArray(capaList) && capaList.length > 0) setCapas(capaList);
+      }).catch(console.debug);
     });
 
     const unsubCoasSynced = adminEventBus.on('QUALITY_COAS_SYNCED', () => {
-      liveDataStore.getCoas().then((coaList) => {
-        if (Array.isArray(coaList)) setCoas(coaList);
-      });
+      db.findMany<CertificateOfAnalysis>('coas').then((coaList) => {
+        if (Array.isArray(coaList) && coaList.length > 0) setCoas(coaList);
+      }).catch(console.debug);
     });
 
     const unsubCustSynced = adminEventBus.on('CUSTOMERS_SYNCED', () => {
-      liveDataStore.getCustomers().then((custList) => {
-        if (Array.isArray(custList)) setCustomers(custList);
-      });
+      db.findMany<Customer>('customers').then((custList) => {
+        if (Array.isArray(custList) && custList.length > 0) setCustomers(custList);
+      }).catch(console.debug);
     });
 
     const unsubQuotesSynced = adminEventBus.on('QUOTATIONS_SYNCED', () => {
-      liveDataStore.getQuotations().then((qList) => {
-        if (Array.isArray(qList)) setQuotations(qList);
-      });
+      db.findMany<Quotation>('quotations').then((qList) => {
+        if (Array.isArray(qList) && qList.length > 0) setQuotations(qList);
+      }).catch(console.debug);
     });
 
     const unsubRmasSynced = adminEventBus.on('RMAS_SYNCED', () => {
-      liveDataStore.getRmas().then((rmaList) => {
-        if (Array.isArray(rmaList)) setRmas(rmaList);
-      });
+      db.findMany<ReturnMerchandise>('rmas').then((rmaList) => {
+        if (Array.isArray(rmaList) && rmaList.length > 0) setRmas(rmaList);
+      }).catch(console.debug);
     });
 
     const unsubBomsSynced = adminEventBus.on('BOMS_SYNCED', () => {
-      liveDataStore.getBoms().then((bomList) => {
-        if (Array.isArray(bomList)) setBoms(bomList);
-      });
+      db.findMany<BomMaster>('boms').then((bomList) => {
+        if (Array.isArray(bomList) && bomList.length > 0) setBoms(bomList);
+      }).catch(console.debug);
     });
 
     const unsubMachinesSynced = adminEventBus.on('MACHINES_SYNCED', () => {
-      liveDataStore.getMachines().then((mList) => {
-        if (Array.isArray(mList)) setMachines(mList);
-      });
+      db.findMany<MachineMaster>('machines').then((mList) => {
+        if (Array.isArray(mList) && mList.length > 0) setMachines(mList);
+      }).catch(console.debug);
     });
 
     const unsubAccSynced = adminEventBus.on('ACCOUNTS_SYNCED', () => {
-      liveDataStore.getAccounts().then((accList) => {
-        if (Array.isArray(accList)) setAccounts(accList);
-      });
+      db.findMany<Account>('accounts').then((accList) => {
+        if (Array.isArray(accList) && accList.length > 0) setAccounts(accList);
+      }).catch(console.debug);
     });
 
     const unsubJeSynced = adminEventBus.on('JOURNAL_ENTRIES_SYNCED', () => {
-      liveDataStore.getJournalEntries().then((jeList) => {
-        if (Array.isArray(jeList)) setJournalEntries(jeList);
-      });
+      db.findMany<JournalEntry>('journal_entries').then((jeList) => {
+        if (Array.isArray(jeList) && jeList.length > 0) setJournalEntries(jeList);
+      }).catch(console.debug);
     });
 
     return () => {
@@ -1611,14 +1611,15 @@ export const App: React.FC = () => {
               onNavigate={handleNavigate}
               onUpdateBom={(updated) => {
                 setBoms((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
-                liveDataStore.saveBom(updated).catch(console.warn);
+                db.upsert('boms', updated).catch(console.warn);
               }}
               onDeleteBom={(id) => {
                 setBoms((prev) => prev.filter((b) => b.id !== id));
+                db.delete('boms', id).catch(console.warn);
               }}
               onCreateBom={(newBom) => {
                 setBoms((prev) => [newBom, ...prev]);
-                liveDataStore.saveBom(newBom).catch(console.warn);
+                db.upsert('boms', newBom).catch(console.warn);
               }}
               openDrawer={openDrawer}
               closeDrawer={closeDrawer}
@@ -1651,25 +1652,27 @@ export const App: React.FC = () => {
               }}
               onUpdateBom={(updated) => {
                 setBoms((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
-                liveDataStore.saveBom(updated).catch(console.warn);
+                db.upsert('boms', updated).catch(console.warn);
               }}
               onDeleteBom={(id) => {
                 setBoms((prev) => prev.filter((b) => b.id !== id));
+                db.delete('boms', id).catch(console.warn);
               }}
               onCreateBom={(newBom) => {
                 setBoms((prev) => [newBom, ...prev]);
-                liveDataStore.saveBom(newBom).catch(console.warn);
+                db.upsert('boms', newBom).catch(console.warn);
               }}
               onUpdateMachine={(updated) => {
                 setMachines((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
-                liveDataStore.saveMachine(updated).catch(console.warn);
+                db.upsert('machines', updated).catch(console.warn);
               }}
               onDeleteMachine={(id) => {
                 setMachines((prev) => prev.filter((m) => m.id !== id));
+                db.delete('machines', id).catch(console.warn);
               }}
               onCreateMachine={(newM) => {
                 setMachines((prev) => [newM, ...prev]);
-                liveDataStore.saveMachine(newM).catch(console.warn);
+                db.upsert('machines', newM).catch(console.warn);
               }}
               openDrawer={openDrawer}
               closeDrawer={closeDrawer}
@@ -1692,11 +1695,21 @@ export const App: React.FC = () => {
               onNavigate={handleNavigate}
               onUpdateWO={(updated) => {
                 setWorkOrders((prev) => prev.map((w) => (w.id === updated.id ? updated : w)));
-                liveDataStore.saveWorkOrder(updated).catch(console.warn);
+                db.upsert('work_orders', {
+                  id: updated.id,
+                  item_code: updated.item || (updated as any).itemCode,
+                  status: updated.status,
+                  updated_at: new Date().toISOString(),
+                }).catch(console.warn);
               }}
               onCreateWO={(newWO) => {
                 setWorkOrders((prev) => (prev.some((w) => w.id === newWO.id) ? prev : [newWO, ...prev]));
-                liveDataStore.saveWorkOrder(newWO).catch(console.warn);
+                db.upsert('work_orders', {
+                  id: newWO.id,
+                  item_code: newWO.item || (newWO as any).itemCode,
+                  status: newWO.status,
+                  updated_at: new Date().toISOString(),
+                }).catch(console.warn);
               }}
               onDeleteWO={(id) => {
                 setWorkOrders((prev) => prev.filter((w) => w.id !== id));
@@ -1742,11 +1755,11 @@ export const App: React.FC = () => {
               }}
               onUpdatePO={(updated) => {
                 setPurchaseOrders((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-                liveDataStore.savePurchaseOrder(updated).catch(console.warn);
+                db.upsert('purchase_orders', updated).catch(console.warn);
               }}
               onCreatePO={(newPO) => {
                 setPurchaseOrders((prev) => [newPO, ...prev]);
-                liveDataStore.savePurchaseOrder(newPO).catch(console.warn);
+                db.upsert('purchase_orders', newPO).catch(console.warn);
               }}
               openDrawer={openDrawer}
               closeDrawer={closeDrawer}
@@ -1766,35 +1779,35 @@ export const App: React.FC = () => {
               onNavigate={handleNavigate}
               onUpdateSO={(updated) => {
                 setSalesOrders((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
-                liveDataStore.saveSalesOrder(updated).catch(console.warn);
+                db.upsert('sales_orders', updated).catch(console.warn);
               }}
               onCreateSO={(newSO) => {
                 setSalesOrders((prev) => [newSO, ...prev]);
-                liveDataStore.saveSalesOrder(newSO).catch(console.warn);
+                db.upsert('sales_orders', newSO).catch(console.warn);
               }}
               onUpdateQuote={(updated) => {
                 setQuotations((prev) => prev.map((q) => (q.id === updated.id ? updated : q)));
-                liveDataStore.saveQuotation(updated).catch(console.warn);
+                db.upsert('quotations', updated).catch(console.warn);
               }}
               onCreateQuote={(newQ) => {
                 setQuotations((prev) => [newQ, ...prev]);
-                liveDataStore.saveQuotation(newQ).catch(console.warn);
+                db.upsert('quotations', newQ).catch(console.warn);
               }}
               onUpdateRMA={(updated) => {
                 setRmas((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
-                liveDataStore.saveRma(updated).catch(console.warn);
+                db.upsert('rmas', updated).catch(console.warn);
               }}
               onCreateRMA={(newRMA) => {
                 setRmas((prev) => [newRMA, ...prev]);
-                liveDataStore.saveRma(newRMA).catch(console.warn);
+                db.upsert('rmas', newRMA).catch(console.warn);
               }}
               onUpdateCustomer={(updated) => {
                 setCustomers((prev) => prev.map((c) => (c.code === updated.code ? updated : c)));
-                liveDataStore.saveCustomer(updated).catch(console.warn);
+                db.upsert('customers', updated).catch(console.warn);
               }}
               onCreateCustomer={(newCust) => {
                 setCustomers((prev) => [newCust, ...prev]);
-                liveDataStore.saveCustomer(newCust).catch(console.warn);
+                db.upsert('customers', newCust).catch(console.warn);
               }}
               openDrawer={openDrawer}
               closeDrawer={closeDrawer}
@@ -1816,15 +1829,15 @@ export const App: React.FC = () => {
               onNavigate={handleNavigate}
               onUpdateAccount={(updated) => {
                 setAccounts((prev) => prev.map((a) => (a.code === updated.code ? updated : a)));
-                liveDataStore.saveAccount(updated).catch(console.warn);
+                db.upsert('accounts', updated).catch(console.warn);
               }}
               onCreateAccount={(newAcc) => {
                 setAccounts((prev) => [...prev, newAcc]);
-                liveDataStore.saveAccount(newAcc).catch(console.warn);
+                db.upsert('accounts', newAcc).catch(console.warn);
               }}
               onCreateJE={(newJE) => {
                 setJournalEntries((prev) => [newJE, ...prev]);
-                liveDataStore.saveJournalEntry(newJE).catch(console.warn);
+                db.upsert('journal_entries', newJE).catch(console.warn);
               }}
               openDrawer={openDrawer}
               closeDrawer={closeDrawer}
@@ -1846,27 +1859,27 @@ export const App: React.FC = () => {
               onNavigate={handleNavigate}
               onUpdateNCR={(updated) => {
                 setNcrs((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
-                liveDataStore.saveNcr(updated).catch(console.warn);
+                db.upsert('ncrs', updated).catch(console.warn);
               }}
               onCreateNCR={(newNCR) => {
                 setNcrs((prev) => [newNCR, ...prev]);
-                liveDataStore.saveNcr(newNCR).catch(console.warn);
+                db.upsert('ncrs', newNCR).catch(console.warn);
               }}
               onUpdateCAPA={(updated) => {
                 setCapas((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-                liveDataStore.saveCapa(updated).catch(console.warn);
+                db.upsert('capas', updated).catch(console.warn);
               }}
               onCreateCAPA={(newCAPA) => {
                 setCapas((prev) => [newCAPA, ...prev]);
-                liveDataStore.saveCapa(newCAPA).catch(console.warn);
+                db.upsert('capas', newCAPA).catch(console.warn);
               }}
               onUpdateCOA={(updated) => {
                 setCoas((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-                liveDataStore.saveCoa(updated).catch(console.warn);
+                db.upsert('coas', updated).catch(console.warn);
               }}
               onCreateCOA={(newCOA) => {
                 setCoas((prev) => [newCOA, ...prev]);
-                liveDataStore.saveCoa(newCOA).catch(console.warn);
+                db.upsert('coas', newCOA).catch(console.warn);
               }}
               openDrawer={openDrawer}
               closeDrawer={closeDrawer}

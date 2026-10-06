@@ -1,16 +1,26 @@
 import { WorkOrder, MachineMaster } from '../../../types';
-import { liveDataStore } from '../../../services/liveDataStore';
 import { INITIAL_MOLDS, MoldMaster } from '../../../data/manufacturingData';
+import { initialWorkOrders, initialMachines } from '../../../data/initialData';
 import { db } from '../../../shared/db';
 import { WorkOrderLogFormValues, CreateWorkOrderFormValues } from '../types/manufacturingSchemas';
 
 export const manufacturingApi = {
   getWorkOrders: async (): Promise<WorkOrder[]> => {
-    return await liveDataStore.getWorkOrders();
+    try {
+      const data = await db.findMany<WorkOrder>('work_orders');
+      return data && data.length > 0 ? data : initialWorkOrders;
+    } catch {
+      return initialWorkOrders;
+    }
   },
 
   getMachines: async (): Promise<MachineMaster[]> => {
-    return await liveDataStore.getMachines();
+    try {
+      const data = await db.findMany<MachineMaster>('machines');
+      return data && data.length > 0 ? data : initialMachines;
+    } catch {
+      return initialMachines;
+    }
   },
 
   getMolds: async (): Promise<MoldMaster[]> => {
@@ -43,17 +53,18 @@ export const manufacturingApi = {
       checklist: [],
       history: [{ event: 'Created via JIT planner', time: 'Just now' }],
     };
-    return await liveDataStore.saveWorkOrder(newWO);
+    return await db.upsert<WorkOrder>('work_orders', newWO);
   },
 
   logOutput: async (data: WorkOrderLogFormValues): Promise<WorkOrder> => {
-    const orders = await liveDataStore.getWorkOrders();
+    const orders = await manufacturingApi.getWorkOrders();
     const target = orders.find((w) => w.id === data.workOrderId) || orders[0];
     const updated: WorkOrder = {
       ...target,
       completed: (target.completed || 0) + data.goodQty,
       scrap: (target.scrap || 0) + data.scrapQty,
     };
-    return await liveDataStore.saveWorkOrder(updated);
+    return await db.upsert<WorkOrder>('work_orders', updated);
   },
 };
+

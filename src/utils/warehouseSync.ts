@@ -2,7 +2,7 @@ import { InventoryStockItem, InventoryStockLot, StockMovementLedgerEntry, StoreC
 import { INITIAL_INVENTORY_STOCK, INITIAL_STOCK_MOVEMENT_LEDGER } from '../data/warehouseData';
 import { GrnPutawayTask } from '../types/grnTypes';
 import { WorkOrder, BomMaster, ItemMaster } from '../types';
-import { liveDataStore } from '../services/liveDataStore';
+import { db } from '../shared/db';
 import { itemService } from '../services/itemService';
 
 const STOCK_STORAGE_KEY = 'reboot_warehouse_stock_v3';
@@ -934,18 +934,11 @@ export function recordProductionShiftInventoryMovement(params: {
   }
 
   // Persist to backend database asynchronously
-  liveDataStore.recordProductionEntry({
-    workOrderId: workOrder.id,
-    machineId: workOrder.machine || 'IMM-250T-03',
-    operatorId: operator,
-    goodQty: shiftGood,
-    scrapQty: shiftScrap,
-    downtimeMinutes: 0,
-    actualCycleTimeSec: Number(workOrder.cycleTimeStd) || 14.8,
-    cavities: 4,
-    shift: workOrder.shift || 'SHIFT-A',
-    lotNumber: `LOT-${workOrder.id}-${todayStr.replace(/-/g, '').slice(2)}`,
-    notes: `Production entry: +${shiftGood} Good PCS into store. Operator: ${operator}.`,
+  db.upsert('work_orders', {
+    id: workOrder.id,
+    produced_qty: (workOrder.completed || 0) + shiftGood,
+    scrap_qty: (workOrder.scrap || 0) + shiftScrap,
+    updated_at: new Date().toISOString(),
   }).catch((err) => console.warn('Backend production logging notification:', err));
 
   return {

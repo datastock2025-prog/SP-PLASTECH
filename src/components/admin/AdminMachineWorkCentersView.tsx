@@ -31,7 +31,6 @@ import { MachineWorkCenterConfig } from '../../data/adminExtendedData';
 import { adminService, adminEventBus } from '../../services/adminService';
 import { PlantDetails } from '../../types/admin';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
-import { liveDataStore } from '../../services/liveDataStore';
 import { isUserAdmin } from '../../utils/warehouseSync';
 import { useAuthContext } from '../../shared/components/RequireAuth';
 import { useAdminMachines, useSaveAdminMachine, useAdminPlants } from '../../hooks/useAdmin';
@@ -343,22 +342,6 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
       saveMachineMutation.mutate(pendingData);
       setSelectedMachine(pendingData);
 
-      liveDataStore.saveMachine({
-        id: pendingData.id,
-        code: pendingData.code,
-        name: pendingData.name,
-        type: (pendingData.category as any) || 'Injection Molding Machine',
-        line: pendingData.bayNumber || 'IMM Bay 01',
-        status: pendingData.currentStatus?.toLowerCase() === 'running' ? 'running' : 'idle',
-        job: '',
-        lastPM: '2026-08-01',
-        nextPM: '2026-11-01',
-        tonnage: `${pendingData.tonnageRating}T`,
-        approval: 'approved',
-        createdOn: new Date().toISOString().split('T')[0],
-        hourlyRate: pendingData.hourlyCostRateInr || 2400,
-      }).catch(console.warn);
-
       // Record Audit
       masterDataGovernanceService.recordAudit({
         entityType: 'MACHINE_MASTER',
@@ -377,22 +360,6 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
     } else if (type === 'EDIT' && pendingData && targetMachine) {
       saveMachineMutation.mutate(pendingData);
       setSelectedMachine(pendingData);
-
-      liveDataStore.saveMachine({
-        id: pendingData.id,
-        code: pendingData.code,
-        name: pendingData.name,
-        type: (pendingData.category as any) || 'Injection Molding Machine',
-        line: pendingData.bayNumber || 'IMM Bay 01',
-        status: pendingData.currentStatus?.toLowerCase() === 'running' ? 'running' : 'idle',
-        job: '',
-        lastPM: '2026-08-01',
-        nextPM: '2026-11-01',
-        tonnage: `${pendingData.tonnageRating}T`,
-        approval: 'approved',
-        createdOn: new Date().toISOString().split('T')[0],
-        hourlyRate: pendingData.hourlyCostRateInr || 2400,
-      }).catch(console.warn);
 
       // Record Audit with Diff
       masterDataGovernanceService.recordAudit({
@@ -436,7 +403,6 @@ export const AdminMachineWorkCentersView: React.FC<AdminMachineWorkCentersViewPr
       adminEventBus.emit('MACHINES_SYNCED');
 
       showToast(`🔒 Machine ${targetMachine.code} deactivated.`);
-      liveDataStore.deleteMachine(targetMachine.id).catch(console.warn);
       if (selectedMachine?.id === targetMachine.id) {
         setSelectedMachine(null);
       }

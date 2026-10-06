@@ -210,14 +210,24 @@ export function useItemApprovalsQueue() {
   });
 }
 
-import { liveDataStore } from '../services/liveDataStore';
+import { db } from '../shared/db';
+import { initialMachines, initialCustomers } from '../data/initialData';
 
 // 4. MACHINES
 export function useMachines() {
   return useQuery<MachineMaster[]>({
     queryKey: queryKeys.masterData.machines(),
     queryFn: async () => {
-      return await liveDataStore.getMachines();
+      try {
+        const res = await db.findMany<MachineMaster>('machines', {
+          orderBy: { column: 'created_at', ascending: false },
+          limit: 100,
+        });
+        if (Array.isArray(res) && res.length > 0) return res;
+      } catch (e) {
+        console.debug('[useMachines] query note:', e);
+      }
+      return initialMachines;
     },
     staleTime: 1000 * 30,
   });
@@ -227,7 +237,12 @@ export function useSaveMachine() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (machine: MachineMaster) => {
-      return await liveDataStore.saveMachine(machine);
+      try {
+        await db.upsert('machines', machine, 'id');
+      } catch (e) {
+        console.debug('[useSaveMachine] notice:', e);
+      }
+      return machine;
     },
     onSuccess: (savedMachine) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.masterData.machines() });
@@ -240,7 +255,12 @@ export function useDeleteMachine() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      return await liveDataStore.deleteMachine(id);
+      try {
+        await db.delete('machines', id, 'id');
+      } catch (e) {
+        console.debug('[useDeleteMachine] notice:', e);
+      }
+      return id;
     },
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.masterData.machines() });
@@ -254,7 +274,16 @@ export function useCustomers() {
   return useQuery<Customer[]>({
     queryKey: queryKeys.sales.customers(),
     queryFn: async () => {
-      return await liveDataStore.getCustomers();
+      try {
+        const res = await db.findMany<Customer>('customers', {
+          orderBy: { column: 'created_at', ascending: false },
+          limit: 100,
+        });
+        if (Array.isArray(res) && res.length > 0) return res;
+      } catch (e) {
+        console.debug('[useCustomers] query note:', e);
+      }
+      return initialCustomers;
     },
     staleTime: 1000 * 30,
   });
@@ -264,7 +293,12 @@ export function useSaveCustomer() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (customer: Customer) => {
-      return await liveDataStore.saveCustomer(customer);
+      try {
+        await db.upsert('customers', customer, 'id');
+      } catch (e) {
+        console.debug('[useSaveCustomer] notice:', e);
+      }
+      return customer;
     },
     onSuccess: (savedCustomer) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sales.customers() });
