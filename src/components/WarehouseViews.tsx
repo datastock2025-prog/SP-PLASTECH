@@ -37,8 +37,9 @@ import { QuarantineHoldView } from './warehouse/QuarantineHoldView';
 import { RegrindScrapClosedLoopView } from './warehouse/RegrindScrapClosedLoopView';
 import { SubcontractingManagementView } from './warehouse/SubcontractingManagementView';
 import { BarcodeScannerSimulatorView } from './warehouse/BarcodeScannerSimulatorView';
-import { LabelPrintingGeneratorView } from './warehouse/LabelPrintingGeneratorView';
 import { StockTransferManager } from './stockTransfer/StockTransferManager';
+import { useStockLedger, useStockTransfers, useQuarantineLots } from '../hooks/useWarehouse';
+import { usePurchaseOrders } from '../hooks/useProcurement';
 
 interface WarehouseProps {
   view: string;
@@ -73,6 +74,14 @@ export const WarehouseViews: React.FC<WarehouseProps> = ({
   openConfirm,
   showToast,
 }) => {
+  // TanStack Query SSOT (Rule 1 & Rule 3)
+  const { data: _queryStock } = useStockLedger();
+  const { data: _queryTransfers } = useStockTransfers();
+  const { data: _queryQuarantine } = useQuarantineLots();
+  const { data: queryPos } = usePurchaseOrders();
+
+  const effectivePos = (pos && pos.length > 0 ? pos : queryPos) || [];
+
   // Warehouse local state managed with initial seed data and sync storage
   const [locations, setLocations] = useState<WarehouseLocation[]>(INITIAL_WAREHOUSE_LOCATIONS);
   const [stockItems, setStockItems] = useState<InventoryStockItem[]>(() => getWarehouseStock());

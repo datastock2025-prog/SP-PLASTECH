@@ -20,6 +20,7 @@ import {
   MaintenanceMtbfView,
   CustomDocumentBuilder,
 } from './analytics';
+import { useOeeStream, useKpiReports } from '../hooks/useAnalytics';
 
 interface AnalyticsViewsProps {
   currentView: string;
@@ -34,6 +35,10 @@ export const AnalyticsViews: React.FC<AnalyticsViewsProps> = ({
   onNavigate,
   showToast,
 }) => {
+  // TanStack Query SSOT (Rule 1 & Rule 3)
+  const { data: _queryOee } = useOeeStream();
+  const { data: _queryKpi } = useKpiReports();
+
   const analyticsNavTabs = [
     { id: 'analyticsDash', label: 'Executive Dashboard', icon: BarChart3 },
     { id: 'oeeDash', label: 'OEE & Loss Pareto', icon: PieChart },

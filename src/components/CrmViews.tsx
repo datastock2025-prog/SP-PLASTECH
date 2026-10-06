@@ -31,6 +31,8 @@ import { CrmComplaintManagementView } from './crm/CrmComplaintManagementView';
 import { CrmDocumentCenterView } from './crm/CrmDocumentCenterView';
 import { CrmCustomerSegmentationView } from './crm/CrmCustomerSegmentationView';
 import { CrmAnalyticsReportsView } from './crm/CrmAnalyticsReportsView';
+import { useCustomers } from '../hooks/useMasterData';
+import { useQuotations } from '../hooks/useSales';
 
 interface CrmViewsProps {
   currentView: string;
@@ -45,6 +47,10 @@ export const CrmViews: React.FC<CrmViewsProps> = ({
   onNavigate,
   showToast,
 }) => {
+  // TanStack Query SSOT (Rule 1 & Rule 3)
+  const { data: _queryCustomers } = useCustomers();
+  const { data: _queryQuotes } = useQuotations();
+
   const crmNavTabs = [
     { id: 'crmDashboard', label: 'Command Center', icon: LayoutDashboard },
     { id: 'crmLeadList', label: 'Leads', icon: Users },

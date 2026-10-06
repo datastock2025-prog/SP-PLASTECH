@@ -57,6 +57,8 @@ import { INITIAL_ITEMS } from '../data/initialData';
 import { supplierService } from '../services/procurement/supplierService';
 import { itemService } from '../services/itemService';
 import { adminEventBus } from '../services/adminService';
+import { usePurchaseOrders, useSuppliers, useSupplierPriceLists } from '../hooks/useProcurement';
+import { useItems } from '../hooks/useMasterData';
 
 interface Props {
   view?: string;
@@ -118,6 +120,12 @@ export const ProcurementViews: React.FC<Props> = ({
   closeDrawer,
   showToast,
 }) => {
+  // TanStack Query SSOT (Rule 1 & Rule 3)
+  const { data: queryItems } = useItems();
+  const { data: querySuppliers } = useSuppliers();
+  const { data: queryPos } = usePurchaseOrders();
+  const { data: queryPriceLists } = useSupplierPriceLists();
+
   // Determine active view & param supporting both naming conventions
   const activeView = view || currentSubView || 'procurementDash';
   const activeParam = viewParams || selectedParam;

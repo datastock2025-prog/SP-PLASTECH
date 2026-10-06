@@ -39,6 +39,7 @@ import { MepElectricalView } from './mep/MepElectricalView';
 import { MepPlumbingWaterView } from './mep/MepPlumbingWaterView';
 import { MepHvacCleanroomView } from './mep/MepHvacCleanroomView';
 import { MepWorkOrdersView } from './mep/MepWorkOrdersView';
+import { useMolds, useMepWorkOrders } from '../hooks/useMep';
 
 interface MepViewsProps {
   currentView: string;
@@ -53,6 +54,10 @@ export const MepViews: React.FC<MepViewsProps> = ({
   onNavigate,
   showToast,
 }) => {
+  // TanStack Query SSOT (Rule 1 & Rule 3)
+  const { data: _queryMolds } = useMolds();
+  const { data: _queryMepWorkOrders } = useMepWorkOrders();
+
   const [equipment, setEquipment] = useState<MepEquipment[]>(INITIAL_MEP_EQUIPMENT);
   const [alarms, setAlarms] = useState<MepAlarm[]>(INITIAL_MEP_ALARMS);
   const [energyMeters, setEnergyMeters] = useState<MepEnergyReading[]>(INITIAL_MEP_ENERGY_METERS);

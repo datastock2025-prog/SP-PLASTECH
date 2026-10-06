@@ -71,6 +71,8 @@ import {
   GatePassRecord,
   ComplianceExceptionRecord,
 } from '../types/salesOrderDeliveryTypes';
+import { useSalesOrders, useQuotations, useSalesRmas } from '../hooks/useSales';
+import { useCustomers } from '../hooks/useMasterData';
 
 interface SalesProps {
   view: string;
@@ -117,6 +119,17 @@ export const SalesViews: React.FC<SalesProps> = ({
   openConfirm,
   showToast,
 }) => {
+  // TanStack Query SSOT (Rule 1 & Rule 3)
+  const { data: querySos } = useSalesOrders();
+  const { data: queryQuotes } = useQuotations();
+  const { data: queryRmas } = useSalesRmas();
+  const { data: queryCustomers } = useCustomers();
+
+  const effectiveSos = (sos && sos.length > 0 ? sos : querySos) || [];
+  const effectiveQuotes = (quotes && quotes.length > 0 ? quotes : (queryQuotes as any)) || [];
+  const effectiveCustomers = (customers && customers.length > 0 ? customers : queryCustomers) || [];
+  const effectiveRmas = (rmas && rmas.length > 0 ? rmas : queryRmas) || [];
+
   // Redesigned Indian ERP Compliance Data State
   const [plasticSalesOrders, setPlasticSalesOrders] = useState<PlasticSalesOrder[]>(() => salesDataService.getSalesOrdersSync());
   const [monthlyPlans, setMonthlyPlans] = useState<MonthlyPlanOrder[]>(() => salesDataService.getMonthlyPlansSync());
@@ -1277,7 +1290,7 @@ export const SalesViews: React.FC<SalesProps> = ({
   if (view === 'rmaList' || view === 'rmaDetail' || view === 'returnsRMA' || view === 'salesRMA') {
     return (
       <CustomerReturnsRMAView
-        returns={rmas}
+        returns={effectiveRmas}
         onCreateRMA={onCreateRMA || (() => {})}
         onUpdateRMA={onUpdateRMA || (() => {})}
         openDrawer={openDrawer}
@@ -1293,7 +1306,7 @@ export const SalesViews: React.FC<SalesProps> = ({
   if (view === 'orderTracking' || view === 'salesTracking') {
     return (
       <SalesOrderTrackingTimelineView
-        sos={sos}
+        sos={effectiveSos}
         onNavigate={onNavigate}
       />
     );
@@ -1324,7 +1337,7 @@ export const SalesViews: React.FC<SalesProps> = ({
     return (
       <SalesContractListView
         contracts={contracts}
-        customers={customers}
+        customers={effectiveCustomers}
         onNavigate={onNavigate}
         onCreateSO={onCreateSO}
         openDrawer={openDrawer}
@@ -1340,11 +1353,11 @@ export const SalesViews: React.FC<SalesProps> = ({
   if (view === 'customerDetail' || view === 'customer360') {
     return (
       <CustomerDetailView
-        customerId={selectedId || customers[0]?.code || 'CUST-001'}
-        customers={customers}
-        sos={sos}
-        quotes={quotes}
-        rmas={rmas}
+        customerId={selectedId || effectiveCustomers[0]?.code || 'CUST-001'}
+        customers={effectiveCustomers}
+        sos={effectiveSos}
+        quotes={effectiveQuotes}
+        rmas={effectiveRmas}
         onNavigate={onNavigate}
         onUpdateCustomer={onUpdateCustomer}
         openDrawer={openDrawer}
@@ -1360,9 +1373,9 @@ export const SalesViews: React.FC<SalesProps> = ({
   if (view === 'customerList' || view === 'customers') {
     return (
       <CustomerMasterListView
-        customers={customers}
-        sos={sos}
-        quotes={quotes}
+        customers={effectiveCustomers}
+        sos={effectiveSos}
+        quotes={effectiveQuotes}
         onNavigate={onNavigate}
         onCreateCustomer={onCreateCustomer}
         onUpdateCustomer={onUpdateCustomer}

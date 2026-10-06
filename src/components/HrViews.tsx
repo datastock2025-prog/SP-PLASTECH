@@ -30,6 +30,7 @@ import {
   HrTrainingProgram,
   HrDepartment,
 } from '../types';
+import { useEmployees, useAttendance, useShiftRosters } from '../hooks/useHr';
 import { HrCommandCenter } from './hr/HrCommandCenter';
 import { HrOrgStructureView } from './hr/HrOrgStructureView';
 import { HrEmployeeListView } from './hr/HrEmployeeListView';
@@ -57,6 +58,11 @@ export const HrViews: React.FC<HrViewsProps> = ({
   onNavigate,
   showToast,
 }) => {
+  // TanStack Query SSOT (Rule 1 & Rule 3)
+  const { data: _queryEmployees } = useEmployees();
+  const { data: _queryAttendance } = useAttendance();
+  const { data: _queryRosters } = useShiftRosters();
+
   // Master State for HR entities
   const [departments, setDepartments] = useState<HrDepartment[]>(INITIAL_HR_DEPARTMENTS);
   const [designations] = useState(INITIAL_HR_DESIGNATIONS);

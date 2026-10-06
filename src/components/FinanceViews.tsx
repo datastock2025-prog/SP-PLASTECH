@@ -23,6 +23,7 @@ import { ProductionVarianceView } from './finance/ProductionVarianceView';
 import { PeriodCloseView } from './finance/PeriodCloseView';
 import { FixedAssetsView } from './finance/FixedAssetsView';
 import { UnifiedLedgerWorkspace } from './ledger/UnifiedLedgerWorkspace';
+import { useAccounts, useJournalEntries } from '../hooks/useFinance';
 
 interface FinanceProps {
   view: string;
@@ -69,12 +70,19 @@ export const FinanceViews: React.FC<FinanceProps> = ({
   openConfirm,
   showToast,
 }) => {
+  // TanStack Query SSOT (Rule 1 & Rule 3)
+  const { data: queryAccounts } = useAccounts();
+  const { data: queryJournalEntries } = useJournalEntries();
+
+  const effectiveAccounts = (accounts && accounts.length > 0 ? accounts : queryAccounts) || [];
+  const effectiveJournalEntries = (journalEntries && journalEntries.length > 0 ? journalEntries : queryJournalEntries) || [];
+
   switch (view) {
     case 'financeDash':
       return (
         <FinanceDashboardView
-          accounts={accounts}
-          journalEntries={journalEntries}
+          accounts={effectiveAccounts}
+          journalEntries={effectiveJournalEntries}
           costCenters={costCenters}
           invoices={invoices as any}
           supplierInvoices={supplierInvoices}
@@ -89,8 +97,8 @@ export const FinanceViews: React.FC<FinanceProps> = ({
     case 'coaList':
       return (
         <ChartOfAccountsView
-          accounts={accounts}
-          journalEntries={journalEntries}
+          accounts={effectiveAccounts}
+          journalEntries={effectiveJournalEntries}
           onUpdateAccount={onUpdateAccount}
           onCreateAccount={onCreateAccount}
           openDrawer={openDrawer}
@@ -104,8 +112,8 @@ export const FinanceViews: React.FC<FinanceProps> = ({
     case 'jeCreate':
       return (
         <JournalEntriesView
-          journalEntries={journalEntries}
-          accounts={accounts}
+          journalEntries={effectiveJournalEntries}
+          accounts={effectiveAccounts}
           costCenters={costCenters}
           onCreateJE={onCreateJE}
           openDrawer={openDrawer}
@@ -159,7 +167,7 @@ export const FinanceViews: React.FC<FinanceProps> = ({
       return (
         <CostCentersView
           costCenters={costCenters}
-          accounts={accounts}
+          accounts={effectiveAccounts}
           openDrawer={openDrawer}
           closeDrawer={closeDrawer}
           showToast={showToast}
