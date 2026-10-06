@@ -89,8 +89,8 @@ class MasterDataGovernanceService {
 
   public getRecordByCode(code: string): MasterDataRecord | undefined {
     if (!code) return undefined;
-    const clean = code.trim().toLowerCase();
-    return this.cache.find((r) => r.code.trim().toLowerCase() === clean);
+    const clean = String(code).trim().toLowerCase();
+    return this.cache.find((r) => String(r?.code || '').trim().toLowerCase() === clean);
   }
 
   public searchRecords(query: string, entityTypes?: string[]): MasterDataRecord[] {
@@ -98,29 +98,29 @@ class MasterDataGovernanceService {
     if (entityTypes && entityTypes.length > 0 && !entityTypes.includes('ALL')) {
       list = list.filter((r) => entityTypes.includes(r.entityType));
     }
-    if (!query || !query.trim()) return list;
-    const q = query.trim().toLowerCase();
+    if (!query || typeof query !== 'string' || !query.trim()) return list;
+    const q = String(query).trim().toLowerCase();
     return list.filter(
       (r) =>
-        r.code.toLowerCase().includes(q) ||
-        r.name.toLowerCase().includes(q) ||
-        r.category.toLowerCase().includes(q) ||
-        (r.itemGroup && r.itemGroup.toLowerCase().includes(q)) ||
-        (r.resinType && r.resinType.toLowerCase().includes(q)) ||
-        (r.color && r.color.toLowerCase().includes(q))
+        String(r.code || '').toLowerCase().includes(q) ||
+        String(r.name || '').toLowerCase().includes(q) ||
+        String(r.category || '').toLowerCase().includes(q) ||
+        (r.itemGroup && String(r.itemGroup).toLowerCase().includes(q)) ||
+        (r.resinType && String(r.resinType).toLowerCase().includes(q)) ||
+        (r.color && String(r.color).toLowerCase().includes(q))
     );
   }
 
   public saveRecord(record: Partial<MasterDataRecord> & { code: string; name: string }): MasterDataRecord {
     const existingIdx = this.cache.findIndex(
-      (r) => r.code.trim().toLowerCase() === record.code.trim().toLowerCase() || (record.id && r.id === record.id)
+      (r) => String(r?.code || '').trim().toLowerCase() === String(record?.code || '').trim().toLowerCase() || (record.id && r.id === record.id)
     );
 
     const fullRecord: MasterDataRecord = {
       id: record.id || `MDR-${Date.now().toString().slice(-5)}`,
       entityType: record.entityType || 'Polymer Resin Item',
-      code: record.code.trim().toUpperCase(),
-      name: record.name.trim(),
+      code: String(record.code || '').trim().toUpperCase(),
+      name: String(record.name || '').trim(),
       primaryUom: record.primaryUom || 'Kilograms (KG)',
       category: record.category || 'Virgin Raw Polymer',
       itemGroup:

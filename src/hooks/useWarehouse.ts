@@ -60,35 +60,35 @@ export function isUserAdmin(user?: any): boolean {
 }
 
 export function isStoreInUse(storeOrBinCode?: string): { inUse: boolean; reason?: string } {
-  if (!storeOrBinCode || !storeOrBinCode.trim()) {
+  if (!storeOrBinCode || typeof storeOrBinCode !== 'string' || !storeOrBinCode.trim()) {
     return { inUse: false };
   }
-  const clean = storeOrBinCode.trim().toLowerCase();
+  const clean = String(storeOrBinCode).trim().toLowerCase();
 
   for (const item of inMemoryStock) {
     if (!item) continue;
-    const whMatch = (item.primaryWarehouse || '').toLowerCase().trim() === clean;
-    const binMatch = (item.primaryBin || '').toLowerCase().trim() === clean;
-    const storeTypeMatch = (item.storeType || '').toLowerCase().trim() === clean;
+    const whMatch = String(item.primaryWarehouse || '').toLowerCase().trim() === clean;
+    const binMatch = String(item.primaryBin || '').toLowerCase().trim() === clean;
+    const storeTypeMatch = String(item.storeType || '').toLowerCase().trim() === clean;
     const lotMatch = item.lots?.some(
       (lot) =>
-        (lot.storageBin || '').toLowerCase().trim() === clean ||
-        (lot.inwardOriginLocation || '').toLowerCase().trim() === clean
+        String(lot?.storageBin || '').toLowerCase().trim() === clean ||
+        String(lot?.inwardOriginLocation || '').toLowerCase().trim() === clean
     );
 
-    if ((whMatch || binMatch || storeTypeMatch || lotMatch) && (item.totalOnHand > 0 || (item.lots && item.lots.length > 0))) {
+    if ((whMatch || binMatch || storeTypeMatch || lotMatch) && (Number(item.totalOnHand || 0) > 0 || (item.lots && item.lots.length > 0))) {
       return {
         inUse: true,
-        reason: `Active stock balance (${item.totalOnHand.toLocaleString()} ${item.uom}) found for SKU ${item.sku} in this store location.`,
+        reason: `Active stock balance (${(item.totalOnHand || 0).toLocaleString()} ${item.uom || 'units'}) found for SKU ${item.sku || item.itemCode} in this store location.`,
       };
     }
   }
 
   for (const entry of inMemoryLedger) {
     if (!entry) continue;
-    const locMatch = (entry.location || '').toLowerCase().trim() === clean;
-    const destMatch = (entry.destinationStore || '').toLowerCase().trim() === clean;
-    const srcMatch = (entry.sourceLocation || '').toLowerCase().trim() === clean;
+    const locMatch = String(entry.location || '').toLowerCase().trim() === clean;
+    const destMatch = String(entry.destinationStore || '').toLowerCase().trim() === clean;
+    const srcMatch = String(entry.sourceLocation || '').toLowerCase().trim() === clean;
 
     if (locMatch || destMatch || srcMatch) {
       return {
@@ -111,9 +111,9 @@ export function getStockMovementLedger(): StockMovementLedgerEntry[] {
 
 export function getWarehouseStockItem(itemCodeOrSku: string): InventoryStockItem | undefined {
   if (!itemCodeOrSku) return undefined;
-  const clean = itemCodeOrSku.trim().toUpperCase();
+  const clean = String(itemCodeOrSku).trim().toUpperCase();
   return inMemoryStock.find(
-    (s) => (s.sku || '').toUpperCase() === clean || (s.itemCode || '').toUpperCase() === clean
+    (s) => String(s?.sku || '').toUpperCase() === clean || String(s?.itemCode || '').toUpperCase() === clean
   );
 }
 
@@ -127,8 +127,9 @@ export function getItemStockData(itemCode: string): { totalStock: number; alloca
 }
 
 export function syncItemsWithWarehouseStock(items: ItemMaster[]): ItemMaster[] {
-  if (!Array.isArray(items)) return items;
+  if (!Array.isArray(items)) return [];
   return items.map((item) => {
+    if (!item) return item;
     const stockInfo = getItemStockData(item.code);
     return {
       ...item,

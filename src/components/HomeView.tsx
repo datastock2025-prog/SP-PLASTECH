@@ -164,7 +164,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
   // Filter items by search query, category, and RBAC role visibility
   const filteredGroups = useMemo(() => {
-    const q = searchQuery ? searchQuery.toLowerCase().trim() : '';
+    const q = searchQuery && typeof searchQuery === 'string' ? searchQuery.toLowerCase().trim() : '';
 
     return (combinedGroups || []).map((group) => {
       if (!group) return null;
