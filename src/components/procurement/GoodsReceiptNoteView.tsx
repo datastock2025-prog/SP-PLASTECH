@@ -41,7 +41,7 @@ import { GrnReversalModal } from './grn/GrnReversalModal';
 import { MobileBarcodeReceivingModal } from './grn/MobileBarcodeReceivingModal';
 import { GrnPrintViewModal } from './grn/GrnPrintViewModal';
 import { GrnSettingsModal } from './grn/GrnSettingsModal';
-import { postPutawayTasksToWarehouse } from '../../utils/warehouseSync';
+import { postPutawayTasksToWarehouse } from '../../hooks/useWarehouse';
 
 import { ItemMaster } from '../../types';
 

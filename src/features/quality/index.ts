@@ -4,6 +4,5 @@
 // ============================================================================
 
 export * from './types/qualitySchemas';
-export * from './api/qualityApi';
 export * from './hooks/useQuality';
 export { QualityViews } from '../../components/QualityViews';

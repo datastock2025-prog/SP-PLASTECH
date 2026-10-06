@@ -22,7 +22,7 @@ import {
   StockMovementLedgerItem,
   DocumentAccountingImpact,
 } from '../../types/unifiedLedgerTypes';
-import { getWarehouseStock, getStockMovementLedger } from '../../utils/warehouseSync';
+import { getWarehouseStock, getStockMovementLedger } from '../../hooks/useWarehouse';
 
 interface Props {
   onOpenAccountingImpact: (impact: DocumentAccountingImpact) => void;

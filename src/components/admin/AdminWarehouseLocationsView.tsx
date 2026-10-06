@@ -25,7 +25,7 @@ import { WarehouseLocationConfig } from '../../data/adminExtendedData';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { SupabaseDataService } from '../../services/supabaseService';
 import { adminEventBus } from '../../services/adminService';
-import { isStoreInUse, isUserAdmin } from '../../utils/warehouseSync';
+import { isStoreInUse, isUserAdmin } from '../../hooks/useWarehouse';
 import { useAuthContext } from '../../shared/components/RequireAuth';
 import { useAdminWarehouses, useSaveAdminWarehouse } from '../../hooks/useAdmin';
 

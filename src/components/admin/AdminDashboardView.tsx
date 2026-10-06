@@ -21,7 +21,7 @@ import { AdminSystemHealth } from '../../types/admin';
 import { adminService, adminEventBus } from '../../services/adminService';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { SupabaseDataService } from '../../services/supabaseService';
-import { getWarehouseStock, getStockMovementLedger } from '../../utils/warehouseSync';
+import { getWarehouseStock, getStockMovementLedger } from '../../hooks/useWarehouse';
 
 interface AdminDashboardViewProps {
   onNavigate?: (view: string, param?: any) => void;

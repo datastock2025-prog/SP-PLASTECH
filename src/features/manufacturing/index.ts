@@ -4,7 +4,6 @@
 // ============================================================================
 
 export * from './types/manufacturingSchemas';
-export * from './api/manufacturingApi';
 export * from './hooks/useManufacturing';
 
 // Re-export domain view facades

@@ -4,6 +4,5 @@
 // ============================================================================
 
 export * from './types/salesSchemas';
-export * from './api/salesApi';
 export * from './hooks/useSales';
 export { SalesViews } from '../../components/SalesViews';

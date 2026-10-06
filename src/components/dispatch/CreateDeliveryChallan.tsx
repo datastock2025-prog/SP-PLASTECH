@@ -48,7 +48,7 @@ import { NicEwbGenerationPayload } from '../../types/nicEwbTypes';
 import { NicEwbDiagnosticRunnerModal } from './NicEwbDiagnosticRunnerModal';
 import { customerMasterService, ContractedCustomerLine } from '../../services/customerMasterService';
 import { salesDataService } from '../../services/salesDataService';
-import { getWarehouseStock } from '../../utils/warehouseSync';
+import { getWarehouseStock } from '../../hooks/useWarehouse';
 
 // Standard Finished Goods Master Catalog for adding ad-hoc or catalog items
 export interface CatalogItem {

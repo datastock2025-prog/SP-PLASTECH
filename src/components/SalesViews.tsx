@@ -57,7 +57,7 @@ import {
 } from '../data/salesOrderDeliveryData';
 import { adminEventBus } from '../services/adminService';
 import { salesDataService } from '../services/salesDataService';
-import { recordOutwardDispatchInventoryMovement } from '../utils/warehouseSync';
+import { recordOutwardDispatchInventoryMovement } from '../hooks/useWarehouse';
 
 
 import {

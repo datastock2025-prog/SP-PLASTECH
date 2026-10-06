@@ -46,7 +46,7 @@ import { DailyProductionExcelModal } from './DailyProductionExcelModal';
 import { DailyMaterialReconcileModal } from './DailyMaterialReconcileModal';
 import { JitOperatorAutocomplete } from './jit/JitOperatorAutocomplete';
 import { generateUniqueWorkOrderId } from './jit/jitCalculations';
-import { recordProductionShiftInventoryMovement } from '../../utils/warehouseSync';
+import { recordProductionShiftInventoryMovement } from '../../hooks/useWarehouse';
 
 // ==========================================
 // 1. Enterprise Component Error Boundary

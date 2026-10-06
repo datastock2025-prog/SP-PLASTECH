@@ -115,7 +115,7 @@ interface MasterDataProps {
   showToast: (msg: string) => void;
 }
 
-import { getItemStockData, getWarehouseStockItem, syncItemsWithWarehouseStock } from '../utils/warehouseSync';
+import { getItemStockData, getWarehouseStockItem, syncItemsWithWarehouseStock } from '../hooks/useWarehouse';
 
 // Re-export getItemStockData so all child and external consumers resolve real warehouse stock
 export { getItemStockData };

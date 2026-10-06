@@ -30,7 +30,7 @@ import { ReasonCodeItem } from '../../data/adminExtendedData';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { SupabaseDataService } from '../../services/supabaseService';
 import { adminEventBus } from '../../services/adminService';
-import { isUserAdmin } from '../../utils/warehouseSync';
+import { isUserAdmin } from '../../hooks/useWarehouse';
 import { useAuthContext } from '../../shared/components/RequireAuth';
 import { useAdminReasonCodes, useSaveAdminReasonCode, useDeleteAdminReasonCode } from '../../hooks/useAdmin';
 

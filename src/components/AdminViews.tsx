@@ -43,7 +43,6 @@ import { AdminApprovalWorkflowConfigView } from './admin/AdminApprovalWorkflowCo
 import { AdminCompanySettingsView } from './admin/AdminCompanySettingsView';
 import { AdminPlantBranchSettingsView } from './admin/AdminPlantBranchSettingsView';
 import { AdminWarehouseLocationsView } from './admin/AdminWarehouseLocationsView';
-import { AdminMachineWorkCentersView } from './admin/AdminMachineWorkCentersView';
 import { AdminShiftCalendarView } from './admin/AdminShiftCalendarView';
 import { AdminReasonCodesView } from './admin/AdminReasonCodesView';
 import { AdminMasterDataView } from './admin/AdminMasterDataView';
@@ -152,7 +151,7 @@ export const AdminViews: React.FC<AdminViewsProps> = ({
       case 'adminMachines':
       case 'adminWorkCenters':
       case 'adminMachineSettings':
-        return <AdminMachineWorkCentersView showToast={showToast} />;
+        return <AdminMasterDataView showToast={showToast} />;
 
       // 10. Shift and Working Calendar Settings Screen
       case 'adminShifts':

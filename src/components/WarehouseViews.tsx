@@ -15,7 +15,7 @@ import {
   INITIAL_REGRIND_RUNS,
   INITIAL_SUBCONTRACT_ORDERS,
 } from '../data/warehouseData';
-import { getWarehouseStock } from '../utils/warehouseSync';
+import { getWarehouseStock } from '../hooks/useWarehouse';
 import {
   WarehouseLocation,
   InventoryStockItem,

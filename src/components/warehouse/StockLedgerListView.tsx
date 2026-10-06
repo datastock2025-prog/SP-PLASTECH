@@ -42,7 +42,7 @@ import {
   LedgerTransactionStatus,
 } from '../../types/warehouse';
 import { INITIAL_INVENTORY_STOCK, INITIAL_STOCK_MOVEMENT_LEDGER } from '../../data/warehouseData';
-import { getStockMovementLedger, getWarehouseStock } from '../../utils/warehouseSync';
+import { getStockMovementLedger, getWarehouseStock } from '../../hooks/useWarehouse';
 import { WarehouseStatusBadge } from './WarehouseStatusBadge';
 import { PaginationBar } from '../common/PaginationBar';
 import { ItemLotLedgerModal } from './ItemLotLedgerModal';
