@@ -2221,7 +2221,53 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E4E0D6]">
-                  {pagedItems.length > 0 ? (
+                  {isInitialCatalogLoading ? (
+                    Array.from({ length: 8 }).map((_, idx) => (
+                      <tr key={`item-skeleton-${idx}`} className="animate-pulse">
+                        <td className="p-3 text-center">
+                          <div className="w-4 h-4 bg-slate-200 rounded mx-auto" />
+                        </td>
+                        <td className="p-3">
+                          <div className="h-4 w-24 bg-teal-100/80 rounded" />
+                        </td>
+                        <td className="p-3">
+                          <div className="h-4 w-44 bg-slate-200 rounded mb-1" />
+                          <div className="h-3 w-24 bg-slate-100 rounded" />
+                        </td>
+                        <td className="p-3">
+                          <div className="h-4 w-32 bg-slate-200 rounded" />
+                        </td>
+                        <td className="p-3">
+                          <div className="h-4 w-20 bg-slate-100 rounded" />
+                        </td>
+                        <td className="p-3">
+                          <div className="h-4 w-28 bg-slate-200 rounded mb-1" />
+                          <div className="h-3 w-16 bg-slate-100 rounded" />
+                        </td>
+                        <td className="p-3">
+                          <div className="h-4 w-24 bg-slate-200 rounded" />
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="h-4 w-12 bg-slate-200 rounded ml-auto" />
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="h-4 w-12 bg-slate-200 rounded ml-auto" />
+                        </td>
+                        <td className="p-3">
+                          <div className="h-4 w-16 bg-slate-200 rounded" />
+                        </td>
+                        <td className="p-3 text-center">
+                          <div className="h-5 w-16 bg-emerald-100/60 rounded-full mx-auto" />
+                        </td>
+                        <td className="p-3 text-center">
+                          <div className="h-5 w-20 bg-emerald-100/60 rounded-full mx-auto" />
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="h-6 w-16 bg-slate-100 rounded ml-auto" />
+                        </td>
+                      </tr>
+                    ))
+                  ) : pagedItems.length > 0 ? (
                     pagedItems.map((item) => {
                       const isSelected = selectedItemCodes.includes(item.code);
                       const isFg = item.type === 'Finished Good' || item.type === 'Semi-Finished Good';
@@ -2594,14 +2640,14 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                             <Plus className="w-6 h-6" />
                           </div>
                           <h3 className="text-sm font-bold text-[#14213D] mb-1">
-                            {items.length === 0 ? 'No Master Items in Catalog' : 'No matching items found'}
+                            {effectiveItemsList.length === 0 ? 'No Master Items in Catalog' : 'No matching items found'}
                           </h3>
                           <p className="text-xs text-[#6B7280] max-w-md mx-auto mb-4">
-                            {items.length === 0
+                            {effectiveItemsList.length === 0
                               ? 'The catalog is empty and ready for live data entry. Click below to register your first Raw Material or Finished Good.'
                               : 'No items match your active search or filter. Try clearing filters or changing search query.'}
                           </p>
-                          {items.length === 0 && (
+                          {effectiveItemsList.length === 0 && (
                             <button
                               onClick={handleOpenCreateItemWizard}
                               className="btn btn-sm btn-primary inline-flex items-center gap-1.5"

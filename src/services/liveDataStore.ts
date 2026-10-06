@@ -192,7 +192,9 @@ class LiveDataStore {
   public async getWorkOrders(): Promise<WorkOrder[]> {
     try {
       const data = await db.findMany<WorkOrder>('work_orders', {
+        select: 'id, item_code, machine_id, target_qty, actual_qty, scrap_qty, status, priority, plant, shift, start_date, due_date, progress, notes, created_at',
         orderBy: { column: 'created_at', ascending: false },
+        limit: 100,
       });
 
       if (Array.isArray(data) && data.length > 0) {
@@ -228,7 +230,9 @@ class LiveDataStore {
   public async getPurchaseOrders(): Promise<PurchaseOrder[]> {
     try {
       const data = await db.findMany<PurchaseOrder>('purchase_orders', {
+        select: 'id, supplier_id, order_date, expected_delivery_date, total_amount, status, currency, plant, notes, created_at',
         orderBy: { column: 'created_at', ascending: false },
+        limit: 100,
       });
 
       if (Array.isArray(data) && data.length > 0) {
@@ -263,7 +267,9 @@ class LiveDataStore {
   public async getSalesOrders(): Promise<SalesOrder[]> {
     try {
       const data = await db.findMany<SalesOrder>('sales_orders', {
+        select: 'id, customer_id, order_date, delivery_date, total_amount, status, currency, plant, notes, created_at',
         orderBy: { column: 'created_at', ascending: false },
+        limit: 100,
       });
 
       if (Array.isArray(data) && data.length > 0) {
