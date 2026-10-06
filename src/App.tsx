@@ -1643,12 +1643,15 @@ export const App: React.FC = () => {
                   const exists = prev.some((i) => i.code === updated.code);
                   return exists ? prev.map((i) => (i.code === updated.code ? updated : i)) : [updated, ...prev];
                 });
+                itemService.saveItem(updated).catch(console.warn);
               }}
               onDeleteItem={(code) => {
                 setItems((prev) => prev.filter((i) => i.code !== code));
+                itemService.deleteItem(code).catch(console.warn);
               }}
               onCreateItem={(newItem) => {
                 setItems((prev) => [newItem, ...prev.filter((i) => i.code !== newItem.code)]);
+                itemService.saveItem(newItem).catch(console.warn);
               }}
               onUpdateBom={(updated) => {
                 setBoms((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
@@ -1732,6 +1735,7 @@ export const App: React.FC = () => {
               currentUser={currentUser}
               onUpdateItem={(updated) => {
                 setItems((prev) => prev.map((i) => (i.code === updated.code ? updated : i)));
+                itemService.saveItem(updated).catch(console.warn);
               }}
               onNavigate={handleNavigate}
               openDrawer={openDrawer}
@@ -1752,6 +1756,7 @@ export const App: React.FC = () => {
               onNavigate={handleNavigate}
               onUpdateItem={(updated) => {
                 setItems((prev) => prev.map((i) => (i.code === updated.code ? updated : i)));
+                itemService.saveItem(updated).catch(console.warn);
               }}
               onUpdatePO={(updated) => {
                 setPurchaseOrders((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));

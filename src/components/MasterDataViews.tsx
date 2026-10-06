@@ -213,7 +213,7 @@ interface QuickModifyItemModalProps {
   isOpen: boolean;
   isAdmin: boolean;
   onClose: () => void;
-  onSave: (updated: ItemMaster) => void;
+  onSave: (updated: ItemMaster) => void | Promise<void>;
   onDelete: (code: string) => void;
   onOpenWizard: (item: ItemMaster) => void;
   showToast: (msg: string) => void;
@@ -234,6 +234,7 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
 
   const [form, setForm] = useState<ItemMaster>({ ...item });
   const [activeTab, setActiveTab] = useState<'specs' | 'basic' | 'docs'>('specs');
+  const [isSaving, setIsSaving] = useState<boolean>(false);
 
   const isFgItem = form.type === 'Finished Good' || form.type === 'Semi-Finished Good';
   const firstTabTitle = isFgItem
@@ -292,7 +293,7 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAdmin) {
       showToast('Admin permission required to save item modifications.');
@@ -324,8 +325,16 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
       netWeightGrams: isFgItem ? partWt : undefined,
     };
 
-    onSave(updatedItem);
-    onClose();
+    setIsSaving(true);
+    try {
+      await onSave(updatedItem);
+      onClose();
+    } catch (err: any) {
+      console.error('[QuickModifyItemModal] Save error:', err);
+      showToast(`⚠️ Save failed: ${err?.message || 'Error occurred'}`);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const tabsList = [
@@ -1063,9 +1072,18 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
               {isAdmin && (
                 <button
                   type="submit"
-                  className="btn btn-sm btn-primary text-xs flex items-center gap-1.5 shadow-sm"
+                  disabled={isSaving}
+                  className="btn btn-sm btn-primary text-xs flex items-center gap-1.5 shadow-sm disabled:opacity-50"
                 >
-                  <Check className="w-3.5 h-3.5" /> Save Changes
+                  {isSaving ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" /> Save Changes
+                    </>
+                  )}
                 </button>
               )}
             </div>
@@ -1373,7 +1391,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
     }
   };
 
-  const handleSaveWizardItem = (savedItem: ItemMaster) => {
+  const handleSaveWizardItem = async (savedItem: ItemMaster) => {
     const exists = items.some((i) => i.code === savedItem.code);
     const prevItem = items.find((i) => i.code === savedItem.code);
     const autoApprove = isSuperAdmin || canApproveItem;
@@ -1385,11 +1403,18 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
       approvedBy: autoApprove ? (currentUser?.name || 'Admin Authority') : undefined,
     };
 
-    saveItemMutation.mutate(itemToSave);
-    if (exists) {
-      onUpdateItem(itemToSave);
-    } else {
-      onCreateItem(itemToSave);
+    try {
+      const persisted = await saveItemMutation.mutateAsync(itemToSave);
+      if (exists) {
+        onUpdateItem(persisted || itemToSave);
+      } else {
+        onCreateItem(persisted || itemToSave);
+      }
+      showToast(`✓ SKU ${itemToSave.code} saved to database successfully!`);
+    } catch (err: any) {
+      console.error('[MasterDataViews.handleSaveWizardItem] Save error:', err);
+      showToast(`⚠️ Failed to save SKU: ${err?.message || 'Database mutation error'}`);
+      throw err;
     }
 
     // Submit CRUD Change Request if non-admin or record audit trail
@@ -4530,8 +4555,8 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
           isOpen={!!quickModifyItem}
           isAdmin={isSuperAdmin || canEditItem}
           onClose={() => setQuickModifyItem(null)}
-          onSave={(updated) => {
-            handleSaveWizardItem(updated);
+          onSave={async (updated) => {
+            await handleSaveWizardItem(updated);
             setQuickModifyItem(null);
           }}
           onDelete={(code) => {

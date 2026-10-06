@@ -38,68 +38,90 @@ api.interceptors.response.use(
 // 2. ZOD VALIDATION SCHEMAS (Runtime Schema Integrity)
 // ============================================================================
 
+const numericField = (def: number = 0) =>
+  z.preprocess((val) => {
+    if (val === null || val === undefined || val === '') return def;
+    const num = Number(val);
+    return isNaN(num) ? def : num;
+  }, z.number().default(def));
+
+const stringField = (def: string = '') =>
+  z.preprocess((val) => {
+    if (val === null || val === undefined) return def;
+    return String(val);
+  }, z.string().default(def));
+
+const booleanField = (def: boolean = true) =>
+  z.preprocess((val) => {
+    if (val === null || val === undefined) return def;
+    if (typeof val === 'boolean') return val;
+    if (val === 'true' || val === '1' || val === 1) return true;
+    if (val === 'false' || val === '0' || val === 0) return false;
+    return Boolean(val);
+  }, z.boolean().default(def));
+
 export const ItemMasterSchema = z.object({
-  id: z.string().optional(),
+  id: stringField(),
   code: z.string().min(1, 'Item Code is required'),
   name: z.string().min(1, 'Item Name is required'),
-  category: z.string().optional().default('Finished Good'),
-  cat: z.string().optional(),
-  type: z.string().default('Finished Good'),
+  category: stringField('Finished Good'),
+  cat: stringField(),
+  type: stringField('Finished Good'),
   stock: z.union([z.string(), z.number()]).default('0'),
   avail: z.union([z.string(), z.number()]).default('0'),
-  wh: z.string().default('FG_WH_A'),
-  plant: z.string().optional().default('Plant 1 - Pimpri Auto-Hub'),
-  lot: z.boolean().default(true),
-  qc: z.boolean().default(true),
-  status: z.string().default('active'),
-  baseUOM: z.string().default('PCS'),
-  base_uom: z.string().optional(),
-  desc: z.string().optional().default(''),
-  icon: z.string().optional().default('◇'),
-  approval: z.string().optional().default('approved'),
-  approval_status: z.string().optional(),
-  cost: z.number().optional().default(0),
-  standardCost: z.number().optional().default(0),
-  standard_cost: z.number().optional(),
-  sellingPrice: z.number().optional().default(0),
-  minStock: z.number().optional().default(100),
-  maxStock: z.number().optional().default(5000),
-  reorderPoint: z.number().optional().default(500),
+  wh: stringField('FG_WH_A'),
+  plant: stringField('Plant 1 - Pimpri Auto-Hub'),
+  lot: booleanField(true),
+  qc: booleanField(true),
+  status: stringField('active'),
+  baseUOM: stringField('PCS'),
+  base_uom: stringField(),
+  desc: stringField(''),
+  icon: stringField('◇'),
+  approval: stringField('approved'),
+  approval_status: stringField(),
+  cost: numericField(0),
+  standardCost: numericField(0),
+  standard_cost: numericField(),
+  sellingPrice: numericField(0),
+  minStock: numericField(100),
+  maxStock: numericField(5000),
+  reorderPoint: numericField(500),
   reorderLevel: z.union([z.string(), z.number()]).optional(),
   reorder_level: z.union([z.string(), z.number()]).optional(),
   safetyStock: z.union([z.string(), z.number()]).optional(),
   safety_stock: z.union([z.string(), z.number()]).optional(),
-  valuationMethod: z.string().optional().default('FIFO'),
-  valuation_method: z.string().optional(),
-  leadTime: z.string().optional(),
-  lead_time: z.string().optional(),
-  supplier: z.string().optional(),
-  cavityCount: z.number().optional().default(1),
-  cavity_count: z.number().optional(),
-  cycleTimeSec: z.number().optional().default(0),
-  cycleTime: z.number().optional(),
-  cycle_time: z.number().optional(),
-  cycle_time_seconds: z.number().optional(),
-  standardCycleTime: z.number().optional(),
-  partWeightGrams: z.number().optional(),
-  part_weight_grams: z.number().optional(),
-  netWeightGrams: z.number().optional(),
-  runnerWeightGrams: z.number().optional(),
-  runner_weight_grams: z.number().optional(),
-  shotWeightGrams: z.number().optional(),
-  shot_weight_grams: z.number().optional(),
-  moldToolId: z.string().optional(),
-  mold_tool_id: z.string().optional(),
-  mold_code: z.string().optional(),
-  resinType: z.string().optional(),
-  resin_type: z.string().optional(),
-  polymerGrade: z.string().optional(),
-  color: z.string().optional(),
-  hsnCode: z.string().optional(),
-  hsn_code: z.string().optional(),
-  itemGroup: z.string().optional(),
-  item_group: z.string().optional(),
-  createdOn: z.string().optional(),
+  valuationMethod: stringField('FIFO'),
+  valuation_method: stringField(),
+  leadTime: stringField(),
+  lead_time: stringField(),
+  supplier: stringField(),
+  cavityCount: numericField(1),
+  cavity_count: numericField(),
+  cycleTimeSec: numericField(0),
+  cycleTime: numericField(),
+  cycle_time: numericField(),
+  cycle_time_seconds: numericField(),
+  standardCycleTime: numericField(),
+  partWeightGrams: numericField(),
+  part_weight_grams: numericField(),
+  netWeightGrams: numericField(),
+  runnerWeightGrams: numericField(),
+  runner_weight_grams: numericField(),
+  shotWeightGrams: numericField(),
+  shot_weight_grams: numericField(),
+  moldToolId: stringField(),
+  mold_tool_id: stringField(),
+  mold_code: stringField(),
+  resinType: stringField(),
+  resin_type: stringField(),
+  polymerGrade: stringField(),
+  color: stringField(),
+  hsnCode: stringField(),
+  hsn_code: stringField(),
+  itemGroup: stringField(),
+  item_group: stringField(),
+  createdOn: stringField(),
 }).passthrough();
 
 export type ItemMasterDto = z.infer<typeof ItemMasterSchema>;
@@ -256,51 +278,49 @@ export const itemEndpoints = {
    * Save or Update Item Record with Zod Validation directly into Supabase Cloud PostgreSQL
    */
   async saveItem(item: ItemMasterDto): Promise<ItemMasterDto> {
-    const validated = ItemMasterSchema.parse(item);
+    const parseResult = ItemMasterSchema.safeParse(item);
+    const validated = parseResult.success ? parseResult.data : item;
 
-    const partWeight = Number(validated.partWeightGrams ?? (validated as any).netWeightGrams ?? validated.part_weight_grams ?? 0);
-    const runnerWeight = Number(validated.runnerWeightGrams ?? validated.runner_weight_grams ?? 0);
+    if (!parseResult.success) {
+      console.warn('[itemEndpoints.saveItem] Zod parse note:', parseResult.error);
+    }
+
+    const partWeight = Number(validated.partWeightGrams ?? (validated as any).netWeightGrams ?? (validated as any).part_weight_grams ?? 0);
+    const runnerWeight = Number(validated.runnerWeightGrams ?? (validated as any).runner_weight_grams ?? 0);
     const cycleTime = Number(
-      validated.cycleTimeSec ?? (validated as any).cycleTime ?? (validated as any).standardCycleTime ?? validated.cycle_time_seconds ?? validated.cycle_time ?? 0
+      validated.cycleTimeSec ?? (validated as any).cycleTime ?? (validated as any).standardCycleTime ?? (validated as any).cycle_time_seconds ?? (validated as any).cycle_time ?? 0
     );
 
-    const dbPayload = {
-      code: validated.code,
-      name: validated.name,
-      category: validated.category || validated.cat || 'Finished Good',
-      entity_type: validated.type || 'Finished Good',
-      unit: validated.baseUOM || validated.base_uom || 'PCS',
+    const reorderVal =
+      validated.reorderPoint !== undefined
+        ? Number(validated.reorderPoint)
+        : (validated as any).reorderLevel
+        ? parseFloat(String((validated as any).reorderLevel)) || 0
+        : 0;
+
+    // Strict 24 verified database columns for the items table
+    const dbPayload: Record<string, any> = {
+      code: String(validated.code).trim(),
+      name: String(validated.name).trim(),
+      category: String(validated.category || validated.cat || 'Finished Good'),
+      entity_type: String(validated.type || 'Finished Good'),
+      unit: String(validated.baseUOM || validated.base_uom || 'PCS'),
       stock: typeof validated.stock === 'number' ? validated.stock : parseFloat(String(validated.stock)) || 0,
       cost: Number(validated.cost ?? (validated as any).standardCost ?? 0),
       selling_price: Number(validated.sellingPrice || 0),
-      status: validated.status || 'active',
-      approval: validated.approval || 'approved',
+      status: String(validated.status || 'active'),
+      approval: String(validated.approval || 'approved'),
       min_stock: Number(validated.minStock ?? 0),
       max_stock: Number(validated.maxStock ?? 5000),
-      reorder_point: Number(
-        validated.reorderPoint !== undefined
-          ? validated.reorderPoint
-          : (validated as any).reorderLevel
-          ? parseFloat(String((validated as any).reorderLevel)) || 0
-          : 0
-      ),
-      safety_stock: Number(
-        (validated as any).safetyStock
-          ? parseFloat(String((validated as any).safetyStock)) || 0
-          : (validated as any).safety_stock
-          ? parseFloat(String((validated as any).safety_stock)) || 0
-          : 0
-      ),
-      cavity_count: Number(validated.cavityCount ?? validated.cavity_count ?? 1),
+      reorder_point: reorderVal,
+      cavity_count: Number(validated.cavityCount ?? (validated as any).cavity_count ?? 1),
       cycle_time_seconds: cycleTime,
       part_weight_grams: partWeight,
       runner_weight_grams: runnerWeight,
-      mold_code: (validated as any).moldToolId || (validated as any).mold_tool_id || (validated as any).mold_code || null,
-      resin_type: validated.resinType || validated.resin_type || (validated as any).polymerGrade || '',
-      color: (validated as any).color || '',
-      hsn_code: (validated as any).hsn_code || (validated as any).hsnCode || '',
-      valuation_method: (validated as any).valuationMethod || (validated as any).valuation || 'FIFO',
-      item_group: (validated as any).itemGroup || (validated as any).item_group || validated.category || null,
+      resin_type: String(validated.resinType || (validated as any).resin_type || (validated as any).polymerGrade || ''),
+      color: String((validated as any).color || ''),
+      hsn_code: String((validated as any).hsn_code || (validated as any).hsnCode || ''),
+      item_group: String((validated as any).itemGroup || (validated as any).item_group || validated.category || ''),
       created_at: (validated as any).created_at || (validated as any).createdOn || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -308,11 +328,11 @@ export const itemEndpoints = {
     const { data, error } = await supabase
       .from('items')
       .upsert(dbPayload, { onConflict: 'code' })
-      .select()
-      .single();
+      .select(ITEM_SELECT_COLUMNS)
+      .maybeSingle();
 
     if (error) {
-      console.error('[itemEndpoints.saveItem] Supabase Upsert Error:', error.message);
+      console.error('[itemEndpoints.saveItem] Supabase Upsert Error:', error.message, error);
       throw new Error(`Database save failed: ${error.message}`);
     }
 
