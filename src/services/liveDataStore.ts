@@ -192,28 +192,29 @@ class LiveDataStore {
   public async getWorkOrders(): Promise<WorkOrder[]> {
     try {
       const data = await db.findMany<any>('work_orders', {
-        select: 'id, wo_number, item_code, machine_id, target_qty, produced_qty, scrap_qty, status, created_at, updated_at',
         orderBy: { column: 'created_at', ascending: false },
         limit: 100,
       });
 
       if (Array.isArray(data) && data.length > 0) {
         return data.map((row: any) => ({
-          id: row.id || row.wo_number,
-          item: row.item_code,
-          itemCode: row.item_code,
-          machine: row.machine_id,
-          machineId: row.machine_id,
-          target: Number(row.target_qty || 0),
-          actual: Number(row.produced_qty || 0),
-          scrap: Number(row.scrap_qty || 0),
+          id: row.id || row.wo_number || row.woNumber,
+          item: row.item_code || row.item || row.itemCode,
+          itemCode: row.item_code || row.item || row.itemCode,
+          machine: row.machine_code || row.machine_id || row.machine || row.machineId || 'IMM-250T-01',
+          machineId: row.machine_code || row.machine_id || row.machine || row.machineId || 'IMM-250T-01',
+          target: Number(row.target_qty || row.target || row.targetQty || 0),
+          actual: Number(row.produced_qty || row.actual || row.actualQty || 0),
+          scrap: Number(row.scrap_qty || row.scrap || 0),
           status: row.status || 'planned',
           priority: row.priority || 'Medium',
           plant: row.plant || 'Plant 1 - Pimpri Auto-Hub',
           shift: row.shift || 'Shift A',
           startDate: row.created_at ? new Date(row.created_at).toISOString().split('T')[0] : '2026-09-25',
           dueDate: row.due_date || '2026-10-15',
-          progress: Number(row.target_qty) > 0 ? Math.round((Number(row.produced_qty || 0) / Number(row.target_qty)) * 100) : 0,
+          progress: Number(row.target_qty || row.target || 0) > 0 
+            ? Math.round((Number(row.produced_qty || row.actual || 0) / Number(row.target_qty || row.target || 1)) * 100) 
+            : 0,
           created_at: row.created_at,
         }));
       }
@@ -225,13 +226,16 @@ class LiveDataStore {
 
   public async saveWorkOrder(wo: WorkOrder): Promise<WorkOrder> {
     try {
-      await db.upsert('work_orders', {
+      const payload: Record<string, any> = {
         id: wo.id,
         item_code: wo.item || (wo as any).itemCode,
-        machine_id: wo.machine || (wo as any).machineId,
         status: wo.status,
         updated_at: new Date().toISOString(),
-      });
+      };
+      if (wo.machine || (wo as any).machineId) {
+        payload.machine_code = wo.machine || (wo as any).machineId;
+      }
+      await db.upsert('work_orders', payload);
     } catch (e) {
       console.debug('[liveDataStore] saveWorkOrder error:', e);
     }

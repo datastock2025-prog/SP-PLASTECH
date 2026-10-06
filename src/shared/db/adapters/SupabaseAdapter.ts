@@ -91,6 +91,19 @@ export class SupabaseAdapter implements IDatabaseAdapter {
 
     const { data, error } = await query;
     if (error) {
+      // Self-healing: If specific select columns fail (e.g. column does not exist / 42703 / PGRST100), retry with select('*')
+      if (filter?.select && (error.code === '42703' || error.message?.includes('column') || error.message?.includes('does not exist') || error.code === 'PGRST100')) {
+        console.warn(`[SupabaseAdapter] Column mismatch in table "${table}" (${filter.select}). Auto-retrying with select('*')...`);
+        try {
+          let retryQuery = this.client.from(table).select('*');
+          if (filter.limit) retryQuery = retryQuery.limit(filter.limit);
+          const retryRes = await retryQuery;
+          if (!retryRes.error && Array.isArray(retryRes.data)) {
+            return retryRes.data as T[];
+          }
+        } catch {}
+      }
+
       if (error.code === 'PGRST205' || error.code === '42P01' || error.message?.includes('schema cache')) {
         console.debug(`[SupabaseAdapter] Table "${table}" pending schema cache sync. Falling back to local store.`);
         // Graceful user/profile schema fallback
