@@ -5,6 +5,12 @@ import {
   CapaReport,
   CertificateOfAnalysis,
 } from '../types';
+import {
+  useInspectionPlans,
+  useNcrs,
+  useCapas,
+  useCoas,
+} from '../hooks/useQuality';
 
 import { QualityDashboardView } from './quality/QualityDashboardView';
 import { InspectionPlansView } from './quality/InspectionPlansView';
@@ -68,6 +74,16 @@ export const QualityViews: React.FC<QualityProps> = ({
   openConfirm,
   showToast,
 }) => {
+  // TanStack Query SSOT (Rule 1 & Rule 3)
+  const { data: queryPlans } = useInspectionPlans();
+  const { data: queryNcrs } = useNcrs();
+  const { data: queryCapas } = useCapas();
+  const { data: queryCoas } = useCoas();
+
+  const effectiveInspectionPlans = (inspectionPlans && inspectionPlans.length > 0 ? inspectionPlans : queryPlans) || [];
+  const effectiveNcrs = (ncrs && ncrs.length > 0 ? ncrs : queryNcrs) || [];
+  const effectiveCapas = (capas && capas.length > 0 ? capas : queryCapas) || [];
+  const effectiveCoas = (coas && coas.length > 0 ? coas : queryCoas) || [];
   /* ----------------------------------------------------
      0. CONSOLIDATED STORE QUALITY CHECK (WIP / DEFLASH / ASSEMBLY)
   ---------------------------------------------------- */
@@ -89,10 +105,10 @@ export const QualityViews: React.FC<QualityProps> = ({
   if (view === 'qualityDash') {
     return (
       <QualityDashboardView
-        inspectionPlans={inspectionPlans}
-        ncrs={ncrs}
-        capas={capas}
-        coas={coas}
+        inspectionPlans={effectiveInspectionPlans}
+        ncrs={effectiveNcrs}
+        capas={effectiveCapas}
+        coas={effectiveCoas}
         onNavigate={onNavigate}
         openDrawer={openDrawer}
         closeDrawer={closeDrawer}
@@ -107,7 +123,7 @@ export const QualityViews: React.FC<QualityProps> = ({
   if (view === 'inspectionPlanList' || view === 'inspectionPlanDetail') {
     return (
       <InspectionPlansView
-        inspectionPlans={inspectionPlans}
+        inspectionPlans={effectiveInspectionPlans}
         selectedId={selectedId}
         onNavigate={onNavigate}
         openDrawer={openDrawer}
@@ -123,8 +139,8 @@ export const QualityViews: React.FC<QualityProps> = ({
   if (view === 'incomingInspection') {
     return (
       <IncomingInspectionView
-        inspectionPlans={inspectionPlans}
-        ncrs={ncrs}
+        inspectionPlans={effectiveInspectionPlans}
+        ncrs={effectiveNcrs}
         onNavigate={onNavigate}
         onCreateNCR={onCreateNCR}
         openDrawer={openDrawer}
@@ -154,8 +170,8 @@ export const QualityViews: React.FC<QualityProps> = ({
   if (view === 'finalInspection') {
     return (
       <FinalInspectionView
-        coas={coas}
-        ncrs={ncrs}
+        coas={effectiveCoas}
+        ncrs={effectiveNcrs}
         onNavigate={onNavigate}
         onCreateNCR={onCreateNCR}
         onCreateCOA={onCreateCOA}
@@ -172,7 +188,7 @@ export const QualityViews: React.FC<QualityProps> = ({
   if (view === 'ncrList' || view === 'ncrDetail') {
     return (
       <NcrManagementView
-        ncrs={ncrs}
+        ncrs={effectiveNcrs}
         selectedId={selectedId}
         onNavigate={onNavigate}
         onUpdateNCR={onUpdateNCR}
@@ -191,8 +207,8 @@ export const QualityViews: React.FC<QualityProps> = ({
   if (view === 'capaList' || view === 'capaDetail') {
     return (
       <CapaManagementView
-        capas={capas}
-        ncrs={ncrs}
+        capas={effectiveCapas}
+        ncrs={effectiveNcrs}
         selectedId={selectedId}
         onNavigate={onNavigate}
         onUpdateCAPA={onUpdateCAPA}
@@ -210,7 +226,7 @@ export const QualityViews: React.FC<QualityProps> = ({
   if (view === 'qcoaList' || view === 'qcoaDetail') {
     return (
       <CoaManagementView
-        coas={coas}
+        coas={effectiveCoas}
         selectedId={selectedId}
         onNavigate={onNavigate}
         onUpdateCOA={onUpdateCOA}
@@ -255,10 +271,10 @@ export const QualityViews: React.FC<QualityProps> = ({
   ---------------------------------------------------- */
   return (
     <QualityDashboardView
-      inspectionPlans={inspectionPlans}
-      ncrs={ncrs}
-      capas={capas}
-      coas={coas}
+      inspectionPlans={effectiveInspectionPlans}
+      ncrs={effectiveNcrs}
+      capas={effectiveCapas}
+      coas={effectiveCoas}
       onNavigate={onNavigate}
       openDrawer={openDrawer}
       closeDrawer={closeDrawer}

@@ -84,6 +84,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { masterDataGovernanceService } from '../services/masterDataGovernanceService';
+import { useBoms, useSaveBom, useDeleteBom } from '../hooks/useEngineering';
 
 interface EngineeringViewsProps {
   view: string;
@@ -114,6 +115,12 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
   openConfirm,
   showToast,
 }) => {
+  // TanStack Query SSOT Hooks (Rule 1 & Rule 3)
+  const { data: queryBoms, isLoading: isBomsLoading } = useBoms();
+  const saveBomMutation = useSaveBom();
+  const deleteBomMutation = useDeleteBom();
+  const effectiveBoms = (boms && boms.length > 0 ? boms : queryBoms) || [];
+
   // Local state for engineering sub-views & controls
   const [activeTab, setActiveTab] = useState<string>('Overview');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -123,8 +130,8 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
   
   // Selected BOM for details/editing/tree
   const activeBom = useMemo(() => {
-    return boms.find((b) => b.id === selectedId) || boms[0] || INITIAL_BOMS[0];
-  }, [boms, selectedId]);
+    return effectiveBoms.find((b) => b.id === selectedId) || effectiveBoms[0] || INITIAL_BOMS[0];
+  }, [effectiveBoms, selectedId]);
 
   // Inline editing state for BOM list and grid
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
@@ -265,9 +272,9 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
        1. BOM / ENGINEERING DASHBOARD
     ========================================================================= */
     if (view === 'bomDash' || view === 'engineeringDash') {
-    const totalActive = boms.filter((b) => b.status === 'released').length;
-    const drafts = boms.filter((b) => b.status === 'draft').length;
-    const pendingApproval = boms.filter((b) => b.status === 'pending' || b.status === 'under_review').length;
+    const totalActive = effectiveBoms.filter((b) => b.status === 'released').length;
+    const drafts = effectiveBoms.filter((b) => b.status === 'draft').length;
+    const pendingApproval = effectiveBoms.filter((b) => b.status === 'pending' || b.status === 'under_review').length;
     const openEcrs = ecrs.filter((e) => e.status !== 'Closed').length;
     const openEcos = ecos.filter((e) => e.status !== 'Closed').length;
 
@@ -468,15 +475,15 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
   ========================================================================= */
   if (view === 'bomList') {
     // KPI Stats computation
-    const totalBomCount = boms.length;
-    const releasedBomCount = boms.filter((b) => b.status === 'released').length;
-    const underReviewBomCount = boms.filter((b) => b.status === 'under_review' || b.status === 'pending').length;
-    const draftBomCount = boms.filter((b) => b.status === 'draft').length;
-    const avgYieldPct = totalBomCount > 0 ? (boms.reduce((acc, b) => acc + (b.yieldPct || 98.5), 0) / totalBomCount).toFixed(1) : '98.5';
-    const avgScrapPct = totalBomCount > 0 ? (boms.reduce((acc, b) => acc + (b.scrapPct || 1.5), 0) / totalBomCount).toFixed(1) : '1.5';
+    const totalBomCount = effectiveBoms.length;
+    const releasedBomCount = effectiveBoms.filter((b) => b.status === 'released').length;
+    const underReviewBomCount = effectiveBoms.filter((b) => b.status === 'under_review' || b.status === 'pending').length;
+    const draftBomCount = effectiveBoms.filter((b) => b.status === 'draft').length;
+    const avgYieldPct = totalBomCount > 0 ? (effectiveBoms.reduce((acc, b) => acc + (b.yieldPct || 98.5), 0) / totalBomCount).toFixed(1) : '98.5';
+    const avgScrapPct = totalBomCount > 0 ? (effectiveBoms.reduce((acc, b) => acc + (b.scrapPct || 1.5), 0) / totalBomCount).toFixed(1) : '1.5';
 
     // Filtering
-    const filteredBoms = boms.filter((b) => {
+    const filteredBoms = effectiveBoms.filter((b) => {
       const q = searchQuery.toLowerCase().trim();
       const matchSearch =
         !q ||
@@ -834,7 +841,23 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E4E0D6]">
-                {paginatedBoms.length === 0 ? (
+                {isBomsLoading ? (
+                  Array.from({ length: 5 }).map((_, idx) => (
+                    <tr key={`bom-skel-${idx}`} className="animate-pulse">
+                      <td className="p-3"><div className="h-4 w-4 bg-gray-200 rounded mx-auto" /></td>
+                      <td className="p-3"><div className="h-4 w-24 bg-gray-200 rounded" /></td>
+                      <td className="p-3"><div className="h-4 w-36 bg-gray-200 rounded" /></td>
+                      <td className="p-3"><div className="h-4 w-12 bg-gray-200 rounded" /></td>
+                      <td className="p-3"><div className="h-4 w-16 bg-gray-200 rounded" /></td>
+                      <td className="p-3"><div className="h-4 w-16 bg-gray-200 rounded" /></td>
+                      <td className="p-3"><div className="h-4 w-12 bg-gray-200 rounded" /></td>
+                      <td className="p-3"><div className="h-4 w-14 bg-gray-200 rounded" /></td>
+                      <td className="p-3"><div className="h-4 w-20 bg-gray-200 rounded" /></td>
+                      <td className="p-3"><div className="h-4 w-20 bg-gray-200 rounded mx-auto" /></td>
+                      <td className="p-3"><div className="h-4 w-16 bg-gray-200 rounded ml-auto" /></td>
+                    </tr>
+                  ))
+                ) : paginatedBoms.length === 0 ? (
                   <tr>
                     <td colSpan={11} className="py-12 text-center text-gray-500 bg-[#F9F8F5]">
                       <div className="max-w-xs mx-auto space-y-2">

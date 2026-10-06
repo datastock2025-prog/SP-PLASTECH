@@ -8,6 +8,8 @@ import {
   AuthUser,
 } from '../types';
 import { INITIAL_MOLDS } from '../data/manufacturingData';
+import { useWorkOrders } from '../hooks/useManufacturing';
+import { useMachines } from '../hooks/useMasterData';
 
 // Sub-components
 import { MfgCommandCenter } from './manufacturing/MfgCommandCenter';
@@ -89,6 +91,12 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
   openConfirm,
   showToast,
 }) => {
+  // TanStack Query SSOT (Rule 1 & Rule 3)
+  const { data: queryWorkOrders } = useWorkOrders();
+  const { data: queryMachines } = useMachines();
+  const effectiveWorkOrders = (workOrders && workOrders.length > 0 ? workOrders : queryWorkOrders) || [];
+  const effectiveMachines = (machines && machines.length > 0 ? machines : queryMachines) || [];
+
   const [isBulkWizardOpen, setIsBulkWizardOpen] = useState(false);
   const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
 
@@ -292,8 +300,8 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
       {/* 1. Command Center Dashboard */}
       {view === 'mfgDash' && (
         <MfgCommandCenter
-          workOrders={workOrders}
-          machines={machines}
+          workOrders={effectiveWorkOrders}
+          machines={effectiveMachines}
           items={items}
           molds={INITIAL_MOLDS}
           onNavigate={onNavigate}
@@ -307,8 +315,8 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
       {/* 2. Planning Board / Scheduler Gantt */}
       {(view === 'machineSchedule' || view === 'planningBoard') && (
         <MfgPlanningBoard
-          workOrders={workOrders}
-          machines={machines}
+          workOrders={effectiveWorkOrders}
+          machines={effectiveMachines}
           items={items}
           boms={boms}
           molds={INITIAL_MOLDS}
@@ -324,8 +332,8 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
       {/* 2b. JIT Scheduling & Daily Production Planning Cockpit */}
       {view === 'jitBoard' && (
         <JitSchedulingPlanner
-          workOrders={workOrders}
-          machines={machines}
+          workOrders={effectiveWorkOrders}
+          machines={effectiveMachines}
           items={items}
           boms={boms}
           molds={INITIAL_MOLDS}
@@ -343,8 +351,8 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
       {/* 3. Work Order Manager List */}
       {(view === 'woList' || view === 'workOrders' || view === 'createWoGrid') && (
         <WorkOrderManager
-          workOrders={workOrders}
-          machines={machines}
+          workOrders={effectiveWorkOrders}
+          machines={effectiveMachines}
           items={items}
           boms={boms}
           molds={INITIAL_MOLDS}
@@ -364,8 +372,8 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
       {/* 4. Digital Job Traveler / Detailed WO view */}
       {view === 'woDetail' && (
         <WorkOrderDetailTraveler
-          workOrder={workOrders.find((w) => w.id === (selectedId || workOrders[0]?.id)) || workOrders[0]}
-          machines={machines}
+          workOrder={effectiveWorkOrders.find((w) => w.id === (selectedId || effectiveWorkOrders[0]?.id)) || effectiveWorkOrders[0]}
+          machines={effectiveMachines}
           items={items}
           boms={boms}
           molds={INITIAL_MOLDS}
@@ -380,8 +388,8 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
       {/* 5. Production Entry Grid (Inline Spreadsheet Grid) */}
       {(view === 'prodEntryGrid' || view === 'dailyGrid') && (
         <DailyProductionGrid
-          workOrders={workOrders}
-          machines={machines}
+          workOrders={effectiveWorkOrders}
+          machines={effectiveMachines}
           items={items}
           molds={INITIAL_MOLDS}
           boms={boms}
@@ -399,7 +407,7 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
       {/* 6. Material Issuing Workbench */}
       {view === 'materialIssuing' && (
         <MaterialIssuingWorkbench
-          workOrders={workOrders}
+          workOrders={effectiveWorkOrders}
           items={items}
           stockTxns={stockTxns}
           selectedWoId={selectedId}
@@ -412,8 +420,8 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
       {/* 7. Shop Floor Kiosk Console */}
       {(view === 'shopFloor' || view === 'kiosk') && (
         <ShopFloorKiosk
-          workOrders={workOrders}
-          machines={machines}
+          workOrders={effectiveWorkOrders}
+          machines={effectiveMachines}
           items={items}
           selectedWoId={selectedId}
           onNavigate={onNavigate}
@@ -425,8 +433,8 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
       {/* 8. Machine Telemetry & IoT */}
       {(view === 'telemetry' || view === 'machineTelemetry') && (
         <MachineMonitoringTelemetry
-          machines={machines}
-          workOrders={workOrders}
+          machines={effectiveMachines}
+          workOrders={effectiveWorkOrders}
           items={items}
           molds={INITIAL_MOLDS}
           selectedMachineId={selectedId}
@@ -438,7 +446,7 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
       {/* 9. Scrap & Downtime Tracking */}
       {(view === 'scrapDowntime' || view === 'scrapWaste') && (
         <ScrapWasteDashboard
-          workOrders={workOrders}
+          workOrders={effectiveWorkOrders}
           items={items}
           onNavigate={onNavigate}
           showToast={showToast}
@@ -448,8 +456,8 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
       {/* 10. Downtime Tracking */}
       {view === 'downtime' && (
         <DowntimeTrackingView
-          workOrders={workOrders}
-          machines={machines}
+          workOrders={effectiveWorkOrders}
+          machines={effectiveMachines}
           onNavigate={onNavigate}
           showToast={showToast}
         />
@@ -458,7 +466,7 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
       {/* 11. Electronic Batch Record (eBR Hub) */}
       {(view === 'ebrRecord' || view === 'ebr') && (
         <ElectronicBatchRecordView
-          workOrders={workOrders}
+          workOrders={effectiveWorkOrders}
           items={items}
           selectedWoId={selectedId}
           onNavigate={onNavigate}
@@ -469,7 +477,7 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
       {/* 12. Batch Genealogy & Traceability */}
       {view === 'genealogy' && (
         <BatchGenealogyGraph
-          workOrders={workOrders}
+          workOrders={effectiveWorkOrders}
           items={items}
           selectedWoId={selectedId}
           onNavigate={onNavigate}
@@ -481,7 +489,7 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
       {view === 'moldTooling' && (
         <MoldToolingManager
           molds={INITIAL_MOLDS}
-          machines={machines}
+          machines={effectiveMachines}
           onNavigate={onNavigate}
           showToast={showToast}
         />
@@ -490,8 +498,8 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
       {/* 14. Changeover & SMED */}
       {view === 'changeover' && (
         <ChangeoverSMEDView
-          machines={machines}
-          workOrders={workOrders}
+          machines={effectiveMachines}
+          workOrders={effectiveWorkOrders}
           onNavigate={onNavigate}
           showToast={showToast}
         />
@@ -508,7 +516,7 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
       {/* 16. Quality Gate Inspection & SPC */}
       {(view === 'qualityGate' || view === 'spc') && (
         <QualityGateInspectionView
-          workOrders={workOrders}
+          workOrders={effectiveWorkOrders}
           items={items}
           onNavigate={onNavigate}
           showToast={showToast}
@@ -534,7 +542,7 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
       {/* 19. Operator History */}
       {view === 'operatorHistory' && (
         <OperatorHistoryView
-          workOrders={workOrders}
+          workOrders={effectiveWorkOrders}
           onNavigate={onNavigate}
           showToast={showToast}
         />
@@ -546,9 +554,9 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
           wipRecords={wipRecords}
           plantStoreItems={plantStoreItems}
           materialTransfers={materialTransfers}
-          workOrders={workOrders}
+          workOrders={effectiveWorkOrders}
           items={items}
-          machines={machines}
+          machines={effectiveMachines}
           onUpdateWipRecord={handleUpdateWipRecord}
           onAddWipRecord={handleAddWipRecord}
           onUpdatePlantStoreItems={handleUpdatePlantStoreItems}
@@ -563,7 +571,7 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
         <WipStoreQcInspectionView
           wipRecords={wipRecords}
           items={items}
-          workOrders={workOrders}
+          workOrders={effectiveWorkOrders}
           onUpdateWipRecord={handleUpdateWipRecord}
           onNavigate={onNavigate}
           showToast={showToast}
@@ -576,9 +584,9 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
         view === 'regrindEntry' ||
         view === 'regrindMixingHub') && (
         <RegrindMaterialEntryView
-          workOrders={workOrders}
+          workOrders={effectiveWorkOrders}
           items={items}
-          machines={machines}
+          machines={effectiveMachines}
           boms={boms}
           onNavigate={onNavigate}
           showToast={showToast}
@@ -588,7 +596,7 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
       {/* Modals */}
       {(isBulkWizardOpen || view === 'createWoGrid') && (
         <BulkWizardModal
-          machines={machines}
+          machines={effectiveMachines}
           items={items}
           boms={boms}
           molds={INITIAL_MOLDS}
@@ -605,7 +613,7 @@ export const ManufacturingViews: React.FC<ManufacturingProps> = ({
 
       {isExcelImportOpen && (
         <ExcelImportModal
-          machines={machines}
+          machines={effectiveMachines}
           items={items}
           onImportSuccess={handleExcelImportCommit}
           onClose={() => setIsExcelImportOpen(false)}

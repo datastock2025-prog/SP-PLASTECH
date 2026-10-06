@@ -388,3 +388,79 @@ export const itemEndpoints = {
   },
 };
 
+// ============================================================================
+// 4. ENGINEERING BOM ENDPOINTS (Strict Schema & Direct Supabase Bridge)
+// ============================================================================
+
+export const BomSchema = z.object({
+  id: z.string().min(1, 'BOM ID is required'),
+  item_code: z.string().optional(),
+  itemCode: z.string().optional(),
+  parent: z.string().optional(),
+  parentName: z.string().optional(),
+  version: z.string().default('v1.0'),
+  status: z.string().default('active'),
+  components: z.array(z.any()).default([]),
+  created_at: z.string().optional(),
+  updated_at: z.string().optional(),
+}).passthrough();
+
+export type BomDto = z.infer<typeof BomSchema>;
+
+export const BOM_SELECT_COLUMNS = 'id, item_code, version, status, components, created_at, updated_at';
+
+export const bomEndpoints = {
+  async getBoms(): Promise<BomDto[]> {
+    const { data, error } = await supabase
+      .from('boms')
+      .select(BOM_SELECT_COLUMNS)
+      .order('created_at', { ascending: false });
+
+    if (error || !Array.isArray(data)) {
+      return [];
+    }
+    return data.map((b) => BomSchema.parse(b));
+  },
+
+  async getBomById(id: string): Promise<BomDto | null> {
+    const { data, error } = await supabase
+      .from('boms')
+      .select(BOM_SELECT_COLUMNS)
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return BomSchema.parse(data);
+  },
+
+  async saveBom(bom: Partial<BomDto>): Promise<BomDto> {
+    const payload = {
+      id: bom.id,
+      item_code: bom.item_code || bom.itemCode || (bom as any).parent,
+      version: bom.version || 'v1.0',
+      status: bom.status || 'active',
+      components: (bom as any).lines || (bom as any).components || [],
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+      .from('boms')
+      .upsert(payload, { onConflict: 'id' })
+      .select(BOM_SELECT_COLUMNS)
+      .single();
+
+    if (error) {
+      throw new Error(`BOM save failed: ${error.message}`);
+    }
+    return BomSchema.parse(data || payload);
+  },
+
+  async deleteBom(id: string): Promise<boolean> {
+    const { error } = await supabase.from('boms').delete().eq('id', id);
+    if (error) {
+      console.warn('[bomEndpoints.deleteBom] Note:', error.message);
+    }
+    return true;
+  },
+};
+
