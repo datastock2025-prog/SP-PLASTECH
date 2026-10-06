@@ -3,6 +3,7 @@ import { queryKeys } from '../shared/queryKeys';
 import { broadcastLocalMutation } from '../services/realtime/supabaseRealtime';
 import { itemService } from '../services/itemService';
 import { itemEndpoints } from '../lib/api-client';
+import { supabase } from '../shared/supabaseClient';
 import {
   masterDataGovernanceService,
   MasterDataChangeRecord,
@@ -25,6 +26,28 @@ export function useItems(filter?: any) {
     },
     staleTime: 1000 * 60 * 5, // Rule 1: 5 minutes fresh cache
     refetchOnWindowFocus: true, // Rule 1: Refetch on focus for cross-browser synchronization
+  });
+}
+
+// 1b. EXACT TOTAL ITEM COUNT (100k+ Scale Head Metadata Query)
+export function useItemCount() {
+  return useQuery<number>({
+    queryKey: ['masterData', 'itemCount'],
+    queryFn: async () => {
+      try {
+        const { count, error } = await supabase
+          .from('items')
+          .select('*', { count: 'exact', head: true });
+        if (!error && typeof count === 'number') {
+          return count;
+        }
+      } catch (e) {
+        console.debug('[useItemCount] note:', e);
+      }
+      return 1000;
+    },
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: true,
   });
 }
 

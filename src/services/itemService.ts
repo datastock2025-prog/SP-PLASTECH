@@ -5,7 +5,6 @@ import { itemEndpoints } from '../lib/api-client';
 import { adminEventBus } from './adminService';
 import { broadcastLocalMutation } from './realtime/supabaseRealtime';
 import { masterDataGovernanceService } from './masterDataGovernanceService';
-import { dashboardSummaryService } from './dashboardSummaryService';
 
 // Stale dummy codes to filter out
 const DUMMY_CODES = new Set([
@@ -92,7 +91,6 @@ class ItemService {
               this.cache.unshift(item);
             }
           });
-          dashboardSummaryService.invalidateCache();
         }
       });
     }
@@ -154,10 +152,7 @@ class ItemService {
     const savedDto = await itemEndpoints.saveItem(item as any);
     const enrichedItem = mapDbRowToItemMaster(savedDto, item);
 
-    // 2. Invalidate dashboard summary cache
-    dashboardSummaryService.invalidateCache();
-
-    // 3. Update Memory Cache
+    // 2. Update Memory Cache
     const existingIdx = this.cache.findIndex((i) => i.code === enrichedItem.code);
     const previousSnapshot = existingIdx >= 0 ? { ...this.cache[existingIdx] } : null;
     const isNew = existingIdx < 0;
@@ -216,8 +211,6 @@ class ItemService {
       console.warn('[itemService.approveItem] Notice:', err);
     }
 
-    dashboardSummaryService.invalidateCache();
-
     const idx = this.cache.findIndex((i) => i.code === item.code);
     if (idx >= 0) {
       this.cache[idx] = updated;
@@ -261,8 +254,6 @@ class ItemService {
       console.warn('[itemService.rejectItem] Notice:', err);
     }
 
-    dashboardSummaryService.invalidateCache();
-
     const idx = this.cache.findIndex((i) => i.code === item.code);
     if (idx >= 0) {
       this.cache[idx] = updated;
@@ -296,8 +287,6 @@ class ItemService {
       await itemEndpoints.deleteItem(code);
     } catch {}
 
-    dashboardSummaryService.invalidateCache();
-
     // 2. Cache Update
     this.cache = this.cache.filter((i) => i.code !== code);
 
@@ -318,7 +307,6 @@ class ItemService {
   }
 
   public async syncLiveCatalog(): Promise<ItemMaster[]> {
-    dashboardSummaryService.invalidateCache();
     const liveItems = await this.getItems();
 
     adminEventBus.emit('CATALOG_RELOADED', liveItems);
@@ -328,7 +316,6 @@ class ItemService {
   }
 
   public async reloadDocumentCatalog(): Promise<ItemMaster[]> {
-    dashboardSummaryService.invalidateCache();
     const liveItems = await this.getItems();
     adminEventBus.emit('CATALOG_RELOADED', liveItems);
     return liveItems;

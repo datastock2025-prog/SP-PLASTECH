@@ -34,7 +34,7 @@ export const FixedBottomChatWidget: React.FC<FixedBottomChatWidgetProps> = ({
       role: 'ASSISTANT',
       content:
         '👋 Welcome to **SP-PLASTECH AI Assistant**.\n\n' +
-        'Ask me anything about **Item Master Catalog (1,719 items)**, **Customer Accounts (121)**, **Plant OEE Telemetry**, **Quality PPM**, or **Calculations**.\n\n' +
+        'Ask me anything about **Item Master Catalog**, **Customer Accounts (121)**, **Plant OEE Telemetry**, **Quality PPM**, or **Calculations**.\n\n' +
         'You can also click any download button below to instantly export **Excel**, **PDF**, **CSV**, or **PPTX Presentation** decks.',
       createdAt: new Date().toISOString(),
     },
@@ -111,7 +111,7 @@ export const FixedBottomChatWidget: React.FC<FixedBottomChatWidgetProps> = ({
                 </div>
                 <div className="text-[10px] text-slate-300 flex items-center gap-1">
                   <Zap className="w-3 h-3 text-amber-400" />
-                  <span>Sub-50ms Supabase Connected &bull; 1,719 Items</span>
+                  <span>Sub-50ms Supabase Connected &bull; Live Catalog</span>
                 </div>
               </div>
             </div>
@@ -193,7 +193,7 @@ export const FixedBottomChatWidget: React.FC<FixedBottomChatWidgetProps> = ({
                   value={inputQuery}
                   onChange={(e) => setInputQuery(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                  placeholder="Ask about 1,719 items, OEE, customers..."
+                  placeholder="Ask about catalog items, OEE, customers..."
                   className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-teal-500"
                 />
                 <button

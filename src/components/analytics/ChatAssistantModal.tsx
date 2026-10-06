@@ -36,7 +36,7 @@ export const ChatAssistantModal: React.FC<ChatAssistantModalProps> = ({
       role: 'ASSISTANT',
       content:
         '👋 Hello! I am your **SP-PLASTECH Enterprise Analytics Assistant**.\n\n' +
-        'Ask me anything about our **Item Master Catalog (1,719 items)**, **Customer Directory (121 accounts)**, **Plant OEE (84.6%)**, **Quality Defect PPM**, **Inventory**, or **Cost Calculations**.\n\n' +
+        'Ask me anything about our **Item Master Catalog**, **Customer Directory (121 accounts)**, **Plant OEE (84.6%)**, **Quality Defect PPM**, **Inventory**, or **Cost Calculations**.\n\n' +
         'You can also click any instant export button below to download **Excel**, **PDF**, **CSV**, or **PPTX Presentation** slides.',
       metadata: { isSystemGreeting: true },
       createdAt: new Date().toISOString(),
@@ -91,17 +91,17 @@ export const ChatAssistantModal: React.FC<ChatAssistantModalProps> = ({
   const handleExportBrief = (format: 'PDF' | 'EXCEL' = 'PDF') => {
     const payload = {
       title: 'SP-PLASTECH Executive Analytics Brief',
-      subtitle: 'Real-time synthesis across 4 manufacturing plants & 1,719 Item Masters',
+      subtitle: 'Real-time synthesis across 4 manufacturing plants & Live Item Masters',
       headers: ['Domain / Metric', 'Current Value', 'Target Adherence', 'Status'],
       rows: [
-        ['Item Master Catalog', '1,719 Verified Items', '100% Loaded', 'Active'],
+        ['Item Master Catalog', 'Verified Items Catalog', '100% Loaded', 'Active'],
         ['Customer Directory', '121 Master Accounts', 'Tier 1 & OEM', 'Active'],
         ['Plant OEE Average', '84.6%', '99.5% Adherence', 'Nominal'],
         ['First Pass Yield (FPY)', '98.2%', '240 PPM (Six Sigma 4.82)', 'Optimal'],
         ['Injection Molding Bays', '14 Bays Operational', 'IMM-01 to IMM-14', 'Operational'],
       ],
       summaryMetrics: [
-        { label: 'Total Master Items', value: '1,719' },
+        { label: 'Total Master Items', value: 'Live Synchronized' },
         { label: 'Plant OEE', value: '84.6%' },
         { label: 'Gross Revenue YTD', value: '₹2.84 Cr' },
       ],
@@ -128,7 +128,7 @@ export const ChatAssistantModal: React.FC<ChatAssistantModalProps> = ({
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
                 <span>SP-PLASTECH RAG Analytics Assistant</span>
                 <span className="text-[10px] font-bold text-teal-700 bg-teal-100/70 px-1.5 py-0.2 rounded-full">
-                  Supabase Live &bull; 1,719 Items
+                  Supabase Live &bull; Item Master
                 </span>
               </h3>
               <p className="text-[11px] text-slate-500 mt-0.5">

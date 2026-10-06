@@ -182,7 +182,7 @@ export const AiDocumentExporter = {
             ${(payload.summaryMetrics || [
               { label: 'Overall OEE', value: '84.6%' },
               { label: 'Quality FPY', value: '98.2%' },
-              { label: 'Active Catalog', value: '1,719 Items' },
+              { label: 'Active Catalog', value: 'Enterprise Synchronized' },
             ])
               .map(
                 (m) =>

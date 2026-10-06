@@ -16,7 +16,6 @@ import { itemService } from './services/itemService';
 import { adminEventBus } from './services/adminService';
 import { liveDataStore } from './services/liveDataStore';
 import { initializeSupabaseRealtime } from './services/realtime/supabaseRealtime';
-import { dashboardSummaryService } from './services/dashboardSummaryService';
 import { SessionTimeoutModal, MfaVerificationModal, CookieConsentModal } from './security';
 import { UserProfilePreferencesView } from './components/profile/UserProfilePreferencesView';
 
@@ -371,18 +370,21 @@ export const App: React.FC = () => {
     // 0. Initialize native Supabase Realtime PostgreSQL CDC WebSocket Mesh
     const cleanupRealtime = initializeSupabaseRealtime();
 
-    // 1. Single Consolidated PostgreSQL RPC Fetch (Replaces 15 separate round-trips)
-    dashboardSummaryService.getDashboardSummary().then((summary) => {
-      if (summary.items && summary.items.length > 0) setItems(summary.items);
-      if (summary.work_orders && summary.work_orders.length > 0) {
-        const cleanList = summary.work_orders.filter((w) => !['WO-1188', 'WO-1189', 'WO-1190', 'WO-1191', 'WO-1192', 'WO-1193'].includes(w.id));
+    // 1. Initial Domain State Hydration directly from Single Source of Truth
+    itemService.getItems().then((fetched) => {
+      if (Array.isArray(fetched) && fetched.length > 0) setItems(fetched);
+    });
+    liveDataStore.getWorkOrders().then((woList) => {
+      if (Array.isArray(woList) && woList.length > 0) {
+        const cleanList = woList.filter((w) => !['WO-1188', 'WO-1189', 'WO-1190', 'WO-1191', 'WO-1192', 'WO-1193'].includes(w.id));
         setWorkOrders(cleanList);
       }
-      if (summary.customers && summary.customers.length > 0) setCustomers(summary.customers);
-      if (summary.purchase_orders && summary.purchase_orders.length > 0) setPurchaseOrders(summary.purchase_orders);
-      if (summary.sales_orders && summary.sales_orders.length > 0) setSalesOrders(summary.sales_orders);
-      if (summary.machines && summary.machines.length > 0) setMachines(summary.machines);
-      if (summary.quality_ncrs && summary.quality_ncrs.length > 0) setNcrs(summary.quality_ncrs);
+    });
+    liveDataStore.getPurchaseOrders().then((poList) => {
+      if (Array.isArray(poList) && poList.length > 0) setPurchaseOrders(poList);
+    });
+    liveDataStore.getSalesOrders().then((soList) => {
+      if (Array.isArray(soList) && soList.length > 0) setSalesOrders(soList);
     });
 
     // 2. Cross-Browser / Multi-Tab Synchronization Listeners (Triggered only on live mutation events)

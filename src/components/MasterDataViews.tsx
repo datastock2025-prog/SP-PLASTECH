@@ -72,6 +72,8 @@ import {
 } from './masterdata/GovernanceModals';
 import { AdminApprovalsModal } from './masterdata/AdminApprovalsModal';
 import {
+  useItems,
+  useItemCount,
   useSaveItem,
   useDeleteItem,
   useApproveItem,
@@ -1171,7 +1173,13 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   const [machinePage, setMachinePage] = useState<number>(1);
   const [machinePageSize, setMachinePageSize] = useState<number>(10);
 
-  // TanStack Query Mutations (Rule 1 & Rule 3: Enforce React Query for all data operations)
+  // TanStack Query SSOT Queries & Mutations (Rule 1 & Rule 3)
+  const { data: queryItems, isLoading: isItemsQueryLoading } = useItems();
+  const { data: exactItemCount } = useItemCount();
+  const effectiveItemsList = (queryItems && queryItems.length > 0 ? queryItems : items) || [];
+  const displayTotalCount = exactItemCount ?? effectiveItemsList.length;
+  const isInitialCatalogLoading = isItemsQueryLoading && effectiveItemsList.length === 0;
+
   const saveItemMutation = useSaveItem();
   const deleteItemMutation = useDeleteItem();
   const approveItemMutation = useApproveItem();
@@ -1632,7 +1640,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
      ITEM MASTER LIST & DETAIL (100k+ Scalable Architecture & Mold Tooling Specs)
   ---------------------------------------------------- */
   const renderViewContent = () => {
-    const normalizedItems = (items || []).map(normalizeItemMaster);
+    const normalizedItems = (effectiveItemsList || []).map(normalizeItemMaster);
 
     if (view === 'itemList') {
       const filteredItems = normalizedItems.filter((i) => {
@@ -1734,7 +1742,11 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               <h1 className="text-xl font-bold text-[#14213D] flex items-center gap-2">
                 Item Master Catalog
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 font-mono font-semibold border border-blue-200">
-                  {items.length} Registered SKUs
+                  {isInitialCatalogLoading ? (
+                    <span className="animate-pulse">Loading SKUs...</span>
+                  ) : (
+                    `${displayTotalCount} Registered SKUs`
+                  )}
                 </span>
               </h1>
               <p className="text-xs text-[#6B7280]">
@@ -1898,7 +1910,13 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               </div>
               <div>
                 <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Total Items</div>
-                <div className="text-lg font-bold text-[#14213D] font-mono leading-none mt-0.5">{items.length}</div>
+                <div className="text-lg font-bold text-[#14213D] font-mono leading-none mt-0.5">
+                  {isInitialCatalogLoading ? (
+                    <div className="h-5 w-14 bg-slate-200 animate-pulse rounded my-0.5" />
+                  ) : (
+                    displayTotalCount
+                  )}
+                </div>
                 <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">100k+ Scale Ready</div>
               </div>
             </div>
@@ -1909,7 +1927,13 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               </div>
               <div>
                 <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Finished Goods</div>
-                <div className="text-lg font-bold text-[#0F8B8D] font-mono leading-none mt-0.5">{fgCount}</div>
+                <div className="text-lg font-bold text-[#0F8B8D] font-mono leading-none mt-0.5">
+                  {isInitialCatalogLoading ? (
+                    <div className="h-5 w-12 bg-teal-100 animate-pulse rounded my-0.5" />
+                  ) : (
+                    fgCount
+                  )}
+                </div>
                 <div className="text-[10px] text-gray-500 mt-0.5">Tooling &amp; Mold Specs</div>
               </div>
             </div>
@@ -1920,7 +1944,13 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               </div>
               <div>
                 <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Pending QA Review</div>
-                <div className="text-lg font-bold text-amber-700 font-mono leading-none mt-0.5">{pendingCount}</div>
+                <div className="text-lg font-bold text-amber-700 font-mono leading-none mt-0.5">
+                  {isInitialCatalogLoading ? (
+                    <div className="h-5 w-10 bg-amber-100 animate-pulse rounded my-0.5" />
+                  ) : (
+                    pendingCount
+                  )}
+                </div>
                 <div className="text-[10px] text-gray-500 mt-0.5">{draftCount} Drafts</div>
               </div>
             </div>
@@ -1931,7 +1961,13 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               </div>
               <div>
                 <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Low Stock Alert</div>
-                <div className="text-lg font-bold text-rose-700 font-mono leading-none mt-0.5">{lowStockCount}</div>
+                <div className="text-lg font-bold text-rose-700 font-mono leading-none mt-0.5">
+                  {isInitialCatalogLoading ? (
+                    <div className="h-5 w-10 bg-rose-100 animate-pulse rounded my-0.5" />
+                  ) : (
+                    lowStockCount
+                  )}
+                </div>
                 <div className="text-[10px] text-rose-600 font-semibold mt-0.5">Reorder Needed</div>
               </div>
             </div>
@@ -1943,7 +1979,11 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               <div>
                 <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Active Catalog</div>
                 <div className="text-lg font-bold text-emerald-700 font-mono leading-none mt-0.5">
-                  {items.filter((i) => i.status === 'active' && i.approval === 'approved').length}
+                  {isInitialCatalogLoading ? (
+                    <div className="h-5 w-12 bg-emerald-100 animate-pulse rounded my-0.5" />
+                  ) : (
+                    effectiveItemsList.filter((i) => i.status === 'active' && i.approval === 'approved').length
+                  )}
                 </div>
                 <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">Production Released</div>
               </div>

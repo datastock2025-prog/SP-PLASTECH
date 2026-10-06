@@ -80,7 +80,7 @@ export const AdminViews: React.FC<AdminViewsProps> = ({
     { id: 'adminReasonCodes', label: 'Reason Code Setup', icon: AlertOctagon, category: 'Production & Taxonomy' },
     { id: 'adminMachines', label: 'Machine / Work Centers', icon: Cpu, category: 'Production & Taxonomy' },
     { id: 'adminShifts', label: 'Shift & Calendar', icon: Calendar, category: 'Production & Taxonomy' },
-    { id: 'itemList', label: 'Item Master Catalog (1,719 SKUs)', icon: Boxes, category: 'Production & Taxonomy' },
+    { id: 'itemList', label: 'Item Master Catalog', icon: Boxes, category: 'Production & Taxonomy' },
     { id: 'adminWarehouseLocations', label: 'Warehouse & Bins', icon: Boxes, category: 'Production & Taxonomy' },
     { id: 'adminMasterData', label: 'Master Data Governance', icon: Database, category: 'Production & Taxonomy' },
     { id: 'adminTransportMaster', label: 'Transporter Master (Fleet)', icon: Truck, category: 'Production & Taxonomy' },
