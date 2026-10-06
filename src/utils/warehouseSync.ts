@@ -3,7 +3,7 @@ import { INITIAL_INVENTORY_STOCK, INITIAL_STOCK_MOVEMENT_LEDGER } from '../data/
 import { GrnPutawayTask } from '../types/grnTypes';
 import { WorkOrder, BomMaster, ItemMaster } from '../types';
 import { liveDataStore } from '../services/liveDataStore';
-import { DOCUMENT_ITEM_MASTER_CATALOG } from '../data/masterItemsCatalog';
+import { itemService } from '../services/itemService';
 
 const STOCK_STORAGE_KEY = 'reboot_warehouse_stock_v3';
 const LEDGER_STORAGE_KEY = 'reboot_stock_movement_ledger_v3';
@@ -127,9 +127,10 @@ export function getWarehouseStock(): InventoryStockItem[] {
     console.error('Error parsing warehouse stock from localStorage:', e);
   }
 
-  // Live real data fallback: Initialize warehouse stock exclusively from DOCUMENT_ITEM_MASTER_CATALOG
+  // Live real data fallback: Initialize warehouse stock from dynamic Item Master
   try {
-    const liveStock: InventoryStockItem[] = DOCUMENT_ITEM_MASTER_CATALOG.map((m, idx) => {
+    const items = itemService.getItemsSync();
+    const liveStock: InventoryStockItem[] = items.map((m, idx) => {
       const stockVal = parseFloat(String(m.stock || '0').replace(/[^0-9.]/g, '')) || 0;
       const availVal = parseFloat(String(m.avail || '0').replace(/[^0-9.]/g, '')) || stockVal;
       const uom = m.baseUOM || (m.type === 'Raw Material' || (m.type as any) === 'Regrind' ? 'KG' : (m.type as any) === 'Masterbatch' ? 'KG' : (m.type as any) === 'Packaging Material' ? 'BOX' : 'PCS');

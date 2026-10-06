@@ -1827,19 +1827,19 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                           onClick={() => {
                             setIsMoreMenuOpen(false);
                             openConfirm(
-                              'Reload Document Catalog (1,719 SKUs)?',
-                              'This will synchronize and ensure all 1,719 items from the attached Master Catalog document are loaded live with full Admin approval.',
-                              () => {
-                                const reloaded = itemService.reloadDocumentCatalog();
+                              'Reload Master Catalog from Database?',
+                              'This will synchronize and ensure all live items from the database are refreshed.',
+                              async () => {
+                                const reloaded = await itemService.syncLiveCatalog();
                                 reloaded.forEach((i) => onUpdateItem(i));
-                                showToast(`✓ Synchronized ${reloaded.length} live approved items from Document Catalog!`);
+                                showToast(`✓ Synchronized ${reloaded.length} live items from database!`);
                               }
                             );
                           }}
                           className="w-full px-3.5 py-2 text-left flex items-center gap-2.5 text-slate-700 hover:bg-teal-50 hover:text-[#0F8B8D] transition-colors font-medium group cursor-pointer"
                         >
                           <Sparkles className="w-4 h-4 text-[#0F8B8D] group-hover:scale-110 transition-transform" />
-                          <span>Sync Live Catalog (1,719)</span>
+                          <span>Sync Live Catalog</span>
                         </button>
                       )}
 

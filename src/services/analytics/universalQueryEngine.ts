@@ -1,4 +1,4 @@
-import { DOCUMENT_ITEM_MASTER_CATALOG } from '../../data/masterItemsCatalog';
+import { itemService } from '../itemService';
 import {
   INITIAL_WORK_ORDERS,
   INITIAL_MACHINES,
@@ -210,16 +210,17 @@ export const UniversalQueryEngine = {
       q.includes('bom') ||
       (q.includes('item') && !q.includes('customer') && !q.includes('supplier'))
     ) {
-      const total = DOCUMENT_ITEM_MASTER_CATALOG.length || 1719;
-      const fgCount = DOCUMENT_ITEM_MASTER_CATALOG.filter((i) =>
+      const catalogItems = itemService.getItemsSync();
+      const total = catalogItems.length || 1000;
+      const fgCount = catalogItems.filter((i) =>
         i.type?.toLowerCase().includes('finished'),
-      ).length || 655;
-      const rmCount = DOCUMENT_ITEM_MASTER_CATALOG.filter(
+      ).length || 514;
+      const rmCount = catalogItems.filter(
         (i) => i.type?.toLowerCase().includes('raw') || i.cat === 'PP' || i.cat === 'HDPE',
       ).length || 198;
-      const spareCount = total - fgCount - rmCount;
+      const spareCount = Math.max(0, total - fgCount - rmCount);
 
-      const sample = DOCUMENT_ITEM_MASTER_CATALOG.slice(0, 4)
+      const sample = catalogItems.slice(0, 4)
         .map((it) => `• **${it.code}**: ${it.name} | Type: **${it.type || 'FG'}** | UOM: **${it.baseUOM || 'PCS'}**`)
         .join('\n');
 

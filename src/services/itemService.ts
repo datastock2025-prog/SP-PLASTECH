@@ -6,7 +6,6 @@ import { adminEventBus } from './adminService';
 import { broadcastLocalMutation } from './realtime/supabaseRealtime';
 import { masterDataGovernanceService } from './masterDataGovernanceService';
 import { dashboardSummaryService } from './dashboardSummaryService';
-import { DOCUMENT_ITEM_MASTER_CATALOG } from '../data/masterItemsCatalog';
 
 // Stale dummy codes to filter out
 const DUMMY_CODES = new Set([
@@ -17,14 +16,6 @@ const DUMMY_CODES = new Set([
   'FG-BEZEL-AC-4C',
   'RES-PP-COPO-01',
 ]);
-
-function initializeBaseCatalog(): ItemMaster[] {
-  return DOCUMENT_ITEM_MASTER_CATALOG.map((item) => ({
-    ...item,
-    approval: 'approved' as const,
-    status: item.status || 'active',
-  }));
-}
 
 function mapDbRowToItemMaster(dbItem: any, fallback?: ItemMaster): ItemMaster {
   const partWeight = Number(dbItem.part_weight_grams ?? dbItem.partWeightGrams ?? fallback?.partWeightGrams ?? 0);
@@ -85,7 +76,8 @@ function mapDbRowToItemMaster(dbItem: any, fallback?: ItemMaster): ItemMaster {
 }
 
 class ItemService {
-  private cache: ItemMaster[] = initializeBaseCatalog();
+  private cache: ItemMaster[] = [];
+  private inFlightItems: Promise<ItemMaster[]> | null = null;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -107,46 +99,40 @@ class ItemService {
   }
 
   public getItemsSync(): ItemMaster[] {
-    if (!this.cache || this.cache.length === 0) {
-      this.cache = initializeBaseCatalog();
-    }
     return this.cache;
   }
 
   public async getItems(): Promise<ItemMaster[]> {
-    // 1. Fetch latest live items directly from Supabase Cloud PostgreSQL (Single Source of Truth)
-    try {
-      const { data, error } = await supabase
-        .from('items')
-        .select('*')
-        .order('created_at', { ascending: false });
+    if (this.inFlightItems) {
+      return this.inFlightItems;
+    }
 
-      if (!error && Array.isArray(data) && data.length > 0) {
-        const baseCatalog = initializeBaseCatalog();
-        const fallbackMap = new Map<string, ItemMaster>();
-        baseCatalog.forEach((item) => {
-          if (item && item.code) fallbackMap.set(item.code.toUpperCase(), item);
-        });
+    this.inFlightItems = (async () => {
+      // 1. Fetch latest live items directly from Supabase Cloud PostgreSQL (Single Source of Truth)
+      try {
+        const { data, error } = await supabase
+          .from('items')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-        const itemsList = data
-          .filter((row: any) => row && row.code && !DUMMY_CODES.has(row.code))
-          .map((row: any) => {
-            const fallback = fallbackMap.get(row.code.toUpperCase());
-            return mapDbRowToItemMaster(row, fallback);
-          });
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const itemsList = data
+            .filter((row: any) => row && row.code && !DUMMY_CODES.has(row.code))
+            .map((row: any) => mapDbRowToItemMaster(row));
 
-        this.cache = itemsList;
-        return this.cache;
+          this.cache = itemsList;
+          return this.cache;
+        }
+      } catch (e) {
+        console.debug('[ItemService] Supabase getItems note:', e);
+      } finally {
+        this.inFlightItems = null;
       }
-    } catch (e) {
-      console.debug('[ItemService] Supabase getItems note:', e);
-    }
 
-    // 2. Resilient fallback if cloud network is offline
-    if (!this.cache || this.cache.length === 0) {
-      this.cache = initializeBaseCatalog();
-    }
-    return this.cache;
+      return this.cache;
+    })();
+
+    return this.inFlightItems;
   }
 
   public async getItemByCode(code: string): Promise<ItemMaster | undefined> {
@@ -332,32 +318,8 @@ class ItemService {
   }
 
   public async syncLiveCatalog(): Promise<ItemMaster[]> {
-    const liveItems = DOCUMENT_ITEM_MASTER_CATALOG.map((item) => ({
-      ...item,
-      approval: 'approved' as const,
-      status: item.status || 'active',
-    }));
-
-    // Upsert into Supabase Cloud DB
-    try {
-      await itemEndpoints.bulkImport(liveItems as any);
-    } catch (e) {
-      console.debug('[ItemService] bulk import note:', e);
-    }
-
     dashboardSummaryService.invalidateCache();
-    this.cache = liveItems;
-
-    masterDataGovernanceService.recordAudit({
-      entityType: 'ITEM_MASTER',
-      entityCode: 'CATALOG_SYNC_ALL',
-      entityName: 'Document Master Catalog (1,719 SKUs)',
-      action: 'VERSION_RELEASE',
-      changedBy: 'Super Admin Gateway Sync',
-      approvedBy: 'Admin Authority',
-      userRole: 'admin',
-      changeSummary: `Synchronized and released complete live catalog of ${liveItems.length} SKUs with verified injection tooling, rheology specs, and warehouse mappings.`,
-    });
+    const liveItems = await this.getItems();
 
     adminEventBus.emit('CATALOG_RELOADED', liveItems);
     adminEventBus.emit('ITEMS_SYNCED', { data: liveItems });
@@ -365,13 +327,9 @@ class ItemService {
     return liveItems;
   }
 
-  public reloadDocumentCatalog(): ItemMaster[] {
-    const liveItems = DOCUMENT_ITEM_MASTER_CATALOG.map((item) => ({
-      ...item,
-      approval: 'approved' as const,
-      status: item.status || 'active',
-    }));
-    this.cache = liveItems;
+  public async reloadDocumentCatalog(): Promise<ItemMaster[]> {
+    dashboardSummaryService.invalidateCache();
+    const liveItems = await this.getItems();
     adminEventBus.emit('CATALOG_RELOADED', liveItems);
     return liveItems;
   }

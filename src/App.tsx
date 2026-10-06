@@ -351,13 +351,7 @@ export const App: React.FC = () => {
   });
 
   // Primary Business Entities State (Database-First Single Source of Truth)
-  const [items, setItems] = useState<ItemMaster[]>(() => {
-    try {
-      return itemService.getItemsSync();
-    } catch {
-      return [];
-    }
-  });
+  const [items, setItems] = useState<ItemMaster[]>([]);
   const [boms, setBoms] = useState<BomMaster[]>([]);
   const [machines, setMachines] = useState<MachineMaster[]>([]);
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);

@@ -35,7 +35,6 @@ import { supplierService } from '../../services/procurement/supplierService';
 import { adminService, adminEventBus } from '../../services/adminService';
 import { CreateItemWizardModal } from '../masterdata/CreateItemWizardModal';
 import { addPurchaseRequisition, INITIAL_PROCUREMENT_SUPPLIERS } from '../../data/procurementData';
-import { DOCUMENT_ITEM_MASTER_CATALOG } from '../../data/masterItemsCatalog';
 
 interface Props {
   prId?: string;
@@ -100,7 +99,7 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
     const list = itemService.getItemsSync();
     if (list && list.length > 0) return list;
     if (propItems && propItems.length > 0) return propItems;
-    return DOCUMENT_ITEM_MASTER_CATALOG;
+    return [];
   });
 
   // Listen for real-time Item Master events across ERP
