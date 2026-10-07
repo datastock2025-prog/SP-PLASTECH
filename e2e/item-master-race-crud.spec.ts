@@ -71,12 +71,10 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
     // Verify UI Search & Display
     const searchInput = page.locator('input[placeholder*="Instant search" i]');
     await searchInput.fill(testItemCode);
-    await page.waitForTimeout(1000);
 
     const skuCellInUi = page.locator('td', { hasText: testItemCode }).first();
-    const isVisibleInUi = await skuCellInUi.isVisible();
-    console.log(`[READ - UI VERIFY] SKU ${testItemCode} visible in catalog table:`, isVisibleInUi);
-    expect(isVisibleInUi).toBe(true);
+    await expect(skuCellInUi).toBeVisible({ timeout: 10000 });
+    console.log(`[READ - UI VERIFY] SKU ${testItemCode} visible in catalog table.`);
 
     // Read directly from Supabase PostgreSQL Database
     const dbReadResult = await page.evaluate(async (code) => {
