@@ -199,7 +199,11 @@ export class SupabaseAdapter implements IDatabaseAdapter {
         return 0;
       }
       return count || 0;
-    } catch {
+    } catch (err: any) {
+      if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
+        // Graceful client cancellation
+        return 0;
+      }
       return 0;
     }
   }
@@ -210,7 +214,7 @@ export class SupabaseAdapter implements IDatabaseAdapter {
     const { data, error } = await this.client
       .from(resolvedTable)
       .upsert(record as any, options)
-      .select();
+      .select('*');
 
     if (error) {
       if (error.code !== 'PGRST205' && error.code !== '42P01') {
@@ -218,7 +222,10 @@ export class SupabaseAdapter implements IDatabaseAdapter {
       }
       return Array.isArray(record) ? record[0] : record;
     }
-    return (Array.isArray(data) ? data[0] : data) as T;
+    if (Array.isArray(data) && data.length > 0) {
+      return (Array.isArray(record) ? data : data[0]) as T;
+    }
+    return (data || (Array.isArray(record) ? record[0] : record)) as T;
   }
 
   public async create<T = any>(table: string, record: T): Promise<T> {

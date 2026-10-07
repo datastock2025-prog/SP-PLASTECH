@@ -88,3 +88,9 @@
 - **Business Logic Layer**: Throws typed domain errors (`NotFoundError`, `ConflictError`, `ForbiddenError`).
 - **Data Access Layer**: Translates DB constraint violations into human-meaningful messages.
 - **Frontend Error Surfacing**: All API errors must trigger user-facing error toasts/banners.
+
+### 4.6 Client-Server Synchronization, Debouncing & Race-Condition Prevention
+- **Prefer: return=representation**: All `upsert`/`insert`/`update` database operations MUST include `.select('*')` (`Prefer: return=representation`). The mutation promise returns the authoritative database record.
+- **Immediate Direct Cache Hydration**: On mutation success, mutate TanStack Query cache directly (`queryClient.setQueriesData`) using the returned representation before invalidating background queries. This eliminates race conditions where immediate `GET` calls return stale data before replication commits.
+- **Debounced Search & Filtering**: All user-driven search inputs must be debounced (200-300ms) to prevent high-frequency connection thrashing and premature request cancellations (`net::ERR_ABORTED`).
+- **Graceful Lifecycle Abort Handling**: Database adapters must safely catch and ignore `AbortError` / unmounted query cancellations during `HEAD` / `206 Partial Content` count requests without throwing unhandled exceptions to the UI.

@@ -1179,6 +1179,16 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
 }) => {
   const [filterType, setFilterType] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>('');
+
+  // Debounce search query to eliminate rapid connection cancellations (net::ERR_ABORTED)
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 200);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
   const [activeTab, setActiveTab] = useState<string>('Overview');
   const [editingItemCell, setEditingItemCell] = useState<{ code: string; field: string } | null>(null);
   const [itemCellVal, setItemCellVal] = useState<string>('');
@@ -1701,7 +1711,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
           return false;
         }
 
-        const q = searchQuery.toLowerCase().trim();
+        const q = debouncedSearchQuery.toLowerCase().trim();
         const matchSearch =
           !q ||
           (i.code || '').toLowerCase().includes(q) ||
