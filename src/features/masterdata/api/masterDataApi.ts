@@ -26,9 +26,9 @@ export const masterDataApi = {
   },
 
   /**
-   * Read: All active items list
+   * Read: Active items list with bounded limit
    */
-  getItems: async (limit: number = 5000): Promise<ItemMaster[]> => {
+  getItems: async (limit: number = 50): Promise<ItemMaster[]> => {
     try {
       return await itemService.getItems(limit);
     } catch (error: any) {

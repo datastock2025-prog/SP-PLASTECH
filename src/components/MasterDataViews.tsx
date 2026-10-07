@@ -1192,9 +1192,9 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   const [machinePage, setMachinePage] = useState<number>(1);
   const [machinePageSize, setMachinePageSize] = useState<number>(10);
 
-  // TanStack Query SSOT Queries & Mutations (Rule 1 & Rule 3)
+  // TanStack Query SSOT Queries & Mutations (Rule 1 & Rule 2: Bounded Queries)
   const queryClient = useQueryClient();
-  const { data: queryItems, isLoading: isItemsQueryLoading } = useItems();
+  const { data: queryItems, isLoading: isItemsQueryLoading } = useItems(undefined, Math.min(100, itemPageSize * 4));
   const { data: exactItemCount } = useItemCount();
   const effectiveItemsList = (items && items.length > 0 ? items : queryItems) || [];
   const displayTotalCount = exactItemCount ?? effectiveItemsList.length;

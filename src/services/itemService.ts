@@ -30,14 +30,15 @@ class ItemService {
   }
 
   /**
-   * Fetch live item master records directly via DatabaseAdapter (db)
+   * Rule 2: Fetch live item master records with bounded limit & selective columns
    */
-  public async getItems(limit: number = 5000): Promise<ItemMaster[]> {
+  public async getItems(limit: number = 50): Promise<ItemMaster[]> {
+    const boundedLimit = Math.min(100, Math.max(1, limit));
     try {
       const data = await db.findMany<any>('items', {
         select: ITEM_LEAN_SELECT_COLUMNS,
         orderBy: { column: 'created_at', ascending: false },
-        limit,
+        limit: boundedLimit,
       });
 
       if (Array.isArray(data) && data.length > 0) {

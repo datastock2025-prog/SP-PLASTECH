@@ -202,13 +202,14 @@ export const ITEM_SELECT_COLUMNS =
 
 export const itemEndpoints = {
   /**
-   * Fetch All Active Items with Zod Validation via DatabaseAdapter (db)
+   * Rule 2: Fetch Active Items with bounded limit & selective lean columns
    */
-  async getItems(limit: number = 5000): Promise<ItemMasterDto[]> {
+  async getItems(limit: number = 50): Promise<ItemMasterDto[]> {
+    const boundedLimit = Math.min(100, Math.max(1, limit));
     const data = await db.findMany<any>('items', {
       select: ITEM_LEAN_SELECT_COLUMNS,
       orderBy: { column: 'created_at', ascending: false },
-      limit,
+      limit: boundedLimit,
     });
     if (Array.isArray(data)) {
       return data.map(mapSupabaseRowToItemDto);

@@ -17,12 +17,12 @@ import { ItemMaster, MachineMaster, Customer, BomMaster } from '../types';
 // TanStack Query Cache is the Single Source of Truth (SSOT)
 // ============================================================================
 
-// 1. ITEMS / ITEM MASTER CATALOG
-export function useItems(filter?: any) {
+// 1. ITEMS / ITEM MASTER CATALOG (Rule 2: Bounded Queries)
+export function useItems(filter?: any, limit: number = 50) {
   return useQuery<ItemMaster[]>({
-    queryKey: queryKeys.masterData.items(filter),
+    queryKey: queryKeys.masterData.items({ filter, limit }),
     queryFn: async () => {
-      const dtos = await itemEndpoints.getItems();
+      const dtos = await itemEndpoints.getItems(limit);
       return dtos.map((dto) => mapDbRowToItemMaster(dto));
     },
     staleTime: 1000 * 60 * 5, // Rule 1: 5 minutes fresh cache
