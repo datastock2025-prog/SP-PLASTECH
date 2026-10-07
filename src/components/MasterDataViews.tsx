@@ -1206,7 +1206,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   const queryClient = useQueryClient();
   const { data: queryItems, isLoading: isItemsQueryLoading } = useItems(undefined, Math.min(100, itemPageSize * 4));
   const { data: exactItemCount } = useItemCount();
-  const effectiveItemsList = (items && items.length > 0 ? items : queryItems) || [];
+  const effectiveItemsList = (queryItems && queryItems.length > 0 ? queryItems : items) || [];
   const displayTotalCount = exactItemCount ?? effectiveItemsList.length;
   const isInitialCatalogLoading = isItemsQueryLoading && effectiveItemsList.length === 0;
 

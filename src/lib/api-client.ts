@@ -339,6 +339,7 @@ export const itemEndpoints = {
         item_group: String((validated as any).itemGroup || (validated as any).item_group || validated.category || ''),
         description: String(validated.desc || (validated as any).description || ''),
         version: currentVersion + 1,
+        created_at: (validated as any).created_at || (validated as any).createdOn || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
