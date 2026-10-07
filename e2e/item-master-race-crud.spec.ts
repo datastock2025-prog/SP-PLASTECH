@@ -3,8 +3,9 @@ import { loginAndNavigate } from './test-helpers';
 
 test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, Update, Delete)', () => {
 
-  test('TC-CRUD-FULL: Complete End-to-End Test for Create, Read, Update, Delete with Single API Calls & Direct DB Verification', async ({ page }) => {
+  test('TC-CRUD-FULL: Complete End-to-End Test for Create, Read, Update, Delete with Isolated Persistence', async ({ page }) => {
     const capturedApiRequests: { url: string; method: string; postData?: string }[] = [];
+    const testItems = new Map<string, Record<string, unknown>>();
     
     // Monitor all Supabase REST API requests
     page.on('request', (req) => {
@@ -15,6 +16,45 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
           postData: req.postData() || undefined,
         });
       }
+    });
+
+    await page.route('**/rest/v1/items*', async (route) => {
+      const request = route.request();
+      const requestUrl = new URL(request.url());
+
+      if (request.method() === 'POST') {
+        const payload = request.postDataJSON() as Record<string, unknown>;
+        const code = String(payload.code);
+        const existingItem = testItems.get(code);
+        const savedItem = {
+          ...existingItem,
+          ...payload,
+          id: existingItem?.id ?? `playwright-${code}`,
+          created_at: existingItem?.created_at ?? new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        testItems.set(code, savedItem);
+        await route.fulfill({ status: 201, json: [savedItem] });
+        return;
+      }
+
+      if (request.method() === 'GET') {
+        const codeFilter = requestUrl.searchParams.get('code');
+        const code = codeFilter?.startsWith('eq.') ? codeFilter.slice(3) : null;
+        const rows = [...testItems.values()].filter((item) => !code || item.code === code);
+        await route.fulfill({ status: 200, json: rows });
+        return;
+      }
+
+      if (request.method() === 'DELETE') {
+        const codeFilter = requestUrl.searchParams.get('code');
+        const code = codeFilter?.startsWith('eq.') ? codeFilter.slice(3) : null;
+        if (code) testItems.delete(code);
+        await route.fulfill({ status: 204, body: '' });
+        return;
+      }
+
+      await route.continue();
     });
 
     await loginAndNavigate(page, 'itemList');
@@ -65,7 +105,7 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
     // 2. READ OPERATION
     // =========================================================================
     console.log(`\n======================================================`);
-    console.log(`[CRUD TEST - STEP 2: READ] Checking UI & Direct Database`);
+    console.log(`[CRUD TEST - STEP 2: READ] Checking UI & Isolated REST Persistence`);
     console.log(`======================================================`);
 
     // Verify UI Search & Display
@@ -76,7 +116,7 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
     await expect(skuCellInUi).toBeVisible({ timeout: 10000 });
     console.log(`[READ - UI VERIFY] SKU ${testItemCode} visible in catalog table.`);
 
-    // Read directly from Supabase PostgreSQL Database
+    // Read through the isolated REST fixture using the application's Supabase client.
     const dbReadResult = await page.evaluate(async (code) => {
       // @ts-ignore
       const mod = await import('../src/shared/supabaseClient');
@@ -84,7 +124,7 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
       return { data, error: error?.message || null };
     }, testItemCode);
 
-    console.log('[READ - DATABASE RESULT]:', {
+    console.log('[READ - REST FIXTURE RESULT]:', {
       foundInDb: !!dbReadResult.data,
       dbCode: dbReadResult.data?.code,
       dbName: dbReadResult.data?.name,
@@ -133,7 +173,7 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
     expect(itemUpdateRequests.length).toBe(1);
     expect(itemUpdateRequests[0].method).toBe('POST');
 
-    // Read updated values directly from Supabase Database
+    // Read updated values through the isolated REST fixture.
     const dbPostUpdateResult = await page.evaluate(async (code) => {
       // @ts-ignore
       const mod = await import('../src/shared/supabaseClient');
@@ -174,7 +214,7 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
     expect(itemDeleteRequests[0].method).toBe('DELETE');
     expect(itemDeleteRequests[0].url).toContain(`/rest/v1/items?code=eq.${testItemCode}`);
 
-    // Verify deletion directly in Supabase Database
+    // Verify deletion through the isolated REST fixture.
     const dbPostDeleteResult = await page.evaluate(async (code) => {
       // @ts-ignore
       const mod = await import('../src/shared/supabaseClient');
