@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   ItemMaster,
   BomMaster,
@@ -1206,7 +1206,20 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   const queryClient = useQueryClient();
   const { data: queryItems, isLoading: isItemsQueryLoading } = useItems(undefined, Math.min(100, itemPageSize * 4));
   const { data: exactItemCount } = useItemCount();
-  const effectiveItemsList = (queryItems && queryItems.length > 0 ? queryItems : items) || [];
+  const effectiveItemsList = useMemo(() => {
+    const base = (queryItems && queryItems.length > 0 ? queryItems : items) || [];
+    if (!items || items.length === 0) return base;
+    const map = new Map<string, ItemMaster>();
+    base.forEach((item) => {
+      if (item && item.code) map.set(item.code, item);
+    });
+    items.forEach((item) => {
+      if (item && item.code && !map.has(item.code)) {
+        map.set(item.code, item);
+      }
+    });
+    return Array.from(map.values());
+  }, [queryItems, items]);
   const displayTotalCount = exactItemCount ?? effectiveItemsList.length;
   const isInitialCatalogLoading = isItemsQueryLoading && effectiveItemsList.length === 0;
 
