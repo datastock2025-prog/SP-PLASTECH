@@ -287,62 +287,81 @@ export const itemEndpoints = {
    * Save or Update Item Record with Zod Validation directly via DatabaseAdapter (db.upsert)
    */
   async saveItem(item: ItemMasterDto): Promise<ItemMasterDto> {
-    const parseResult = ItemMasterSchema.safeParse(item);
-    const validated = parseResult.success ? parseResult.data : item;
+    try {
+      const parseResult = ItemMasterSchema.safeParse(item);
+      const validated = parseResult.success ? parseResult.data : item;
 
-    if (!parseResult.success) {
-      console.warn('[itemEndpoints.saveItem] Zod parse note:', parseResult.error);
+      if (!parseResult.success) {
+        console.warn('[itemEndpoints.saveItem] Zod parse note:', parseResult.error);
+      }
+
+      const partWeight = Number(validated.partWeightGrams ?? (validated as any).netWeightGrams ?? (validated as any).part_weight_grams ?? 0);
+      const runnerWeight = Number(validated.runnerWeightGrams ?? (validated as any).runner_weight_grams ?? 0);
+      const cycleTime = Number(
+        validated.cycleTimeSec ?? (validated as any).cycleTime ?? (validated as any).standardCycleTime ?? (validated as any).cycle_time_seconds ?? (validated as any).cycle_time ?? 0
+      );
+
+      const reorderVal =
+        validated.reorderPoint !== undefined
+          ? Number(validated.reorderPoint)
+          : (validated as any).reorderLevel
+          ? parseFloat(String((validated as any).reorderLevel)) || 0
+          : 0;
+
+      const currentVersion = Number((validated as any).version || 1);
+
+      // Strict verified database columns for the items table
+      const dbPayload: Record<string, any> = {
+        code: String(validated.code).trim(),
+        name: String(validated.name).trim(),
+        category: String(validated.category || validated.cat || 'Finished Good'),
+        entity_type: String(validated.type || 'Finished Good'),
+        unit: String(validated.baseUOM || validated.base_uom || 'PCS'),
+        stock: typeof validated.stock === 'number' ? validated.stock : parseFloat(String(validated.stock)) || 0,
+        cost: Number(validated.cost ?? (validated as any).standardCost ?? 0),
+        selling_price: Number(validated.sellingPrice || 0),
+        status: String(validated.status || 'active'),
+        approval: String(validated.approval || 'approved'),
+        min_stock: Number(validated.minStock ?? 0),
+        max_stock: Number(validated.maxStock ?? 5000),
+        reorder_point: reorderVal,
+        safety_stock: Number(validated.safetyStock ?? (validated as any).safety_stock ?? 0),
+        valuation_method: String(validated.valuationMethod ?? (validated as any).valuation_method ?? 'FIFO'),
+        cavity_count: Number(validated.cavityCount ?? (validated as any).cavity_count ?? 1),
+        cycle_time_seconds: cycleTime,
+        part_weight_grams: partWeight,
+        runner_weight_grams: runnerWeight,
+        mold_code: String(validated.moldToolId || (validated as any).mold_code || ''),
+        resin_type: String(validated.resinType || (validated as any).resin_type || (validated as any).polymerGrade || ''),
+        color: String((validated as any).color || ''),
+        hsn_code: String((validated as any).hsn_code || (validated as any).hsnCode || ''),
+        item_group: String((validated as any).itemGroup || (validated as any).item_group || validated.category || ''),
+        description: String(validated.desc || (validated as any).description || ''),
+        version: currentVersion + 1,
+        updated_at: new Date().toISOString(),
+      };
+
+      const savedRow = await db.upsert<any>('items', dbPayload, 'code');
+      return mapSupabaseRowToItemDto(savedRow || dbPayload);
+    } catch (error: any) {
+      const msg = error.message || 'Failed to save Item SKU';
+      console.error('[itemEndpoints.saveItem] Error:', msg);
+      throw new Error(msg);
     }
-
-    const partWeight = Number(validated.partWeightGrams ?? (validated as any).netWeightGrams ?? (validated as any).part_weight_grams ?? 0);
-    const runnerWeight = Number(validated.runnerWeightGrams ?? (validated as any).runner_weight_grams ?? 0);
-    const cycleTime = Number(
-      validated.cycleTimeSec ?? (validated as any).cycleTime ?? (validated as any).standardCycleTime ?? (validated as any).cycle_time_seconds ?? (validated as any).cycle_time ?? 0
-    );
-
-    const reorderVal =
-      validated.reorderPoint !== undefined
-        ? Number(validated.reorderPoint)
-        : (validated as any).reorderLevel
-        ? parseFloat(String((validated as any).reorderLevel)) || 0
-        : 0;
-
-    // Strict 24 verified database columns for the items table
-    const dbPayload: Record<string, any> = {
-      code: String(validated.code).trim(),
-      name: String(validated.name).trim(),
-      category: String(validated.category || validated.cat || 'Finished Good'),
-      entity_type: String(validated.type || 'Finished Good'),
-      unit: String(validated.baseUOM || validated.base_uom || 'PCS'),
-      stock: typeof validated.stock === 'number' ? validated.stock : parseFloat(String(validated.stock)) || 0,
-      cost: Number(validated.cost ?? (validated as any).standardCost ?? 0),
-      selling_price: Number(validated.sellingPrice || 0),
-      status: String(validated.status || 'active'),
-      approval: String(validated.approval || 'approved'),
-      min_stock: Number(validated.minStock ?? 0),
-      max_stock: Number(validated.maxStock ?? 5000),
-      reorder_point: reorderVal,
-      cavity_count: Number(validated.cavityCount ?? (validated as any).cavity_count ?? 1),
-      cycle_time_seconds: cycleTime,
-      part_weight_grams: partWeight,
-      runner_weight_grams: runnerWeight,
-      resin_type: String(validated.resinType || (validated as any).resin_type || (validated as any).polymerGrade || ''),
-      color: String((validated as any).color || ''),
-      hsn_code: String((validated as any).hsn_code || (validated as any).hsnCode || ''),
-      item_group: String((validated as any).itemGroup || (validated as any).item_group || validated.category || ''),
-      created_at: (validated as any).created_at || (validated as any).createdOn || new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    const savedRow = await db.upsert<any>('items', dbPayload, 'code');
-    return mapSupabaseRowToItemDto(savedRow || dbPayload);
   },
 
   /**
-   * Delete Item by Code via DatabaseAdapter (db.delete)
+   * Soft Delete Item by Code via DatabaseAdapter
    */
   async deleteItem(code: string): Promise<boolean> {
-    return await db.delete('items', code, 'code');
+    try {
+      const result = await db.delete('items', code, 'code');
+      return result;
+    } catch (error: any) {
+      const msg = error.message || `Failed to delete Item SKU '${code}'`;
+      console.error('[itemEndpoints.deleteItem] Error:', msg);
+      throw new Error(msg);
+    }
   },
 
   /**

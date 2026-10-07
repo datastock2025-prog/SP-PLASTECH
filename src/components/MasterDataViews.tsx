@@ -2633,19 +2633,24 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                                   openConfirm(
                                     `Delete ${item.code}?`,
                                     `Are you sure you want to permanently delete SKU ${item.code} (${item.name}) from the live master catalog?`,
-                                    () => {
-                                      deleteItemMutation.mutate(item.code);
-                                      onDeleteItem(item.code);
-                                      masterDataGovernanceService.recordAudit({
-                                        entityType: 'ITEM_MASTER',
-                                        entityCode: item.code,
-                                        entityName: item.name,
-                                        action: 'DELETE',
-                                        changedBy: currentUser?.name || 'Admin',
-                                        userRole: 'admin',
-                                        changeSummary: `Admin deleted item ${item.code} from Master Catalog.`,
-                                      });
-                                      showToast(`Item ${item.code} deleted`);
+                                    async () => {
+                                      try {
+                                        await deleteItemMutation.mutateAsync(item.code);
+                                        onDeleteItem(item.code);
+                                        masterDataGovernanceService.recordAudit({
+                                          entityType: 'ITEM_MASTER',
+                                          entityCode: item.code,
+                                          entityName: item.name,
+                                          action: 'DELETE',
+                                          changedBy: currentUser?.name || 'Admin',
+                                          userRole: 'admin',
+                                          changeSummary: `Admin deleted item ${item.code} from Master Catalog.`,
+                                        });
+                                        showToast(`✓ Item ${item.code} deleted successfully.`);
+                                      } catch (err: any) {
+                                        console.error('[MasterDataViews.deleteItem] Error:', err);
+                                        showToast(`⚠️ Failed to delete SKU ${item.code}: ${err?.message || 'Database error'}`);
+                                      }
                                     }
                                   );
                                 }}
@@ -4563,11 +4568,16 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
             openConfirm(
               `Delete ${code}?`,
               `Are you sure you want to permanently delete SKU ${code} from Master Catalog?`,
-              () => {
-                deleteItemMutation.mutate(code);
-                onDeleteItem(code);
-                showToast(`Item ${code} deleted.`);
-                setQuickModifyItem(null);
+              async () => {
+                try {
+                  await deleteItemMutation.mutateAsync(code);
+                  onDeleteItem(code);
+                  showToast(`✓ Item ${code} deleted successfully.`);
+                  setQuickModifyItem(null);
+                } catch (err: any) {
+                  console.error('[MasterDataViews.QuickModifyDelete] Error:', err);
+                  showToast(`⚠️ Failed to delete SKU ${code}: ${err?.message || 'Database error'}`);
+                }
               }
             );
           }}

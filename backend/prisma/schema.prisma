@@ -167,72 +167,136 @@ model EntityVersion {
 }
 
 // ------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------
 // 3. MASTER DATA: ITEMS, BOM, MACHINES & MOLDS
 // ------------------------------------------------------------------------------
 
-model Item {
-  id               String   @id @default(uuid())
-  tenantId         String
-  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  code             String   // "RM-PP-001", "FG-BKT-10L"
-  name             String
-  category         String   // "Raw Material", "Finished Good", "Masterbatch"
-  entityType       String   @default("Finished Molded Component")
-  unit             String   @default("KG")
-  stock            Decimal  @default(0) @db.Decimal(14, 4)
-  minStock         Decimal  @default(0) @db.Decimal(14, 4)
-  maxStock         Decimal  @default(0) @db.Decimal(14, 4)
-  cost             Decimal  @default(0) @db.Decimal(14, 4)
-  sellingPrice     Decimal  @default(0) @db.Decimal(14, 4)
-  partWeightGrams  Decimal  @default(0) @db.Decimal(10, 3)
-  runnerWeightGrams Decimal @default(0) @db.Decimal(10, 3)
-  cavityCount      Int      @default(1)
-  cycleTimeSeconds Decimal  @default(0) @db.Decimal(8, 2)
-  gstHsnCode       String?
-  status           String   @default("ACTIVE")
-  version          Int      @default(1)
-  createdById      String?
-  updatedById      String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  boms             BillOfMaterial[]
-  bomComponents    BomComponent[]
-
-  @@unique([tenantId, code])
-  @@index([tenantId, category])
+enum ItemCategory {
+  RAW_MATERIAL
+  FINISHED_GOOD
+  SEMI_FINISHED_GOOD
+  MASTERBATCH
+  SPARE_PART
+  PACKAGING_MATERIAL
+  REGRIND
 }
 
+enum ItemEntityType {
+  FINISHED_MOLDED_COMPONENT
+  RESIN_RAW_MATERIAL
+  MASTERBATCH_COLORANT
+  ASSEMBLY_SUB_COMPONENT
+  PACKAGING_SUPPLY
+  MACHINE_SPARE_PART
+}
+
+enum ItemStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+  PHASE_OUT
+}
+
+enum ApprovalStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+enum ValuationMethod {
+  FIFO
+  WEIGHTED_AVERAGE
+  STANDARD_COST
+}
+
+/// Core Item Master record representing Raw Materials, Molded Finished Goods,
+/// Masterbatches, Packaging, and Spares in the plastic manufacturing lifecycle.
+model Item {
+  id                String          @id @default(uuid()) @map("id")
+  tenantId          String          @map("tenant_id")
+  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code              String          @map("code") // "RM-PP-001", "FG-BKT-10L"
+  name              String          @map("name")
+  category          String          @default("Finished Good") @map("category") // "RAW_MATERIAL", "FINISHED_GOOD", etc.
+  entityType        String          @default("Finished Molded Component") @map("entity_type")
+  unit              String          @default("PCS") @map("unit") // "KG", "PCS", "BOX"
+  stock             Decimal         @default(0) @db.Decimal(14, 4) @map("stock")
+  minStock          Decimal         @default(0) @db.Decimal(14, 4) @map("min_stock")
+  maxStock          Decimal         @default(5000) @db.Decimal(14, 4) @map("max_stock")
+  reorderPoint      Decimal         @default(0) @db.Decimal(14, 4) @map("reorder_point")
+  safetyStock       Decimal         @default(0) @db.Decimal(14, 4) @map("safety_stock")
+  cost              Decimal         @default(0) @db.Decimal(14, 4) @map("cost")
+  sellingPrice      Decimal         @default(0) @db.Decimal(14, 4) @map("selling_price")
+  valuationMethod   String          @default("FIFO") @map("valuation_method")
+  partWeightGrams   Decimal         @default(0) @db.Decimal(10, 3) @map("part_weight_grams")
+  runnerWeightGrams Decimal         @default(0) @db.Decimal(10, 3) @map("runner_weight_grams")
+  cavityCount       Int             @default(1) @map("cavity_count")
+  cycleTimeSeconds  Decimal         @default(0) @db.Decimal(8, 2) @map("cycle_time_seconds")
+  moldCode          String?         @map("mold_code")
+  resinType         String?         @map("resin_type")
+  polymerGrade      String?         @map("polymer_grade")
+  color             String?         @map("color")
+  hsnCode           String?         @map("hsn_code")
+  itemGroup         String?         @map("item_group")
+  description       String?         @map("description")
+  status            String          @default("ACTIVE") @map("status")
+  approvalStatus    String          @default("APPROVED") @map("approval_status")
+  approvedBy        String?         @map("approved_by")
+  version           Int             @default(1) @map("version")
+  createdById       String?         @map("created_by_id")
+  updatedById       String?         @map("updated_by_id")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+  deletedAt         DateTime?       @map("deleted_at")
+
+  boms              BillOfMaterial[]
+  bomComponents     BomComponent[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, category, status])
+  @@index([tenantId, createdAt])
+  @@map("items")
+}
+
+/// Manufacturing Bill of Materials (BOM) linking parent item to child components
 model BillOfMaterial {
-  id           String         @id @default(uuid())
-  tenantId     String
-  bomNumber    String
-  parentItemId String
-  parentItem   Item           @relation(fields: [parentItemId], references: [id], onDelete: Cascade)
-  version      Int            @default(1)
-  isActive     Boolean        @default(true)
-  yieldPercent Decimal        @default(100.0) @db.Decimal(5, 2)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  id           String         @id @default(uuid()) @map("id")
+  tenantId     String         @map("tenant_id")
+  bomNumber    String         @map("bom_number")
+  parentItemId String         @map("parent_item_id")
+  parentItem   Item           @relation(fields: [parentItemId], references: [id], onDelete: Restrict)
+  version      Int            @default(1) @map("version")
+  isActive     Boolean        @default(true) @map("is_active")
+  yieldPercent Decimal        @default(100.0) @db.Decimal(5, 2) @map("yield_percent")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+  deletedAt    DateTime?      @map("deleted_at")
 
   components   BomComponent[]
 
   @@unique([tenantId, bomNumber])
   @@index([tenantId, parentItemId])
+  @@map("bill_of_materials")
 }
 
+/// Explicit junction model for BOM Line components
 model BomComponent {
-  id              String         @id @default(uuid())
-  bomId           String
+  id              String         @id @default(uuid()) @map("id")
+  bomId           String         @map("bom_id")
   bom             BillOfMaterial @relation(fields: [bomId], references: [id], onDelete: Cascade)
-  componentItemId String
-  componentItem   Item           @relation(fields: [componentItemId], references: [id])
-  quantity        Decimal        @db.Decimal(14, 6)
-  uom             String         @default("KG")
-  scrapPercentage Decimal        @default(0) @db.Decimal(5, 2)
-  remarks         String?
+  componentItemId String         @map("component_item_id")
+  componentItem   Item           @relation(fields: [componentItemId], references: [id], onDelete: Restrict)
+  quantity        Decimal        @db.Decimal(14, 6) @map("quantity")
+  uom             String         @default("KG") @map("uom")
+  scrapPercentage Decimal        @default(0) @db.Decimal(5, 2) @map("scrap_percentage")
+  remarks         String?        @map("remarks")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
 
   @@index([bomId])
+  @@index([componentItemId])
+  @@map("bom_items")
 }
 
 model Machine {

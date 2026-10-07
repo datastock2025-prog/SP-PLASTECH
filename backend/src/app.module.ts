@@ -10,10 +10,12 @@ import { SpcModule } from './modules/quality/spc/spc.module';
 import { SustainabilityModule } from './modules/sustainability/sustainability.module';
 import { AiChatModule } from './modules/ai-chat/ai-chat.module';
 import { AiGatewayModule } from './modules/ai-gateway/ai-gateway.module';
+import { ItemModule } from './modules/masterdata/item/item.module';
 
 @Module({
   imports: [
     AuthModule,
+    ItemModule,
     IntegrationsModule,
     NotificationsModule,
     WorkflowModule,

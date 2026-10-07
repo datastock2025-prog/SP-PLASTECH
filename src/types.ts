@@ -27,6 +27,7 @@ export interface ItemLot {
 }
 
 export interface ItemMaster {
+  version?: number;
   code: string;
   name: string;
   type: ItemType;
