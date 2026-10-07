@@ -32,19 +32,47 @@ export function useItemMasterGrid(params: UseItemsQueryParams = {}) {
     retry: 2, // Retry network glitches twice
   });
 
-  // 2. Save Item Mutation with Query Invalidation
+  // 2. Save Item Mutation with Immediate Representation Cache Write (Zero Stale Overwrite)
   const saveMutation = useMutation({
     mutationFn: (item: ItemMasterDto) => itemEndpoints.saveItem(item),
-    onSuccess: () => {
-      // Invalidate all items queries across the ecosystem (Rule 1)
+    onSuccess: (saved) => {
+      queryClient.setQueriesData({ queryKey: ['items'] }, (old: any) => {
+        if (!old) return old;
+        if (Array.isArray(old)) {
+          const exists = old.some((i: any) => i.code === saved.code);
+          return exists ? old.map((i: any) => (i.code === saved.code ? saved : i)) : [saved, ...old];
+        }
+        if (old.items && Array.isArray(old.items)) {
+          const exists = old.items.some((i: any) => i.code === saved.code);
+          return {
+            ...old,
+            items: exists ? old.items.map((i: any) => (i.code === saved.code ? saved : i)) : [saved, ...old.items],
+          };
+        }
+        return old;
+      });
       queryClient.invalidateQueries({ queryKey: ['items'] });
     },
   });
 
-  // 3. Delete Item Mutation
+  // 3. Delete Item Mutation with Immediate Representation Cache Eviction
   const deleteMutation = useMutation({
     mutationFn: (code: string) => itemEndpoints.deleteItem(code),
-    onSuccess: () => {
+    onSuccess: (_, code) => {
+      queryClient.setQueriesData({ queryKey: ['items'] }, (old: any) => {
+        if (!old) return old;
+        if (Array.isArray(old)) {
+          return old.filter((i: any) => i.code !== code);
+        }
+        if (old.items && Array.isArray(old.items)) {
+          return {
+            ...old,
+            items: old.items.filter((i: any) => i.code !== code),
+            totalCount: Math.max(0, (old.totalCount || 1) - 1),
+          };
+        }
+        return old;
+      });
       queryClient.invalidateQueries({ queryKey: ['items'] });
     },
   });

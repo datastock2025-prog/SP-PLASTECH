@@ -88,8 +88,15 @@ export function useSaveItem() {
       return mapDbRowToItemMaster(savedDto, item);
     },
     onSuccess: (savedItem) => {
-      queryClient.invalidateQueries({ queryKey: ['masterData'] });
-      queryClient.invalidateQueries({ queryKey: ['items'] });
+      // 1. Immediately hydrate TanStack Query cache with the returned representation (Eliminates Race Condition & Flicker)
+      queryClient.setQueriesData({ queryKey: ['masterData', 'items'] }, (old: ItemMaster[] | undefined) => {
+        if (!old || !Array.isArray(old)) return [savedItem];
+        const exists = old.some((i) => i.code === savedItem.code || (savedItem.id && i.id === savedItem.id));
+        return exists
+          ? old.map((i) => (i.code === savedItem.code || (savedItem.id && i.id === savedItem.id) ? savedItem : i))
+          : [savedItem, ...old];
+      });
+      queryClient.setQueriesData({ queryKey: ['masterData', 'itemDetail', savedItem.code] }, savedItem);
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       broadcastLocalMutation('ITEMS', 'UPDATE', savedItem);
     },
@@ -103,8 +110,11 @@ export function useDeleteItem() {
       return await itemEndpoints.deleteItem(code);
     },
     onSuccess: (_, code) => {
-      queryClient.invalidateQueries({ queryKey: ['masterData'] });
-      queryClient.invalidateQueries({ queryKey: ['items'] });
+      // 1. Immediately remove from TanStack Query cache (Zero Stale Flicker)
+      queryClient.setQueriesData({ queryKey: ['masterData', 'items'] }, (old: ItemMaster[] | undefined) => {
+        if (!old || !Array.isArray(old)) return [];
+        return old.filter((i) => i.code !== code);
+      });
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       broadcastLocalMutation('ITEMS', 'DELETE', { code });
     },
@@ -133,8 +143,12 @@ export function useApproveItem() {
       return mapDbRowToItemMaster(savedDto, approved);
     },
     onSuccess: (approvedItem) => {
-      queryClient.invalidateQueries({ queryKey: ['masterData'] });
-      queryClient.invalidateQueries({ queryKey: ['items'] });
+      // 1. Direct representation cache write
+      queryClient.setQueriesData({ queryKey: ['masterData', 'items'] }, (old: ItemMaster[] | undefined) => {
+        if (!old || !Array.isArray(old)) return [approvedItem];
+        return old.map((i) => (i.code === approvedItem.code ? approvedItem : i));
+      });
+      queryClient.setQueriesData({ queryKey: ['masterData', 'itemDetail', approvedItem.code] }, approvedItem);
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       broadcastLocalMutation('ITEMS', 'UPDATE', approvedItem);
     },
@@ -163,8 +177,12 @@ export function useRejectItem() {
       return mapDbRowToItemMaster(savedDto, rejected);
     },
     onSuccess: (rejectedItem) => {
-      queryClient.invalidateQueries({ queryKey: ['masterData'] });
-      queryClient.invalidateQueries({ queryKey: ['items'] });
+      // 1. Direct representation cache write
+      queryClient.setQueriesData({ queryKey: ['masterData', 'items'] }, (old: ItemMaster[] | undefined) => {
+        if (!old || !Array.isArray(old)) return [rejectedItem];
+        return old.map((i) => (i.code === rejectedItem.code ? rejectedItem : i));
+      });
+      queryClient.setQueriesData({ queryKey: ['masterData', 'itemDetail', rejectedItem.code] }, rejectedItem);
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       broadcastLocalMutation('ITEMS', 'UPDATE', rejectedItem);
     },
