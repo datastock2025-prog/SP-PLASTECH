@@ -26,10 +26,24 @@ export default defineConfig({
       },
     },
   ],
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://127.0.0.1:3000',
-    reuseExistingServer: true,
-    timeout: 120 * 1000,
-  },
+  globalSetup: './e2e/global-setup.ts',
+  webServer: [
+    {
+      command: 'npm run dev',
+      url: 'http://127.0.0.1:3000',
+      reuseExistingServer: true,
+      timeout: 120 * 1000,
+    },
+    {
+      command: 'npm run start',
+      cwd: './auth-server',
+      port: 4000,
+      reuseExistingServer: true,
+      timeout: 180 * 1000,
+      env: {
+        BOOTSTRAP_ADMIN_EMAIL: 'admin@spplastech.com',
+        BOOTSTRAP_ADMIN_PASSWORD: 'Plas!Tech#Boot91',
+      },
+    },
+  ],
 });

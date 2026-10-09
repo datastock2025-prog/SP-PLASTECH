@@ -115,6 +115,9 @@ jobs:
       - name: Install Playwright Chromium Browser & OS Dependencies
         run: npx playwright install --with-deps chromium
 
+      - name: Install Auth Server Dependencies
+        run: npm ci --prefix auth-server
+
       - name: Run Playwright E2E Suite
         run: npm run test:e2e
         env:
