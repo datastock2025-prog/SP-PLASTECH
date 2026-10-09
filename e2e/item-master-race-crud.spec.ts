@@ -22,6 +22,34 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
       const request = route.request();
       const requestUrl = new URL(request.url());
 
+      const matchingItems = () => {
+        const codeFilter = requestUrl.searchParams.get('code');
+        const exactCode = codeFilter?.startsWith('eq.') ? codeFilter.slice(3) : null;
+        const searchFilter = requestUrl.searchParams.get('or') || '';
+        const searchMatch = searchFilter.match(/code\.ilike\.%([^%]+)%/i);
+        const search = searchMatch?.[1]?.toLowerCase();
+
+        return [...testItems.values()].filter((item) => {
+          if (exactCode && item.code !== exactCode) return false;
+          if (!search) return true;
+          return [item.code, item.name, item.category, item.resin_type, item.mold_code]
+            .some((value) => String(value || '').toLowerCase().includes(search));
+        });
+      };
+
+      if (request.method() === 'HEAD') {
+        const total = matchingItems().length;
+        await route.fulfill({
+          status: 200,
+          headers: {
+            'content-range': `0-${Math.max(0, total - 1)}/${total}`,
+            'access-control-expose-headers': 'Content-Range',
+          },
+          body: '',
+        });
+        return;
+      }
+
       if (request.method() === 'POST') {
         const payload = request.postDataJSON() as Record<string, unknown>;
         const code = String(payload.code);
@@ -39,10 +67,15 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
       }
 
       if (request.method() === 'GET') {
-        const codeFilter = requestUrl.searchParams.get('code');
-        const code = codeFilter?.startsWith('eq.') ? codeFilter.slice(3) : null;
-        const rows = [...testItems.values()].filter((item) => !code || item.code === code);
-        await route.fulfill({ status: 200, json: rows });
+        const rows = matchingItems();
+        const offset = Number(requestUrl.searchParams.get('offset') || 0);
+        const limit = Number(requestUrl.searchParams.get('limit') || 25);
+        const pageRows = rows.slice(offset, offset + limit);
+        await route.fulfill({
+          status: 200,
+          headers: { 'content-range': `${offset}-${offset + pageRows.length - 1}/${rows.length}` },
+          json: pageRows,
+        });
         return;
       }
 

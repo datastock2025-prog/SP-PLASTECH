@@ -1,4 +1,22 @@
 import React, { useState, useEffect } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import {
   ShieldAlert,
   Search,
@@ -206,59 +224,68 @@ export const AdminAuditLogsView: React.FC<AdminAuditLogsViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="min-w-0 space-y-4 pb-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-        <div>
+      <Card className="rounded-md border-slate-200 shadow-none">
+        <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold uppercase tracking-wider">
             <ShieldAlert className="w-4 h-4 text-[#0F8B8D]" />
             <span>Immutable Regulatory Audit Trail &bull; 100% Live DB Connected</span>
           </div>
-          <h1 className="text-xl font-bold text-slate-900 mt-1">System Audit Logs &amp; Forensics</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <h2 className="mt-1 text-lg font-semibold text-slate-900">System Audit Logs &amp; Forensics</h2>
+          <p className="mt-1 max-w-3xl text-sm text-slate-500">
             Non-repudiation live audit trail recording every state modification, financial sign-off, machine change, permission shift, and security event.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
+        <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
             onClick={() => {
               setLogs(loadLiveAuditLogs());
               showToast('Refreshed live audit trail from database.');
             }}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
+            <RefreshCw aria-hidden="true" />
             Refresh
-          </button>
-          <button
+          </Button>
+          <Button
+            type="button"
+            size="sm"
             onClick={handleExportCsv}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-[#0F8B8D] hover:bg-[#0c7274] rounded-lg shadow-sm transition-colors cursor-pointer"
+            className="bg-teal-700 text-white hover:bg-teal-800"
           >
-            <Download className="w-4 h-4" />
+            <Download aria-hidden="true" />
             Export Audit Trail (CSV)
-          </button>
+          </Button>
         </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row gap-3 items-center justify-between">
-        <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
+      <Card className="rounded-md border-slate-200 shadow-none">
+        <CardContent className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+        <div className="relative w-full sm:max-w-xs">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+          <Input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search audit trail by user, entity, IP, description..."
-            className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
+            aria-label="Search audit trail"
+            className="h-10 pl-9 text-sm"
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 md:w-auto md:min-w-[24rem]">
           <select
             value={selectedModule}
             onChange={(e) => setSelectedModule(e.target.value)}
-            className="text-xs py-2 px-3 rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none"
+            aria-label="Filter by module"
+            className="h-10 min-w-0 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700"
           >
             <option value="ALL">All Modules</option>
             <option value="Manufacturing & MES">Manufacturing &amp; MES</option>
@@ -273,7 +300,8 @@ export const AdminAuditLogsView: React.FC<AdminAuditLogsViewProps> = ({
           <select
             value={selectedAction}
             onChange={(e) => setSelectedAction(e.target.value)}
-            className="text-xs py-2 px-3 rounded-lg border border-slate-300 bg-white text-slate-700 focus:outline-none"
+            aria-label="Filter by action"
+            className="h-10 min-w-0 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700"
           >
             <option value="ALL">All Actions</option>
             <option value="CREATE">CREATE</option>
@@ -284,113 +312,117 @@ export const AdminAuditLogsView: React.FC<AdminAuditLogsViewProps> = ({
             <option value="LOGIN">LOGIN</option>
           </select>
         </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Logs Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider">
-              <tr>
-                <th className="py-3 px-4">Timestamp (IST)</th>
-                <th className="py-3 px-4">Actor</th>
-                <th className="py-3 px-4">Action</th>
-                <th className="py-3 px-4">Target Entity</th>
-                <th className="py-3 px-4">Description</th>
-                <th className="py-3 px-4">Origin IP</th>
-                <th className="py-3 px-4 text-center">Status</th>
-                <th className="py-3 px-4 text-right">Inspection</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredLogs.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
-                    <Activity className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                    <p className="font-semibold text-slate-600">No live audit events found</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      All system state changes and admin actions are recorded in real-time.
-                    </p>
-                  </td>
-                </tr>
-              ) : (
-                filteredLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3 px-4 font-mono text-[11px] text-slate-600 whitespace-nowrap">
-                      {log.timestamp}
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <div className="font-bold text-slate-900">{log.userName}</div>
-                      <div className="text-[10px] text-slate-400">{log.userRole}</div>
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${getActionBadge(
-                          log.action
-                        )}`}
-                      >
-                        {log.action}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <div className="font-semibold text-slate-800">{log.resourceName || log.resourceId}</div>
-                      <div className="text-[10px] text-slate-400">
-                        {log.resourceType} &bull; <span className="font-mono">{log.resourceId}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-slate-700 max-w-xs truncate" title={log.description}>
-                      {log.description}
-                    </td>
-                    <td className="py-3 px-4 font-mono text-[11px] text-slate-500 whitespace-nowrap">
-                      {log.ipAddress}
-                    </td>
-                    <td className="py-3 px-4 text-center whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> OK
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right whitespace-nowrap">
-                      {log.changes && log.changes.length > 0 ? (
-                        <button
-                          onClick={() => setViewingDiffLog(log)}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-semibold transition-colors cursor-pointer"
-                        >
-                          <Eye className="w-3 h-3" /> Diff ({log.changes.length})
-                        </button>
-                      ) : (
-                        <span className="text-slate-300 text-[10px]">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      <Card className="overflow-hidden rounded-md border-slate-200 shadow-none">
+        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+          <h3 className="text-sm font-semibold text-slate-900">Audit events</h3>
+          <Badge variant="outline">{filteredLogs.length} records</Badge>
         </div>
+        <CardContent className="p-0">
+          <div className="space-y-3 p-3 md:hidden">
+            {filteredLogs.length === 0 && (
+              <div className="py-8 text-center text-sm text-slate-500">
+                <Activity className="mx-auto mb-2 size-6 text-slate-300" aria-hidden="true" />
+                <p className="font-medium text-slate-700">No live audit events found</p>
+                <p className="mt-1 text-xs text-slate-500">New system changes appear here as they are recorded.</p>
+              </div>
+            )}
+            {filteredLogs.map((log) => (
+              <article key={log.id} className="min-w-0 space-y-3 rounded-md border border-slate-200 p-3">
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h4 className="truncate text-sm font-semibold text-slate-900">{log.userName}</h4>
+                    <p className="truncate text-xs text-slate-500">{log.userRole} · {log.userEmail}</p>
+                  </div>
+                  <Badge variant="outline" className={`shrink-0 ${getActionBadge(log.action)}`}>{log.action}</Badge>
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2 border-t border-slate-100 pt-3 text-xs">
+                  <div className="min-w-0"><span className="block text-slate-400">Timestamp</span><time className="font-mono text-slate-700">{log.timestamp}</time></div>
+                  <div className="min-w-0"><span className="block text-slate-400">Origin IP</span><span className="break-all font-mono text-slate-700">{log.ipAddress}</span></div>
+                  <div className="min-w-0"><span className="block text-slate-400">Target</span><span className="break-words font-medium text-slate-800">{log.resourceName || log.resourceId}</span><span className="block break-all font-mono text-[10px] text-slate-400">{log.resourceType} · {log.resourceId}</span></div>
+                  <div className="min-w-0"><span className="block text-slate-400">Status</span><Badge variant="outline" className="mt-1 gap-1 border-emerald-200 bg-emerald-50 text-emerald-800"><CheckCircle2 aria-hidden="true" /> OK</Badge></div>
+                </div>
+                <p className="break-words border-t border-slate-100 pt-2 text-xs leading-5 text-slate-700">{log.description}</p>
+                {log.changes && log.changes.length > 0 && (
+                  <Button type="button" size="sm" variant="outline" onClick={() => setViewingDiffLog(log)} className="w-full">
+                    <Eye aria-hidden="true" /> Inspect {log.changes.length} changes
+                  </Button>
+                )}
+              </article>
+            ))}
+          </div>
 
-        <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 gap-2">
+          <div className="hidden overflow-x-auto md:block">
+            <Table className="min-w-[1050px] text-left text-xs">
+              <TableHeader className="bg-slate-50 text-slate-600">
+                <TableRow>
+                  <TableHead>Timestamp (IST)</TableHead>
+                  <TableHead>Actor</TableHead>
+                  <TableHead>Action</TableHead>
+                  <TableHead>Target Entity</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Origin IP</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
+                  <TableHead className="text-right">Inspection</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredLogs.length === 0 ? (
+                  <TableRow><TableCell colSpan={8} className="py-12 text-center text-slate-500">No live audit events found.</TableCell></TableRow>
+                ) : filteredLogs.map((log) => (
+                  <TableRow key={log.id} className="hover:bg-slate-50/80">
+                    <TableCell className="whitespace-nowrap font-mono text-slate-600">{log.timestamp}</TableCell>
+                    <TableCell><div className="font-semibold text-slate-900">{log.userName}</div><div className="text-xs text-slate-500">{log.userRole}</div></TableCell>
+                    <TableCell><Badge variant="outline" className={getActionBadge(log.action)}>{log.action}</Badge></TableCell>
+                    <TableCell><div className="font-medium text-slate-800">{log.resourceName || log.resourceId}</div><div className="text-xs text-slate-400">{log.resourceType} · <span className="font-mono">{log.resourceId}</span></div></TableCell>
+                    <TableCell className="max-w-xs truncate text-slate-700" title={log.description}>{log.description}</TableCell>
+                    <TableCell className="whitespace-nowrap font-mono text-slate-500">{log.ipAddress}</TableCell>
+                    <TableCell className="text-center"><Badge variant="outline" className="gap-1 border-emerald-200 bg-emerald-50 text-emerald-800"><CheckCircle2 aria-hidden="true" /> OK</Badge></TableCell>
+                    <TableCell className="text-right">
+                      {log.changes && log.changes.length > 0 ? (
+                        <Button type="button" size="sm" variant="outline" onClick={() => setViewingDiffLog(log)}>
+                          <Eye aria-hidden="true" /> Diff ({log.changes.length})
+                        </Button>
+                      ) : <span className="text-slate-300">—</span>}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+        <div className="flex flex-col gap-1 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <span>Displaying {filteredLogs.length} live immutable events from Database Ledger</span>
-          <span>Retention Window: 7 Years &bull; Cryptographic Hash: SHA-256</span>
+          <span>Retention Window: 7 Years · Cryptographic Hash: SHA-256</span>
         </div>
-      </div>
+      </Card>
 
       {/* Diff Inspection Modal */}
       {viewingDiffLog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-4">
+        <Dialog open={Boolean(viewingDiffLog)} onOpenChange={(open) => { if (!open) setViewingDiffLog(null); }}>
+          <DialogContent showCloseButton={false} className="max-h-[90dvh] max-w-lg overflow-y-auto border-slate-200 bg-white p-4 text-slate-900 sm:p-6">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-[#0F8B8D]" />
-                <h3 className="text-sm font-bold text-slate-900">
+                <FileText className="size-4 text-teal-700" aria-hidden="true" />
+                <DialogHeader>
+                <DialogTitle className="text-sm font-semibold text-slate-900">
                   State Mutation Diff — {viewingDiffLog.resourceId}
-                </h3>
+                </DialogTitle>
+                </DialogHeader>
               </div>
-              <button
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
                 onClick={() => setViewingDiffLog(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                aria-label="Close audit diff"
+                className="text-slate-500"
               >
-                &times;
-              </button>
+                <span aria-hidden="true">×</span>
+              </Button>
             </div>
 
             <div className="space-y-3">
@@ -399,17 +431,17 @@ export const AdminAuditLogsView: React.FC<AdminAuditLogsViewProps> = ({
                 <span className="font-mono text-slate-800">{viewingDiffLog.resourceName}</span>:
               </div>
 
-              <div className="bg-slate-50 rounded-xl border border-slate-200 divide-y divide-slate-200 overflow-hidden text-xs">
+              <div className="overflow-hidden rounded-md border border-slate-200 bg-slate-50 text-xs">
                 {viewingDiffLog.changes?.map((ch, idx) => (
-                  <div key={idx} className="p-3 space-y-1">
-                    <span className="font-mono font-bold text-[#0F8B8D] text-[11px]">{ch.field}</span>
-                    <div className="grid grid-cols-2 gap-2 text-[11px]">
-                      <div className="p-2 rounded bg-rose-50 text-rose-800 border border-rose-200 font-mono break-all">
-                        <span className="block text-[9px] uppercase font-bold text-rose-600 mb-0.5">Before</span>
+                  <div key={idx} className="space-y-2 border-b border-slate-200 p-3 last:border-b-0">
+                    <Badge variant="outline" className="font-mono text-teal-800">{ch.field}</Badge>
+                    <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+                      <div className="min-w-0 rounded-md border border-rose-200 bg-rose-50 p-2 font-mono text-rose-900 break-all">
+                        <span className="mb-1 block text-[10px] font-semibold uppercase text-rose-700">Before</span>
                         {ch.oldValue !== undefined && ch.oldValue !== null ? String(ch.oldValue) : '(empty)'}
                       </div>
-                      <div className="p-2 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono break-all">
-                        <span className="block text-[9px] uppercase font-bold text-emerald-600 mb-0.5">After</span>
+                      <div className="min-w-0 rounded-md border border-emerald-200 bg-emerald-50 p-2 font-mono text-emerald-900 break-all">
+                        <span className="mb-1 block text-[10px] font-semibold uppercase text-emerald-700">After</span>
                         {ch.newValue !== undefined && ch.newValue !== null ? String(ch.newValue) : '(empty)'}
                       </div>
                     </div>
@@ -419,15 +451,16 @@ export const AdminAuditLogsView: React.FC<AdminAuditLogsViewProps> = ({
             </div>
 
             <div className="flex justify-end pt-2">
-              <button
+              <Button
+                type="button"
+                variant="outline"
                 onClick={() => setViewingDiffLog(null)}
-                className="px-4 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 cursor-pointer"
               >
                 Close Inspector
-              </button>
+              </Button>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

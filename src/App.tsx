@@ -70,7 +70,8 @@ import {
   INITIAL_RMAS,
 } from './data/initialData';
 import { INITIAL_BOMS } from './modules/engineering';
-import { DEMO_USERS } from './modules/auth';
+import { useMe, useLogout, useSelectContext } from './features/identity/useIdentity';
+import { mapMeToAuthUser } from './features/identity/mapMe';
 
 // Domain Models & Shared Entities
 import {
@@ -94,12 +95,6 @@ import {
 // Session & Idle Timeout Configuration (30 minutes of inactivity)
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
-interface StoredAuthSession {
-  user: AuthUser;
-  plantId: string;
-  shiftId: string;
-  lastActiveTimestamp: number;
-}
 
 export interface NavHistoryEntry {
   view: string;
@@ -279,30 +274,18 @@ export const getScreenTitle = (view: string, params: any = {}): string => {
 };
 
 export const App: React.FC = () => {
-  // Task 1: Persistent Session with Inactivity/Idle Timeout Gate
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
-    try {
-      const raw = localStorage.getItem('reboot_auth_session');
-      if (raw) {
-        const session: StoredAuthSession = JSON.parse(raw);
-        if (session && session.user && session.lastActiveTimestamp) {
-          const elapsed = Date.now() - session.lastActiveTimestamp;
-          if (elapsed < IDLE_TIMEOUT_MS) {
-            // Valid session within idle timeout threshold
-            session.lastActiveTimestamp = Date.now();
-            localStorage.setItem('reboot_auth_session', JSON.stringify(session));
-            return session.user;
-          } else {
-            // Expired session due to inactivity
-            localStorage.removeItem('reboot_auth_session');
-          }
-        }
-      }
-    } catch {}
-    return null;
-  });
-
-  const [lastLoggedOutUser, setLastLoggedOutUser] = useState<AuthUser | null>(null);
+  // Session is server-side (HttpOnly cookie); the identity API is the single source of truth.
+  const meQuery = useMe();
+  const logoutMutation = useLogout();
+  const selectContextMutation = useSelectContext();
+  const me = meQuery.data ?? null;
+  const currentUser = useMemo<AuthUser | null>(
+    () => (me && !me.mustChangePassword && me.activePlantId ? mapMeToAuthUser(me) : null),
+    [me],
+  );
+  const setCurrentUser = (_u: AuthUser | null) => {
+    // Identity fields are owned by the server; profile edits go through the identity API and refresh /me.
+  };
 
   // Task 3: Current active navigation view & parameters persisted across browser refresh
   const [currentView, setCurrentView] = useState<string>(() => {
@@ -568,72 +551,40 @@ export const App: React.FC = () => {
     }, 3000);
   };
 
-  // Task 1: User Activity Tracker & Idle Session Expiry Daemon
+  // Idle session expiry (in-memory activity clock; the server session itself also expires)
   useEffect(() => {
     if (!currentUser) return;
 
-    const updateActivityTimestamp = () => {
-      try {
-        const raw = localStorage.getItem('reboot_auth_session');
-        if (raw) {
-          const session: StoredAuthSession = JSON.parse(raw);
-          session.lastActiveTimestamp = Date.now();
-          localStorage.setItem('reboot_auth_session', JSON.stringify(session));
-        }
-      } catch {}
-    };
-
-    let lastThrottledTime = 0;
+    let lastActive = Date.now();
     const handleUserActivity = () => {
-      const now = Date.now();
-      if (now - lastThrottledTime > 15000) { // Throttle writes to once every 15 seconds
-        lastThrottledTime = now;
-        updateActivityTimestamp();
-      }
+      lastActive = Date.now();
     };
 
     const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
     activityEvents.forEach((evt) => window.addEventListener(evt, handleUserActivity, { passive: true }));
 
-    // Periodic check for idle timeout (every 30 seconds)
     const idleCheckTimer = setInterval(() => {
-      try {
-        const raw = localStorage.getItem('reboot_auth_session');
-        if (raw) {
-          const session: StoredAuthSession = JSON.parse(raw);
-          const elapsed = Date.now() - (session.lastActiveTimestamp || 0);
-          if (elapsed >= IDLE_TIMEOUT_MS) {
-            // Idle timeout reached! Log out user
-            setLastLoggedOutUser(currentUser);
-            setCurrentUser(null);
-            localStorage.removeItem('reboot_auth_session');
-            showToast('🔒 Session timed out after 30 minutes of inactivity. Please log in again.');
-          }
-        }
-      } catch {}
+      if (Date.now() - lastActive >= IDLE_TIMEOUT_MS) {
+        logoutMutation.mutate();
+        showToast('🔒 Session timed out after 30 minutes of inactivity. Please log in again.');
+      }
     }, 30000);
 
     return () => {
       activityEvents.forEach((evt) => window.removeEventListener(evt, handleUserActivity));
       clearInterval(idleCheckTimer);
     };
-  }, [currentUser]);
+  }, [currentUser?.id]);
 
-  const handlePlantChange = (plantId: string, plantName: string) => {
-    if (currentUser) {
-      const updatedUser = { ...currentUser, plantId };
-      setCurrentUser(updatedUser);
-      try {
-        const raw = localStorage.getItem('reboot_auth_session');
-        if (raw) {
-          const session: StoredAuthSession = JSON.parse(raw);
-          session.user = updatedUser;
-          session.plantId = plantId;
-          session.lastActiveTimestamp = Date.now();
-          localStorage.setItem('reboot_auth_session', JSON.stringify(session));
-        }
-      } catch {}
-    }
+  const handlePlantChange = (plantId: string, _plantName: string) => {
+    if (!currentUser || !me) return;
+    selectContextMutation.mutate(
+      { plantId, shift: me.activeShift ?? 'General' },
+      {
+        onSuccess: () => showToast('Plant context switched'),
+        onError: (e) => showToast(`Cannot switch plant: ${(e as Error).message}`),
+      },
+    );
   };
 
   const isViewAuthorizedForRole = (canonicalRole: string, view: string): boolean => {
@@ -711,77 +662,17 @@ export const App: React.FC = () => {
     return false;
   };
 
-  const handleRoleChange = (newRole: string) => {
-    if (currentUser) {
-      const canonicalRole = normalizeRoleKey(newRole);
-      const updatedUser = { ...currentUser, role: newRole, roleType: canonicalRole as any };
-      setCurrentUser(updatedUser);
-      try {
-        const raw = localStorage.getItem('reboot_auth_session');
-        if (raw) {
-          const session: StoredAuthSession = JSON.parse(raw);
-          session.user = updatedUser;
-          session.lastActiveTimestamp = Date.now();
-          localStorage.setItem('reboot_auth_session', JSON.stringify(session));
-        }
-      } catch {}
-      const defaultLanding = ROLE_DEFAULT_VIEW[canonicalRole] || 'home';
-      if (!isViewAuthorizedForRole(canonicalRole, currentView)) {
-        handleNavigate(defaultLanding);
-      }
-      showToast(`Role switched to ${newRole}. Workspace screens authorized.`);
-    }
+  // Roles are assigned server-side by an administrator; the client cannot switch roles.
+  const handleRoleChange = (_newRole: string) => {
+    showToast('Roles are assigned by your administrator and cannot be switched here.');
   };
 
-  // Task 1: Login with session timestamp persistence
-  const handleLogin = (user: AuthUser, plantId: string, shiftId: string) => {
-    setCurrentUser(user);
-    try {
-      const sessionData: StoredAuthSession = {
-        user,
-        plantId,
-        shiftId,
-        lastActiveTimestamp: Date.now(),
-      };
-      localStorage.setItem('reboot_auth_session', JSON.stringify(sessionData));
-    } catch {}
-
-    const canonicalRole = normalizeRoleKey(user.role || user.roleType);
-    const savedActiveView = localStorage.getItem('reboot_active_view');
-    let targetView = ROLE_DEFAULT_VIEW[canonicalRole] || 'home';
-
-    if (savedActiveView && isViewAuthorizedForRole(canonicalRole, savedActiveView)) {
-      targetView = savedActiveView;
-    } else if (canonicalRole === 'admin') {
-      targetView = savedActiveView || 'home';
-    }
-
-    let savedParams = {};
-    try {
-      const raw = localStorage.getItem('reboot_view_params');
-      if (raw) savedParams = JSON.parse(raw);
-    } catch {}
-
-    handleNavigate(targetView, savedParams);
-    showToast(`Authenticated & Authorized as ${user.name} (${user.role}) — ${plantId}`);
-  };
-
-  // Task 1: Manual Logout clears session immediately
   const handleLogout = () => {
-    setLastLoggedOutUser(currentUser);
-    setCurrentUser(null);
-    try {
-      localStorage.removeItem('reboot_auth_session');
-    } catch {}
-    showToast('Terminal session locked / Signed out');
+    logoutMutation.mutate(undefined, { onSettled: () => showToast('Signed out') });
   };
 
   const handleSwitchUser = () => {
-    setLastLoggedOutUser(currentUser);
-    setCurrentUser(null);
-    try {
-      localStorage.removeItem('reboot_auth_session');
-    } catch {}
+    logoutMutation.mutate();
   };
 
   // Task 3: Navigation with history stack tracking & localStorage persistence
@@ -1467,10 +1358,18 @@ export const App: React.FC = () => {
   const lowStockCount = items.filter((i) => i.status === 'low').length;
   const openPOCount = purchaseOrders.filter((p) => p.status !== 'received').length;
 
+  if (meQuery.isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-sm text-slate-500">
+        Verifying session…
+      </div>
+    );
+  }
+
   if (!currentUser) {
     return (
       <AuthLayout>
-        <LoginScreen onLogin={handleLogin} lastLoggedOutUser={lastLoggedOutUser} />
+        <LoginScreen />
         {/* Toast Notification */}
         {toastMsg && (
           <div className="fixed bottom-5 right-5 z-50 bg-[#14213D] text-white px-4 py-2.5 rounded-lg shadow-xl text-xs font-semibold flex items-center gap-2.5 border border-white/10 animate-fade-in">

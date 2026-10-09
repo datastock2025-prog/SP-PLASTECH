@@ -21,6 +21,7 @@ import {
   adminUsers,
   adminRoles,
   companyProfile,
+  emptyCompanyProfile,
   numberingSequences,
   approvalWorkflows,
   systemParameters,
@@ -1313,7 +1314,7 @@ export const adminService = {
     if (raw) {
       try { return JSON.parse(raw); } catch {}
     }
-    return companyProfile;
+    return emptyCompanyProfile;
   },
 
   async updateCompanyProfile(profile: Partial<CompanyProfile>): Promise<CompanyProfile> {

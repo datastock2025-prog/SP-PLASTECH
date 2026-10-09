@@ -32,3 +32,7 @@ coverage/
 Thumbs.db
 .vscode/
 .idea/
+
+# Auth server local data/secrets
+auth-server/.pgdata/
+auth-server/.dev-secret

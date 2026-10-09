@@ -1,16 +1,21 @@
 import React, { useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import {
   ArrowUpDown,
-  Upload,
+  CheckCircle2,
   Download,
   FileSpreadsheet,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
-  RefreshCw,
-  Plus,
-  Search,
-  FileText,
+  Upload,
 } from 'lucide-react';
 import { DataExchangeJob, dataExchangeJobs } from '../../data/adminExtendedData';
 
@@ -51,13 +56,9 @@ export const AdminDataImportExportView: React.FC<AdminDataImportExportViewProps>
     },
   ];
 
-  const handleTriggerExport = (jobTitle: string) => {
-    showToast(`Initiated background export task for: ${jobTitle}.`);
-  };
-
-  const handleUploadFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
+  const handleUploadFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      const file = event.target.files[0];
       const newJob: DataExchangeJob = {
         id: `JOB-IMP-${Date.now().toString().slice(-4)}`,
         jobName: `Manual Import: ${file.name}`,
@@ -77,140 +78,152 @@ export const AdminDataImportExportView: React.FC<AdminDataImportExportViewProps>
     }
   };
 
+  const handleDownloadJob = (jobName: string) => {
+    showToast(`Downloaded data artifact for ${jobName}.`);
+  };
+
   return (
-    <div className="space-y-6 pb-12">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-        <div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold uppercase tracking-wider">
-            <ArrowUpDown className="w-4 h-4 text-[#0F8B8D]" />
-            <span>Data Ingestion &amp; Batch Interchange Hub</span>
+    <div className="min-w-0 space-y-4 pb-8">
+      <Card className="rounded-md border-slate-200 shadow-none">
+        <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <ArrowUpDown className="size-4 text-teal-700" aria-hidden="true" />
+              Data Ingestion &amp; Batch Interchange Hub
+            </div>
+            <h2 className="mt-1 text-lg font-semibold text-slate-900">Data Import / Export Center</h2>
+            <p className="mt-1 max-w-3xl text-sm text-slate-500">
+              Execute batch migrations, import polymer recipe sheets, and export statutory GST tax ledgers and machine OEE history.
+            </p>
           </div>
-          <h1 className="text-xl font-bold text-slate-900 mt-1">Data Import / Export Center Screen</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Execute batch migrations, import polymer recipe sheets, and export statutory GST tax ledgers and machine OEE history.
-          </p>
-        </div>
+          <Button asChild className="w-full shrink-0 bg-teal-700 text-white hover:bg-teal-800 sm:w-auto">
+            <label className="cursor-pointer">
+              <Upload aria-hidden="true" />
+              Upload Batch File
+              <input type="file" onChange={handleUploadFile} className="sr-only" accept=".csv,.xlsx,.json" />
+            </label>
+          </Button>
+        </CardContent>
+      </Card>
 
-        <div className="flex items-center gap-2">
-          <label className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#0F8B8D] hover:bg-[#0c7274] rounded-lg shadow-sm transition-colors cursor-pointer">
-            <Upload className="w-3.5 h-3.5" />
-            <span>Upload Batch File</span>
-            <input type="file" onChange={handleUploadFile} className="hidden" accept=".csv,.xlsx,.json" />
-          </label>
+      <div className="min-w-0 overflow-x-auto border-b border-slate-200 pb-2">
+        <div className="flex min-w-max items-center gap-1.5">
+          <Button
+            type="button"
+            size="sm"
+            variant={activeTab === 'JOB_HISTORY' ? 'secondary' : 'ghost'}
+            aria-pressed={activeTab === 'JOB_HISTORY'}
+            onClick={() => setActiveTab('JOB_HISTORY')}
+            className={activeTab === 'JOB_HISTORY' ? 'bg-teal-50 text-teal-800 hover:bg-teal-50' : 'text-slate-600'}
+          >
+            Batch Job History <Badge variant="outline">{jobs.length}</Badge>
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={activeTab === 'TEMPLATES' ? 'secondary' : 'ghost'}
+            aria-pressed={activeTab === 'TEMPLATES'}
+            onClick={() => setActiveTab('TEMPLATES')}
+            className={activeTab === 'TEMPLATES' ? 'bg-teal-50 text-teal-800 hover:bg-teal-50' : 'text-slate-600'}
+          >
+            Standard Import Templates <Badge variant="outline">{templates.length}</Badge>
+          </Button>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-        <button
-          onClick={() => setActiveTab('JOB_HISTORY')}
-          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
-            activeTab === 'JOB_HISTORY' ? 'bg-[#0F8B8D] text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          Batch Job History ({jobs.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('TEMPLATES')}
-          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
-            activeTab === 'TEMPLATES' ? 'bg-[#0F8B8D] text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          Standard Import Templates ({templates.length})
-        </button>
-      </div>
-
-      {/* Job History Table */}
       {activeTab === 'JOB_HISTORY' && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider text-[10px] font-bold">
-              <tr>
-                <th className="py-3 px-4">Operation</th>
-                <th className="py-3 px-4">Job Title &amp; Entity</th>
-                <th className="py-3 px-4">Format</th>
-                <th className="py-3 px-4">Records Processed</th>
-                <th className="py-3 px-4">Started At</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Result Artifact</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
+        <Card className="overflow-hidden rounded-md border-slate-200 shadow-none">
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+            <h3 className="text-sm font-semibold text-slate-900">Batch jobs</h3>
+            <Badge variant="outline">{jobs.length} jobs</Badge>
+          </div>
+          <CardContent className="p-0">
+            <div className="space-y-3 p-3 md:hidden">
+              {jobs.length === 0 && <p className="py-8 text-center text-sm text-slate-500">No import/export jobs recorded.</p>}
               {jobs.map((job) => (
-                <tr key={job.id} className="hover:bg-slate-50/80">
-                  <td className="py-3 px-4">
-                    <span
-                      className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded ${
-                        job.type === 'IMPORT' ? 'bg-indigo-50 text-indigo-700' : 'bg-teal-50 text-[#0F8B8D]'
-                      }`}
-                    >
-                      {job.type}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4">
-                    <div className="font-bold text-slate-900">{job.jobName}</div>
-                    <div className="text-[11px] text-slate-500">{job.entity}</div>
-                  </td>
-                  <td className="py-3 px-4 font-mono text-slate-700 font-semibold">{job.fileFormat}</td>
-                  <td className="py-3 px-4 font-mono">
-                    <span className="text-emerald-700 font-bold">{job.successCount} ok</span>
-                    {job.errorCount > 0 && <span className="text-rose-600 font-bold ml-1.5">({job.errorCount} err)</span>}
-                    <span className="text-slate-400 text-[10px] ml-1">of {job.totalRecords}</span>
-                  </td>
-                  <td className="py-3 px-4 text-slate-600">{job.startedAt}</td>
-                  <td className="py-3 px-4">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      {job.status}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <button
-                      onClick={() => showToast(`Downloaded data artifact for ${job.jobName}.`)}
-                      className="flex items-center gap-1 text-xs font-semibold text-[#0F8B8D] hover:underline ml-auto"
-                    >
-                      <Download className="w-3.5 h-3.5" /> Download
-                    </button>
-                  </td>
-                </tr>
+                <article key={job.id} className="min-w-0 space-y-3 rounded-md border border-slate-200 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <h4 className="break-words text-sm font-semibold text-slate-900">{job.jobName}</h4>
+                      <p className="mt-0.5 text-xs text-slate-500">{job.entity}</p>
+                    </div>
+                    <Badge variant={job.type === 'IMPORT' ? 'secondary' : 'outline'} className={job.type === 'IMPORT' ? 'shrink-0 bg-indigo-50 text-indigo-800' : 'shrink-0 border-teal-200 bg-teal-50 text-teal-800'}>{job.type}</Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 text-xs">
+                    <div><span className="block text-slate-400">Format</span><span className="font-mono text-slate-700">{job.fileFormat}</span></div>
+                    <div><span className="block text-slate-400">Started</span><span className="text-slate-700">{job.startedAt}</span></div>
+                    <div className="col-span-2"><span className="block text-slate-400">Records processed</span><span className="font-mono"><strong className="text-emerald-700">{job.successCount} ok</strong>{job.errorCount > 0 && <strong className="ml-1.5 text-rose-700">({job.errorCount} err)</strong>}<span className="ml-1 text-slate-400">of {job.totalRecords}</span></span></div>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-slate-100 pt-2">
+                    <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800">{job.status}</Badge>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => handleDownloadJob(job.jobName)} className="text-teal-800">
+                      <Download aria-hidden="true" /> Download
+                    </Button>
+                  </div>
+                </article>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </div>
+            <div className="hidden overflow-x-auto md:block">
+              <Table className="min-w-[900px] text-left text-xs">
+                <TableHeader className="bg-slate-50 text-slate-500">
+                  <TableRow>
+                    <TableHead>Operation</TableHead>
+                    <TableHead>Job Title &amp; Entity</TableHead>
+                    <TableHead>Format</TableHead>
+                    <TableHead>Records Processed</TableHead>
+                    <TableHead>Started At</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Result Artifact</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {jobs.length === 0 && <TableRow><TableCell colSpan={7} className="py-10 text-center text-slate-500">No import/export jobs recorded.</TableCell></TableRow>}
+                  {jobs.map((job) => (
+                    <TableRow key={job.id} className="hover:bg-slate-50/80">
+                      <TableCell><Badge variant={job.type === 'IMPORT' ? 'secondary' : 'outline'} className={job.type === 'IMPORT' ? 'bg-indigo-50 text-indigo-800' : 'border-teal-200 bg-teal-50 text-teal-800'}>{job.type}</Badge></TableCell>
+                      <TableCell><div className="font-semibold text-slate-900">{job.jobName}</div><div className="text-xs text-slate-500">{job.entity}</div></TableCell>
+                      <TableCell className="font-mono font-medium text-slate-700">{job.fileFormat}</TableCell>
+                      <TableCell className="font-mono"><strong className="text-emerald-700">{job.successCount} ok</strong>{job.errorCount > 0 && <strong className="ml-1.5 text-rose-700">({job.errorCount} err)</strong>}<span className="ml-1 text-slate-400">of {job.totalRecords}</span></TableCell>
+                      <TableCell className="text-slate-600">{job.startedAt}</TableCell>
+                      <TableCell><Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800">{job.status}</Badge></TableCell>
+                      <TableCell className="text-right"><Button type="button" variant="ghost" size="sm" onClick={() => handleDownloadJob(job.jobName)} className="text-teal-800"><Download aria-hidden="true" /> Download</Button></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+          <div className="flex flex-col gap-1 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+            <span>{jobs.length} import/export jobs</span>
+            <span>Supported import formats: CSV, XLSX, JSON</span>
+          </div>
+        </Card>
       )}
 
-      {/* Templates Grid */}
       {activeTab === 'TEMPLATES' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {templates.map((tpl) => (
-            <div
-              key={tpl.title}
-              className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between space-y-3 hover:border-slate-300 transition-all"
-            >
-              <div>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                    <h3 className="font-bold text-xs text-slate-900">{tpl.title}</h3>
+        <div className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-2">
+          {templates.map((template) => (
+            <Card key={template.title} className="min-w-0 rounded-md border-slate-200 shadow-none transition-shadow duration-150 hover:shadow-sm motion-reduce:transition-none">
+              <CardContent className="flex h-full flex-col justify-between gap-4 p-4 sm:p-5">
+                <div>
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-2">
+                      <FileSpreadsheet className="mt-0.5 size-4 shrink-0 text-emerald-700" aria-hidden="true" />
+                      <h3 className="break-words text-sm font-semibold text-slate-900">{template.title}</h3>
+                    </div>
+                    <Badge variant="outline" className="shrink-0 font-mono text-[10px]">{template.format}</Badge>
                   </div>
-                  <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
-                    {tpl.format}
-                  </span>
+                  <p className="mt-2 text-xs font-medium text-teal-800">{template.entity}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">{template.description}</p>
                 </div>
-                <div className="text-[11px] text-[#0F8B8D] font-medium mt-1">{tpl.entity}</div>
-                <p className="text-xs text-slate-600 mt-2 leading-relaxed">{tpl.description}</p>
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-[11px] text-slate-400">Header row validated</span>
-                <button
-                  onClick={() => showToast(`Downloaded standard import template: ${tpl.title}.`)}
-                  className="flex items-center gap-1 text-xs font-semibold text-[#0F8B8D] hover:underline"
-                >
-                  <Download className="w-3.5 h-3.5" /> Download Template
-                </button>
-              </div>
-            </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                  <Badge variant="outline" className="gap-1 text-slate-500"><CheckCircle2 aria-hidden="true" /> Header validated</Badge>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => showToast(`Downloaded standard import template: ${template.title}.`)} className="text-teal-800">
+                    <Download aria-hidden="true" /> Download Template
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}

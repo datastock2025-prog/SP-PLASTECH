@@ -21,9 +21,9 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { CompanyProfile, PlantDetails } from '../../types/admin';
-import { companyProfile } from '../../data/adminData';
-import { adminService, adminEventBus } from '../../services/adminService';
-import { useAdminCompanyProfile, useSaveAdminCompanyProfile, useAdminPlants, useSaveAdminPlant } from '../../hooks/useAdmin';
+import { emptyCompanyProfile as companyProfile } from '../../data/adminData';
+import { useAdminCompanyProfile, useSaveAdminCompanyProfile } from '../../hooks/useAdmin';
+import { usePlants, usePlantMutations } from '../../features/identity/useIdentity';
 
 interface AdminCompanyPlantsViewProps {
   showToast?: (msg: string) => void;
@@ -33,9 +33,19 @@ export const AdminCompanyPlantsView: React.FC<AdminCompanyPlantsViewProps> = ({
   showToast = (_msg: string) => {},
 }) => {
   const { data: serverProfile, isLoading: isProfileLoading } = useAdminCompanyProfile();
-  const { data: plants = [], isLoading: isPlantsLoading } = useAdminPlants();
+  const { data: dbPlants = [], isLoading: isPlantsLoading } = usePlants();
+  const plantMutations = usePlantMutations();
   const saveProfileMutation = useSaveAdminCompanyProfile();
-  const savePlantMutation = useSaveAdminPlant();
+
+  const plants = React.useMemo<PlantDetails[]>(() => dbPlants.map((p) => {
+    const [city = '', state = ''] = (p.location ?? '').split(',').map((s) => s.trim());
+    return {
+      id: p.id, plantCode: p.code, plantName: p.name, division: '', address: '', city, state, pincode: '', gstin: '',
+      contactPerson: '', contactEmail: '', contactPhone: '', totalMachines: 0, activeLines: 0, shifts: [],
+      defaultWarehouseId: '', defaultWarehouseName: '', isHeadquarters: false,
+      operationalStatus: p.isActive ? 'Fully Operational' : 'Offline',
+    };
+  }), [dbPlants]);
 
   const [profile, setProfile] = useState<CompanyProfile>(companyProfile);
   const [isEditingCompany, setIsEditingCompany] = useState(false);
@@ -44,11 +54,9 @@ export const AdminCompanyPlantsView: React.FC<AdminCompanyPlantsViewProps> = ({
   const [editingPlantId, setEditingPlantId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (serverProfile) {
-      const merged = { ...serverProfile, plants: plants.length > 0 ? plants : serverProfile.plants };
-      setProfile(merged);
-      setCompanyForm(merged);
-    }
+    const merged = { ...(serverProfile ?? companyProfile), plants };
+    setProfile(merged);
+    setCompanyForm(merged);
   }, [serverProfile, plants]);
 
   const [plantForm, setPlantForm] = useState<Partial<PlantDetails>>({
@@ -81,21 +89,21 @@ export const AdminCompanyPlantsView: React.FC<AdminCompanyPlantsViewProps> = ({
   const handleOpenCreatePlant = () => {
     setEditingPlantId(null);
     setPlantForm({
-      plantCode: `PLANT-0${profile.plants.length + 1}`,
+      plantCode: '',
       plantName: '',
-      division: 'Automotive & Technical Polymers',
+      division: '',
       address: '',
       city: '',
       state: '',
       pincode: '',
-      gstin: '33AABCR1234F1Z0',
+      gstin: '',
       contactPerson: '',
       contactEmail: '',
       contactPhone: '',
-      totalMachines: 6,
-      activeLines: 6,
-      shifts: ['Shift A (06:00-14:00)', 'Shift B (14:00-22:00)'],
-      defaultWarehouseName: 'Central Raw & Finished Goods Warehouse',
+      totalMachines: 0,
+      activeLines: 0,
+      shifts: [],
+      defaultWarehouseName: '',
       isHeadquarters: false,
       operationalStatus: 'Fully Operational',
     });
@@ -115,33 +123,40 @@ export const AdminCompanyPlantsView: React.FC<AdminCompanyPlantsViewProps> = ({
       return;
     }
 
-    if (editingPlantId) {
-      const updated = await adminService.updatePlant(editingPlantId, plantForm);
-      setProfile((prev) => ({
-        ...prev,
-        plants: prev.plants.map((p) => (p.id === editingPlantId ? updated : p)),
-      }));
-      showToast(`Manufacturing facility ${updated.plantName} updated in PostgreSQL database.`);
-    } else {
-      const created = await adminService.createPlant(plantForm);
-      setProfile((prev) => ({
-        ...prev,
-        plants: [...prev.plants, created],
-      }));
-      showToast(`Manufacturing facility ${created.plantName} registered and propagated to Topbar & Access matrix.`);
+    const location = [plantForm.city, plantForm.state].filter(Boolean).join(', ');
+    const code = (plantForm.plantCode ?? '').trim();
+    if (!code) {
+      showToast('Plant code is required.');
+      return;
     }
-    setIsPlantModalOpen(false);
+    try {
+      if (editingPlantId) {
+        const current = dbPlants.find((p) => p.id === editingPlantId);
+        if (!current) return;
+        await plantMutations.update.mutateAsync({
+          id: editingPlantId,
+          body: { version: current.version, code, name: plantForm.plantName!.trim(), location },
+        });
+        showToast(`Plant ${plantForm.plantName} updated.`);
+      } else {
+        const created = await plantMutations.create.mutateAsync({ code, name: plantForm.plantName!.trim(), location });
+        showToast(`Plant ${created.name} created. It is now available in user provisioning and the plant switcher.`);
+      }
+      setIsPlantModalOpen(false);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to save plant.');
+    }
   };
 
   const handleDeletePlant = async (plantId: string) => {
     const target = profile.plants.find((p) => p.id === plantId);
     if (!target) return;
-    await adminService.deletePlant(plantId);
-    setProfile((prev) => ({
-      ...prev,
-      plants: prev.plants.filter((p) => p.id !== plantId),
-    }));
-    showToast(`Plant facility ${target.plantName} decommissioned.`);
+    try {
+      await plantMutations.remove.mutateAsync(plantId);
+      showToast(`Plant ${target.plantName} removed.`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to remove plant.');
+    }
   };
 
   return (

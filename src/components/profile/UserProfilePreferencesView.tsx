@@ -34,7 +34,8 @@ import {
 } from 'lucide-react';
 import { AuthUser } from '../../types';
 import { GdprService } from '../../security/compliance/GdprService';
-import { adminService } from '../../services/adminService';
+import { useMe, useUpdateMe, usePreferences, useUpdatePreferences, useChangePassword } from '../../features/identity/useIdentity';
+import type { Me, Preferences } from '../../features/identity/types';
 
 export interface UserProfilePreferences {
   // Identity & Contact
@@ -94,7 +95,57 @@ interface Props {
   onUpdateUser?: (updated: AuthUser) => void;
 }
 
-const STORAGE_KEY = 'reboot_user_preferences_v1';
+const NOTIFY_KEYS = [
+  'channelInApp', 'channelDesktopPush', 'channelEmail', 'channelSms',
+  'notifyMachineBreakdowns', 'notifyQualityRejections', 'notifyStockoutRisks',
+  'notifyWorkOrderDelays', 'notifyApprovalRequests', 'notifyDailyDigest',
+  'soundAlertsEnabled', 'tableHoverHighlight',
+] as const;
+const DATE_FORMATS = ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'] as const;
+
+function identityFields(me: Me | null) {
+  const plant = me?.plants.find((p) => p.id === me.activePlantId);
+  return {
+    name: me?.fullName ?? '',
+    email: me?.email ?? '',
+    phone: me?.phone ?? '',
+    department: me?.department ?? '',
+    jobTitle: me?.designation ?? me?.roleName ?? '',
+    badgeId: me?.badgeId ?? '',
+    plantId: plant?.code ?? '',
+    plantName: plant ? `${plant.code} — ${plant.name}` : '',
+    shift: me?.activeShift ?? me?.assignedShift ?? '',
+  };
+}
+
+function prefsToForm(p: Preferences): Partial<UserProfilePreferences> {
+  const n = p.notifications;
+  const out: Record<string, unknown> = {
+    theme: p.theme === 'system' ? 'light' : p.theme,
+    uiDensity: p.density,
+    defaultLandingPage: p.landingView,
+    language: p.language,
+    timeZone: p.timezone,
+    dateFormat: p.dateFormat,
+  };
+  for (const k of NOTIFY_KEYS) if (typeof n[k] === 'boolean') out[k] = n[k];
+  return out as Partial<UserProfilePreferences>;
+}
+
+function formToPrefs(f: UserProfilePreferences, version: number) {
+  const notifications: Record<string, boolean> = {};
+  for (const k of NOTIFY_KEYS) notifications[k] = f[k];
+  return {
+    version,
+    theme: (f.theme === 'dark' ? 'dark' : 'light') as Preferences['theme'],
+    density: f.uiDensity,
+    landingView: f.defaultLandingPage,
+    language: f.language,
+    timezone: f.timeZone,
+    dateFormat: (DATE_FORMATS as readonly string[]).includes(f.dateFormat) ? (f.dateFormat as Preferences['dateFormat']) : 'DD/MM/YYYY',
+    notifications,
+  };
+}
 
 export const UserProfilePreferencesView: React.FC<Props> = ({
   currentUser,
@@ -106,45 +157,24 @@ export const UserProfilePreferencesView: React.FC<Props> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
-  // Initial state derived from currentUser + localStorage
-  const [prefs, setPrefs] = useState<UserProfilePreferences>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return {
-          ...parsed,
-          name: currentUser?.name || parsed.name || 'Priya Rao',
-          email: currentUser?.email || parsed.email || 'priya.rao@rebooterp.com',
-          department: currentUser?.department || parsed.department || 'Plant Operations',
-          jobTitle: currentUser?.role || parsed.jobTitle || 'Plant Operations Director',
-          badgeId: currentUser?.badgeId || parsed.badgeId || 'PLANT-001',
-          plantId: currentUser?.plantId || parsed.plantId || 'PLANT-01',
-          plantName: currentUser?.plantName || parsed.plantName || 'Plant 01: Injection Molding Unit',
-          shift: currentUser?.shift || parsed.shift || 'General Shift (08:00 - 17:00)',
-        };
-      } catch (e) {
-        console.error('Error loading preferences', e);
-      }
-    }
+  // Identity comes from the authenticated server session; preferences are hydrated from the API below.
+  const meQuery = useMe();
+  const prefsQuery = usePreferences();
+  const updateMe = useUpdateMe();
+  const updatePrefs = useUpdatePreferences();
+  const changePassword = useChangePassword();
+  const me = meQuery.data ?? null;
 
+  const [prefs, setPrefs] = useState<UserProfilePreferences>(() => {
     return {
-      name: currentUser?.name || 'Priya Rao',
-      email: currentUser?.email || 'priya.rao@rebooterp.com',
-      phone: '+91 98765 43210',
-      department: currentUser?.department || 'Plant Operations',
-      jobTitle: currentUser?.role || 'Plant Operations Director',
-      badgeId: currentUser?.badgeId || 'PLANT-001',
-      plantId: currentUser?.plantId || 'PLANT-01',
-      plantName: currentUser?.plantName || 'Plant 01: Injection Molding Unit',
-      shift: currentUser?.shift || 'General Shift (08:00 - 17:00)',
-      managerName: 'K. Rajagopal (VP Operations)',
-      emergencyContact: 'S. Rao (Spouse)',
-      emergencyPhone: '+91 98765 00112',
-      bio: 'Operations lead managing polymer injection molding lines, quality gate enforcement, and production scheduling.',
+      ...identityFields(me),
+      managerName: '',
+      emergencyContact: '',
+      emergencyPhone: '',
+      bio: '',
 
       defaultLandingPage: 'home',
-      theme: (localStorage.getItem('sp_theme') as any) || 'light',
+      theme: 'light',
       accentColor: '#0F8B8D',
       uiDensity: 'comfortable',
       defaultPageSize: 25,
@@ -170,64 +200,65 @@ export const UserProfilePreferencesView: React.FC<Props> = ({
       notifyApprovalRequests: true,
       notifyDailyDigest: true,
 
-      mfaEnabled: true,
+      mfaEnabled: false,
       mfaMethod: 'TOTP',
     };
   });
+
+  const meVersion = me?.version;
+  useEffect(() => {
+    if (me) setPrefs((p) => ({ ...p, ...identityFields(me) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meVersion, me?.activePlantId, me?.activeShift]);
+
+  const prefsVersion = prefsQuery.data?.version;
+  useEffect(() => {
+    if (prefsQuery.data) setPrefs((p) => ({ ...p, ...prefsToForm(prefsQuery.data) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefsVersion]);
 
   // Password Change state
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // Active Sessions Mock Data
-  const [sessions, setSessions] = useState([
+  // Only the current browser session is known to the server.
+  const sessions = [
     {
-      id: 'sess-1',
-      device: 'Desktop Chrome / Windows 11',
-      ip: '103.21.144.68 (Corporate VPN)',
-      location: 'Bengaluru, India',
+      id: 'current',
+      device: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 80) : 'This device',
+      ip: 'Current connection',
+      location: prefs.plantName || '—',
       lastActive: 'Active Now (Current Session)',
       isCurrent: true,
       icon: Laptop,
     },
-    {
-      id: 'sess-2',
-      device: 'Shop Floor Rugged Tablet / Android 14',
-      ip: '192.168.10.45 (Plant 01 Wi-Fi)',
-      location: 'Hosur Plant Lab',
-      lastActive: '42 mins ago',
-      isCurrent: false,
-      icon: Smartphone,
-    },
-  ]);
+  ];
 
-  const handleSaveAll = () => {
-    setIsSaving(true);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
-    localStorage.setItem('sp_theme', prefs.theme);
-    window.dispatchEvent(new CustomEvent('sp_theme_changed', { detail: prefs.theme }));
-
-    // Update parent currentUser if callback provided
-    if (currentUser && onUpdateUser) {
-      onUpdateUser({
-        ...currentUser,
-        name: prefs.name,
-        email: prefs.email,
-        department: prefs.department,
-        role: prefs.jobTitle,
-        plantId: prefs.plantId,
-        plantName: prefs.plantName,
-        shift: prefs.shift,
-      });
+  const handleSaveAll = async () => {
+    if (!me || !prefsQuery.data) {
+      showToast('⚠ Profile is still loading. Try again in a moment.');
+      return;
     }
-
-    setTimeout(() => {
-      setIsSaving(false);
+    setIsSaving(true);
+    try {
+      await updateMe.mutateAsync({
+        version: me.version,
+        fullName: prefs.name.trim(),
+        phone: prefs.phone.trim() || null,
+        department: prefs.department.trim() || null,
+        designation: prefs.jobTitle.trim() || null,
+      });
+      await updatePrefs.mutateAsync(formToPrefs(prefs, prefsQuery.data.version));
+      window.dispatchEvent(new CustomEvent('sp_theme_changed', { detail: prefs.theme }));
       setSavedSuccess(true);
       showToast('✓ Profile information and system preferences saved successfully!');
       setTimeout(() => setSavedSuccess(false), 3000);
-    }, 400);
+    } catch (err) {
+      showToast(`⚠ ${err instanceof Error ? err.message : 'Save failed'}`);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
@@ -246,24 +277,18 @@ export const UserProfilePreferencesView: React.FC<Props> = ({
     }
 
     try {
-      const userIdentifier = currentUser?.id || currentUser?.email || prefs.email || prefs.name;
-      const res = await adminService.updateUserPasswordFromProfile(userIdentifier, oldPassword, newPassword);
-      if (res.success) {
-        setOldPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
-        showToast(`✓ ${res.message}`);
-      } else {
-        showToast(`⚠ ${res.message}`);
-      }
-    } catch {
-      showToast('✓ Password updated successfully. Authenticated on all active devices.');
+      await changePassword.mutateAsync({ currentPassword: oldPassword, newPassword });
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      showToast('✓ Password updated successfully.');
+    } catch (err) {
+      showToast(`⚠ ${err instanceof Error ? err.message : 'Password change failed'}`);
     }
   };
 
-  const handleRevokeSession = (sessionId: string) => {
-    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
-    showToast('Session terminated and logged out.');
+  const handleRevokeSession = (_sessionId: string) => {
+    showToast('Only the current session is tracked by the server.');
   };
 
   const handleExportMyData = () => {
@@ -454,17 +479,13 @@ export const UserProfilePreferencesView: React.FC<Props> = ({
                   <label className="block font-semibold text-slate-700 mb-1">Primary Plant / Facility</label>
                   <select
                     value={prefs.plantId}
-                    onChange={(e) => {
-                      const id = e.target.value;
-                      const name = id === 'PLANT-01' ? 'Plant 01: Injection Molding Unit' : id === 'PLANT-02' ? 'Plant 02: Extrusion & Pipe Unit' : id === 'PLANT-03' ? 'Plant 03: Blow Molding Unit' : 'Corporate Headquarters';
-                      setPrefs({ ...prefs, plantId: id, plantName: name });
-                    }}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                    disabled
+                    title="Plant assignment is managed by an administrator"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-slate-50 text-slate-600"
                   >
-                    <option value="PLANT-01">Plant 01: Injection Molding Unit (Hosur)</option>
-                    <option value="PLANT-02">Plant 02: Extrusion &amp; Pipe Unit (Manesar)</option>
-                    <option value="PLANT-03">Plant 03: Blow Molding Unit (Pune)</option>
-                    <option value="CORP-HQ">Corporate Headquarters (Bengaluru)</option>
+                    {(meQuery.data?.plants ?? []).map((p) => (
+                      <option key={p.id} value={p.code}>{p.code} — {p.name}{p.location ? ` (${p.location})` : ''}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -930,7 +951,7 @@ export const UserProfilePreferencesView: React.FC<Props> = ({
                 </div>
                 <button
                   type="button"
-                  onClick={() => showToast('MFA configuration drawer opened.')}
+                  onClick={() => showToast('MFA is not enabled on this deployment yet.')}
                   className="px-3 py-1.5 rounded-lg border border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-900 text-xs font-semibold shadow-2xs transition-colors cursor-pointer shrink-0"
                 >
                   Reconfigure MFA
@@ -943,10 +964,7 @@ export const UserProfilePreferencesView: React.FC<Props> = ({
                   <label className="text-xs font-bold text-slate-700">Active Connected Sessions</label>
                   <button
                     type="button"
-                    onClick={() => {
-                      setSessions((prev) => prev.filter((s) => s.isCurrent));
-                      showToast('Terminated all remote sessions.');
-                    }}
+                    onClick={() => showToast('No other sessions are active for this account.')}
                     className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold cursor-pointer"
                   >
                     Terminate Other Sessions

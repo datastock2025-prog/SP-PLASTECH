@@ -421,17 +421,17 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
   };
 
   // Handle newly created item from wizard
-  const handleSaveCreatedItem = (newItem: ItemMaster) => {
-    itemService.saveItem(newItem).catch(console.warn);
-    setItemsList((prev) => [newItem, ...prev.filter((i) => i.code !== newItem.code)]);
+  const handleSaveCreatedItem = async (newItem: ItemMaster) => {
+    const persistedItem = await itemService.saveItem(newItem);
+    setItemsList((prev) => [persistedItem, ...prev.filter((i) => i.code !== persistedItem.code)]);
 
     if (activeCreatingItemLineIdx >= 0 && activeCreatingItemLineIdx < lines.length) {
-      handleSelectItem(activeCreatingItemLineIdx, newItem);
+      handleSelectItem(activeCreatingItemLineIdx, persistedItem);
     } else {
-      handleAddFromTopSearch(newItem);
+      handleAddFromTopSearch(persistedItem);
     }
     setIsCreateItemModalOpen(false);
-    showToast(`✓ Created & added new item: ${newItem.code} - ${newItem.name}`);
+    showToast(`✓ Created & added new item: ${persistedItem.code} - ${persistedItem.name}`);
   };
 
   // Save PR (Draft or Submit for Approval)

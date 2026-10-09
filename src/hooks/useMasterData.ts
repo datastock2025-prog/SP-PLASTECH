@@ -48,6 +48,33 @@ export function useItemCount() {
   });
 }
 
+export function useItemCatalogStats() {
+  return useQuery({
+    queryKey: ['masterData', 'itemCatalogStats'],
+    queryFn: async () => {
+      const [total, finishedGoods, pending, drafts, lowStock, active] = await Promise.all([
+        db.count('items'),
+        db.count('items', {
+          whereIn: {
+            entity_type: ['Finished Good', 'Semi-Finished Good', 'Finished Molded Component'],
+          },
+        }),
+        db.count('items', { where: { approval: 'pending' } }),
+        db.count('items', { where: { approval: 'draft' } }),
+        db.count('items', { where: { status: 'low' } }),
+        db.count('items', {
+          where: { status: 'active' },
+          whereIn: { approval: ['approved', 'released'] },
+        }),
+      ]);
+
+      return { total, finishedGoods, pending, drafts, lowStock, active };
+    },
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: true,
+  });
+}
+
 // Rule 2: Strict Paginated Items Query with Cursor / Offset parameters
 export function usePaginatedItems(params: {
   page?: number;
@@ -55,12 +82,14 @@ export function usePaginatedItems(params: {
   search?: string;
   category?: string;
   status?: string;
+  itemType?: string;
+  approval?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
 }) {
   return useQuery({
     queryKey: ['masterData', 'paginatedItems', params],
-    queryFn: async () => {
-      return await itemEndpoints.getItemsPaginated(params);
-    },
+    queryFn: async () => itemEndpoints.getItemsPaginated({ ...params, lean: false }),
     staleTime: 1000 * 60 * 5, // Rule 1: 5 minutes
     refetchOnWindowFocus: true, // Rule 1: refetch on focus
   });
@@ -97,6 +126,9 @@ export function useSaveItem() {
           : [savedItem, ...old];
       });
       queryClient.setQueriesData({ queryKey: ['masterData', 'itemDetail', savedItem.code] }, savedItem);
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'paginatedItems'] });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'itemCount'] });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'itemCatalogStats'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       broadcastLocalMutation('ITEMS', 'UPDATE', savedItem);
     },
@@ -115,6 +147,9 @@ export function useDeleteItem() {
         if (!old || !Array.isArray(old)) return [];
         return old.filter((i) => i.code !== code);
       });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'paginatedItems'] });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'itemCount'] });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'itemCatalogStats'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       broadcastLocalMutation('ITEMS', 'DELETE', { code });
     },
@@ -149,6 +184,9 @@ export function useApproveItem() {
         return old.map((i) => (i.code === approvedItem.code ? approvedItem : i));
       });
       queryClient.setQueriesData({ queryKey: ['masterData', 'itemDetail', approvedItem.code] }, approvedItem);
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'paginatedItems'] });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'itemCount'] });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'itemCatalogStats'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       broadcastLocalMutation('ITEMS', 'UPDATE', approvedItem);
     },
@@ -183,6 +221,9 @@ export function useRejectItem() {
         return old.map((i) => (i.code === rejectedItem.code ? rejectedItem : i));
       });
       queryClient.setQueriesData({ queryKey: ['masterData', 'itemDetail', rejectedItem.code] }, rejectedItem);
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'paginatedItems'] });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'itemCount'] });
+      queryClient.invalidateQueries({ queryKey: ['masterData', 'itemCatalogStats'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       broadcastLocalMutation('ITEMS', 'UPDATE', rejectedItem);
     },

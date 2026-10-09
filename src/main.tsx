@@ -9,15 +9,15 @@ import './index.css';
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <SecurityErrorBoundary>
-      <AuthProvider>
-        <TenantProvider>
-          <QueryProvider>
+      <QueryProvider>
+        <AuthProvider>
+          <TenantProvider>
             <BrowserRouter>
               <App />
             </BrowserRouter>
-          </QueryProvider>
-        </TenantProvider>
-      </AuthProvider>
+          </TenantProvider>
+        </AuthProvider>
+      </QueryProvider>
     </SecurityErrorBoundary>
   </StrictMode>,
 );

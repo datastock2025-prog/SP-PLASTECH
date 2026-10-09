@@ -1,4 +1,15 @@
 import React, { useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import {
   FileText,
   Plus,
@@ -190,154 +201,157 @@ export const AdminDocumentSettingsView: React.FC<AdminDocumentSettingsViewProps>
   };
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="min-w-0 space-y-4 pb-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-        <div>
+      <Card className="rounded-md border-slate-200 shadow-none">
+        <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold uppercase tracking-wider">
             <FileText className="w-4 h-4 text-[#0F8B8D]" />
             <span>Digital Vault &amp; Regulatory Document Policies</span>
           </div>
-          <h1 className="text-xl font-bold text-slate-900 mt-1">Document Management Settings</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <h2 className="mt-1 text-lg font-semibold text-slate-900">Document Management Settings</h2>
+          <p className="mt-1 max-w-3xl text-sm text-slate-500">
             Configure secure cloud storage buckets, mandatory watermarking, retention periods, and approved formats for MSDS, PPAP L3, and CMM scans.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start md:self-auto">
-          <button
+        <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
             onClick={handleExportPolicies}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg shadow-xs transition-colors cursor-pointer"
           >
-            <Download className="w-3.5 h-3.5 text-slate-500" />
+            <Download aria-hidden="true" />
             Export Policies
-          </button>
-          <button
+          </Button>
+          <Button
+            type="button"
+            size="sm"
             onClick={handleOpenWizard}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-[#0F8B8D] hover:bg-[#0c7274] rounded-lg shadow-sm transition-colors cursor-pointer"
+            className="bg-teal-700 text-white hover:bg-teal-800"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus aria-hidden="true" />
             Add Document Policy
-          </button>
+          </Button>
         </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Stats Summary Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-teal-50 text-[#0F8B8D] border border-teal-200 flex items-center justify-center">
-            <FolderLock className="w-5 h-5" />
+      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
+        <Card className="rounded-md border-teal-200 shadow-none"><CardContent className="flex items-center gap-3 p-4">
+          <div className="grid size-10 shrink-0 place-items-center rounded-md bg-teal-50 text-teal-800"><FolderLock className="size-5" aria-hidden="true" />
           </div>
           <div>
-            <div className="text-[11px] text-slate-500 uppercase font-semibold">Active Categories</div>
-            <div className="text-lg font-bold text-slate-900">{policies.length} Regulatory Policies</div>
+            <div className="text-xs text-slate-500">Active categories</div>
+            <div className="text-base font-semibold text-slate-900">{policies.length} policies</div>
           </div>
-        </div>
+        </CardContent></Card>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center">
-            <HardDrive className="w-5 h-5" />
+        <Card className="rounded-md border-indigo-200 shadow-none"><CardContent className="flex items-center gap-3 p-4">
+          <div className="grid size-10 shrink-0 place-items-center rounded-md bg-indigo-50 text-indigo-700"><HardDrive className="size-5" aria-hidden="true" />
           </div>
           <div>
-            <div className="text-[11px] text-slate-500 uppercase font-semibold">S3 Vault Endpoints</div>
-            <div className="text-lg font-bold text-slate-900">
-              {new Set(policies.map((p) => p.cloudStorageBucket)).size} Dedicated Buckets
-            </div>
+            <div className="text-xs text-slate-500">Vault endpoints</div>
+            <div className="text-base font-semibold text-slate-900">{new Set(policies.map((p) => p.cloudStorageBucket)).size} buckets</div>
           </div>
-        </div>
+        </CardContent></Card>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center">
-            <Clock className="w-5 h-5" />
+        <Card className="rounded-md border-amber-200 shadow-none"><CardContent className="flex items-center gap-3 p-4">
+          <div className="grid size-10 shrink-0 place-items-center rounded-md bg-amber-50 text-amber-800"><Clock className="size-5" aria-hidden="true" />
           </div>
           <div>
-            <div className="text-[11px] text-slate-500 uppercase font-semibold">Avg Retention Mandate</div>
-            <div className="text-lg font-bold text-slate-900">
-              {(policies.reduce((s, p) => s + p.retentionYears, 0) / policies.length).toFixed(1)} Years Standard
-            </div>
+            <div className="text-xs text-slate-500">Average retention</div>
+            <div className="text-base font-semibold text-slate-900">{(policies.reduce((s, p) => s + p.retentionYears, 0) / policies.length).toFixed(1)} years</div>
           </div>
-        </div>
+        </CardContent></Card>
       </div>
 
       {/* Filter Bar */}
-      <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+      <Card className="rounded-md border-slate-200 shadow-none"><CardContent className="flex items-center justify-between gap-3 p-3">
         <div className="relative w-full sm:w-80">
-          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+          <Input
             type="text"
             placeholder="Search policies by prefix, category name, bucket..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
+            aria-label="Search document policies"
+            className="h-10 pl-9 text-sm"
           />
         </div>
-        <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+        <span className="hidden shrink-0 text-xs font-medium text-slate-500 sm:inline">
           Showing {filtered.length} of {policies.length} policies
         </span>
-      </div>
+      </CardContent></Card>
 
       {/* Grid of Policies */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-2">
         {filtered.map((pol) => (
-          <div
+          <Card
             key={pol.id}
-            className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between space-y-4 hover:border-slate-300 transition-all group"
+            className="min-w-0 rounded-md border-slate-200 shadow-none transition-shadow duration-150 hover:shadow-sm motion-reduce:transition-none"
           >
+            <CardContent className="flex h-full flex-col justify-between gap-4 p-4 sm:p-5">
             <div>
               <div className="flex items-start justify-between gap-2">
-                <div>
-                  <span className="font-mono text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                    Prefix: {pol.codePrefix}
-                  </span>
-                  <h3 className="font-bold text-xs text-slate-900 mt-1.5">{pol.categoryName}</h3>
+                <div className="min-w-0">
+                  <Badge variant="outline" className="max-w-full break-all font-mono text-slate-700">Prefix: {pol.codePrefix}</Badge>
+                  <h3 className="mt-2 break-words text-sm font-semibold text-slate-900">{pol.categoryName}</h3>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-[#0F8B8D] border border-teal-200">
+                <div className="flex shrink-0 items-center gap-2">
+                  <Badge variant="outline" className="border-teal-200 bg-teal-50 text-teal-800">
                     {pol.retentionYears} Years Retention
-                  </span>
+                  </Badge>
                 </div>
               </div>
 
-              <p className="text-xs text-slate-600 mt-2 leading-relaxed">{pol.description}</p>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">{pol.description}</p>
 
               {/* Security & Watermarking Specs */}
-              <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Mandatory Watermark:</span>
-                  <span className="font-mono font-bold text-rose-700 text-right">{pol.mandatoryWatermark}</span>
+              <div className="mt-4 space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs">
+                <div className="flex flex-col gap-1 sm:flex-row sm:justify-between">
+                  <span className="text-slate-500">Mandatory watermark</span>
+                  <span className="break-words font-mono font-semibold text-rose-800 sm:text-right">{pol.mandatoryWatermark}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Allowed File Extensions:</span>
-                  <div className="flex flex-wrap gap-1 justify-end">
+                <div className="flex flex-col gap-1 sm:flex-row sm:justify-between">
+                  <span className="text-slate-500">Allowed file extensions</span>
+                  <div className="flex flex-wrap gap-1 sm:justify-end">
                     {pol.allowedExtensions.map((ext) => (
-                      <span key={ext} className="font-mono text-[11px] px-1.5 py-0.2 bg-white rounded border border-slate-200 text-slate-700">
+                      <Badge key={ext} variant="outline" className="h-5 bg-white font-mono text-[10px] text-slate-700">
                         {ext}
-                      </span>
+                      </Badge>
                     ))}
                   </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Max Upload Size:</span>
+                <div className="flex justify-between gap-2">
+                  <span className="text-slate-500">Max upload size</span>
                   <span className="font-mono font-semibold text-slate-800">{pol.maxFileSizeMb} MB</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Storage Target:</span>
-                  <span className="font-mono text-[11px] text-indigo-600 truncate max-w-[220px]">{pol.cloudStorageBucket}</span>
+                <div className="flex flex-col gap-1 sm:flex-row sm:justify-between">
+                  <span className="text-slate-500">Storage target</span>
+                  <span className="break-all font-mono text-xs text-indigo-700 sm:text-right">{pol.cloudStorageBucket}</span>
                 </div>
               </div>
             </div>
 
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>Expiry Alert: {pol.autoExpireAlertDays} days in advance</span>
-              <button
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500">
+              <span>Expiry alert: {pol.autoExpireAlertDays} days in advance</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
                 onClick={() => handleOpenEdit(pol)}
-                className="font-semibold text-[#0F8B8D] hover:underline flex items-center gap-1 cursor-pointer"
+                className="text-teal-800"
               >
-                <Edit2 className="w-3.5 h-3.5" /> Configure Policy
-              </button>
+                <Edit2 aria-hidden="true" /> Configure Policy
+              </Button>
             </div>
-          </div>
+            </CardContent>
+          </Card>
         ))}
       </div>
 
@@ -345,18 +359,19 @@ export const AdminDocumentSettingsView: React.FC<AdminDocumentSettingsViewProps>
       {/* 3-STEP WIZARD: ADD DOCUMENT POLICY */}
       {/* ========================================================================= */}
       {isWizardOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full p-6 space-y-5 max-h-[92vh] overflow-y-auto">
+        <Dialog open={isWizardOpen} onOpenChange={setIsWizardOpen}>
+          <DialogContent showCloseButton={false} className="max-h-[92dvh] max-w-xl overflow-y-auto border-slate-200 bg-white p-4 text-slate-900 sm:p-6">
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div>
-                <h3 className="font-bold text-slate-900 text-base">New Document Vault Policy Wizard</h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+              <DialogHeader>
+                <DialogTitle className="font-semibold text-slate-900">New Document Vault Policy Wizard</DialogTitle>
+                <p className="text-sm text-slate-500">
                   Configure regulatory archiving, watermarking, and cloud bucket destinations.
                 </p>
-              </div>
+              </DialogHeader>
               <button
                 onClick={() => setIsWizardOpen(false)}
+                aria-label="Close document policy wizard"
                 className="p-1 rounded text-slate-400 hover:text-slate-700 cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -364,12 +379,14 @@ export const AdminDocumentSettingsView: React.FC<AdminDocumentSettingsViewProps>
             </div>
 
             {/* Stepper Navigation */}
-            <div className="flex items-center justify-between px-2 text-xs">
-              <div
-                className={`flex items-center gap-2 cursor-pointer ${
+            <div className="flex items-center justify-between gap-1 overflow-x-auto px-1 text-xs" role="group" aria-label="Document policy setup steps">
+              <button
+                type="button"
+                aria-current={wizardStep === 1 ? 'step' : undefined}
+                onClick={() => setWizardStep(1)}
+                className={`flex shrink-0 items-center gap-2 ${
                   wizardStep >= 1 ? 'text-[#0F8B8D] font-bold' : 'text-slate-400'
                 }`}
-                onClick={() => setWizardStep(1)}
               >
                 <div
                   className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] ${
@@ -379,15 +396,17 @@ export const AdminDocumentSettingsView: React.FC<AdminDocumentSettingsViewProps>
                   1
                 </div>
                 <span>Category</span>
-              </div>
+              </button>
 
-              <div className="h-0.5 w-12 bg-slate-200" />
+              <div className="h-0.5 min-w-3 flex-1 bg-slate-200" />
 
-              <div
-                className={`flex items-center gap-2 cursor-pointer ${
+              <button
+                type="button"
+                aria-current={wizardStep === 2 ? 'step' : undefined}
+                onClick={() => setWizardStep(2)}
+                className={`flex shrink-0 items-center gap-2 ${
                   wizardStep >= 2 ? 'text-[#0F8B8D] font-bold' : 'text-slate-400'
                 }`}
-                onClick={() => setWizardStep(2)}
               >
                 <div
                   className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] ${
@@ -397,7 +416,7 @@ export const AdminDocumentSettingsView: React.FC<AdminDocumentSettingsViewProps>
                   2
                 </div>
                 <span>Security &amp; Target</span>
-              </div>
+              </button>
 
               <div className="h-0.5 w-12 bg-slate-200" />
 
@@ -444,19 +463,18 @@ export const AdminDocumentSettingsView: React.FC<AdminDocumentSettingsViewProps>
                       onChange={(e) => setForm({ ...form, codePrefix: e.target.value.toUpperCase() })}
                       className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono uppercase focus:ring-1 focus:ring-[#0F8B8D] focus:outline-none"
                     />
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Uploaded files will automatically be serialized under this prefix (e.g. {form.codePrefix || 'DOC-'}2026-0001).
+                    <p className="mt-1 text-xs text-slate-500">
+                      Uploaded files use this prefix, for example {form.codePrefix || 'DOC-'}2026-0001.
                     </p>
                   </div>
-
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Description &amp; Regulatory Purpose</label>
+                    <label className="mb-1 block font-semibold text-slate-700">Description &amp; Purpose</label>
                     <textarea
                       rows={3}
-                      placeholder="Describe the nature of files stored, compliance requirement (IATF 16949 / ISO 9001)..."
                       value={form.description}
+                      placeholder="Describe the documents and compliance requirements."
                       onChange={(e) => setForm({ ...form, description: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-1 focus:ring-[#0F8B8D] focus:outline-none"
+                      className="min-h-20 w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-teal-600/20"
                     />
                   </div>
                 </div>
@@ -610,8 +628,8 @@ export const AdminDocumentSettingsView: React.FC<AdminDocumentSettingsViewProps>
                 )}
               </div>
             </form>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* ========================================================================= */}

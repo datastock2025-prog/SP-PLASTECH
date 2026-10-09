@@ -73,8 +73,8 @@ import {
 import { AdminApprovalsModal } from './masterdata/AdminApprovalsModal';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  useItems,
-  useItemCount,
+  usePaginatedItems,
+  useItemCatalogStats,
   useSaveItem,
   useDeleteItem,
   useApproveItem,
@@ -1204,24 +1204,29 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
 
   // TanStack Query SSOT Queries & Mutations (Rule 1 & Rule 2: Bounded Queries)
   const queryClient = useQueryClient();
-  const { data: queryItems, isLoading: isItemsQueryLoading } = useItems(undefined, Math.min(100, itemPageSize * 4));
-  const { data: exactItemCount } = useItemCount();
-  const effectiveItemsList = useMemo(() => {
-    const base = (queryItems && queryItems.length > 0 ? queryItems : items) || [];
-    if (!items || items.length === 0) return base;
-    const map = new Map<string, ItemMaster>();
-    base.forEach((item) => {
-      if (item && item.code) map.set(item.code, item);
-    });
-    items.forEach((item) => {
-      if (item && item.code && !map.has(item.code)) {
-        map.set(item.code, item);
-      }
-    });
-    return Array.from(map.values());
-  }, [queryItems, items]);
-  const displayTotalCount = exactItemCount ?? effectiveItemsList.length;
-  const isInitialCatalogLoading = isItemsQueryLoading && effectiveItemsList.length === 0;
+  const gridApproval =
+    filterType === 'pending_approval' || filterType === 'draft' || filterType === 'rejected'
+      ? filterType === 'pending_approval' ? 'pending' : filterType
+      : undefined;
+  const gridItemType = ['Finished Good', 'Raw Material', 'Masterbatch', 'Regrind'].includes(filterType)
+    ? filterType
+    : undefined;
+  const grid = usePaginatedItems({
+    page: itemPage,
+    limit: Math.min(100, itemPageSize),
+    search: debouncedSearchQuery,
+    itemType: gridItemType,
+    approval: gridApproval,
+    sortBy: itemSortField,
+    sortOrder: itemSortDirection,
+  });
+  const { data: itemCatalogStats, isLoading: isItemStatsLoading } = useItemCatalogStats();
+  const effectiveItemsList = useMemo(
+    () => (grid.data?.items || []).map((item) => normalizeItemMaster(item)),
+    [grid.data?.items]
+  );
+  const displayTotalCount = grid.data?.totalCount ?? 0;
+  const isInitialCatalogLoading = grid.isLoading;
 
   const saveItemMutation = useSaveItem();
   const deleteItemMutation = useDeleteItem();
@@ -1415,14 +1420,18 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   };
 
   const handleSaveWizardItem = async (savedItem: ItemMaster) => {
-    const exists = items.some((i) => i.code === savedItem.code);
-    const prevItem = items.find((i) => i.code === savedItem.code);
+    const prevItem =
+      effectiveItemsList.find((i) => i.code === savedItem.code) ||
+      items.find((i) => i.code === savedItem.code) ||
+      (wizardEditItem?.code === savedItem.code ? wizardEditItem : undefined);
+    const exists = !!prevItem;
     const autoApprove = isSuperAdmin || canApproveItem;
+    const isDraft = savedItem.approval === 'draft';
 
     const itemToSave: ItemMaster = {
       ...savedItem,
-      approval: autoApprove ? 'approved' : ('pending' as const),
-      status: 'active' as const,
+      approval: isDraft ? 'draft' : autoApprove ? 'approved' : ('pending' as const),
+      status: isDraft ? 'inactive' : 'active',
       approvedBy: autoApprove ? (currentUser?.name || 'Admin Authority') : undefined,
     };
 
@@ -1441,7 +1450,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
     }
 
     // Submit CRUD Change Request if non-admin or record audit trail
-    if (!autoApprove) {
+    if (!autoApprove && !isDraft) {
       masterDataGovernanceService.submitChangeRequest({
         requestType: exists ? 'UPDATE' : 'CREATE',
         itemCode: savedItem.code,
@@ -1465,7 +1474,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
       approvedBy: autoApprove ? (currentUser?.name || 'Admin Authority') : undefined,
       userRole: currentUser?.role || 'admin',
       changeSummary: autoApprove
-        ? `${exists ? 'Updated' : 'Registered and approved'} SKU ${itemToSave.code} (${itemToSave.name}) in live operational catalog.`
+        ? `${isDraft ? 'Saved draft' : exists ? 'Updated' : 'Registered and approved'} SKU ${itemToSave.code} (${itemToSave.name}) in live operational catalog.`
         : `${exists ? 'Updated' : 'Registered'} SKU ${itemToSave.code} (${itemToSave.name}). Queued for approval gate before live release.`,
       diff: prevItem
         ? {
@@ -1479,7 +1488,9 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
     });
 
     showToast(
-      autoApprove
+      isDraft
+        ? `✓ Draft SKU ${savedItem.code} saved.`
+        : autoApprove
         ? `✓ SKU ${savedItem.code} saved & stored in live database!`
         : `✓ SKU ${savedItem.code} saved! Status set to Pending Approval for review.`
     );
@@ -1724,64 +1735,13 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
           return false;
         }
 
-        const q = debouncedSearchQuery.toLowerCase().trim();
-        const matchSearch =
-          !q ||
-          (i.code || '').toLowerCase().includes(q) ||
-          (i.name || '').toLowerCase().includes(q) ||
-          (i.cat || '').toLowerCase().includes(q) ||
-          (i.resinType || '').toLowerCase().includes(q) ||
-          (i.wh || '').toLowerCase().includes(q) ||
-          (i.moldToolId || '').toLowerCase().includes(q);
-
-        if (!matchSearch) return false;
-        if (filterType === 'all') return true;
-        if (filterType === 'pending_approval') return i.approval === 'pending';
-        if (filterType === 'draft') return i.approval === 'draft';
-        if (filterType === 'rejected') return i.approval === 'rejected';
-        if (filterType === 'Masterbatch') return i.type === 'Masterbatch' || i.type === 'Additive';
-        return i.type === filterType;
+        return true;
       });
 
-      // Multi-column sorting
-      const sortedItems = [...filteredItems].sort((a, b) => {
-        let aVal: any = a[itemSortField as keyof ItemMaster] ?? '';
-        let bVal: any = b[itemSortField as keyof ItemMaster] ?? '';
-
-        if (itemSortField === 'stock') {
-          aVal = getItemStockData(a).onHandNum;
-          bVal = getItemStockData(b).onHandNum;
-        } else if (itemSortField === 'avail') {
-          aVal = getItemStockData(a).availNum;
-          bVal = getItemStockData(b).availNum;
-        } else if (itemSortField === 'plant') {
-          aVal = a.plant || 'Plant 1 - Pimpri Auto-Hub';
-          bVal = b.plant || 'Plant 1 - Pimpri Auto-Hub';
-        } else if (itemSortField === 'cycleTime') {
-          aVal = Number(a.standardCycleTime || a.cycleTime || 0);
-          bVal = Number(b.standardCycleTime || b.cycleTime || 0);
-        }
-
-        if (typeof aVal === 'string') {
-          const comp = aVal.localeCompare(String(bVal));
-          return itemSortDirection === 'asc' ? comp : -comp;
-        }
-        if (typeof aVal === 'number') {
-          return itemSortDirection === 'asc' ? aVal - bVal : bVal - aVal;
-        }
-        return 0;
-      });
-
-      const lowStockCount = normalizedItems.filter((i) => i && i.status === 'low').length;
-      const pendingCount = normalizedItems.filter((i) => i && i.approval === 'pending').length;
-      const draftCount = normalizedItems.filter((i) => i && i.approval === 'draft').length;
-      const fgCount = normalizedItems.filter((i) => i && (i.type === 'Finished Good' || i.type === 'Semi-Finished Good')).length;
-      const rejectedCount = normalizedItems.filter((i) => i && (i.approval === 'rejected' || i.status === 'rejected')).length;
-
-      const totalItemPages = Math.max(1, Math.ceil(sortedItems.length / itemPageSize));
+      const totalItemPages = Math.max(1, Math.ceil(displayTotalCount / itemPageSize));
       const safeItemPage = Math.min(Math.max(1, itemPage), totalItemPages);
       const startItemIdx = (safeItemPage - 1) * itemPageSize;
-      const pagedItems = sortedItems.slice(startItemIdx, startItemIdx + itemPageSize);
+      const pagedItems = filteredItems;
 
       const handleItemSort = (field: string) => {
         if (itemSortField === field) {
@@ -1977,7 +1937,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
 
           {/* Scalable KPI Ribbon */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            <div className="bg-white p-3.5 rounded-xl border border-[#E4E0D6] shadow-xs flex items-center gap-3">
+            <div data-testid="item-kpi-total-items" className="bg-white p-3.5 rounded-xl border border-[#E4E0D6] shadow-xs flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center flex-shrink-0">
                 <Box className="w-5 h-5" />
               </div>
@@ -1994,17 +1954,17 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               </div>
             </div>
 
-            <div className="bg-white p-3.5 rounded-xl border border-[#E4E0D6] shadow-xs flex items-center gap-3">
+            <div data-testid="item-kpi-finished-goods" className="bg-white p-3.5 rounded-xl border border-[#E4E0D6] shadow-xs flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-teal-50 text-[#0F8B8D] flex items-center justify-center flex-shrink-0">
                 <Cpu className="w-5 h-5" />
               </div>
               <div>
                 <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Finished Goods</div>
                 <div className="text-lg font-bold text-[#0F8B8D] font-mono leading-none mt-0.5">
-                  {isInitialCatalogLoading ? (
+                  {isItemStatsLoading ? (
                     <div className="h-5 w-12 bg-teal-100 animate-pulse rounded my-0.5" />
                   ) : (
-                    fgCount
+                    itemCatalogStats?.finishedGoods ?? 0
                   )}
                 </div>
                 <div className="text-[10px] text-gray-500 mt-0.5">Tooling &amp; Mold Specs</div>
@@ -2018,13 +1978,13 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               <div>
                 <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Pending QA Review</div>
                 <div className="text-lg font-bold text-amber-700 font-mono leading-none mt-0.5">
-                  {isInitialCatalogLoading ? (
+                  {isItemStatsLoading ? (
                     <div className="h-5 w-10 bg-amber-100 animate-pulse rounded my-0.5" />
                   ) : (
-                    pendingCount
+                    itemCatalogStats?.pending ?? 0
                   )}
                 </div>
-                <div className="text-[10px] text-gray-500 mt-0.5">{draftCount} Drafts</div>
+                <div className="text-[10px] text-gray-500 mt-0.5">{itemCatalogStats?.drafts ?? 0} Drafts</div>
               </div>
             </div>
 
@@ -2035,27 +1995,27 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               <div>
                 <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Low Stock Alert</div>
                 <div className="text-lg font-bold text-rose-700 font-mono leading-none mt-0.5">
-                  {isInitialCatalogLoading ? (
+                  {isItemStatsLoading ? (
                     <div className="h-5 w-10 bg-rose-100 animate-pulse rounded my-0.5" />
                   ) : (
-                    lowStockCount
+                    itemCatalogStats?.lowStock ?? 0
                   )}
                 </div>
                 <div className="text-[10px] text-rose-600 font-semibold mt-0.5">Reorder Needed</div>
               </div>
             </div>
 
-            <div className="bg-white p-3.5 rounded-xl border border-[#E4E0D6] shadow-xs flex items-center gap-3">
+            <div data-testid="item-kpi-active-catalog" className="bg-white p-3.5 rounded-xl border border-[#E4E0D6] shadow-xs flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center flex-shrink-0">
                 <CheckCircle2 className="w-5 h-5" />
               </div>
               <div>
                 <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Active Catalog</div>
                 <div className="text-lg font-bold text-emerald-700 font-mono leading-none mt-0.5">
-                  {isInitialCatalogLoading ? (
+                  {isItemStatsLoading ? (
                     <div className="h-5 w-12 bg-emerald-100 animate-pulse rounded my-0.5" />
                   ) : (
-                    effectiveItemsList.filter((i) => i.status === 'active' && i.approval === 'approved').length
+                    itemCatalogStats?.active ?? 0
                   )}
                 </div>
                 <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">Production Released</div>
@@ -2095,8 +2055,8 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                 { id: 'Raw Material', label: 'Raw Materials' },
                 { id: 'Masterbatch', label: 'Masterbatch' },
                 { id: 'Regrind', label: 'Regrind' },
-                { id: 'draft', label: `Drafts (${draftCount})` },
-                { id: 'pending_approval', label: `Pending (${pendingCount})` },
+                { id: 'draft', label: 'Drafts' },
+                { id: 'pending_approval', label: 'Pending' },
               ].map((chip) => (
                 <button
                   key={chip.id}
@@ -2114,7 +2074,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                 </button>
               ))}
 
-              {isSuperAdmin && rejectedCount > 0 && (
+              {isSuperAdmin && (
                 <button
                   onClick={() => {
                     setFilterType('rejected');
@@ -2126,7 +2086,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                       : 'text-rose-700 hover:bg-rose-50'
                   }`}
                 >
-                  🚫 Rejected ({rejectedCount})
+                  🚫 Rejected
                 </button>
               )}
             </div>
@@ -2198,9 +2158,9 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
           )}
 
           {/* Table with Mold Spec & Tooling Columns (Scrollbar-Free Clean Container) */}
-          <div className="panel bg-white rounded-xl border border-[#E4E0D6] shadow-xs overflow-hidden">
-            <div className="overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-              <table className="w-full text-left text-xs border-collapse">
+          <div className="panel item-master-grid-panel bg-white rounded-xl border border-[#E4E0D6] shadow-xs overflow-hidden">
+            <div className="item-master-grid-viewport overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <table className="item-master-grid-table w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-[#F6F4EF] border-b border-[#E4E0D6] text-[#4B5563] font-bold text-[11px] uppercase tracking-wider select-none">
                     <th className="p-3 w-8 text-center">
@@ -2231,7 +2191,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                         <ArrowUpDown className="w-3 h-3 text-gray-400" />
                       </div>
                     </th>
-                    <th className="p-3 cursor-pointer hover:bg-amber-50/50" onClick={() => handleItemSort('plant')}>
+                    <th className="p-3">
                       <div className="flex items-center gap-1">
                         Plant / Unit
                         <ArrowUpDown className="w-3 h-3 text-gray-400" />
@@ -2330,7 +2290,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                       return (
                         <tr
                           key={item.code}
-                          className={`hover:bg-[#F0F6FF] transition-colors cursor-pointer group ${
+                          className={`item-master-grid-row hover:bg-[#F0F6FF] transition-colors cursor-pointer group ${
                             isSelected ? 'bg-teal-50/40' : ''
                           }`}
                           onClick={() => onNavigate('itemDetail', item.code)}
@@ -2568,7 +2528,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                           <td className="p-3 text-center">{renderApprovalBadge(item.approval, item)}</td>
 
                           <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-end gap-1">
+                            <div className="item-master-grid-actions flex items-center justify-end gap-1">
                               <button
                                 className="p-1 text-[#6B7280] hover:text-[#0F8B8D] hover:bg-teal-50 rounded transition-colors"
                                 title="View Item Change & Approval Ledger (When, Who Raised, Who Approved)"
@@ -2720,12 +2680,9 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
             <div className="p-3 bg-[#F9F8F5] border-t border-[#E4E0D6] text-xs text-[#6B7280] flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div className="flex items-center gap-3 flex-wrap">
                 <span>
-                  Showing <strong className="text-[#14213D] font-mono">{sortedItems.length === 0 ? 0 : startItemIdx + 1}</strong> to{' '}
-                  <strong className="text-[#14213D] font-mono">{Math.min(startItemIdx + itemPageSize, sortedItems.length)}</strong> of{' '}
-                  <strong className="text-[#14213D] font-mono">{sortedItems.length}</strong> items
-                  {sortedItems.length !== items.length && (
-                    <span className="text-gray-400 font-normal"> (filtered from {items.length} total)</span>
-                  )}
+                  Showing <strong className="text-[#14213D] font-mono">{displayTotalCount === 0 ? 0 : startItemIdx + 1}</strong> to{' '}
+                  <strong className="text-[#14213D] font-mono">{Math.min(startItemIdx + pagedItems.length, displayTotalCount)}</strong> of{' '}
+                  <strong className="text-[#14213D] font-mono">{displayTotalCount}</strong> items
                 </span>
 
                 {/* Rows Per Page Selector */}
@@ -2743,8 +2700,6 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                     <option value={25}>25 / page</option>
                     <option value={50}>50 / page</option>
                     <option value={100}>100 / page</option>
-                    <option value={250}>250 / page</option>
-                    <option value={500}>500 / page</option>
                   </select>
                 </div>
               </div>

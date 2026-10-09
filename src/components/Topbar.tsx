@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import {
   Search,
   Bell,
@@ -56,7 +56,8 @@ import { INITIAL_QUICK_ACTIONS, QuickActionItem } from '../data/quickActionsData
 import { GlobalCommandPalette } from './common/GlobalCommandPalette';
 import { QuickActionModal } from './common/QuickActionModal';
 import { SecurityIndicators } from '../security';
-import { adminService, adminEventBus } from '../services/adminService';
+import { useMe } from '../features/identity/useIdentity';
+import { usePlantScope, setAllPlantsScope } from '../features/identity/plantScope';
 import { checkSupabaseConnection } from '../shared/supabaseClient';
 
 export interface PlantEntity {
@@ -68,16 +69,6 @@ export interface PlantEntity {
   userRole: string;
   isDefault?: boolean;
 }
-
-export const ENTERPRISE_ENTITIES: PlantEntity[] = [
-  { id: 'PLANT-01', code: 'PLANT-01', name: 'Plant 01: Injection Molding Unit', location: 'Hosur, Tamil Nadu', type: 'Plant', userRole: 'Plant Operations Director', isDefault: true },
-  { id: 'PLANT-02', code: 'PLANT-02', name: 'Plant 02: Extrusion & Pipe Unit', location: 'Manesar, Haryana', type: 'Plant', userRole: 'Area Operations Lead' },
-  { id: 'PLANT-03', code: 'PLANT-03', name: 'Plant 03: Blow Molding Unit', location: 'Pune, Maharashtra', type: 'Plant', userRole: 'Regional Auditor' },
-  { id: 'PLANT-04', code: 'PLANT-04', name: 'Plant 04: Compounding & Masterbatch Unit', location: 'Vapi, Gujarat', type: 'Plant', userRole: 'Visitor' },
-  { id: 'WH-01', code: 'WH-01', name: 'WH 01: Raw Material Silo & Resin Warehouse', location: 'Hosur, Tamil Nadu', type: 'Warehouse', userRole: 'Inventory Controller' },
-  { id: 'WH-02', code: 'WH-02', name: 'WH 02: Finished Goods & Logistics Hub', location: 'Chennai, Tamil Nadu', type: 'Warehouse', userRole: 'Dispatch Auditor' },
-  { id: 'CORP-HQ', code: 'CORP-HQ', name: 'Corporate Headquarters & Shared Services', location: 'Bengaluru, Karnataka', type: 'Corporate office', userRole: 'Executive Admin' },
-];
 
 export const SYSTEM_ROLES = [
   { id: 'admin', name: 'Admin', desc: 'Full System Master Configuration & RBAC', scope: 'Enterprise-wide' },
@@ -95,14 +86,14 @@ export const SYSTEM_ROLES = [
 ];
 
 export const SUPPORTED_LANGUAGES = [
-  { code: 'EN', name: 'English', flag: '🇺🇸' },
-  { code: 'TR', name: 'Turkish (Türkçe)', flag: '🇹🇷' },
-  { code: 'ES', name: 'Spanish (Español)', flag: '🇪🇸' },
-  { code: 'FR', name: 'French (Français)', flag: '🇫🇷' },
-  { code: 'DE', name: 'German (Deutsch)', flag: '🇩🇪' },
-  { code: 'AR', name: 'Arabic (العربية)', flag: '🇦🇪' },
-  { code: 'ZH', name: 'Chinese (中文)', flag: '🇨🇳' },
-  { code: 'VI', name: 'Vietnamese (Tiếng Việt)', flag: '🇻🇳' },
+  { code: 'EN', name: 'English', flag: 'ðŸ‡ºðŸ‡¸' },
+  { code: 'TR', name: 'Turkish (TÃ¼rkÃ§e)', flag: 'ðŸ‡¹ðŸ‡·' },
+  { code: 'ES', name: 'Spanish (EspaÃ±ol)', flag: 'ðŸ‡ªðŸ‡¸' },
+  { code: 'FR', name: 'French (FranÃ§ais)', flag: 'ðŸ‡«ðŸ‡·' },
+  { code: 'DE', name: 'German (Deutsch)', flag: 'ðŸ‡©ðŸ‡ª' },
+  { code: 'AR', name: 'Arabic (Ø§Ù„Ø¹Ø±Ø¨ÙŠØ©)', flag: 'ðŸ‡¦ðŸ‡ª' },
+  { code: 'ZH', name: 'Chinese (ä¸­æ–‡)', flag: 'ðŸ‡¨ðŸ‡³' },
+  { code: 'VI', name: 'Vietnamese (Tiáº¿ng Viá»‡t)', flag: 'ðŸ‡»ðŸ‡³' },
 ];
 
 interface TopbarProps {
@@ -249,10 +240,18 @@ export const Topbar: React.FC<TopbarProps> = ({
   const [selectedQuickAction, setSelectedQuickAction] = useState<QuickActionItem | null>(null);
 
   // Topbar Settings State & Local Storage Persistence
-  const [entities, setEntities] = useState<PlantEntity[]>(ENTERPRISE_ENTITIES);
-  const [activePlantId, setActivePlantId] = useState<string>(() => {
-    return localStorage.getItem('sp_active_plant') || currentUser?.plantId || 'PLANT-01';
-  });
+  // Plants come from the server (/me): only the plants assigned to this user (all plants for super admin).
+  const { data: meData } = useMe();
+  const plantScope = usePlantScope();
+  const entities: PlantEntity[] = (meData?.plants ?? []).map((p) => ({
+    id: p.id,
+    code: p.code,
+    name: p.name,
+    location: p.location ?? '',
+    type: 'Plant',
+    userRole: meData?.roleName ?? '',
+  }));
+  const activePlantId = meData?.activePlantId ?? '';
   const [plantSearchTerm, setPlantSearchTerm] = useState('');
   const [currentLang, setCurrentLang] = useState('EN');
   
@@ -337,35 +336,6 @@ export const Topbar: React.FC<TopbarProps> = ({
     localStorage.setItem('sp_density', activeDensity);
   }, [activeDensity]);
 
-  // Sync live plants from PostgreSQL
-  useEffect(() => {
-    const fetchPlants = async () => {
-      try {
-        const live = await adminService.getPlants();
-        if (live && live.length > 0) {
-          setEntities(
-            live.map((p) => ({
-              id: p.id,
-              code: p.plantCode,
-              name: p.plantName,
-              location: `${p.city}, ${p.state}`,
-              type: (p.division?.includes('Warehouse') ? 'Warehouse' : p.division?.includes('Corporate') ? 'Corporate office' : 'Plant') as any,
-              userRole: 'Operations Lead',
-              isDefault: p.isHeadquarters,
-            }))
-          );
-        }
-      } catch {
-        // Fallback to enterprise entities
-      }
-    };
-    fetchPlants();
-    const unsub = adminEventBus.subscribe(() => {
-      fetchPlants();
-    });
-    return unsub;
-  }, []);
-
   // Close dropdowns on click outside
   const topbarRef = useRef<HTMLDivElement>(null);
 
@@ -424,15 +394,25 @@ export const Topbar: React.FC<TopbarProps> = ({
   }, [currentView]);
 
   // Current entity details
-  const currentEntity = entities.find((p) => p.id === activePlantId) || entities[0];
+  const singleEntity: PlantEntity = entities.find((p) => p.id === activePlantId) || entities[0] || {
+    id: '', code: 'â€”', name: 'No plant assigned', location: '', type: 'Plant', userRole: '',
+  };
+  const currentEntity: PlantEntity = plantScope.isAll
+    ? { id: 'ALL', code: 'ALL', name: `All my plants (${entities.length})`, location: entities.map((e) => e.code).join(', '), type: 'Plant', userRole: '' }
+    : singleEntity;
 
   // Plant Switch Handler
   const handleSelectPlant = (entity: PlantEntity) => {
-    setActivePlantId(entity.id);
-    localStorage.setItem('sp_active_plant', entity.id);
+    setAllPlantsScope(false);
     setShowPlantDropdown(false);
-    onPlantChange?.(entity.id, entity.name);
+    if (entity.id !== activePlantId) onPlantChange?.(entity.id, entity.name);
     showToast(`Switched active context to ${entity.name}`);
+  };
+
+  const handleSelectAllPlants = () => {
+    setAllPlantsScope(true);
+    setShowPlantDropdown(false);
+    showToast('Showing data for all your plants');
   };
 
   // Toggle Action Pin
@@ -526,14 +506,14 @@ export const Topbar: React.FC<TopbarProps> = ({
   return (
     <header
       ref={topbarRef}
-      className={`h-[56px] sm:h-[60px] shrink-0 bg-white border-b border-[#E4E0D6] flex items-center justify-between px-2 sm:px-3 md:px-4 gap-1.5 sm:gap-2 relative z-30 select-none shadow-2xs w-full max-w-full min-w-0 ${
+      className={`h-auto min-h-[56px] xl:h-[60px] shrink-0 bg-white border-b border-[#E4E0D6] flex flex-wrap xl:flex-nowrap items-center justify-between px-2 sm:px-3 md:px-4 py-1.5 xl:py-0 gap-x-2 gap-y-1 relative z-30 select-none shadow-2xs w-full max-w-full min-w-0 ${
         activeTheme === 'high_contrast' ? 'border-b-2 border-slate-950 bg-white font-semibold' : ''
       }`}
     >
       {/* ======================================================== */}
       {/* LEFT ZONE: Logo, Hamburger, Plant Selector, Breadcrumbs  */}
       {/* ======================================================== */}
-      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 shrink">
+      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 shrink w-full xl:w-auto">
         {/* Responsive Mobile Hamburger Toggle */}
         <button
           onClick={onToggleSidebar}
@@ -612,12 +592,29 @@ export const Topbar: React.FC<TopbarProps> = ({
               </div>
 
               <div className="max-h-64 overflow-y-auto space-y-1 divide-y divide-slate-100">
+                {entities.length > 1 && (
+                  <div
+                    onClick={handleSelectAllPlants}
+                    data-testid="plant-scope-all"
+                    className={`p-2 rounded-xl cursor-pointer flex items-center justify-between gap-2 ${
+                      plantScope.isAll ? 'bg-teal-50 border border-teal-200 font-semibold' : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    <div>
+                      <div className="text-xs font-bold text-slate-900">All my plants</div>
+                      <div className="text-[11px] text-slate-500">
+                        Combined data for {entities.map((e) => e.code).join(', ')}
+                      </div>
+                    </div>
+                    {plantScope.isAll && <CheckCircle2 className="w-4 h-4 text-[#0F8B8D]" />}
+                  </div>
+                )}
                 {entities.filter((e) =>
                   e.name.toLowerCase().includes(plantSearchTerm.toLowerCase()) ||
                   e.location.toLowerCase().includes(plantSearchTerm.toLowerCase()) ||
                   e.code.toLowerCase().includes(plantSearchTerm.toLowerCase())
                 ).map((entity) => {
-                  const isActive = entity.id === activePlantId;
+                  const isActive = !plantScope.isAll && entity.id === activePlantId;
                   return (
                     <div
                       key={entity.id}
@@ -670,7 +667,7 @@ export const Topbar: React.FC<TopbarProps> = ({
         </div>
 
         {/* Task 3: Screen Navigation History Controls (Back, Forward, Recent Screens) */}
-        <div className="flex items-center gap-0.5 bg-slate-100/90 border border-slate-200/80 rounded-xl p-0.5 shrink-0">
+        <div className="hidden xl:flex items-center gap-0.5 bg-slate-100/90 border border-slate-200/80 rounded-xl p-0.5 shrink-0">
           {/* Go Back Button */}
           <button
             type="button"
@@ -814,7 +811,7 @@ export const Topbar: React.FC<TopbarProps> = ({
       {/* ======================================================== */}
       <div
         onClick={() => setIsCommandPaletteOpen(true)}
-        className="flex-1 min-w-0 max-w-[260px] xl:max-w-sm hidden md:flex items-center gap-2 bg-[#F6F4EF] hover:bg-[#eae6de] border border-[#E4E0D6] rounded-xl px-2.5 py-1.5 text-xs text-[#1C1F26] cursor-pointer transition-colors shadow-2xs group shrink"
+        className="flex-1 min-w-0 max-w-[260px] xl:max-w-sm hidden xl:flex items-center gap-2 bg-[#F6F4EF] hover:bg-[#eae6de] border border-[#E4E0D6] rounded-xl px-2.5 py-1.5 text-xs text-[#1C1F26] cursor-pointer transition-colors shadow-2xs group shrink"
       >
         <Search className="w-3.5 h-3.5 text-[#0F8B8D] group-hover:scale-110 transition-transform shrink-0" />
         <span className="text-xs text-slate-400 truncate flex-1 font-medium">
@@ -828,11 +825,11 @@ export const Topbar: React.FC<TopbarProps> = ({
       {/* ======================================================== */}
       {/* RIGHT ZONE: Quick Actions, Alerts, Notifs, Help, Profile */}
       {/* ======================================================== */}
-      <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+      <div className="flex items-center justify-between xl:justify-end gap-1 sm:gap-1.5 shrink-0 w-full xl:w-auto">
         {/* Mobile Search Icon Trigger */}
         <button
           onClick={() => setIsCommandPaletteOpen(true)}
-          className="md:hidden w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors"
+          className="xl:hidden w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors"
           title="Search (Ctrl+K)"
         >
           <Search className="w-4 h-4 text-[#0F8B8D]" />

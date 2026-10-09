@@ -41,6 +41,7 @@ import {
 import { NAVIGATION_GROUPS, NavGroupDef, NavItemDef } from '../data/sidebarNavigationData';
 import { useWorkspaceRbac } from '../hooks/useWorkspaceRbac';
 import { AuthUser } from '../types';
+import { useMe } from '../features/identity/useIdentity';
 
 interface HomeViewProps {
   onNavigate: (view: string, param?: any) => void;
@@ -60,6 +61,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
   currentUser,
 }) => {
   const handleOpenGuide = openArchitectureGuide || (() => onNavigate('architectureGuide'));
+  const meQuery = useMe();
+  const activePlant = meQuery.data?.plants.find((p) => p.id === meQuery.data?.activePlantId);
+  const plantBanner = activePlant
+    ? `${activePlant.code} \u2022 ${activePlant.name}${meQuery.data?.activeShift ? ` \u2022 ${meQuery.data.activeShift}` : ''}`
+    : 'No plant selected';
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
 
@@ -210,7 +216,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <div className="min-w-0 flex-1">
             <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/10 text-emerald-300 text-[11px] font-mono uppercase tracking-wider mb-2 backdrop-blur-xs flex-wrap">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-              <span>Plant 01 &bull; Injection Molding Unit (Hosūr) &bull; Shift A</span>
+              <span>{plantBanner}</span>
             </div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight font-['Space_Grotesk'] text-white truncate">
               Reboot ERP &mdash; Workspace Home
@@ -226,7 +232,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               onClick={() => onNavigate('oeeDashboard')}
               className="bg-white/10 hover:bg-white/20 backdrop-blur-xs px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl border border-white/10 hover:border-white/25 min-w-0 text-center sm:text-left transition-all duration-200 hover:-translate-y-0.5 active:scale-95 cursor-pointer select-none group shadow-xs"
             >
-              <div className="text-base sm:text-xl font-bold text-white font-mono group-hover:text-emerald-200 transition-colors">92.4%</div>
+              <div className="text-base sm:text-xl font-bold text-white font-mono group-hover:text-emerald-200 transition-colors">&mdash;</div>
               <div className="text-[10px] text-slate-300 uppercase tracking-wider font-medium truncate">OEE Today</div>
             </div>
             <div

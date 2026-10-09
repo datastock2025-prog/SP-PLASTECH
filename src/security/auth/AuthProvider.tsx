@@ -3,6 +3,8 @@ import { UserProfile, UserRole, Permission, MfaChallenge } from '../types';
 import { secureTokenStorage } from './SecureTokenStorage';
 import { sessionManager } from './SessionManager';
 import { mfaService } from './MfaService';
+import { useMe } from '../../features/identity/useIdentity';
+import type { Me } from '../../features/identity/types';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -24,38 +26,34 @@ interface AuthContextType {
   stopImpersonation: () => void;
 }
 
-const DEFAULT_ADMIN_USER: UserProfile = {
-  id: 'USR-ADMIN-01',
-  email: 'security.admin@spplastech.com',
-  fullName: 'Dr. Evelyn Reed',
-  tenantId: 'TENANT-ALPHA-IND',
-  tenantName: 'SP-PLASTECH Polymer Solutions Ltd.',
-  role: 'SUPER_ADMIN',
-  permissions: [
-    'users.view', 'users.create', 'users.edit', 'users.delete', 'users.impersonate',
-    'roles.manage', 'tenant.config', 'audit.view', 'audit.export',
-    'finance.view', 'finance.create', 'finance.edit', 'finance.delete', 'finance.approve', 'finance.export',
-    'payroll.view', 'payroll.process', 'sales.view', 'sales.create', 'sales.edit', 'sales.delete', 'sales.approve', 'sales.export',
-    'procurement.view', 'procurement.create', 'procurement.edit', 'procurement.delete', 'procurement.approve',
-    'mfg.view', 'mfg.plan', 'mfg.schedule', 'mfg.execute', 'mfg.abort',
-    'quality.view', 'quality.inspect', 'quality.release', 'quality.reject', 'quality.ncr',
-    'warehouse.view', 'warehouse.transfer', 'warehouse.dispatch', 'warehouse.receive', 'warehouse.reconcile', 'warehouse.audit',
-    'reports.view', 'reports.export', 'reports.sensitive', 'compliance.manage'
-  ],
-  mfaEnabled: true,
-  mfaMethods: ['TOTP', 'EMAIL'],
-  lastLoginAt: '2026-09-17 09:30:15 IST',
-  lastLoginIp: '103.21.144.68 (Corporate VPN)',
-  sessionExpiry: Date.now() + 15 * 60 * 1000,
-};
+const USER_ADMIN_PERMISSIONS = ['users.view', 'users.create', 'users.edit', 'users.delete', 'audit.view'] as Permission[];
 
+const meToProfile = (me: Me): UserProfile => ({
+  id: me.id,
+  email: me.email,
+  fullName: me.fullName,
+  tenantId: me.activePlantId ?? 'default',
+  tenantName: me.plants.find((p) => p.id === me.activePlantId)?.name ?? 'SP-PLASTECH',
+  role: me.roleCode as UserRole,
+  permissions: me.roleCode === 'USER_ADMIN' ? USER_ADMIN_PERMISSIONS : [],
+  mfaEnabled: false,
+  mfaMethods: [],
+  lastLoginAt: me.lastLoginAt ?? '',
+  lastLoginIp: '',
+  sessionExpiry: Date.now() + 15 * 60 * 1000,
+});
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<UserProfile | null>(DEFAULT_ADMIN_USER);
+  const meQuery = useMe();
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [originalUser, setOriginalUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [activeChallenge, setActiveChallenge] = useState<MfaChallenge | null>(null);
+
+  useEffect(() => {
+    setUser(meQuery.data ? meToProfile(meQuery.data) : null);
+  }, [meQuery.data]);
 
   const logout = useCallback((_reason?: string) => {
     secureTokenStorage.clearTokens();
@@ -78,30 +76,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, [logout]);
 
-  const login = useCallback(async (email: string, password?: string, rememberMe = false) => {
-    setIsLoading(true);
-    try {
-      // Simulate backend authentication
-      secureTokenStorage.setAccessToken('jwt_access_token_secure_mem', rememberMe ? 604800 : 900);
-      const challenge = mfaService.createStepUpChallenge('Login Authentication');
-      setActiveChallenge(challenge);
-      return { mfaRequired: true };
-    } finally {
-      setIsLoading(false);
-    }
+  const login = useCallback(async (_email: string, _password?: string, _rememberMe = false) => {
+    throw new Error('Use the application login screen.');
   }, []);
 
-  const verifyMfa = useCallback(async (code: string) => {
-    const isValid = await mfaService.verifyTotpCode(code);
-    if (isValid) {
-      setUser(DEFAULT_ADMIN_USER);
-      setActiveChallenge(null);
-      sessionManager.resetActivityTimer();
-      return true;
-    }
-    return false;
-  }, []);
-
+  const verifyMfa = useCallback(async (_code: string) => false, []);
   const verifyMfaChallenge = useCallback(async (_challengeId: string, code: string) => {
     return verifyMfa(code);
   }, [verifyMfa]);

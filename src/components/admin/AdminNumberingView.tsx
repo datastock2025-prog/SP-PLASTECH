@@ -1,4 +1,22 @@
 import React, { useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import {
   Hash,
   Plus,
@@ -118,63 +136,109 @@ export const AdminNumberingView: React.FC<AdminNumberingViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="min-w-0 space-y-4 pb-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-        <div>
+      <Card className="rounded-md border-slate-200 shadow-none">
+        <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold uppercase tracking-wider">
             <Hash className="w-4 h-4 text-[#0F8B8D]" />
             <span>Document Control & Serialization</span>
           </div>
-          <h1 className="text-xl font-bold text-slate-900 mt-1">Document Numbering Series &amp; Prefix Rules</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <h2 className="mt-1 text-lg font-semibold text-slate-900">Document Numbering Series &amp; Prefix Rules</h2>
+          <p className="mt-1 max-w-3xl text-sm text-slate-500">
             Configure automated auto-increment serial numbers, statutory fiscal year codes, and padding standards for all ERP transactions.
           </p>
         </div>
 
-        <button
+        <Button
+          type="button"
           onClick={handleOpenCreate}
-          className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#0F8B8D] hover:bg-[#0c7274] rounded-lg shadow-sm transition-colors self-start md:self-auto"
+          className="w-full shrink-0 bg-[#0F8B8D] text-white hover:bg-[#0c7274] sm:w-auto"
         >
-          <Plus className="w-4 h-4" />
+          <Plus aria-hidden="true" />
           Create New Series
-        </button>
-      </div>
+        </Button>
+        </CardContent>
+      </Card>
 
       {/* Info Banner */}
-      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-start gap-3 text-xs text-slate-600">
-        <HelpCircle className="w-4 h-4 text-[#0F8B8D] mt-0.5 shrink-0" />
-        <div>
-          <span className="font-semibold text-slate-800">Statutory Numbering Compliance:</span> Standard GST regulations mandate continuous, non-gap serial numbering for tax invoices and debit/credit notes within a financial year (April 1 to March 31). Manual overrides on invoices are strictly blocked by default.
-        </div>
-      </div>
+      <Card className="rounded-md border-sky-200 bg-sky-50/70 shadow-none">
+        <CardContent className="flex items-start gap-3 p-4 text-sm text-slate-700">
+          <HelpCircle className="mt-0.5 size-4 shrink-0 text-sky-700" aria-hidden="true" />
+          <p className="min-w-0">
+            <strong className="text-slate-900">Statutory numbering compliance:</strong> Standard GST regulations mandate continuous, non-gap serial numbering for tax invoices and debit/credit notes within a financial year (April 1 to March 31). Manual overrides on invoices are strictly blocked by default.
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Sequences Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider">
-              <tr>
-                <th className="py-3 px-4">Document Type &amp; Module</th>
-                <th className="py-3 px-4">Prefix &amp; Suffix</th>
-                <th className="py-3 px-4">Current Counter</th>
-                <th className="py-3 px-4">Zero Padding</th>
-                <th className="py-3 px-4">Reset Interval</th>
-                <th className="py-3 px-4">Next Generated ID</th>
-                <th className="py-3 px-4 text-center">Manual Override</th>
-                <th className="py-3 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
+      <Card className="overflow-hidden rounded-md border-slate-200 shadow-none">
+        <CardHeader className="flex-row items-center justify-between border-b border-slate-100 py-3">
+          <CardTitle className="text-sm font-semibold text-slate-900">Registered document series</CardTitle>
+          <Badge variant="outline">{sequences.length} series</Badge>
+        </CardHeader>
+        <CardContent className="p-0">
+        <div className="space-y-3 p-3 md:hidden">
+          {isLoading && <p className="py-6 text-center text-sm text-slate-500">Loading document series…</p>}
+          {!isLoading && sequences.length === 0 && <p className="py-6 text-center text-sm text-slate-500">No document series configured.</p>}
+          {sequences.map((seq) => (
+            <article key={seq.id} className="min-w-0 space-y-3 rounded-md border border-slate-200 bg-white p-3">
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="break-words text-sm font-semibold text-slate-900">{seq.documentType}</h3>
+                  <p className="mt-0.5 text-xs text-slate-500">{seq.module}</p>
+                  {seq.notes && <p className="mt-1 text-xs text-slate-500">{seq.notes}</p>}
+                </div>
+                <Badge variant={seq.allowManualOverride ? 'secondary' : 'outline'} className="shrink-0">
+                  {seq.allowManualOverride ? 'Override allowed' : 'Locked'}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2 border-t border-slate-100 pt-3 text-xs">
+                <div className="min-w-0"><span className="block text-slate-400">Prefix / suffix</span><span className="break-all font-mono text-slate-700">{seq.prefix}{seq.suffix}</span></div>
+                <div><span className="block text-slate-400">Counter / padding</span><span className="font-mono text-slate-700">{seq.currentSequence} · {seq.zeroPadding} digits</span></div>
+                <div className="min-w-0"><span className="block text-slate-400">Reset interval</span><span className="text-slate-700">{seq.resetFrequency}</span></div>
+                <div className="min-w-0"><span className="block text-slate-400">Next ID</span><Badge variant="outline" className="mt-1 max-w-full break-all font-mono text-[#0F8B8D]">{seq.samplePreview}</Badge></div>
+              </div>
+              {testResult?.id === seq.id && (
+                <p role="status" className="break-all rounded-md bg-emerald-50 p-2 font-mono text-xs text-emerald-800">Generated: {testResult.generatedCode}</p>
+              )}
+              <div className="flex gap-2 border-t border-slate-100 pt-2">
+                <Button type="button" size="sm" onClick={() => handleTestGenerate(seq)} className="min-w-0 flex-1 bg-teal-700 text-white hover:bg-teal-800" title="Simulate / Trigger Next Document Serial from PostgreSQL">
+                  <Zap aria-hidden="true" /> Generate next
+                </Button>
+                <Button type="button" variant="outline" size="icon-sm" onClick={() => handleOpenEdit(seq)} title="Edit Numbering Rule" aria-label={`Edit ${seq.documentType}`}>
+                  <Edit2 aria-hidden="true" />
+                </Button>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
+          <Table className="min-w-[1050px] text-left text-xs">
+            <TableHeader className="bg-slate-50 text-slate-600">
+              <TableRow>
+                <TableHead>Document Type &amp; Module</TableHead>
+                <TableHead>Prefix &amp; Suffix</TableHead>
+                <TableHead>Current Counter</TableHead>
+                <TableHead>Zero Padding</TableHead>
+                <TableHead>Reset Interval</TableHead>
+                <TableHead>Next Generated ID</TableHead>
+                <TableHead className="text-center">Manual Override</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {sequences.map((seq) => (
-                <tr key={seq.id} className="hover:bg-slate-50/70 transition-colors">
-                  <td className="py-3 px-4">
+                <TableRow key={seq.id} className="hover:bg-slate-50/70">
+                  <TableCell>
                     <div className="font-bold text-slate-900">{seq.documentType}</div>
                     <div className="text-[11px] text-slate-400">{seq.module}</div>
                     {seq.notes && <div className="text-[10px] text-slate-500 mt-0.5 italic">{seq.notes}</div>}
-                  </td>
+                  </TableCell>
 
-                  <td className="py-3 px-4 font-mono font-semibold text-slate-800">
+                  <TableCell className="font-mono font-semibold text-slate-800">
                     <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200">
                       {seq.prefix}
                     </span>
@@ -183,123 +247,126 @@ export const AdminNumberingView: React.FC<AdminNumberingViewProps> = ({
                         {seq.suffix}
                       </span>
                     )}
-                  </td>
+                  </TableCell>
 
-                  <td className="py-3 px-4 font-mono font-bold text-slate-900">
+                  <TableCell className="font-mono font-bold text-slate-900">
                     {seq.currentSequence}
-                  </td>
+                  </TableCell>
 
-                  <td className="py-3 px-4 text-slate-600 font-mono">
+                  <TableCell className="font-mono text-slate-600">
                     {seq.zeroPadding} digits
-                  </td>
+                  </TableCell>
 
-                  <td className="py-3 px-4">
-                    <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-700">
-                      <Calendar className="w-3 h-3 text-slate-500" />
+                  <TableCell>
+                    <Badge variant="outline" className="gap-1 text-[11px]">
+                      <Calendar aria-hidden="true" />
                       {seq.resetFrequency}
-                    </span>
-                  </td>
+                    </Badge>
+                  </TableCell>
 
-                  <td className="py-3 px-4 font-mono font-bold text-[#0F8B8D]">
-                    <span className="px-2 py-0.5 bg-[#0F8B8D]/10 rounded border border-[#0F8B8D]/20">
+                  <TableCell className="font-mono font-bold text-[#0F8B8D]">
+                    <Badge variant="outline" className="border-teal-200 bg-teal-50 font-mono text-teal-800">
                       {seq.samplePreview}
-                    </span>
-                  </td>
+                    </Badge>
+                  </TableCell>
 
-                  <td className="py-3 px-4 text-center">
+                  <TableCell className="text-center">
                     {seq.allowManualOverride ? (
-                      <span className="inline-flex items-center gap-1 text-amber-700 font-semibold bg-amber-50 px-2 py-0.5 rounded text-[11px]">
-                        Allowed
-                      </span>
+                      <Badge variant="secondary" className="bg-amber-50 text-amber-800">Allowed</Badge>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-slate-500 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
-                        <Lock className="w-3 h-3 text-slate-400" /> Locked
-                      </span>
+                      <Badge variant="outline" className="gap-1 text-slate-500"><Lock aria-hidden="true" /> Locked</Badge>
                     )}
-                  </td>
+                  </TableCell>
 
-                  <td className="py-3 px-4 text-right">
+                  <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1.5">
-                      <button
+                      <Button
+                        type="button"
+                        size="sm"
                         onClick={() => handleTestGenerate(seq)}
-                        className="flex items-center gap-1 px-2 py-1 rounded bg-[#0F8B8D]/10 hover:bg-[#0F8B8D]/20 text-[#0F8B8D] text-[11px] font-semibold transition-colors"
+                        className="h-7 bg-teal-50 text-xs text-teal-800 hover:bg-teal-100"
                         title="Simulate / Trigger Next Document Serial from PostgreSQL"
                       >
-                        <Zap className="w-3 h-3" />
-                        Generate #
-                      </button>
-                      <button
+                        <Zap aria-hidden="true" /> Generate #
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
                         onClick={() => handleOpenEdit(seq)}
-                        className="p-1.5 rounded hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors"
                         title="Edit Numbering Rule"
+                        aria-label={`Edit ${seq.documentType}`}
                       >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
+                        <Edit2 aria-hidden="true" />
+                      </Button>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Modal: Edit or Create Numbering Sequence */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6">
-            <h3 className="font-bold text-slate-900 text-base mb-1">
+        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <DialogContent showCloseButton={false} className="max-h-[90dvh] max-w-lg overflow-y-auto border-slate-200 bg-white p-4 text-slate-900 sm:p-6">
+            <DialogHeader>
+            <DialogTitle className="text-base font-semibold text-slate-900">
               {editingSeq ? `Configure ${editingSeq.documentType}` : 'Create New Document Series'}
-            </h3>
-            <p className="text-xs text-slate-500 mb-4">
+            </DialogTitle>
+            <p className="text-sm text-slate-500">
               Set prefix, zero padding length, sequence counter, and automatic annual reset rule.
             </p>
+            </DialogHeader>
 
-            <form onSubmit={handleSave} className="space-y-4 text-xs">
+            <form onSubmit={handleSave} className="space-y-4 text-sm">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Document Transaction Type *</label>
-                <input
+                <Input
                   type="text"
                   required
                   value={formData.documentType}
                   onChange={(e) => setFormData({ ...formData, documentType: e.target.value })}
                   placeholder="e.g. Subcontract Delivery Challan"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                  className="h-10"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Prefix *</label>
-                  <input
+                  <Input
                     type="text"
                     required
                     value={formData.prefix}
                     onChange={(e) => setFormData({ ...formData, prefix: e.target.value })}
                     placeholder="e.g. DC-2026-"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                    className="h-10 font-mono"
                   />
                 </div>
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Suffix (Optional)</label>
-                  <input
+                  <Input
                     type="text"
                     value={formData.suffix || ''}
                     onChange={(e) => setFormData({ ...formData, suffix: e.target.value })}
                     placeholder="e.g. -R0"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                    className="h-10 font-mono"
                   />
                 </div>
 
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Current Sequence Counter</label>
-                  <input
+                  <Input
                     type="number"
                     min={0}
                     value={formData.currentSequence}
                     onChange={(e) => setFormData({ ...formData, currentSequence: parseInt(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                    className="h-10 font-mono"
                   />
                 </div>
 
@@ -308,7 +375,7 @@ export const AdminNumberingView: React.FC<AdminNumberingViewProps> = ({
                   <select
                     value={formData.zeroPadding}
                     onChange={(e) => setFormData({ ...formData, zeroPadding: parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                    className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm"
                   >
                     <option value={3}>3 Digits (001)</option>
                     <option value={4}>4 Digits (0001)</option>
@@ -323,7 +390,7 @@ export const AdminNumberingView: React.FC<AdminNumberingViewProps> = ({
                 <select
                   value={formData.resetFrequency}
                   onChange={(e) => setFormData({ ...formData, resetFrequency: e.target.value as any })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                  className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm"
                 >
                   <option value="Fiscal Year (Apr-Mar)">Fiscal Year (Apr 01 - Mar 31)</option>
                   <option value="Yearly (Jan-Dec)">Calendar Year (Jan 01 - Dec 31)</option>
@@ -333,36 +400,37 @@ export const AdminNumberingView: React.FC<AdminNumberingViewProps> = ({
               </div>
 
               {/* Sample Live Output */}
-              <div className="p-3 bg-[#0F8B8D]/5 border border-[#0F8B8D]/20 rounded-lg">
-                <span className="text-[11px] font-semibold text-slate-500 block">Calculated Next Sample Document ID:</span>
-                <span className="text-base font-bold font-mono text-[#0F8B8D] mt-0.5 block">
+              <div className="rounded-md border border-teal-200 bg-teal-50 p-3">
+                <span className="block text-xs font-medium text-slate-600">Calculated next sample document ID</span>
+                <Badge variant="outline" className="mt-1 h-auto max-w-full break-all border-teal-300 bg-white font-mono text-sm font-semibold text-teal-800">
                   {generatePreview(
                     formData.prefix || '',
                     formData.suffix,
                     formData.currentSequence || 0,
                     formData.zeroPadding || 4
                   )}
-                </span>
+                </Badge>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
-                <button
+              <div className="flex flex-col-reverse gap-2 border-t border-slate-200 pt-3 sm:flex-row sm:justify-end">
+                <Button
                   type="button"
+                  variant="outline"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
-                  className="px-4 py-2 rounded-lg bg-[#0F8B8D] hover:bg-[#0c7274] text-white font-semibold shadow-sm"
+                  className="bg-teal-700 text-white hover:bg-teal-800"
                 >
+                  <CheckCircle2 aria-hidden="true" />
                   Save Sequence
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

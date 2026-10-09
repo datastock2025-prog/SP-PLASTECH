@@ -3,7 +3,6 @@
 // Strict Domain-Driven Architecture (Reboot ERP)
 // ============================================================================
 
-export * from './auth';
 export * from './dashboard';
 export * from './manufacturing';
 export * from './masterdata';

@@ -1,4 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import {
   Users,
   Plus,
@@ -279,74 +289,93 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
   });
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="min-w-0 space-y-4 pb-8">
       {/* Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-        <div>
+      <Card className="rounded-md border-slate-200 shadow-none">
+        <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold uppercase tracking-wider">
             <Users className="w-4 h-4 text-[#0F8B8D]" />
             <span>Identity &amp; Access Governance</span>
           </div>
-          <h1 className="text-xl font-bold text-slate-900 mt-1">User Groups &amp; Cross-Functional Crews</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <h2 className="mt-1 text-lg font-semibold text-slate-900">User Groups &amp; Cross-Functional Crews</h2>
+          <p className="mt-1 text-sm text-slate-500">
             Organize shopfloor technicians, mold maintenance gangs, and lab testing cohorts into hierarchical permission units.
           </p>
         </div>
 
-        <button
+        <Button
+          type="button"
           onClick={handleOpenCreate}
-          className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-[#0F8B8D] hover:bg-[#0c7274] rounded-lg shadow-sm transition-colors self-start md:self-auto cursor-pointer"
+          className="w-full shrink-0 bg-[#0F8B8D] text-white hover:bg-[#0c7274] sm:w-auto"
         >
-          <Plus className="w-3.5 h-3.5" />
+          <Plus aria-hidden="true" />
           Create User Group
-        </button>
-      </div>
+        </Button>
+        </CardContent>
+      </Card>
 
       {/* Filter Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
-        <div className="relative w-full sm:w-80">
-          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
+      <Card className="rounded-md border-slate-200 shadow-none">
+        <CardContent className="flex flex-col gap-3 p-3 sm:p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative w-full lg:max-w-xs">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+          <Input
             type="text"
             placeholder="Search groups by code, gang name, role..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
+            aria-label="Search user groups"
+            className="h-10 pl-9 text-sm"
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto">
-          <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+        <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto pb-1 lg:max-w-[70%]">
+          <Filter className="mr-1 size-4 shrink-0 text-slate-400" aria-hidden="true" />
           {departments.map((dept) => (
-            <button
+            <Button
               key={dept}
+              type="button"
+              size="sm"
+              variant={selectedDept === dept ? 'secondary' : 'outline'}
               onClick={() => setSelectedDept(dept)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
+              aria-pressed={selectedDept === dept}
+              className={`h-8 shrink-0 px-2.5 text-xs ${
                 selectedDept === dept
-                  ? 'bg-[#0F8B8D] text-white'
-                  : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  ? 'bg-teal-50 text-[#0F8B8D] hover:bg-teal-50'
+                  : 'text-slate-600'
               }`}
             >
-              {dept}
-            </button>
+              {dept === 'ALL' ? 'All departments' : dept}
+            </Button>
           ))}
         </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Main 2-Column Split: Groups List & Detailed Inspector */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Groups List */}
-        <div className="lg:col-span-7 space-y-3">
+        <div className="min-w-0 space-y-3 lg:col-span-7">
+          {!isGroupsLoading && filteredGroups.length === 0 && (
+            <Card className="rounded-md border-slate-200 shadow-none">
+              <CardContent className="py-10 text-center text-sm text-slate-500">
+                No user groups match these filters.
+              </CardContent>
+            </Card>
+          )}
           {filteredGroups.map((grp) => {
             const isSelected = selectedGroup?.id === grp.id;
             return (
-              <div
+              <button
                 key={grp.id}
+                type="button"
                 onClick={() => setSelectedGroup(grp)}
-                className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                aria-pressed={isSelected}
+                className={`block w-full rounded-md border p-4 text-left transition-colors ${
                   isSelected
-                    ? 'bg-[#0F8B8D]/5 border-[#0F8B8D] shadow-xs'
-                    : 'bg-white hover:bg-slate-50/80 border-slate-200 shadow-xs'
+                    ? 'border-teal-600 bg-teal-50/50 ring-1 ring-teal-600/15'
+                    : 'border-slate-200 bg-white hover:bg-slate-50'
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -369,15 +398,16 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
                     </div>
                   </div>
 
-                  <span
-                    className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                  <Badge
+                    variant="outline"
+                    className={`h-5 shrink-0 text-[10px] ${
                       grp.status === 'Active'
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'bg-slate-100 text-slate-500 border border-slate-200'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                        : 'border-slate-200 bg-slate-100 text-slate-500'
                     }`}
                   >
                     {grp.status}
-                  </span>
+                  </Badge>
                 </div>
 
                 <p className="text-xs text-slate-600 mt-3 line-clamp-2 leading-relaxed">{grp.description}</p>
@@ -389,14 +419,15 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
 
         {/* Selected Group Inspector Panel */}
         {selectedGroup && (
-          <div className="lg:col-span-5 bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-5 h-fit sticky top-4">
+          <Card className="min-w-0 h-fit rounded-md border-slate-200 shadow-none lg:sticky lg:top-4 lg:col-span-5">
+            <CardContent className="space-y-5 p-4 sm:p-5">
             <div className="flex items-start justify-between pb-4 border-b border-slate-200">
               <div>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
@@ -407,23 +438,29 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
-                <button
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
                   onClick={() => handleOpenEdit(selectedGroup)}
-                  className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
                   title="Edit Group Details"
+                  aria-label={`Edit ${selectedGroup.name}`}
                 >
-                  <Edit2 className="w-3.5 h-3.5" />
-                </button>
-                <button
+                  <Edit2 aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={() => handleToggleStatus(selectedGroup.id)}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
+                  className={`text-xs ${
                     selectedGroup.status === 'Active'
                       ? 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'
-                      : 'bg-emerald-600 text-white border-transparent hover:bg-emerald-700'
+                      : 'border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700'
                   }`}
                 >
                   {selectedGroup.status === 'Active' ? 'Deactivate' : 'Activate'}
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -452,12 +489,9 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
                 <label className="font-semibold text-slate-700 block mb-1">Assigned Security Roles:</label>
                 <div className="flex flex-wrap gap-1.5">
                   {selectedGroup.rolesAssigned.map((r) => (
-                    <span
-                      key={r}
-                      className="px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 font-medium text-[11px]"
-                    >
+                    <Badge key={r} variant="secondary" className="h-5 bg-indigo-50 text-[11px] text-indigo-700">
                       {r}
-                    </span>
+                    </Badge>
                   ))}
                 </div>
               </div>
@@ -466,12 +500,9 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
                 <label className="font-semibold text-slate-700 block mb-1">Operational Tags:</label>
                 <div className="flex flex-wrap gap-1.5">
                   {selectedGroup.tags.map((t) => (
-                    <span
-                      key={t}
-                      className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 text-[10px]"
-                    >
+                    <Badge key={t} variant="outline" className="h-5 text-[10px] text-slate-600">
                       #{t}
-                    </span>
+                    </Badge>
                   ))}
                 </div>
               </div>
@@ -485,22 +516,28 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
             </div>
 
             <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
-              <button
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
                 onClick={handleExportRoster}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                className="min-w-0 text-xs"
               >
-                <Download className="w-3.5 h-3.5 text-slate-500" />
+                <Download aria-hidden="true" />
                 Export Crew Roster
-              </button>
-              <button
+              </Button>
+              <Button
+                type="button"
+                size="sm"
                 onClick={handleOpenAddMembers}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0F8B8D] text-white text-xs font-semibold hover:bg-[#0c7274] transition-colors cursor-pointer"
+                className="min-w-0 bg-[#0F8B8D] text-xs text-white hover:bg-[#0c7274]"
               >
-                <UserPlus className="w-3.5 h-3.5" />
+                <UserPlus aria-hidden="true" />
                 Add Members ({selectedGroup.membersCount})
-              </button>
+              </Button>
             </div>
-          </div>
+            </CardContent>
+          </Card>
         )}
       </div>
 
@@ -508,19 +545,20 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
       {/* ADD / MANAGE MEMBERS MODAL */}
       {/* ========================================================================= */}
       {isAddMemberModalOpen && selectedGroup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+        <Dialog open={isAddMemberModalOpen} onOpenChange={setIsAddMemberModalOpen}>
+          <DialogContent showCloseButton={false} className="flex max-h-[90dvh] max-w-xl flex-col overflow-hidden border-slate-200 bg-white p-0 text-slate-900">
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-slate-900 text-base">
+              <DialogHeader>
+                <DialogTitle className="font-bold text-slate-900 text-base">
                   Enroll Members &mdash; {selectedGroup.name}
-                </h3>
+                </DialogTitle>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Select technicians, operators, or supervisors to assign to this operational crew.
                 </p>
-              </div>
+              </DialogHeader>
               <button
                 onClick={() => setIsAddMemberModalOpen(false)}
+                aria-label="Close member enrollment"
                 className="p-1 rounded text-slate-400 hover:text-slate-700"
               >
                 <X className="w-5 h-5" />
@@ -530,12 +568,13 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
             <div className="p-4 border-b border-slate-100">
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
+                <Input
                   type="text"
                   placeholder="Search employees by name, designation, department..."
                   value={memberSearch}
                   onChange={(e) => setMemberSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
+                  aria-label="Search personnel"
+                  className="h-10 pl-9 text-sm"
                 />
               </div>
             </div>
@@ -548,13 +587,15 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
               {filteredCandidateUsers.map((user) => {
                 const isEnrolled = selectedMemberIds.includes(user.id);
                 return (
-                  <div
+                  <button
                     key={user.id}
+                    type="button"
                     onClick={() => handleToggleMember(user.id)}
-                    className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                    aria-pressed={isEnrolled}
+                    className={`flex w-full items-center justify-between gap-3 rounded-md border p-3 text-left transition-colors ${
                       isEnrolled
-                        ? 'bg-teal-50/70 border-[#0F8B8D] text-teal-950 shadow-2xs'
-                        : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
+                        ? 'border-teal-600 bg-teal-50/70 text-teal-950'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                     }`}
                   >
                     <div className="flex items-center gap-3">
@@ -585,7 +626,7 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
                     >
                       {isEnrolled && <Check className="w-3.5 h-3.5" />}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -595,41 +636,54 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
                 <strong>{selectedMemberIds.length}</strong> personnel selected
               </span>
               <div className="flex gap-2">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={() => setIsAddMemberModalOpen(false)}
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  size="sm"
                   onClick={handleSaveMembers}
-                  className="px-4 py-1.5 rounded-lg bg-[#0F8B8D] hover:bg-[#0c7274] text-white text-xs font-semibold shadow-sm cursor-pointer"
+                  className="bg-[#0F8B8D] text-white hover:bg-[#0c7274]"
                 >
                   Save Enrolled Members
-                </button>
+                </Button>
               </div>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* ========================================================================= */}
       {/* MODAL: CREATE / EDIT USER GROUP */}
       {/* ========================================================================= */}
       {(isCreateModalOpen || isEditModalOpen) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6">
+        <Dialog
+          open={isCreateModalOpen || isEditModalOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setIsCreateModalOpen(false);
+              setIsEditModalOpen(false);
+            }
+          }}
+        >
+          <DialogContent showCloseButton={false} className="max-h-[90dvh] max-w-lg overflow-y-auto border-slate-200 bg-white p-4 text-slate-900 sm:p-6">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-              <h3 className="font-bold text-slate-900 text-base">
+              <DialogHeader>
+                <DialogTitle className="font-bold text-slate-900 text-base">
                 {isEditModalOpen ? `Edit ${groupForm.code}` : 'Create New User Group'}
-              </h3>
+                </DialogTitle>
+              </DialogHeader>
               <button
                 onClick={() => {
                   setIsCreateModalOpen(false);
                   setIsEditModalOpen(false);
                 }}
+                aria-label="Close group form"
                 className="p-1 rounded text-slate-400 hover:text-slate-700"
               >
                 <X className="w-5 h-5" />
@@ -640,38 +694,38 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
               onSubmit={isEditModalOpen ? handleSaveEditGroup : handleCreateGroup}
               className="space-y-4 text-xs"
             >
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Group Name</label>
-                  <input
+                  <Input
                     type="text"
                     required
                     placeholder="e.g. Ultrasonic Welding Cell Operators"
                     value={groupForm.name}
                     onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                    className="h-10"
                   />
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Group Code</label>
-                  <input
+                  <Input
                     type="text"
                     required
                     placeholder="e.g. WELD-CELL-01"
                     value={groupForm.code}
                     onChange={(e) => setGroupForm({ ...groupForm, code: e.target.value.toUpperCase() })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono uppercase"
+                    className="h-10 font-mono uppercase"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Department</label>
                   <select
                     value={groupForm.department}
                     onChange={(e) => setGroupForm({ ...groupForm, department: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                    className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm"
                   >
                     <option value="Production">Production</option>
                     <option value="Tooling & Maintenance">Tooling &amp; Maintenance</option>
@@ -682,12 +736,12 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Gang Supervisor</label>
-                  <input
+                  <Input
                     type="text"
                     placeholder="e.g. Vikram Patel"
                     value={groupForm.supervisorName}
                     onChange={(e) => setGroupForm({ ...groupForm, supervisorName: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                    className="h-10"
                   />
                 </div>
               </div>
@@ -699,42 +753,44 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
                   placeholder="Describe operational responsibilities and shift coverage..."
                   value={groupForm.description}
                   onChange={(e) => setGroupForm({ ...groupForm, description: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                  className="min-h-20 w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-teal-600/20"
                 />
               </div>
 
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Operational Tags (comma separated)</label>
-                <input
+                <Input
                   type="text"
                   placeholder="e.g. Injection Molds, Shift A, Critical"
                   value={groupForm.tags}
                   onChange={(e) => setGroupForm({ ...groupForm, tags: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                  className="h-10"
                 />
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={() => {
                     setIsCreateModalOpen(false);
                     setIsEditModalOpen(false);
                   }}
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
-                  className="px-4 py-1.5 rounded-lg bg-[#0F8B8D] text-white font-semibold hover:bg-[#0c7274] shadow-sm cursor-pointer"
+                  size="sm"
+                  className="bg-[#0F8B8D] text-white hover:bg-[#0c7274]"
                 >
                   {isEditModalOpen ? 'Save Group Details' : 'Create User Group'}
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

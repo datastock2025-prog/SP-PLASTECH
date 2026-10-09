@@ -1,4 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import {
   Shield,
   Lock,
@@ -140,32 +151,36 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
   const ipRanges = Array.isArray(policy.allowedIpRanges) ? policy.allowedIpRanges : DEFAULT_SECURITY_POLICY.allowedIpRanges || [];
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="min-w-0 space-y-4 pb-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-        <div>
+      <Card className="rounded-md border-slate-200 shadow-none">
+        <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold uppercase tracking-wider">
             <ShieldCheck className="w-4 h-4 text-[#0F8B8D]" />
             <span>Cybersecurity Hardening &amp; Compliance &bull; Live DB Connected</span>
           </div>
-          <h1 className="text-xl font-bold text-slate-900 mt-1">Security, Authentication &amp; Lockout Policies</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <h2 className="mt-1 text-lg font-semibold text-slate-900">Security, Authentication &amp; Lockout Policies</h2>
+          <p className="mt-1 max-w-3xl text-sm text-slate-500">
             Configure password strength metrics, multi-factor authentication (MFA) enforcement, session auto-lockout, and plant IP whitelists.
           </p>
         </div>
 
-        <button
+        <Button
+          type="button"
           onClick={handleTriggerSave}
-          className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#0F8B8D] hover:bg-[#0c7274] rounded-lg shadow-sm transition-colors self-start md:self-auto cursor-pointer"
+          className="w-full shrink-0 bg-teal-700 text-white hover:bg-teal-800 sm:w-auto"
         >
-          <Save className="w-4 h-4" />
+          <Save aria-hidden="true" />
           Save Security Policy
-        </button>
-      </div>
+        </Button>
+        </CardContent>
+      </Card>
 
       <form onSubmit={handleTriggerSave} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Card 1: Password Complexity & Expiry */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+        <Card className="rounded-md border-slate-200 shadow-none">
+        <CardContent className="space-y-4 p-4 sm:p-5">
           <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
             <KeyRound className="w-4 h-4 text-[#0F8B8D]" />
             <h2 className="text-sm font-bold text-slate-900">Password Complexity &amp; Rotation Standards</h2>
@@ -175,13 +190,13 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Minimum Password Length</label>
               <div className="flex items-center gap-3">
-                <input
+                <Input
                   type="number"
                   min={8}
                   max={32}
                   value={policy.minPasswordLength || 8}
                   onChange={(e) => setPolicy({ ...policy, minPasswordLength: parseInt(e.target.value) || 8 })}
-                  className="w-24 px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                  className="h-10 w-24 font-mono"
                 />
                 <span className="text-slate-500">Characters (Minimum 8 recommended for enterprise)</span>
               </div>
@@ -189,75 +204,77 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
 
             <div className="space-y-2 pt-2 border-t border-slate-100">
               <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
+                <Switch
                   checked={!!policy.requireUppercase}
-                  onChange={(e) => setPolicy({ ...policy, requireUppercase: e.target.checked })}
-                  className="rounded text-[#0F8B8D] focus:ring-[#0F8B8D]"
+                  onCheckedChange={(checked) => setPolicy({ ...policy, requireUppercase: checked })}
+                  aria-label="Require uppercase letters"
+                  className="shrink-0 data-[state=checked]:bg-teal-700"
                 />
                 <span className="font-semibold text-slate-700">Require at least one uppercase letter (A-Z)</span>
               </label>
 
               <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
+                <Switch
                   checked={!!policy.requireLowercase}
-                  onChange={(e) => setPolicy({ ...policy, requireLowercase: e.target.checked })}
-                  className="rounded text-[#0F8B8D] focus:ring-[#0F8B8D]"
+                  onCheckedChange={(checked) => setPolicy({ ...policy, requireLowercase: checked })}
+                  aria-label="Require lowercase letters"
+                  className="shrink-0 data-[state=checked]:bg-teal-700"
                 />
                 <span className="font-semibold text-slate-700">Require at least one lowercase letter (a-z)</span>
               </label>
 
               <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
+                <Switch
                   checked={!!policy.requireNumbers}
-                  onChange={(e) => setPolicy({ ...policy, requireNumbers: e.target.checked })}
-                  className="rounded text-[#0F8B8D] focus:ring-[#0F8B8D]"
+                  onCheckedChange={(checked) => setPolicy({ ...policy, requireNumbers: checked })}
+                  aria-label="Require numeric digits"
+                  className="shrink-0 data-[state=checked]:bg-teal-700"
                 />
                 <span className="font-semibold text-slate-700">Require at least one numeric digit (0-9)</span>
               </label>
 
               <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
+                <Switch
                   checked={!!policy.requireSpecialChars}
-                  onChange={(e) => setPolicy({ ...policy, requireSpecialChars: e.target.checked })}
-                  className="rounded text-[#0F8B8D] focus:ring-[#0F8B8D]"
+                  onCheckedChange={(checked) => setPolicy({ ...policy, requireSpecialChars: checked })}
+                  aria-label="Require special symbols"
+                  className="shrink-0 data-[state=checked]:bg-teal-700"
                 />
                 <span className="font-semibold text-slate-700">Require special symbol (!@#$%^&amp;*)</span>
               </label>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+            <div className="grid grid-cols-1 gap-3 border-t border-slate-100 pt-2 sm:grid-cols-2">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Mandatory Expiry (Days)</label>
-                <input
+                <Input
                   type="number"
                   value={policy.passwordExpiryDays || 90}
                   onChange={(e) => setPolicy({ ...policy, passwordExpiryDays: parseInt(e.target.value) || 90 })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                  className="h-10 font-mono"
                 />
               </div>
 
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Prevent Password Reuse</label>
                 <div className="flex items-center gap-2">
-                  <input
+                  <Input
                     type="number"
                     value={policy.enforcePasswordHistoryCount || 5}
                     onChange={(e) => setPolicy({ ...policy, enforcePasswordHistoryCount: parseInt(e.target.value) || 5 })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                    className="h-10 min-w-0 font-mono"
                   />
                   <span className="text-slate-400">Cycles</span>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </CardContent>
+        </Card>
 
         {/* Card 2: Account Lockout & Brute-Force Defense */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+        <Card className="rounded-md border-rose-200 shadow-none">
+        <CardContent className="space-y-4 p-4 sm:p-5">
           <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
             <Lock className="w-4 h-4 text-rose-600" />
             <h2 className="text-sm font-bold text-slate-900">Account Lockout &amp; Threat Defense</h2>
@@ -269,13 +286,13 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
                 Max Failed Login Attempts Before Account Lockout
               </label>
               <div className="flex items-center gap-3">
-                <input
+                <Input
                   type="number"
                   min={3}
                   max={10}
                   value={policy.maxFailedAttemptsBeforeLockout || 5}
                   onChange={(e) => setPolicy({ ...policy, maxFailedAttemptsBeforeLockout: parseInt(e.target.value) || 5 })}
-                  className="w-24 px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                  className="h-10 w-24 font-mono"
                 />
                 <span className="text-slate-500">Failed attempts (Default: 5)</span>
               </div>
@@ -284,13 +301,13 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Lockout Duration (Minutes)</label>
               <div className="flex items-center gap-3">
-                <input
+                <Input
                   type="number"
                   min={5}
                   max={1440}
                   value={policy.lockoutDurationMinutes || 30}
                   onChange={(e) => setPolicy({ ...policy, lockoutDurationMinutes: parseInt(e.target.value) || 30 })}
-                  className="w-24 px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                  className="h-10 w-24 font-mono"
                 />
                 <span className="text-slate-500">Minutes until auto-unlock (or manual Admin reset)</span>
               </div>
@@ -299,22 +316,24 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
             <div className="pt-2 border-t border-slate-100">
               <label className="block font-semibold text-slate-700 mb-1">Inactivity Session Timeout</label>
               <div className="flex items-center gap-3">
-                <input
+                <Input
                   type="number"
                   min={5}
                   max={480}
                   value={policy.sessionTimeoutMinutes || 20}
                   onChange={(e) => setPolicy({ ...policy, sessionTimeoutMinutes: parseInt(e.target.value) || 20 })}
-                  className="w-24 px-3 py-2 rounded-lg border border-slate-300 font-mono"
+                  className="h-10 w-24 font-mono"
                 />
                 <span className="text-slate-500">Minutes of idle activity before automatic logoff</span>
               </div>
             </div>
           </div>
-        </div>
+        </CardContent>
+        </Card>
 
         {/* Card 3: Multi-Factor Authentication (MFA) */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+        <Card className="rounded-md border-indigo-200 shadow-none">
+        <CardContent className="space-y-4 p-4 sm:p-5">
           <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
             <Smartphone className="w-4 h-4 text-indigo-600" />
             <h2 className="text-sm font-bold text-slate-900">Multi-Factor Authentication (MFA) Mandate</h2>
@@ -322,11 +341,11 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
 
           <div className="space-y-3 text-xs">
             <label className="flex items-start gap-2.5 p-3 rounded-lg border border-slate-200 bg-slate-50 cursor-pointer">
-              <input
-                type="checkbox"
+              <Switch
                 checked={policy.mfaEnforced !== false}
-                onChange={(e) => setPolicy({ ...policy, mfaEnforced: e.target.checked })}
-                className="mt-0.5 rounded text-[#0F8B8D] focus:ring-[#0F8B8D]"
+                onCheckedChange={(checked) => setPolicy({ ...policy, mfaEnforced: checked })}
+                aria-label="Enforce enterprise MFA for all staff"
+                className="mt-0.5 shrink-0 data-[state=checked]:bg-indigo-700"
               />
               <div>
                 <span className="font-bold text-slate-900 block">Enforce Enterprise 2FA for All Staff</span>
@@ -367,10 +386,12 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
               </div>
             </div>
           </div>
-        </div>
+        </CardContent>
+        </Card>
 
         {/* Card 4: IP Geofencing & Plant Subnet Whitelist */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+        <Card className="rounded-md border-emerald-200 shadow-none">
+        <CardContent className="space-y-4 p-4 sm:p-5">
           <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
             <Globe className="w-4 h-4 text-emerald-600" />
             <h2 className="text-sm font-bold text-slate-900">Plant CIDR Subnet &amp; IP Whitelist</h2>
@@ -378,11 +399,11 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
 
           <div className="space-y-3 text-xs">
             <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
+              <Switch
                 checked={policy.ipWhitelistEnforced !== false}
-                onChange={(e) => setPolicy({ ...policy, ipWhitelistEnforced: e.target.checked })}
-                className="rounded text-[#0F8B8D] focus:ring-[#0F8B8D]"
+                onCheckedChange={(checked) => setPolicy({ ...policy, ipWhitelistEnforced: checked })}
+                aria-label="Enforce plant geofencing"
+                className="shrink-0 data-[state=checked]:bg-emerald-700"
               />
               <span className="font-semibold text-slate-700">
                 Enforce Plant Geofencing (Block login outside whitelisted subnets)
@@ -390,20 +411,22 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
             </label>
 
             <div className="flex gap-2">
-              <input
+              <Input
                 type="text"
                 placeholder="e.g. 192.168.10.0/24 (Chennai Hub)"
                 value={newIpRange}
                 onChange={(e) => setNewIpRange(e.target.value)}
-                className="flex-1 px-3 py-2 rounded-lg border border-slate-300 font-mono text-xs"
+                aria-label="Add CIDR IP range"
+                className="h-10 min-w-0 flex-1 font-mono"
               />
-              <button
+              <Button
                 type="button"
+                size="sm"
                 onClick={handleAddIp}
-                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition-colors cursor-pointer"
+                className="h-10 shrink-0"
               >
-                + Add Subnet
-              </button>
+                <Plus aria-hidden="true" /> Add Subnet
+              </Button>
             </div>
 
             <div className="space-y-1.5 max-h-40 overflow-y-auto pt-1">
@@ -413,31 +436,37 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
                   className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200 font-mono text-xs text-slate-800"
                 >
                   <span>{ip}</span>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon-sm"
                     onClick={() => handleRemoveIp(ip)}
-                    className="p-1 rounded hover:bg-rose-100 text-rose-500 hover:text-rose-700 transition-colors cursor-pointer"
+                    aria-label={`Remove IP range ${ip}`}
+                    className="text-rose-700"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                    <Trash2 aria-hidden="true" />
+                  </Button>
                 </div>
               ))}
             </div>
           </div>
-        </div>
+        </CardContent>
+        </Card>
       </form>
 
       {/* Confirmation Modal */}
       {isConfirmModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4">
+        <Dialog open={isConfirmModalOpen} onOpenChange={setIsConfirmModalOpen}>
+          <DialogContent showCloseButton={false} className="max-h-[90dvh] max-w-md overflow-y-auto border-slate-200 bg-white p-4 text-slate-900 sm:p-6">
             <div className="flex items-start gap-3">
-              <div className="p-2.5 rounded-xl bg-teal-100 text-[#0F8B8D]">
-                <ShieldCheck className="w-6 h-6" />
+              <div className="grid size-10 shrink-0 place-items-center rounded-md bg-teal-50 text-teal-800">
+                <ShieldCheck className="size-5" aria-hidden="true" />
               </div>
               <div className="flex-1">
-                <h3 className="text-sm font-bold text-slate-900">Confirm Security Policy Deployment</h3>
-                <p className="text-xs text-slate-600 mt-1">
+                <DialogHeader>
+                <DialogTitle className="text-sm font-semibold text-slate-900">Confirm Security Policy Deployment</DialogTitle>
+                </DialogHeader>
+                <p className="mt-1 text-sm text-slate-600">
                   Updating enterprise security policies impacts active user sessions, password requirements, and plant geofence checks across all connected facilities.
                 </p>
               </div>
@@ -450,28 +479,32 @@ export const AdminSecurityView: React.FC<AdminSecurityViewProps> = ({
               <textarea
                 rows={2}
                 placeholder="Enter justification for governance audit ledger..."
+                aria-label="Governance review justification"
                 value={changeReason}
                 onChange={(e) => setChangeReason(e.target.value)}
-                className="w-full text-xs p-2 rounded-lg border border-slate-300 focus:ring-1 focus:ring-[#0F8B8D]"
+                className="min-h-20 w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-teal-600/20"
               />
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-3 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
                 onClick={() => setIsConfirmModalOpen(false)}
-                className="px-3.5 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                type="button"
                 onClick={handleExecuteSave}
-                className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#0F8B8D] hover:bg-[#0c7274] shadow-sm cursor-pointer"
+                className="bg-teal-700 text-white hover:bg-teal-800"
               >
+                <Save aria-hidden="true" />
                 Confirm &amp; Deploy Policy
-              </button>
+              </Button>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

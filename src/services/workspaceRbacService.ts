@@ -29,7 +29,7 @@ export const WORKSPACE_ROLES: RoleDef[] = [
 ];
 
 export function normalizeRoleKey(roleStr?: string): string {
-  if (!roleStr) return 'admin';
+  if (!roleStr) return 'operator';
   const r = roleStr.toLowerCase();
   if (r === 'admin' || r.includes('admin') || r.includes('director')) return 'admin';
   if (r === 'plant_manager' || (r.includes('plant') && r.includes('manager'))) return 'plant_manager';
@@ -43,7 +43,7 @@ export function normalizeRoleKey(roleStr?: string): string {
   if (r === 'sales' || r.includes('sales')) return 'sales';
   if (r === 'procurement' || r.includes('procurement') || r.includes('sourcing')) return 'procurement';
   if (r === 'scm' || r.includes('supply chain')) return 'scm';
-  return 'admin';
+  return 'operator';
 }
 
 // Initial Quarantined / Pending Approval Screens

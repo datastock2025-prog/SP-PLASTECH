@@ -154,7 +154,10 @@ function mapSupabaseRowToItemDto(row: any): ItemMasterDto {
     name: String(row.name || ''),
     category: String(row.category || row.cat || 'Finished Good'),
     cat: String(row.category || row.cat || 'Finished Good'),
-    type: String(row.entity_type || row.type || 'Finished Good'),
+    type:
+      row.entity_type === 'Finished Molded Component'
+        ? 'Finished Good'
+        : String(row.entity_type || row.type || 'Finished Good'),
     stock: row.stock ?? 0,
     avail: row.avail ?? row.stock ?? 0,
     wh: String(row.wh || 'FG_WH_A'),
@@ -227,37 +230,65 @@ export const itemEndpoints = {
     search?: string;
     category?: string;
     status?: string;
+    itemType?: string;
+    approval?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
     lean?: boolean;
   }): Promise<PaginatedItemsResponse> {
     const page = Math.max(1, params.page || 1);
-    const limit = Math.min(100, Math.max(10, params.limit || 50));
+    const limit = Math.min(100, Math.max(1, params.limit || 50));
     const from = (page - 1) * limit;
     const selectCols = params.lean !== false ? ITEM_LEAN_SELECT_COLUMNS : ITEM_SELECT_COLUMNS;
 
     const whereObj: Record<string, any> = {};
+    const whereInObj: Record<string, any[]> = {};
     if (params.category && params.category !== 'All' && params.category !== 'ALL') {
       whereObj.category = params.category;
     }
     if (params.status && params.status !== 'ALL') {
       whereObj.status = params.status;
     }
-
-    const whereLikeObj: Record<string, string> = {};
-    if (params.search && params.search.trim()) {
-      whereLikeObj.name = params.search.trim();
+    if (params.itemType && params.itemType !== 'all') {
+      whereInObj.entity_type = params.itemType === 'Masterbatch'
+        ? ['Masterbatch', 'Additive']
+        : params.itemType === 'Finished Good'
+          ? ['Finished Good', 'Finished Molded Component']
+          : [params.itemType];
     }
+    if (params.approval) {
+      whereObj.approval = params.approval;
+    }
+
+    const search = params.search?.trim();
+    const searchFilter = search
+      ? { query: search, columns: ['code', 'name', 'category', 'resin_type', 'mold_code'] }
+      : undefined;
+    const sortColumns: Record<string, string> = {
+      code: 'code',
+      name: 'name',
+      type: 'entity_type',
+      cycleTime: 'cycle_time_seconds',
+      stock: 'stock',
+      avail: 'stock',
+    };
+    const sortColumn = sortColumns[params.sortBy || ''] || 'created_at';
+    const sortAscending = params.sortOrder !== 'desc';
 
     const [rawList, totalCount] = await Promise.all([
       db.findMany<any>('items', {
         select: selectCols,
         where: Object.keys(whereObj).length > 0 ? whereObj : undefined,
-        whereLike: Object.keys(whereLikeObj).length > 0 ? whereLikeObj : undefined,
-        orderBy: { column: 'created_at', ascending: false },
+        whereIn: Object.keys(whereInObj).length > 0 ? whereInObj : undefined,
+        search: searchFilter,
+        orderBy: { column: sortColumn, ascending: sortAscending },
         limit,
         offset: from,
       }),
       db.count('items', {
         where: Object.keys(whereObj).length > 0 ? whereObj : undefined,
+        whereIn: Object.keys(whereInObj).length > 0 ? whereInObj : undefined,
+        search: searchFilter,
       }),
     ]);
 

@@ -56,7 +56,7 @@ interface ConversionRow {
 interface CreateItemWizardProps {
   isOpen: boolean;
   onClose: () => void;
-  onSaveItem: (item: ItemMaster) => void;
+  onSaveItem: (item: ItemMaster) => void | Promise<void>;
   editItem?: ItemMaster | null;
   allItems?: ItemMaster[];
   showToast: (msg: string) => void;
@@ -71,6 +71,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   showToast,
 }) => {
   const [currentStep, setCurrentStep] = useState<number>(1);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [lastAutoSaveTime, setLastAutoSaveTime] = useState<string>('12:04');
 
   // Step 1: Item Type
@@ -993,7 +994,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
     showToast('Draft discarded.');
   };
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     if (!itemCode.trim()) {
       setItemCodeError(true);
       setCurrentStep(2);
@@ -1075,12 +1076,19 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
         uploadedBy: d.uploadedBy || 'Current User',
       })),
     };
-    onSaveItem(draftItem);
-    showToast(`Draft item ${draftItem.code} saved successfully.`);
-    onClose();
+    setIsSubmitting(true);
+    try {
+      await onSaveItem(draftItem);
+      showToast(`Draft item ${draftItem.code} saved successfully.`);
+      onClose();
+    } catch (error: any) {
+      showToast(`Failed to save draft ${draftItem.code}: ${error?.message || 'Database error'}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleSubmitFinal = (isApprovedDirectly = false) => {
+  const handleSubmitFinal = async (isApprovedDirectly = false) => {
     if (!itemCode.trim()) {
       setItemCodeError(true);
       showToast('Item Code is required before submitting.');
@@ -1169,13 +1177,20 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       })),
     };
 
-    onSaveItem(finalItem);
-    showToast(
-      isApprovedDirectly
-        ? `Item ${finalItem.code} released directly to Active Master catalog.`
-        : `Item ${finalItem.code} submitted for ${workflowRoute.split(':')[0]} approval.`
-    );
-    onClose();
+    setIsSubmitting(true);
+    try {
+      await onSaveItem(finalItem);
+      showToast(
+        isApprovedDirectly
+          ? `Item ${finalItem.code} released directly to Active Master catalog.`
+          : `Item ${finalItem.code} submitted for ${workflowRoute.split(':')[0]} approval.`
+      );
+      onClose();
+    } catch (error: any) {
+      showToast(`Failed to save item ${finalItem.code}: ${error?.message || 'Database error'}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -3825,6 +3840,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                 <button
                   type="button"
                   onClick={handleSaveDraft}
+                  disabled={isSubmitting}
                   className="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
                 >
                   Save as draft
@@ -3844,6 +3860,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     <button
                       type="button"
                       onClick={() => handleSubmitFinal(true)}
+                      disabled={isSubmitting}
                       className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors"
                     >
                       Save as Active Master
@@ -3851,6 +3868,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     <button
                       type="button"
                       onClick={() => handleSubmitFinal(false)}
+                      disabled={isSubmitting}
                       className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-[#0066CC] hover:bg-[#0052a3] text-white text-xs font-semibold shadow-xs transition-colors"
                     >
                       <CheckCircle className="w-3.5 h-3.5" />

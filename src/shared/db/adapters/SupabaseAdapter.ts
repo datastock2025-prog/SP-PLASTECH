@@ -181,6 +181,13 @@ export class SupabaseAdapter implements IDatabaseAdapter {
           }
         });
       }
+      if (filter?.whereIn) {
+        Object.entries(filter.whereIn).forEach(([key, values]) => {
+          if (Array.isArray(values) && values.length > 0) {
+            query = query.in(key, values);
+          }
+        });
+      }
       if (filter?.search?.query && filter?.search?.columns?.length) {
         const q = filter.search.query.trim();
         if (q) {

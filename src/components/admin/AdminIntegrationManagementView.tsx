@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Cpu,
   Plus,
@@ -125,113 +128,118 @@ export const AdminIntegrationManagementView: React.FC<AdminIntegrationManagement
   };
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="min-w-0 space-y-4 pb-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-        <div>
+      <Card className="rounded-md border-slate-200 shadow-none">
+        <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold uppercase tracking-wider">
             <Cpu className="w-4 h-4 text-[#0F8B8D]" />
             <span>Connected Systems, Industrial IoT &amp; EDI Gateways</span>
           </div>
-          <h1 className="text-xl font-bold text-slate-900 mt-1">Integration Management Screen</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <h2 className="mt-1 text-lg font-semibold text-slate-900">Integration Management</h2>
+          <p className="mt-1 max-w-3xl text-sm text-slate-500">
             Configure Euromap 63/77 injection machine OPC-UA servers, spectrophotometers, weighbridges, automotive OEM EDI, and NIC GST e-invoicing pipelines.
           </p>
         </div>
 
-        <button
+        <Button
+          type="button"
           onClick={() => showToast('Opened new peripheral connector integration wizard.')}
-          className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-[#0F8B8D] hover:bg-[#0c7274] rounded-lg shadow-sm transition-colors self-start md:self-auto"
+          className="w-full shrink-0 bg-teal-700 text-white hover:bg-teal-800 sm:w-auto"
         >
-          <Plus className="w-3.5 h-3.5" />
+          <Plus aria-hidden="true" />
           Add Integration Connector
-        </button>
-      </div>
+        </Button>
+        </CardContent>
+      </Card>
 
       {/* Connectors Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-2">
         {connectors.map((conn) => (
-          <div
+          <Card
             key={conn.id}
-            className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between space-y-4 hover:border-slate-300 transition-all"
+            className="min-w-0 rounded-md border-slate-200 shadow-none transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-px hover:border-slate-300 hover:shadow-sm motion-reduce:transform-none motion-reduce:transition-none"
           >
+            <CardContent className="flex h-full flex-col justify-between gap-4 p-4 sm:p-5">
             <div>
               <div className="flex items-start justify-between gap-2">
-                <div>
-                  <span className="text-[10px] font-semibold text-[#0F8B8D] uppercase tracking-wider">
+                <div className="min-w-0">
+                  <span className="text-xs font-medium text-teal-800">
                     {conn.category}
                   </span>
-                  <h3 className="font-bold text-xs text-slate-900 mt-0.5">{conn.name}</h3>
-                  <div className="font-mono text-[11px] text-slate-500 mt-0.5">{conn.protocol}</div>
+                  <h3 className="mt-1 break-words text-sm font-semibold text-slate-900">{conn.name}</h3>
+                  <div className="mt-1 break-words font-mono text-xs text-slate-500">{conn.protocol}</div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      conn.status === 'Online'
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'bg-rose-50 text-rose-700 border border-rose-200'
-                    }`}
-                  >
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        conn.status === 'Online' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
-                      }`}
-                    />
+                <div className="flex shrink-0 items-center gap-2">
+                  <Badge variant="outline" className={`gap-1.5 ${conn.status === 'Online' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : conn.status === 'Degraded' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}>
+                    <span className={`size-1.5 rounded-full ${conn.status === 'Online' ? 'bg-emerald-500' : conn.status === 'Degraded' ? 'bg-amber-500' : 'bg-rose-500'}`} />
                     {conn.status}
-                  </span>
+                  </Badge>
 
-                  <button
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
                     onClick={() => handleToggleConnector(conn.id)}
-                    className="p-1 rounded text-slate-400 hover:text-slate-700"
                     title="Toggle Service Power"
+                    aria-label={`${conn.status === 'Online' ? 'Disable' : 'Enable'} ${conn.name}`}
+                    aria-pressed={conn.status === 'Online'}
                   >
-                    <Power className="w-3.5 h-3.5" />
-                  </button>
+                    <Power aria-hidden="true" />
+                  </Button>
                 </div>
               </div>
 
-              <p className="text-xs text-slate-600 mt-3 leading-relaxed">{conn.description}</p>
+              <p className="mt-3 text-sm leading-relaxed text-slate-600">{conn.description}</p>
 
               {/* Endpoint spec */}
-              <div className="mt-3 p-2.5 bg-slate-50 rounded-lg border border-slate-100 font-mono text-xs text-slate-700 truncate">
+              <div className="mt-3 break-all rounded-md border border-slate-200 bg-slate-50 p-2.5 font-mono text-xs text-slate-700">
                 {conn.endpoint}
               </div>
 
-              <div className="grid grid-cols-3 gap-2 mt-3 text-xs text-slate-600">
+              <div className="mt-3 grid grid-cols-1 gap-2 text-sm text-slate-600 sm:grid-cols-3">
                 <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Roundtrip Latency</span>
-                  <span className="font-mono font-bold text-slate-800">{conn.latencyMs} ms</span>
+                  <span className="block text-xs text-slate-400">Roundtrip latency</span>
+                  <span className="font-mono font-semibold text-slate-800">{conn.latencyMs} ms</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Daily Volume</span>
-                  <span className="font-mono font-bold text-slate-800">{conn.dailyTransactions.toLocaleString()}</span>
+                  <span className="block text-xs text-slate-400">Daily volume</span>
+                  <span className="font-mono font-semibold text-slate-800">{conn.dailyTransactions.toLocaleString()}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">Last Handshake</span>
+                  <span className="block text-xs text-slate-400">Last handshake</span>
                   <span className="text-slate-800">{conn.lastSync}</span>
                 </div>
               </div>
             </div>
 
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-              <button
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
                 onClick={() => handleTestConnection(conn.id, conn.name)}
                 disabled={testingId === conn.id}
-                className="flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors"
+                className="text-xs"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${testingId === conn.id ? 'animate-spin' : ''}`} />
+                <RefreshCw className={testingId === conn.id ? 'animate-spin' : ''} aria-hidden="true" />
                 {testingId === conn.id ? 'Testing...' : 'Test Connection'}
-              </button>
+              </Button>
 
-              <button
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
                 onClick={() => showToast(`Opened endpoint parameter configuration for ${conn.name}`)}
-                className="text-xs font-semibold text-[#0F8B8D] hover:underline"
+                className="text-teal-800"
               >
-                Configure Parameters
-              </button>
+                <Sliders aria-hidden="true" /> Configure Parameters
+              </Button>
             </div>
-          </div>
+            </CardContent>
+          </Card>
         ))}
       </div>
     </div>

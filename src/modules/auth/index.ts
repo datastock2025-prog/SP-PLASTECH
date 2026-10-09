@@ -4,5 +4,4 @@
 // ============================================================================
 
 export { LoginScreen } from '../../components/LoginScreen';
-export { DEMO_USERS } from '../../data/authUsers';
 export type { AuthUser } from '../../types';

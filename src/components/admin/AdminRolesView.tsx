@@ -1,4 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import {
   ShieldCheck,
   Plus,
@@ -610,58 +614,80 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
     showToast('Cleared all temporary What-If sandbox overrides.');
   };
 
+  if (!selectedRole) {
+    return (
+      <Card className="rounded-md border-slate-200 shadow-none">
+        <CardContent className="flex flex-col items-start gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">
+              {isLoadingRoles ? 'Loading roles…' : 'No roles are available yet'}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              {isLoadingRoles ? 'Role permissions will appear when the directory finishes loading.' : 'Create a role to begin configuring access.'}
+            </p>
+          </div>
+          {!isLoadingRoles && (
+            <Button type="button" onClick={() => setIsCreatingRole(true)} className="bg-[#0F8B8D] text-white hover:bg-[#0c7274]">
+              <Plus aria-hidden="true" />
+              Create Role
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <div className="space-y-6 pb-12">
+    <div className="min-w-0 space-y-4 pb-8">
       {/* Top Banner & Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-        <div>
+      <Card className="rounded-md border-slate-200 shadow-none">
+        <CardContent className="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold uppercase tracking-wider">
             <ShieldCheck className="w-4 h-4 text-[#0F8B8D]" />
             <span>Role-Based Access Control &amp; Sandbox Security</span>
           </div>
-          <h1 className="text-xl font-bold text-slate-900 mt-1">
+          <h2 className="mt-1 text-lg font-semibold text-slate-900">
             RBAC Permission Matrix &amp; Role Simulator Sandbox
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          </h2>
+          <p className="mt-1 max-w-3xl text-sm text-slate-500">
             Configure granular CRUD &amp; approval rights across 13 enterprise ERP modules, test what-if authorizations in the live simulator sandbox, and enforce Separation of Duties (SoD).
           </p>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <Button type="button" variant="outline" size="sm"
             onClick={() => setIsCreatingRole(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
           >
-            <Plus className="w-4 h-4 text-[#0F8B8D]" />
+            <Plus aria-hidden="true" />
             Create Role
-          </button>
-          <button
+          </Button>
+          <Button type="button" variant="outline" size="sm"
             onClick={handleCloneRole}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
           >
-            <Copy className="w-4 h-4" />
+            <Copy aria-hidden="true" />
             Clone Selected
-          </button>
-          <button
+          </Button>
+          <Button type="button" variant="outline" size="sm"
             onClick={handleExportMatrixJson}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
           >
-            <Download className="w-4 h-4" />
+            <Download aria-hidden="true" />
             Export Matrix
-          </button>
-          <button
+          </Button>
+          <Button type="button" size="sm" className="col-span-2 bg-[#0F8B8D] text-white hover:bg-[#0c7274] sm:col-span-1"
             onClick={handleSaveRoleChanges}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#0F8B8D] hover:bg-[#0c7274] rounded-lg shadow-sm transition-colors cursor-pointer"
           >
-            <Save className="w-4 h-4" />
+            <Save aria-hidden="true" />
             Save Changes
-          </button>
+          </Button>
         </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Navigation Sub-Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+      <div className="min-w-0 overflow-x-auto border-b border-slate-200 pb-2">
+      <div className="flex min-w-max items-center gap-2">
         <button
           onClick={() => setActiveTab('matrix')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all ${
@@ -740,6 +766,7 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
           )}
         </button>
       </div>
+      </div>
 
       {/* ========================================================= */}
       {/* TAB 1: GRANULAR PERMISSION MATRIX                         */}
@@ -758,13 +785,16 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
                 {roles.map((r) => {
                   const isSelected = r.id === selectedRoleId;
                   return (
-                    <button
+                    <Button
                       key={r.id}
+                      type="button"
+                      variant="outline"
                       onClick={() => setSelectedRoleId(r.id)}
-                      className={`w-full text-left p-3 rounded-lg border transition-all ${
+                      aria-pressed={isSelected}
+                      className={`h-auto w-full justify-start whitespace-normal rounded-md px-3 py-3 text-left transition-all ${
                         isSelected
-                          ? 'bg-[#0F8B8D]/10 border-[#0F8B8D] text-slate-900 shadow-xs ring-1 ring-[#0F8B8D]/30'
-                          : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
+                          ? 'border-teal-600 bg-teal-50 text-slate-900 ring-1 ring-teal-600/20 hover:bg-teal-50'
+                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -787,7 +817,7 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
                         </span>
                         <span className="font-mono text-slate-400">{r.code}</span>
                       </div>
-                    </button>
+                    </Button>
                   );
                 })}
               </div>
@@ -845,19 +875,21 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
               <div className="flex flex-wrap items-center gap-2">
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
-                  <input
+                  <Input
                     type="text"
                     placeholder="Search module..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-8 pr-3 py-1 text-xs rounded-lg border border-slate-300 w-36 focus:w-48 transition-all focus:outline-none focus:ring-1 focus:ring-[#0F8B8D]"
+                    aria-label="Search ERP modules"
+                    className="h-9 w-36 border-slate-200 pl-8 text-xs transition-[width] focus-visible:w-48"
                   />
                 </div>
 
                 <select
                   value={moduleCategoryFilter}
                   onChange={(e) => setModuleCategoryFilter(e.target.value)}
-                  className="px-2.5 py-1 text-xs rounded-lg border border-slate-300 bg-white font-medium"
+                  aria-label="Filter modules by category"
+                  className="h-9 min-w-0 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium"
                 >
                   <option value="ALL">All Categories</option>
                   <option value="Operations">Operations</option>
@@ -870,7 +902,7 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
 
             {/* Matrix Table */}
             <div className="overflow-x-auto flex-1">
-              <table className="w-full text-left text-xs">
+              <table className="min-w-[760px] w-full text-left text-xs">
                 <thead className="bg-slate-100/80 border-b border-slate-200 text-slate-700 font-semibold uppercase tracking-wider text-[11px]">
                   <tr>
                     <th className="py-3 px-4 min-w-[220px]">ERP Module &amp; Domain</th>
@@ -1058,6 +1090,8 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
                                 ? 'bg-emerald-100 text-emerald-800 font-bold hover:bg-emerald-200'
                                 : 'bg-slate-100 text-slate-300 hover:bg-slate-200'
                             }`}
+                            aria-label={`${mod.name}: View permission`}
+                            aria-pressed={perm.view}
                             title="Toggle View Permission"
                           >
                             {perm.view ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
@@ -1074,6 +1108,8 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
                                 ? 'bg-emerald-100 text-emerald-800 font-bold hover:bg-emerald-200'
                                 : 'bg-slate-100 text-slate-300 hover:bg-slate-200'
                             }`}
+                            aria-label={`${mod.name}: Create permission`}
+                            aria-pressed={perm.create}
                             title="Toggle Create Permission"
                           >
                             {perm.create ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
@@ -1090,6 +1126,8 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
                                 ? 'bg-emerald-100 text-emerald-800 font-bold hover:bg-emerald-200'
                                 : 'bg-slate-100 text-slate-300 hover:bg-slate-200'
                             }`}
+                            aria-label={`${mod.name}: Edit permission`}
+                            aria-pressed={perm.edit}
                             title="Toggle Edit Permission"
                           >
                             {perm.edit ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
@@ -1106,6 +1144,8 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
                                 ? 'bg-rose-100 text-rose-800 font-bold hover:bg-rose-200'
                                 : 'bg-slate-100 text-slate-300 hover:bg-slate-200'
                             }`}
+                            aria-label={`${mod.name}: Delete permission`}
+                            aria-pressed={perm.delete}
                             title="Toggle Delete Permission"
                           >
                             {perm.delete ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
@@ -1122,6 +1162,8 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
                                 ? 'bg-indigo-100 text-indigo-800 font-bold hover:bg-indigo-200'
                                 : 'bg-slate-100 text-slate-300 hover:bg-slate-200'
                             }`}
+                            aria-label={`${mod.name}: Approve permission`}
+                            aria-pressed={perm.approve}
                             title="Toggle Approve Permission"
                           >
                             {perm.approve ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
@@ -1138,6 +1180,8 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
                                 ? 'bg-teal-100 text-teal-800 font-bold hover:bg-teal-200'
                                 : 'bg-slate-100 text-slate-300 hover:bg-slate-200'
                             }`}
+                            aria-label={`${mod.name}: Export permission`}
+                            aria-pressed={perm.export}
                             title="Toggle Export Permission"
                           >
                             {perm.export ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}

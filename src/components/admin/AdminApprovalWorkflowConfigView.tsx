@@ -1,4 +1,15 @@
 import React, { useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import {
   GitFork,
   Plus,
@@ -526,40 +537,41 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
   };
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="min-w-0 space-y-4 pb-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-        <div>
+      <Card className="rounded-md border-slate-200 shadow-none">
+        <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold uppercase tracking-wider">
             <GitFork className="w-4 h-4 text-[#0F8B8D]" />
             <span>Governance &amp; Authorization Suite</span>
           </div>
-          <h1 className="text-xl font-bold text-slate-900 mt-1">Approval Workflow Engine &amp; Admin Provisions</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <h2 className="mt-1 text-lg font-semibold text-slate-900">Approval Workflow Engine &amp; Admin Provisions</h2>
+          <p className="mt-1 max-w-3xl text-sm text-slate-500">
             Configure multi-tier authorization rules, delegation proxy matrices, Segregation of Duties (SoD), and emergency break-glass overrides.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
-          <button
+        <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
+          <Button type="button" variant="outline" size="sm"
             onClick={handleExportMatrix}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg shadow-xs transition-colors cursor-pointer"
           >
-            <Download className="w-3.5 h-3.5 text-slate-500" />
+            <Download aria-hidden="true" />
             Export Matrices
-          </button>
-          <button
+          </Button>
+          <Button type="button" size="sm" className="bg-[#0F8B8D] text-white hover:bg-[#0c7274]"
             onClick={handleOpenDeploy}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#0F8B8D] hover:bg-[#0c7274] rounded-lg shadow-sm transition-colors cursor-pointer"
           >
-            <Save className="w-3.5 h-3.5" />
+            <Save aria-hidden="true" />
             Deploy Active Matrices
-          </button>
+          </Button>
         </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Admin Provisions Navigation Tabs */}
-      <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200 overflow-x-auto">
+      <div className="min-w-0 overflow-x-auto rounded-md border border-slate-200 bg-slate-100 p-1.5">
+      <div className="flex min-w-max items-center gap-2">
         <button
           onClick={() => setActiveAdminTab('RULES')}
           className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
@@ -629,6 +641,7 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
           <span>Workflow Rule Simulator &amp; Debugger</span>
         </button>
       </div>
+      </div>
 
       {/* ========================================================================= */}
       {/* TAB 1: WORKFLOW MATRICES & STAGES */}
@@ -636,59 +649,66 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
       {activeAdminTab === 'RULES' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Workflow Directory (Left Column) */}
-          <div className="lg:col-span-4 space-y-3">
+          <div className="min-w-0 space-y-3 lg:col-span-4">
             <div className="flex items-center justify-between text-xs font-bold text-slate-700 uppercase tracking-wider px-1">
               <span>Configured Workflows ({workflows.length})</span>
-              <button
+              <Button
+                type="button"
+                size="sm"
                 onClick={handleOpenAddRule}
-                className="text-[#0F8B8D] hover:underline flex items-center gap-1 normal-case font-semibold cursor-pointer"
+                className="text-[#0F8B8D]"
               >
-                <Plus className="w-3.5 h-3.5" /> Add Rule
-              </button>
+                <Plus aria-hidden="true" /> Add Rule
+              </Button>
             </div>
 
             {workflows.map((wf) => {
               const isSelected = wf.id === selectedWorkflowId;
               return (
-                <div
+                <Button
                   key={wf.id}
+                  type="button"
+                  variant="outline"
                   onClick={() => setSelectedWorkflowId(wf.id)}
-                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                  aria-pressed={isSelected}
+                  className={`h-auto w-full justify-start whitespace-normal rounded-md px-4 py-4 text-left transition-colors ${
                     isSelected
-                      ? 'bg-[#0F8B8D]/5 border-[#0F8B8D] shadow-xs'
-                      : 'bg-white hover:bg-slate-50 border-slate-200 shadow-xs'
+                      ? 'border-teal-600 bg-teal-50/50 text-slate-900 ring-1 ring-teal-600/15 hover:bg-teal-50/50'
+                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex w-full items-start justify-between gap-2">
                     <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono">
                       {wf.module}
                     </span>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    <Badge
+                      variant="outline"
+                      className={`h-5 shrink-0 text-[10px] ${
                         wf.isActive
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-slate-100 text-slate-500'
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                          : 'border-slate-200 bg-slate-100 text-slate-500'
                       }`}
                     >
                       {wf.isActive ? 'Active' : 'Disabled'}
-                    </span>
+                    </Badge>
                   </div>
 
                   <h3 className="font-bold text-xs text-slate-900 mt-2">{wf.name}</h3>
                   <div className="text-[11px] text-slate-500 mt-0.5">Doc: {wf.documentType}</div>
 
-                  <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-100 text-[11px] text-slate-500">
+                  <div className="mt-3 flex w-full items-center justify-between gap-2 border-t border-slate-100 pt-2.5 text-[11px] text-slate-500">
                     <span>{wf.stages.length} Approval Stages</span>
                     <span className="font-mono text-slate-700 font-semibold">{wf.slaHoursTotal}h Total SLA</span>
                   </div>
-                </div>
+                </Button>
               );
             })}
           </div>
 
           {/* Visual Workflow Canvas & Inspector (Right Column) */}
           {selectedWf && (
-            <div className="lg:col-span-8 bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-6">
+            <Card className="min-w-0 rounded-md border-slate-200 shadow-none lg:col-span-8">
+              <CardContent className="space-y-6 p-4 sm:p-5">
               {/* Header info */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200">
                 <div>
@@ -700,17 +720,19 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => handleToggleActive(selectedWf.id)}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
+                    className={`text-xs ${
                       selectedWf.isActive
                         ? 'border-slate-300 text-slate-700 hover:bg-slate-50'
-                        : 'bg-emerald-600 text-white border-transparent hover:bg-emerald-700'
+                        : 'border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700'
                     }`}
                   >
                     {selectedWf.isActive ? 'Disable Rule' : 'Activate Rule'}
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -741,19 +763,22 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
                   <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
                     Sequential Approval Stages ({selectedWf.stages.length})
                   </h3>
-                  <button
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={handleOpenAppendStage}
-                    className="flex items-center gap-1 text-xs font-semibold text-[#0F8B8D] hover:underline cursor-pointer"
+                    className="text-[#0F8B8D]"
                   >
-                    <Plus className="w-3.5 h-3.5" /> Append Stage
-                  </button>
+                    <Plus aria-hidden="true" /> Append Stage
+                  </Button>
                 </div>
 
                 <div className="space-y-4 relative before:content-[''] before:absolute before:left-5 before:top-4 before:bottom-4 before:w-0.5 before:bg-slate-200">
                   {selectedWf.stages.map((stg) => (
                     <div
                       key={stg.stageNumber}
-                      className="relative pl-12 bg-white rounded-xl border border-slate-200 p-4 shadow-xs hover:border-slate-300 transition-all group"
+                      className="group relative rounded-md border border-slate-200 bg-white p-4 pl-12 transition-colors hover:border-slate-300"
                     >
                       {/* Badge circle */}
                       <div className="absolute left-2.5 top-4.5 w-6 h-6 rounded-full bg-[#0F8B8D] text-white flex items-center justify-center font-bold text-[11px] shadow-xs">
@@ -786,14 +811,17 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
                             ))}
                           </div>
                           {selectedWf.stages.length > 1 && (
-                            <button
+                              <Button
                               type="button"
+                                variant="ghost"
+                                size="icon-sm"
                               onClick={() => handleDeleteStage(stg.stageNumber)}
-                              className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                                className="text-slate-400 hover:bg-rose-50 hover:text-rose-600 sm:opacity-0 sm:group-hover:opacity-100"
                               title="Remove Stage"
+                                aria-label={`Remove stage ${stg.stageNumber}`}
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                                <Trash2 aria-hidden="true" />
+                              </Button>
                           )}
                         </div>
                       </div>
@@ -808,7 +836,8 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
                   ))}
                 </div>
               </div>
-            </div>
+              </CardContent>
+            </Card>
           )}
         </div>
       )}
@@ -817,55 +846,70 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
       {/* TAB 2: DELEGATIONS & OUT-OF-OFFICE (OOO) */}
       {/* ========================================================================= */}
       {activeAdminTab === 'DELEGATIONS' && (
-        <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
-            <div>
-              <h2 className="text-base font-bold text-slate-900">Out-of-Office &amp; Proxy Delegation Registry</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
+        <div className="min-w-0 space-y-4">
+          <Card className="rounded-md border-slate-200 shadow-none">
+            <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold text-slate-900">Out-of-Office &amp; Proxy Delegation Registry</h2>
+              <p className="mt-1 text-sm text-slate-500">
                 Grant temporary sign-off authority during business travels or leaves without transferring permanent system credentials.
               </p>
             </div>
-            <button
+            <Button
+              type="button"
+              size="sm"
               onClick={() => setIsAddDelegationModalOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs cursor-pointer"
+              className="w-full shrink-0 bg-indigo-600 text-white hover:bg-indigo-700 sm:w-auto"
             >
-              <Plus className="w-4 h-4" /> Add Delegation Proxy
-            </button>
-          </div>
+              <Plus aria-hidden="true" /> Add Delegation Proxy
+            </Button>
+            </CardContent>
+          </Card>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {delegations.length === 0 && (
+              <Card className="rounded-md border-slate-200 shadow-none md:col-span-2">
+                <CardContent className="py-10 text-center text-sm text-slate-500">No proxy delegations are active.</CardContent>
+              </Card>
+            )}
             {delegations.map((del) => (
-              <div key={del.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-4">
+              <Card key={del.id} className="min-w-0 rounded-md border-slate-200 shadow-none">
+                <CardContent className="space-y-4 p-4 sm:p-5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  <Badge variant="secondary" className="h-auto max-w-[70%] whitespace-normal bg-indigo-50 text-[10px] text-indigo-700">
                     {del.domainScope}
-                  </span>
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className={`h-5 shrink-0 text-[10px] ${
                       del.status === 'Active'
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                        : 'border-amber-200 bg-amber-50 text-amber-800'
                     }`}
                   >
                     {del.status}
-                  </span>
+                  </Badge>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-700 text-xs">
-                    {del.delegatorName.slice(0, 2).toUpperCase()}
+                <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="grid size-9 shrink-0 place-items-center rounded-full bg-slate-100 text-xs font-bold text-slate-700">
+                      {del.delegatorName.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="truncate text-xs font-bold text-slate-900">{del.delegatorName}</h3>
+                      <p className="truncate text-[11px] text-slate-500">{del.delegatorRole}</p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <h3 className="text-xs font-bold text-slate-900">{del.delegatorName}</h3>
-                    <p className="text-[11px] text-slate-500">{del.delegatorRole}</p>
-                  </div>
-                  <ArrowRight className="w-4 h-4 text-slate-400 mx-2 shrink-0" />
-                  <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-xs">
-                    {del.delegateeName.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="text-xs font-bold text-indigo-900">{del.delegateeName}</h3>
-                    <p className="text-[11px] text-indigo-600">{del.delegateeRole}</p>
+                  <ArrowRight className="size-4 shrink-0 text-slate-400" aria-hidden="true" />
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="grid size-9 shrink-0 place-items-center rounded-full bg-indigo-50 text-xs font-bold text-indigo-700">
+                      {del.delegateeName.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="truncate text-xs font-bold text-indigo-900">{del.delegateeName}</h3>
+                      <p className="truncate text-[11px] text-indigo-600">{del.delegateeRole}</p>
+                    </div>
                   </div>
                 </div>
 
@@ -880,14 +924,18 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
                 </div>
 
                 <div className="flex justify-end pt-2 border-t border-slate-100">
-                  <button
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleRevokeDelegation(del.id)}
-                    className="px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                    className="text-xs text-rose-700 hover:bg-rose-50"
                   >
                     Revoke Proxy Immediately
-                  </button>
+                  </Button>
                 </div>
-              </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
         </div>
@@ -897,68 +945,71 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
       {/* TAB 3: BREAK-GLASS EMERGENCY OVERRIDES */}
       {/* ========================================================================= */}
       {activeAdminTab === 'BREAK_GLASS' && (
-        <div className="space-y-6">
-          <div className="bg-rose-50/50 border border-rose-200 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="min-w-0 space-y-4">
+          <Card className="rounded-md border-rose-200 bg-rose-50/50 shadow-none">
+            <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
-                <Flame className="w-5 h-5" />
+              <div className="grid size-10 shrink-0 place-items-center rounded-md bg-rose-100 text-rose-700">
+                <Flame className="size-5" aria-hidden="true" />
               </div>
-              <div>
-                <h2 className="text-base font-bold text-rose-950">Break-Glass Emergency Bypass Console</h2>
-                <p className="text-xs text-rose-700 mt-0.5 max-w-2xl">
+              <div className="min-w-0">
+                <h2 className="text-base font-semibold text-rose-950">Break-Glass Emergency Bypass Console</h2>
+                <p className="mt-1 max-w-2xl text-sm text-rose-800">
                   Super-Admin emergency force-approval utility for critical plant blockages. Requires secondary dual-admin cryptographic authorization. Every invocation is permanently committed to the security audit vault.
                 </p>
               </div>
             </div>
 
-            <button
+            <Button
+              type="button"
               onClick={() => setIsBreakGlassModalOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm cursor-pointer whitespace-nowrap"
+              className="w-full shrink-0 bg-rose-700 text-white hover:bg-rose-800 sm:w-auto"
             >
-              <KeyRound className="w-4 h-4" /> Trigger Break-Glass Override
-            </button>
-          </div>
+              <KeyRound aria-hidden="true" /> Trigger Break-Glass Override
+            </Button>
+            </CardContent>
+          </Card>
 
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                Emergency Override Forensic Logbook
-              </h3>
-              <span className="text-xs text-slate-500">Immutable Audit Trail</span>
+          <Card className="overflow-hidden rounded-md border-slate-200 shadow-none">
+            <div className="flex flex-col gap-1 border-b border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="text-sm font-semibold text-slate-900">Emergency override forensic logbook</h3>
+              <Badge variant="outline" className="w-fit text-slate-500">Immutable audit trail</Badge>
             </div>
 
-            <div className="divide-y divide-slate-100">
+            <CardContent className="divide-y divide-slate-100 p-0">
+              {breakGlassLogs.length === 0 && (
+                <p className="px-4 py-10 text-center text-sm text-slate-500">No emergency overrides have been recorded.</p>
+              )}
               {breakGlassLogs.map((log) => (
-                <div key={log.id} className="p-5 space-y-3">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-800 font-mono">
+                <article key={log.id} className="min-w-0 space-y-3 p-4 sm:p-5">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <Badge variant="destructive" className="h-5 font-mono text-[10px]">
                         {log.reasonCode}
-                      </span>
-                      <span className="font-mono text-xs font-bold text-slate-900">{log.documentRef}</span>
+                      </Badge>
+                      <span className="break-all font-mono text-xs font-semibold text-slate-900">{log.documentRef}</span>
                       <span className="text-xs text-slate-500">({log.domain})</span>
                     </div>
-                    <span className="text-xs font-mono text-slate-500">{log.timestamp}</span>
+                    <time className="shrink-0 font-mono text-xs text-slate-500">{log.timestamp}</time>
                   </div>
 
-                  <p className="text-xs text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                    <b>Operational Justification:</b> {log.justification}
+                  <p className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                    <strong>Operational justification:</strong> {log.justification}
                   </p>
 
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 flex-wrap gap-2 pt-1">
-                    <div className="flex items-center gap-3">
-                      <span>Primary Admin: <strong className="text-slate-800">{log.overriddenBy}</strong></span>
-                      <span>&bull;</span>
-                      <span>Dual-Auth Co-Signer: <strong className="text-slate-800">{log.authorizedBySecondAdmin}</strong></span>
+                  <div className="flex flex-col gap-2 pt-1 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                      <span>Primary admin: <strong className="text-slate-800">{log.overriddenBy}</strong></span>
+                      <span>Dual-auth co-signer: <strong className="text-slate-800">{log.authorizedBySecondAdmin}</strong></span>
                     </div>
-                    <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Cryptographically Verified
-                    </span>
+                    <Badge variant="outline" className="w-fit gap-1 border-emerald-200 bg-emerald-50 text-emerald-800">
+                      <CheckCircle2 aria-hidden="true" /> Verified
+                    </Badge>
                   </div>
-                </div>
+                </article>
               ))}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -966,113 +1017,122 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
       {/* TAB 4: SEGREGATION OF DUTIES (SOD) & POLICIES */}
       {/* ========================================================================= */}
       {activeAdminTab === 'SOD_POLICY' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs space-y-6">
+        <div className="grid min-w-0 grid-cols-1 gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 motion-reduce:animate-none md:grid-cols-2">
+          <Card className="rounded-md border-teal-200 shadow-none transition-shadow duration-150 hover:shadow-sm motion-reduce:transition-none">
+            <CardContent className="space-y-5 p-4 sm:p-5">
             <div>
-              <h2 className="text-base font-bold text-slate-900">Governance &amp; Conflict Prevention Rules</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base font-semibold text-slate-900">Governance &amp; Conflict Prevention Rules</h2>
+                <Badge variant="outline" className="border-teal-200 bg-teal-50 text-teal-800">4 safeguards</Badge>
+              </div>
+              <p className="mt-1 text-sm text-slate-500">
                 Configure corporate anti-fraud policies and statutory segregation of duties (SoD) constraints.
               </p>
             </div>
 
             <div className="space-y-4 text-xs">
-              <div className="flex items-start justify-between gap-4 p-3.5 rounded-xl border border-slate-200 bg-slate-50">
+              <div className="flex items-start justify-between gap-4 rounded-md border border-sky-200 bg-sky-50/70 p-3.5 transition-colors duration-150 hover:bg-sky-50 motion-reduce:transition-none">
                 <div>
                   <h4 className="font-bold text-slate-900">Self-Approval Prohibition</h4>
                   <p className="text-slate-500 mt-0.5">
                     Prevent document creators/initiators from acting as an approver at any tier of their own submission.
                   </p>
                 </div>
-                <input
-                  type="checkbox"
+                <Switch
                   checked={sodConfig.preventSelfApproval}
-                  onChange={(e) => setSodConfig({ ...sodConfig, preventSelfApproval: e.target.checked })}
-                  className="rounded text-[#0F8B8D] focus:ring-[#0F8B8D] mt-1 cursor-pointer"
+                  onCheckedChange={(checked) => setSodConfig({ ...sodConfig, preventSelfApproval: checked })}
+                  aria-label="Prevent self-approval"
+                  className="mt-1 shrink-0 data-[state=checked]:bg-teal-700"
                 />
               </div>
 
-              <div className="flex items-start justify-between gap-4 p-3.5 rounded-xl border border-slate-200 bg-slate-50">
+              <div className="flex items-start justify-between gap-4 rounded-md border border-teal-200 bg-teal-50/60 p-3.5 transition-colors duration-150 hover:bg-teal-50 motion-reduce:transition-none">
                 <div>
                   <h4 className="font-bold text-slate-900">Four-Eyes Principle (Successive Tiers)</h4>
                   <p className="text-slate-500 mt-0.5">
                     A single individual cannot approve two consecutive stages for the same document even if holding multiple roles.
                   </p>
                 </div>
-                <input
-                  type="checkbox"
+                <Switch
                   checked={sodConfig.enforceFourEyesRule}
-                  onChange={(e) => setSodConfig({ ...sodConfig, enforceFourEyesRule: e.target.checked })}
-                  className="rounded text-[#0F8B8D] focus:ring-[#0F8B8D] mt-1 cursor-pointer"
+                  onCheckedChange={(checked) => setSodConfig({ ...sodConfig, enforceFourEyesRule: checked })}
+                  aria-label="Enforce the four-eyes principle"
+                  className="mt-1 shrink-0 data-[state=checked]:bg-teal-700"
                 />
               </div>
 
-              <div className="flex items-start justify-between gap-4 p-3.5 rounded-xl border border-slate-200 bg-slate-50">
+              <div className="flex items-start justify-between gap-4 rounded-md border border-amber-200 bg-amber-50/60 p-3.5 transition-colors duration-150 hover:bg-amber-50 motion-reduce:transition-none">
                 <div>
                   <h4 className="font-bold text-slate-900">Supplier / Vendor Conflict Guard</h4>
                   <p className="text-slate-500 mt-0.5">
                     Users mapped as primary vendor account managers cannot authorize purchase orders or GRN rate variances.
                   </p>
                 </div>
-                <input
-                  type="checkbox"
+                <Switch
                   checked={sodConfig.blockApproverAsVendorContact}
-                  onChange={(e) => setSodConfig({ ...sodConfig, blockApproverAsVendorContact: e.target.checked })}
-                  className="rounded text-[#0F8B8D] focus:ring-[#0F8B8D] mt-1 cursor-pointer"
+                  onCheckedChange={(checked) => setSodConfig({ ...sodConfig, blockApproverAsVendorContact: checked })}
+                  aria-label="Block vendor-contact approver conflicts"
+                  className="mt-1 shrink-0 data-[state=checked]:bg-teal-700"
                 />
               </div>
 
-              <div className="flex items-start justify-between gap-4 p-3.5 rounded-xl border border-slate-200 bg-slate-50">
+              <div className="flex items-start justify-between gap-4 rounded-md border border-rose-200 bg-rose-50/70 p-3.5 transition-colors duration-150 hover:bg-rose-50 motion-reduce:transition-none">
                 <div>
                   <h4 className="font-bold text-slate-900">Dual-Admin Break-Glass Requirement</h4>
                   <p className="text-slate-500 mt-0.5">
                     Emergency overrides require secondary active admin password verification to avoid single-point compromises.
                   </p>
                 </div>
-                <input
-                  type="checkbox"
+                <Switch
                   checked={sodConfig.mandatoryDualAdminBreakGlass}
-                  onChange={(e) => setSodConfig({ ...sodConfig, mandatoryDualAdminBreakGlass: e.target.checked })}
-                  className="rounded text-[#0F8B8D] focus:ring-[#0F8B8D] mt-1 cursor-pointer"
+                  onCheckedChange={(checked) => setSodConfig({ ...sodConfig, mandatoryDualAdminBreakGlass: checked })}
+                  aria-label="Require dual-admin break-glass approval"
+                  className="mt-1 shrink-0 data-[state=checked]:bg-teal-700"
                 />
               </div>
             </div>
 
-            <button
+            <Button
+              type="button"
+              size="sm"
               onClick={() => showToast('Segregation of Duties policies successfully saved.')}
-              className="px-4 py-2 text-xs font-bold text-white bg-[#0F8B8D] hover:bg-[#0c7274] rounded-lg shadow-xs cursor-pointer"
+              className="bg-[#0F8B8D] text-white hover:bg-[#0c7274]"
             >
+              <Save aria-hidden="true" />
               Save Policy Rules
-            </button>
-          </div>
+            </Button>
+            </CardContent>
+          </Card>
 
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs space-y-5">
+          <Card className="rounded-md border-slate-200 shadow-none transition-shadow duration-150 hover:shadow-sm motion-reduce:transition-none">
+            <CardContent className="space-y-5 p-4 sm:p-5">
             <div>
-              <h2 className="text-base font-bold text-slate-900">SLA &amp; Escalation Defaults</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Global fallback parameters for auto-escalation routines.</p>
+              <h2 className="text-base font-semibold text-slate-900">SLA &amp; Escalation Defaults</h2>
+              <p className="mt-1 text-sm text-slate-500">Global fallback parameters for auto-escalation routines.</p>
             </div>
 
             <div className="space-y-4 text-xs">
               <div className="space-y-1.5">
                 <label className="font-bold text-slate-700">Default Stage SLA (Hours)</label>
-                <input
+                <Input
                   type="number"
                   value={sodConfig.autoEscalateHoursDefault}
                   onChange={(e) => setSodConfig({ ...sodConfig, autoEscalateHoursDefault: Number(e.target.value) })}
-                  className="w-full p-2.5 border border-slate-200 rounded-lg text-xs"
+                  className="h-10 text-sm"
                 />
               </div>
 
               <div className="space-y-1.5">
                 <label className="font-bold text-slate-700">Non-repudiation Cryptographic Hash</label>
-                <input
+                <Input
                   type="text"
                   disabled
                   value={sodConfig.auditTrailEncryption}
-                  className="w-full p-2.5 border border-slate-200 bg-slate-100 rounded-lg text-xs font-mono text-slate-600"
+                  className="h-10 bg-slate-100 font-mono text-sm text-slate-600"
                 />
               </div>
 
-              <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900 space-y-1">
+              <div className="space-y-1 rounded-md border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
                 <h4 className="font-bold flex items-center gap-1.5">
                   <Shield className="w-4 h-4 text-emerald-700" /> SOC2 &amp; IATF 16949 Audit Compliance
                 </h4>
@@ -1081,7 +1141,8 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
                 </p>
               </div>
             </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -1089,22 +1150,27 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
       {/* TAB 5: WORKFLOW SIMULATOR & DEBUGGER */}
       {/* ========================================================================= */}
       {activeAdminTab === 'SIMULATOR' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-5 bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-4 text-xs">
+        <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-12">
+          <Card className="min-w-0 rounded-md border-sky-200 shadow-none lg:col-span-5">
+            <CardContent className="space-y-4 p-4 sm:p-5">
             <div>
-              <h2 className="text-base font-bold text-slate-900">Workflow Routing Simulator</h2>
-              <p className="text-slate-500 mt-0.5">
+              <div className="flex items-center gap-2">
+                <span className="grid size-8 place-items-center rounded-md bg-sky-50 text-sky-700"><Play className="size-4" aria-hidden="true" /></span>
+                <h2 className="text-base font-semibold text-slate-900">Workflow Routing Simulator</h2>
+              </div>
+              <p className="mt-2 text-sm text-slate-500">
                 Test how a transaction payload will be routed through active authorization matrices before live submission.
               </p>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 text-sm">
               <div>
-                <label className="font-bold text-slate-700">Target ERP Module</label>
+                <label className="mb-1 block font-medium text-slate-700">Target ERP Module</label>
                 <select
                   value={simInput.domain}
                   onChange={(e) => setSimInput({ ...simInput, domain: e.target.value })}
-                  className="w-full mt-1 p-2 border border-slate-200 rounded-lg text-xs"
+                  aria-label="Target ERP module"
+                  className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/20"
                 >
                   <option value="Procurement">Procurement (PO / PR)</option>
                   <option value="Finance">Finance &amp; Credit</option>
@@ -1114,75 +1180,81 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
               </div>
 
               <div>
-                <label className="font-bold text-slate-700">Transaction Value (INR ₹)</label>
-                <input
+                <label className="mb-1 block font-medium text-slate-700">Transaction Value (INR ₹)</label>
+                <Input
                   type="number"
                   value={simInput.amount}
                   onChange={(e) => setSimInput({ ...simInput, amount: Number(e.target.value) })}
-                  className="w-full mt-1 p-2 border border-slate-200 rounded-lg text-xs"
+                  aria-label="Transaction value"
+                  className="h-10"
                 />
               </div>
 
               <div>
-                <label className="font-bold text-slate-700">Category / Material Type</label>
-                <input
+                <label className="mb-1 block font-medium text-slate-700">Category / Material Type</label>
+                <Input
                   type="text"
                   value={simInput.category}
                   onChange={(e) => setSimInput({ ...simInput, category: e.target.value })}
-                  className="w-full mt-1 p-2 border border-slate-200 rounded-lg text-xs"
+                  aria-label="Category or material type"
+                  className="h-10"
                 />
               </div>
 
               <div>
-                <label className="font-bold text-slate-700">Initiator Role</label>
-                <input
+                <label className="mb-1 block font-medium text-slate-700">Initiator Role</label>
+                <Input
                   type="text"
                   value={simInput.initiatorRole}
                   onChange={(e) => setSimInput({ ...simInput, initiatorRole: e.target.value })}
-                  className="w-full mt-1 p-2 border border-slate-200 rounded-lg text-xs"
+                  aria-label="Initiator role"
+                  className="h-10"
                 />
               </div>
 
-              <button
+              <Button
+                type="button"
                 onClick={handleRunSimulator}
-                className="w-full py-2.5 bg-[#0F8B8D] hover:bg-[#0c7274] text-white font-bold rounded-lg shadow-xs flex items-center justify-center gap-2 cursor-pointer mt-2"
+                className="mt-2 w-full bg-sky-700 text-white hover:bg-sky-800"
               >
-                <Play className="w-4 h-4" /> Run Pipeline Simulation
-              </button>
+                <Play aria-hidden="true" /> Run Pipeline Simulation
+              </Button>
             </div>
-          </div>
+            </CardContent>
+          </Card>
 
-          <div className="lg:col-span-7 bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-4">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+          <Card className="min-w-0 rounded-md border-slate-200 shadow-none lg:col-span-7">
+            <CardContent className="space-y-4 p-4 sm:p-5">
+            <h3 className="text-sm font-semibold text-slate-900">
               Simulation Execution Breakdown
             </h3>
 
             {!simResult ? (
-              <div className="p-12 text-center text-slate-400 text-xs space-y-2">
-                <Play className="w-8 h-8 text-slate-300 mx-auto" />
-                <p>Configure parameters on the left and click <b>Run Pipeline Simulation</b> to evaluate the rule engine.</p>
+              <div className="space-y-2 rounded-md border border-dashed border-slate-200 bg-slate-50/60 px-4 py-10 text-center text-sm text-slate-500">
+                <Play className="mx-auto size-7 text-slate-300" aria-hidden="true" />
+                <p>Set the transaction details and run a simulation to inspect its approval route.</p>
               </div>
             ) : (
-              <div className="space-y-4 text-xs">
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 flex items-center justify-between">
+              <div className="space-y-4 text-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200 motion-reduce:animate-none">
+                <div className="flex flex-col gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-emerald-900 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Matched Workflow</span>
-                    <h4 className="font-bold text-sm text-emerald-950 mt-0.5">{simResult.matchedWorkflow.name}</h4>
+                    <span className="text-xs font-medium text-emerald-800">Matched workflow</span>
+                    <h4 className="mt-0.5 text-sm font-semibold text-emerald-950">{simResult.matchedWorkflow.name}</h4>
                   </div>
-                  <span className="font-mono font-bold text-xs bg-emerald-100 px-2.5 py-1 rounded text-emerald-900">
+                  <Badge variant="outline" className="w-fit border-emerald-300 bg-white/70 font-mono text-emerald-900">
                     Est. SLA: {simResult.estimatedResolutionTime}
-                  </span>
+                  </Badge>
                 </div>
 
                 <div>
                   <h4 className="font-bold text-slate-700 uppercase tracking-wider text-[11px] mb-2">Rule Evaluation Checks</h4>
                   <div className="space-y-1.5">
                     {simResult.evaluatedRules.map((r: any, idx: number) => (
-                      <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-200">
-                        <span className="font-mono text-[11px] text-slate-700">{r.rule}</span>
-                        <span className="text-emerald-700 font-bold flex items-center gap-1 text-[11px]">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> PASSED
-                        </span>
+                      <div key={idx} className="flex min-w-0 items-start justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 p-2.5">
+                        <span className="min-w-0 break-words font-mono text-xs text-slate-700">{r.rule}</span>
+                        <Badge variant="outline" className="shrink-0 gap-1 border-emerald-200 bg-emerald-50 text-emerald-800">
+                          <CheckCircle2 aria-hidden="true" /> Passed
+                        </Badge>
                       </div>
                     ))}
                   </div>
@@ -1192,17 +1264,17 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
                   <h4 className="font-bold text-slate-700 uppercase tracking-wider text-[11px] mb-2">Simulated Multi-Tier Route</h4>
                   <div className="space-y-2">
                     {simResult.simulatedPipeline.map((stg: any) => (
-                      <div key={stg.step} className="p-3 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                          <span className="w-6 h-6 rounded-full bg-[#0F8B8D] text-white flex items-center justify-center font-bold text-xs">
+                      <div key={stg.step} className="flex min-w-0 flex-col gap-3 rounded-md border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-sky-700 text-xs font-semibold text-white">
                             {stg.step}
                           </span>
-                          <div>
-                            <div className="font-bold text-slate-900">{stg.name}</div>
-                            <div className="text-[11px] text-indigo-600 font-semibold">{stg.assignedTo}</div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-slate-900">{stg.name}</div>
+                            <div className="truncate text-xs font-medium text-indigo-700">{stg.assignedTo}</div>
                           </div>
                         </div>
-                        <div className="text-right text-[11px] text-slate-500">
+                        <div className="text-left text-xs text-slate-500 sm:text-right">
                           <div>Max SLA: <b>{stg.slaHours}h</b></div>
                           <div>Fallback: <i>{stg.escalatesTo}</i></div>
                         </div>
@@ -1212,7 +1284,8 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
                 </div>
               </div>
             )}
-          </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -1220,15 +1293,16 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
       {/* MODAL: ADD RULE */}
       {/* ========================================================================= */}
       {isAddRuleModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full p-6 space-y-4">
+        <Dialog open={isAddRuleModalOpen} onOpenChange={setIsAddRuleModalOpen}>
+          <DialogContent showCloseButton={false} className="max-h-[90dvh] max-w-xl overflow-y-auto border-slate-200 bg-white p-4 text-slate-900 sm:p-6">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <GitFork className="w-5 h-5 text-[#0F8B8D]" />
-                <h3 className="font-bold text-slate-900 text-base">Create Approval Workflow Rule</h3>
+                <DialogHeader><DialogTitle className="font-bold text-slate-900 text-base">Create Approval Workflow Rule</DialogTitle></DialogHeader>
               </div>
               <button
                 onClick={() => setIsAddRuleModalOpen(false)}
+                aria-label="Close workflow rule form"
                 className="p-1 rounded text-slate-400 hover:text-slate-700"
               >
                 <X className="w-5 h-5" />
@@ -1238,23 +1312,23 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
             <form onSubmit={handleCreateRule} className="space-y-3.5 text-xs">
               <div className="space-y-1">
                 <label className="font-bold text-slate-700">Rule Name *</label>
-                <input
+                <Input
                   type="text"
                   required
                   placeholder="e.g. Masterbatch Spot Purchase > ₹1 Lakh"
                   value={ruleForm.name}
                   onChange={(e) => setRuleForm({ ...ruleForm, name: e.target.value })}
-                  className="w-full p-2.5 border border-slate-300 rounded-lg text-xs"
+                  className="h-10 text-sm"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <label className="font-bold text-slate-700">ERP Module</label>
                   <select
                     value={ruleForm.module}
                     onChange={(e) => setRuleForm({ ...ruleForm, module: e.target.value })}
-                    className="w-full p-2.5 border border-slate-300 rounded-lg text-xs"
+                    className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm"
                   >
                     <option value="Procurement">Procurement</option>
                     <option value="Finance">Finance</option>
@@ -1264,32 +1338,32 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
                 </div>
                 <div className="space-y-1">
                   <label className="font-bold text-slate-700">Document Type</label>
-                  <input
+                  <Input
                     type="text"
                     value={ruleForm.documentType}
                     onChange={(e) => setRuleForm({ ...ruleForm, documentType: e.target.value })}
-                    className="w-full p-2.5 border border-slate-300 rounded-lg text-xs"
+                    className="h-10 text-sm"
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
                 <label className="font-bold text-slate-700">Financial Gate Minimum (₹ INR)</label>
-                <input
+                <Input
                   type="number"
                   value={ruleForm.minAmount}
                   onChange={(e) => setRuleForm({ ...ruleForm, minAmount: Number(e.target.value) })}
-                  className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-mono"
+                  className="h-10 font-mono text-sm"
                 />
               </div>
 
               <div className="space-y-1">
                 <label className="font-bold text-slate-700">Condition Evaluation Formula</label>
-                <input
+                <Input
                   type="text"
                   value={ruleForm.conditionFormula}
                   onChange={(e) => setRuleForm({ ...ruleForm, conditionFormula: e.target.value })}
-                  className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-mono"
+                  className="h-10 font-mono text-sm"
                 />
               </div>
 
@@ -1297,58 +1371,61 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
                 <h4 className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
                   Initial Stage 1 Sign-off
                 </h4>
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   <div>
                     <label className="text-[11px] font-semibold text-slate-600">Approver Role</label>
-                    <input
+                    <Input
                       type="text"
                       value={ruleForm.initialApproverValue}
                       onChange={(e) => setRuleForm({ ...ruleForm, initialApproverValue: e.target.value })}
-                      className="w-full p-2 border border-slate-300 rounded-lg text-xs"
+                      className="h-9 text-sm"
                     />
                   </div>
                   <div>
                     <label className="text-[11px] font-semibold text-slate-600">SLA Turnaround (Hours)</label>
-                    <input
+                    <Input
                       type="number"
                       value={ruleForm.initialSlaHours}
                       onChange={(e) => setRuleForm({ ...ruleForm, initialSlaHours: Number(e.target.value) })}
-                      className="w-full p-2 border border-slate-300 rounded-lg text-xs font-mono"
+                      className="h-9 font-mono text-sm"
                     />
                   </div>
                 </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={() => setIsAddRuleModalOpen(false)}
-                  className="px-3.5 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
-                  className="px-4 py-1.5 rounded-lg bg-[#0F8B8D] hover:bg-[#0c7274] text-white font-semibold shadow-sm cursor-pointer"
+                  size="sm"
+                  className="bg-[#0F8B8D] text-white hover:bg-[#0c7274]"
                 >
                   Create Rule Matrix
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* ========================================================================= */}
       {/* MODAL: APPEND STAGE */}
       {/* ========================================================================= */}
       {isAppendStageModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-4">
+        <Dialog open={isAppendStageModalOpen} onOpenChange={setIsAppendStageModalOpen}>
+          <DialogContent showCloseButton={false} className="max-h-[90dvh] max-w-lg overflow-y-auto border-slate-200 bg-white p-4 text-slate-900 sm:p-6">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-base">Append Approval Stage</h3>
+              <DialogHeader><DialogTitle className="font-bold text-slate-900 text-base">Append Approval Stage</DialogTitle></DialogHeader>
               <button
                 onClick={() => setIsAppendStageModalOpen(false)}
+                aria-label="Close append stage form"
                 className="p-1 rounded text-slate-400 hover:text-slate-700"
               >
                 <X className="w-5 h-5" />
@@ -1358,44 +1435,44 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
             <form onSubmit={handleSaveAppendedStage} className="space-y-3.5 text-xs">
               <div className="space-y-1">
                 <label className="font-bold text-slate-700">Stage Name *</label>
-                <input
+                <Input
                   type="text"
                   required
                   value={stageForm.stageName}
                   onChange={(e) => setStageForm({ ...stageForm, stageName: e.target.value })}
-                  className="w-full p-2.5 border border-slate-300 rounded-lg text-xs"
+                  className="h-10 text-sm"
                 />
               </div>
 
               <div className="space-y-1">
                 <label className="font-bold text-slate-700">Approver Role / Authority</label>
-                <input
+                <Input
                   type="text"
                   required
                   value={stageForm.approverValue}
                   onChange={(e) => setStageForm({ ...stageForm, approverValue: e.target.value })}
-                  className="w-full p-2.5 border border-slate-300 rounded-lg text-xs"
+                  className="h-10 text-sm"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <label className="font-bold text-slate-700">Max SLA (Hours)</label>
-                  <input
+                  <Input
                     type="number"
                     required
                     value={stageForm.escalateAfterHours}
                     onChange={(e) => setStageForm({ ...stageForm, escalateAfterHours: Number(e.target.value) })}
-                    className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-mono"
+                    className="h-10 font-mono text-sm"
                   />
                 </div>
                 <div className="space-y-1">
                   <label className="font-bold text-slate-700">Auto-Escalate To</label>
-                  <input
+                  <Input
                     type="text"
                     value={stageForm.escalateTo}
                     onChange={(e) => setStageForm({ ...stageForm, escalateTo: e.target.value })}
-                    className="w-full p-2.5 border border-slate-300 rounded-lg text-xs"
+                    className="h-10 text-sm"
                   />
                 </div>
               </div>
@@ -1406,54 +1483,60 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
                   {(['Email', 'InApp', 'WhatsApp', 'SMS'] as const).map((ch) => {
                     const active = stageForm.notifyVia.includes(ch);
                     return (
-                      <button
+                      <Button
                         key={ch}
                         type="button"
+                        size="sm"
+                        variant={active ? 'secondary' : 'outline'}
                         onClick={() => toggleNotifyChannel(ch)}
-                        className={`px-3 py-1 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                        aria-pressed={active}
+                        className={`h-8 text-xs ${
                           active
-                            ? 'bg-[#0F8B8D]/10 border-[#0F8B8D] text-[#0F8B8D]'
-                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                            ? 'bg-teal-50 text-[#0F8B8D] hover:bg-teal-50'
+                            : 'text-slate-600'
                         }`}
                       >
-                        {active && <Check className="w-3.5 h-3.5" />}
+                        {active && <Check aria-hidden="true" />}
                         {ch}
-                      </button>
+                      </Button>
                     );
                   })}
                 </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={() => setIsAppendStageModalOpen(false)}
-                  className="px-3.5 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
-                  className="px-4 py-1.5 rounded-lg bg-[#0F8B8D] hover:bg-[#0c7274] text-white font-semibold shadow-sm cursor-pointer"
+                  size="sm"
+                  className="bg-[#0F8B8D] text-white hover:bg-[#0c7274]"
                 >
                   Append Stage to Chain
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* ========================================================================= */}
       {/* MODAL: ADD DELEGATION */}
       {/* ========================================================================= */}
       {isAddDelegationModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-4 text-xs">
+        <Dialog open={isAddDelegationModalOpen} onOpenChange={setIsAddDelegationModalOpen}>
+          <DialogContent showCloseButton={false} className="max-h-[90dvh] max-w-lg overflow-y-auto border-slate-200 bg-white p-4 text-slate-900 sm:p-6">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-base">Assign Out-of-Office Proxy Delegation</h3>
+              <DialogHeader><DialogTitle className="font-bold text-slate-900 text-base">Assign Out-of-Office Proxy Delegation</DialogTitle></DialogHeader>
               <button
                 onClick={() => setIsAddDelegationModalOpen(false)}
+                aria-label="Close delegation form"
                 className="p-1 rounded text-slate-400 hover:text-slate-700"
               >
                 <X className="w-5 h-5" />
@@ -1461,98 +1544,101 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
             </div>
 
             <form onSubmit={handleCreateDelegation} className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <label className="font-bold text-slate-700">Delegator Name *</label>
-                  <input
+                  <Input
                     type="text"
                     required
                     placeholder="e.g. Priya Rao"
                     value={delegationForm.delegatorName}
                     onChange={(e) => setDelegationForm({ ...delegationForm, delegatorName: e.target.value })}
-                    className="w-full p-2.5 border border-slate-300 rounded-lg text-xs"
+                    className="h-10 text-sm"
                   />
                 </div>
                 <div className="space-y-1">
                   <label className="font-bold text-slate-700">Proxy Delegatee *</label>
-                  <input
+                  <Input
                     type="text"
                     required
                     placeholder="e.g. Anand Kumar"
                     value={delegationForm.delegateeName}
                     onChange={(e) => setDelegationForm({ ...delegationForm, delegateeName: e.target.value })}
-                    className="w-full p-2.5 border border-slate-300 rounded-lg text-xs"
+                    className="h-10 text-sm"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <label className="font-bold text-slate-700">Start Date</label>
-                  <input
+                  <Input
                     type="date"
                     required
                     value={delegationForm.validFrom}
                     onChange={(e) => setDelegationForm({ ...delegationForm, validFrom: e.target.value })}
-                    className="w-full p-2 border border-slate-300 rounded-lg text-xs"
+                    className="h-10 text-sm"
                   />
                 </div>
                 <div className="space-y-1">
                   <label className="font-bold text-slate-700">End Date</label>
-                  <input
+                  <Input
                     type="date"
                     required
                     value={delegationForm.validUntil}
                     onChange={(e) => setDelegationForm({ ...delegationForm, validUntil: e.target.value })}
-                    className="w-full p-2 border border-slate-300 rounded-lg text-xs"
+                    className="h-10 text-sm"
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
                 <label className="font-bold text-slate-700">Delegation Reason</label>
-                <input
+                <Input
                   type="text"
                   placeholder="e.g. Supplier Audit in Germany"
                   value={delegationForm.reason}
                   onChange={(e) => setDelegationForm({ ...delegationForm, reason: e.target.value })}
-                  className="w-full p-2.5 border border-slate-300 rounded-lg text-xs"
+                  className="h-10 text-sm"
                 />
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={() => setIsAddDelegationModalOpen(false)}
-                  className="px-3.5 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
-                  className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm cursor-pointer"
+                  size="sm"
+                  className="bg-indigo-600 text-white hover:bg-indigo-700"
                 >
                   Activate Proxy
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* ========================================================================= */}
       {/* MODAL: BREAK-GLASS OVERRIDE */}
       {/* ========================================================================= */}
       {isBreakGlassModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl border border-rose-300 shadow-2xl max-w-lg w-full p-6 space-y-4 text-xs">
+        <Dialog open={isBreakGlassModalOpen} onOpenChange={setIsBreakGlassModalOpen}>
+          <DialogContent showCloseButton={false} className="max-h-[90dvh] max-w-lg overflow-y-auto border-rose-300 bg-white p-4 text-slate-900 sm:p-6">
             <div className="flex items-center justify-between pb-3 border-b border-rose-100">
               <div className="flex items-center gap-2">
                 <Flame className="w-5 h-5 text-rose-600" />
-                <h3 className="font-bold text-rose-950 text-base">Authorize Emergency Break-Glass</h3>
+                <DialogHeader><DialogTitle className="font-bold text-rose-950 text-base">Authorize Emergency Break-Glass</DialogTitle></DialogHeader>
               </div>
               <button
                 onClick={() => setIsBreakGlassModalOpen(false)}
+                aria-label="Close break-glass authorization"
                 className="p-1 rounded text-slate-400 hover:text-slate-700"
               >
                 <X className="w-5 h-5" />
@@ -1562,13 +1648,13 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
             <form onSubmit={handleExecuteBreakGlass} className="space-y-3">
               <div className="space-y-1">
                 <label className="font-bold text-slate-700">Target Document Identifier *</label>
-                <input
+                <Input
                   type="text"
                   required
                   placeholder="e.g. PO-2026-00998"
                   value={breakGlassForm.documentRef}
                   onChange={(e) => setBreakGlassForm({ ...breakGlassForm, documentRef: e.target.value })}
-                  className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-mono"
+                  className="h-10 font-mono text-sm"
                 />
               </div>
 
@@ -1577,7 +1663,7 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
                 <select
                   value={breakGlassForm.reasonCode}
                   onChange={(e) => setBreakGlassForm({ ...breakGlassForm, reasonCode: e.target.value as any })}
-                  className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-semibold"
+                  className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium"
                 >
                   <option value="EMERGENCY_LINE_STOP">Line Stoppage Imminent (Assembly Halt)</option>
                   <option value="VIP_CUSTOMER_EXPEDITE">OEM Customer Critical Escalation</option>
@@ -1593,7 +1679,7 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
                   placeholder="Provide precise commercial and operational rationale for statutory auditors..."
                   value={breakGlassForm.justification}
                   onChange={(e) => setBreakGlassForm({ ...breakGlassForm, justification: e.target.value })}
-                  className="w-full p-2.5 border border-slate-300 rounded-lg text-xs"
+                  className="min-h-24 w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-rose-600/20"
                 />
               </div>
 
@@ -1601,34 +1687,37 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
                 <h4 className="font-bold text-rose-950 flex items-center gap-1.5 text-[11px]">
                   <KeyRound className="w-3.5 h-3.5" /> Dual-Authorization Co-Signer
                 </h4>
-                <input
+                <Input
                   type="text"
                   required
                   placeholder="Second Administrator Username"
                   value={breakGlassForm.secondAdminUsername}
                   onChange={(e) => setBreakGlassForm({ ...breakGlassForm, secondAdminUsername: e.target.value })}
-                  className="w-full p-2 bg-white border border-rose-300 rounded-lg text-xs"
+                  className="h-10 border-rose-300 bg-white text-sm"
                 />
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={() => setIsBreakGlassModalOpen(false)}
-                  className="px-3.5 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
-                  className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-sm cursor-pointer"
+                  size="sm"
+                  variant="destructive"
+                  className="bg-rose-700 text-white hover:bg-rose-800"
                 >
                   Sign &amp; Force Approve
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* ========================================================================= */}

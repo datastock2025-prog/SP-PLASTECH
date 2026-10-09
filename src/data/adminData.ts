@@ -173,6 +173,13 @@ export const adminRoles: AdminRole[] = [
   },
 ];
 
+export const emptyCompanyProfile: CompanyProfile = {
+  companyName: '', legalEntityName: '', brandName: '', cin: '', pan: '', gstinCorporate: '', tan: '',
+  registeredOffice: '', corporateOffice: '', website: '', supportEmail: '', contactNumber: '',
+  fiscalYearStartMonth: 'April', baseCurrency: 'INR (₹)', currencySymbol: '₹',
+  timeZone: 'Asia/Kolkata (IST, UTC+5:30)', dateFormat: 'DD/MM/YYYY', plants: [],
+};
+
 export const companyProfile: CompanyProfile = {
   companyName: 'Reboot Plastics & Polymers Private Limited',
   legalEntityName: 'Reboot Polymers & Precision Molding India Pvt. Ltd.',
