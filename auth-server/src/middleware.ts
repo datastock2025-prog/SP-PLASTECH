@@ -1,5 +1,4 @@
-import type { NextFunction, Request, Response } from 'express';
-import { fromNodeHeaders } from 'better-auth/node';
+import type { Next, Req as Request, Res as Response } from './router.js';
 import { ZodError } from 'zod';
 import type { Auth } from './auth.js';
 import { buildAbility, type AppAbility, type Action, type Subject, type StoredRule } from './ability.js';
@@ -28,16 +27,10 @@ export interface Actor {
   ip: string | null;
 }
 
-declare module 'express-serve-static-core' {
-  interface Request {
-    actor?: Actor;
-  }
-}
-
 export function requireSession(auth: Auth) {
-  return async (req: Request, _res: Response, next: NextFunction) => {
+  return async (req: Request, _res: Response, next: Next) => {
     try {
-      const s = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
+      const s = await auth.api.getSession({ headers: req.headers });
       if (!s) throw new AppError(401, 'UNAUTHENTICATED', 'Authentication required');
       const { rows } = await pool.query(
         `SELECT p.tenant_id, p.role_id, p.full_name, p.status, p.must_change_password,
@@ -67,7 +60,7 @@ export function requireSession(auth: Auth) {
         activeShift: p.active_shift,
         rules,
         ability: buildAbility(rules, s.user.id),
-        ip: req.ip ?? null,
+        ip: req.ip,
       };
       next();
     } catch (e) {
@@ -77,21 +70,21 @@ export function requireSession(auth: Auth) {
 }
 
 // Blocks every action except changing the password while a forced change is pending.
-export function enforcePasswordChange(req: Request, _res: Response, next: NextFunction) {
+export function enforcePasswordChange(req: Request, _res: Response, next: Next) {
   if (req.actor?.mustChangePassword && !req.path.startsWith('/me')) {
     return next(new AppError(403, 'PASSWORD_CHANGE_REQUIRED', 'You must change your password before continuing'));
   }
   next();
 }
 
-export const can = (action: Action, subject: Subject) => (req: Request, _res: Response, next: NextFunction) => {
+export const can = (action: Action, subject: Subject) => (req: Request, _res: Response, next: Next) => {
   if (!req.actor?.ability.can(action, subject)) {
     return next(new AppError(403, 'FORBIDDEN', `You are not permitted to ${action} ${subject}`));
   }
   next();
 };
 
-export function errorHandler(err: any, _req: Request, res: Response, _next: NextFunction) {
+export function errorHandler(err: any, _req: Request, res: Response, _next: Next) {
   if (err instanceof AppError) {
     return res.status(err.status).json({ error: { code: err.code, message: err.message, details: err.details } });
   }
@@ -111,5 +104,5 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
 }
 
 export const wrap =
-  (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) =>
+  (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: Next) =>
     fn(req, res).catch(next);

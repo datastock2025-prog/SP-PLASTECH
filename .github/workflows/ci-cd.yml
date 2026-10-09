@@ -181,6 +181,9 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: Install identity API dependencies (bundled into Pages Functions)
+        run: npm ci --prefix auth-server
+
       - name: Build Production Assets
         run: npm run build
         env:

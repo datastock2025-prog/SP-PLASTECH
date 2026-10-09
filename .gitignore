@@ -36,3 +36,7 @@ Thumbs.db
 # Auth server local data/secrets
 auth-server/.pgdata/
 auth-server/.dev-secret
+
+.wrangler/
+.wr-empty/
+test-results/

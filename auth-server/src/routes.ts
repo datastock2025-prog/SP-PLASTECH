@@ -1,11 +1,10 @@
-import os from 'node:os';
-import { Router } from 'express';
 import { z } from 'zod';
 import type { PoolClient } from 'pg';
 import type { Auth } from './auth.js';
 import { hashPassword, verifyPassword } from './auth.js';
 import { pool, withTx } from './db.js';
-import { AppError, can, enforcePasswordChange, requireSession, wrap, type Actor } from './middleware.js';
+import { AppError, can, enforcePasswordChange, errorHandler, requireSession, wrap, type Actor } from './middleware.js';
+import { createRouter } from './router.js';
 import { generateTempPassword, insertUser, writeAudit } from './userStore.js';
 
 const str = (max = 200) => z.string().trim().min(1).max(max);
@@ -78,8 +77,27 @@ const snapshot = (u: ReturnType<typeof mapUser>) => ({
   assignedShift: u.assignedShift, status: u.status, roleCode: u.roleCode, plantIds: u.plantIds,
 });
 
+// Host metrics exist on Node only; on Cloudflare Workers the edge runtime does not expose them.
+async function hostMetrics() {
+  try {
+    const os = await import('node:os');
+    const cores = os.cpus().length;
+    if (!cores) throw new Error('no host metrics');
+    const total = os.totalmem();
+    return {
+      cpuCores: cores,
+      loadPct: Math.min(100, Math.round((os.loadavg()[0] / cores) * 1000) / 10),
+      memoryTotalGb: Math.round((total / 1073741824) * 10) / 10,
+      memoryUsedGb: Math.round(((total - os.freemem()) / 1073741824) * 10) / 10,
+      uptimeSeconds: Math.round(process.uptime()),
+    };
+  } catch {
+    return { cpuCores: null, loadPct: null, memoryTotalGb: null, memoryUsedGb: null, uptimeSeconds: null };
+  }
+}
+
 export function buildRouter(auth: Auth) {
-  const r = Router();
+  const r = createRouter(errorHandler);
   r.use(requireSession(auth), enforcePasswordChange);
 
   // ---------- current user ----------
@@ -234,22 +252,16 @@ export function buildRouter(auth: Auth) {
   }));
 
   r.get('/system/health', can('manage', 'Plant'), wrap(async (_req, res) => {
-    const t0 = process.hrtime.bigint();
+    const t0 = performance.now();
     const sessions = await pool.query(`SELECT count(*)::int AS n FROM "session" WHERE "expiresAt" > now()`);
-    const dbLatencyMs = Number(process.hrtime.bigint() - t0) / 1e6;
+    const dbLatencyMs = performance.now() - t0;
     const users = await pool.query(`SELECT count(*)::int AS n FROM user_profiles WHERE deleted_at IS NULL`);
-    const total = os.totalmem();
-    const free = os.freemem();
     res.json({ data: {
       status: 'ok',
       dbLatencyMs: Math.round(dbLatencyMs * 10) / 10,
       activeSessions: sessions.rows[0].n,
       userCount: users.rows[0].n,
-      cpuCores: os.cpus().length,
-      loadPct: Math.min(100, Math.round((os.loadavg()[0] / os.cpus().length) * 1000) / 10),
-      memoryTotalGb: Math.round((total / 1073741824) * 10) / 10,
-      memoryUsedGb: Math.round(((total - free) / 1073741824) * 10) / 10,
-      uptimeSeconds: Math.round(process.uptime()),
+      ...(await hostMetrics()),
     } });
   }));
   r.get('/plants', can('read', 'Plant'), wrap(async (req, res) => {
@@ -451,7 +463,7 @@ export function buildRouter(auth: Auth) {
   }));
 
   r.use((_req, _res, next) => next(new AppError(404, 'NOT_FOUND', 'Route not found')));
-  return r;
+  return r.app;
 }
 
 export { pool };

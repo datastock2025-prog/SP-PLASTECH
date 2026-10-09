@@ -1,21 +1,11 @@
 import { betterAuth } from 'better-auth';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { jwt, username } from 'better-auth/plugins';
-import { hash, verify, Algorithm } from '@node-rs/argon2';
 import { config } from './config.js';
 import { pool } from './db.js';
+import { hashPassword, verifyPassword } from './hash.js';
 
-// OWASP-recommended Argon2id parameters (19 MiB, t=2, p=1).
-const ARGON2_OPTS = { algorithm: Algorithm.Argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 } as const;
-
-export const hashPassword = (password: string) => hash(password, ARGON2_OPTS);
-export const verifyPassword = async ({ hash: h, password }: { hash: string; password: string }) => {
-  try {
-    return await verify(h, password);
-  } catch {
-    return false;
-  }
-};
+export { hashPassword, verifyPassword };
 
 const MAX_FAILED_ATTEMPTS = 5;
 const SIGN_IN_PATHS = new Set(['/sign-in/username', '/sign-in/email']);

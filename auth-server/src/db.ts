@@ -1,56 +1,30 @@
 import pg from 'pg';
-import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { config } from './config.js';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
 const APP_ROLE = 'erp_app';
-export let pool: pg.Pool;
-let stopEmbedded: (() => Promise<void>) | null = null;
+const als = new AsyncLocalStorage<pg.Pool>();
+let globalPool: pg.Pool | undefined;
 
-// Uses AUTH_DATABASE_URL (Supabase/Postgres) when provided, otherwise a real
-// embedded PostgreSQL instance persisted in ./.pgdata for local development.
-export async function initDatabase(): Promise<void> {
-  let connectionString = config.databaseUrl;
+export const createPool = (connectionString: string) => new pg.Pool({ connectionString, max: 1 });
+export const setGlobalPool = (p: pg.Pool) => { globalPool = p; };
+export const getGlobalPool = () => globalPool;
+// Cloudflare Workers cannot share sockets between requests, so each request runs with its own pool.
+export const runWithPool = <T>(p: pg.Pool, fn: () => Promise<T>) => als.run(p, fn);
+const current = () => {
+  const p = als.getStore() ?? globalPool;
+  if (!p) throw new Error('Database is not initialised');
+  return p;
+};
 
-  if (!connectionString) {
-    if (config.isProd) throw new Error('AUTH_DATABASE_URL is required in production');
-    const { default: EmbeddedPostgres } = await import('embedded-postgres');
-    const dataDir = resolve(config.root, '.pgdata');
-    const initialised = existsSync(resolve(dataDir, 'PG_VERSION'));
-    const server = new EmbeddedPostgres({
-      databaseDir: dataDir,
-      user: 'postgres',
-      password: 'postgres',
-      port: config.embeddedPgPort,
-      persistent: true,
-      onLog: (m: unknown) => { if (process.env.PG_DEBUG) console.log('[pg]', String(m)); },
-      onError: (e: unknown) => console.error('[pg]', e),
-    });
-    if (!initialised) await server.initialise();
-    await server.start();
-    stopEmbedded = () => server.stop();
-    const admin = new pg.Client({
-      host: 'localhost',
-      port: config.embeddedPgPort,
-      user: 'postgres',
-      password: 'postgres',
-      database: 'postgres',
-    });
-    await admin.connect();
-    const exists = await admin.query(`SELECT 1 FROM pg_database WHERE datname = 'reboot_auth'`);
-    if (exists.rowCount === 0) await admin.query('CREATE DATABASE reboot_auth');
-    await admin.end();
-    connectionString = `postgres://postgres:postgres@localhost:${config.embeddedPgPort}/reboot_auth`;
-  }
-
-  pool = new pg.Pool({ connectionString, max: 10 });
-  await pool.query('SELECT 1');
-}
-
-export async function closeDatabase(): Promise<void> {
-  await pool?.end();
-  await stopEmbedded?.();
-}
+export const pool: pg.Pool = new Proxy({} as pg.Pool, {
+  get(_t, key) {
+    const p = current() as any;
+    const v = p[key];
+    return typeof v === 'function' ? v.bind(p) : v;
+  },
+  // Better Auth probes the pool shape while constructing, before any request-scoped pool exists.
+  has: (_t, key) => key in (als.getStore() ?? globalPool ?? pg.Pool.prototype),
+});
 
 export interface RequestContext {
   tenantId: string;
@@ -60,7 +34,7 @@ export interface RequestContext {
 // Runs fn in ONE transaction as the non-owner role so Row-Level Security is
 // enforced, with the tenant/user bound as transaction-local settings.
 export async function withTx<T>(ctx: RequestContext, fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
-  const client = await pool.connect();
+  const client = await current().connect();
   try {
     await client.query('BEGIN');
     await client.query(`SET LOCAL ROLE ${APP_ROLE}`);

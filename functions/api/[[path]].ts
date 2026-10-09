@@ -3,7 +3,9 @@
  * Intercepts /api/* requests and routes to the active backend / NestJS gateway
  */
 
-interface Env {
+import { handleIdentity, isIdentityPath, type IdentityEnv } from './_identity';
+
+interface Env extends IdentityEnv {
   BACKEND_URL?: string;
   MIDDLEWARE_URL?: string;
 }
@@ -11,6 +13,9 @@ interface Env {
 export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
   const url = new URL(request.url);
+
+  // Login, users, plants and profile are served directly on Cloudflare (Supabase Postgres).
+  if (isIdentityPath(url.pathname)) return handleIdentity(request, env as IdentityEnv, context.waitUntil.bind(context));
 
   // Default backend URL or fallback
   const backendBase = env.BACKEND_URL || env.MIDDLEWARE_URL || 'http://localhost:3000';
