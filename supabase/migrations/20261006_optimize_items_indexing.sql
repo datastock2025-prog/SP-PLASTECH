@@ -8,7 +8,7 @@
 CREATE INDEX IF NOT EXISTS idx_items_created_at_desc ON public.items (created_at DESC NULLS LAST);
 CREATE INDEX IF NOT EXISTS idx_items_code ON public.items (code);
 CREATE INDEX IF NOT EXISTS idx_items_category_status ON public.items (category, status);
-CREATE INDEX IF NOT EXISTS idx_items_plant ON public.items (plant);
+-- idx_items_plant removed: items table uses wh/warehouse, not plant column
 CREATE INDEX IF NOT EXISTS idx_items_tenant_id ON public.items (tenant_id) WHERE tenant_id IS NOT NULL;
 
 -- 2. Work Orders Table Performance Indexes
