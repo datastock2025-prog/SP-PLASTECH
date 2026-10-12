@@ -1,0 +1,30 @@
+{
+  "scrapSummary": [
+    {
+      "workOrderId": "WO-2026-TEST1",
+      "machineId": "IMM-250T-01",
+      "itemCode": "FG-AUTO-012",
+      "itemName": "ABS Dashboard Trim Bezel",
+      "date": "2026-09-29",
+      "shift": "Shift A",
+      "goodQty": 4700,
+      "rejectionQty": 100,
+      "partWeightGrams": 45,
+      "runnerWeightGrams": 12,
+      "shotWeightGrams": 57,
+      "cavities": 4,
+      "rejectionKg": 4.5,
+      "runnerKg": 14.4,
+      "lumpsKg": 3.2,
+      "totalScrapKg": 22.1,
+      "baseResin": "Polypropylene Homopolymer (Grade H110FU)",
+      "color": "Natural / Standard Tone",
+      "moldId": "M-104-ABS-2C",
+      "bomId": "BOM-FG-AUTO-012",
+      "mixingId": "MIX-2026-TEST1",
+      "rgLoggedKg": 0,
+      "pendingRgKg": 22.1,
+      "status": "Pending Grinding"
+    }
+  ]
+}

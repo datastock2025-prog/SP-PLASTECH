@@ -1,0 +1,751 @@
+{
+  "plant1": [
+    {
+      "rawItemCode": "RM-PP-NAT-001",
+      "rawItemName": "Polypropylene Injection Grade Virgin Resin H110MA",
+      "category": "Polymer Granules",
+      "grossRequiredKg": 5750,
+      "unitStock": {
+        "plant1Stock": 18500,
+        "plant2Stock": 9500,
+        "centralWarehouseStock": 28000,
+        "totalFreeStock": 56000
+      },
+      "currentStockKg": 18500,
+      "safetyBufferKg": 690,
+      "netNeedKg": 0,
+      "orderQty": 0,
+      "unitPrice": 88.5,
+      "totalCost": 0,
+      "uom": "KG",
+      "selectedSupplierId": "SUP-S0128",
+      "selectedSupplierName": "RELIANCE INDUSTRIES LIMITED",
+      "availableSuppliers": [
+        {
+          "supplierId": "SUP-S0128",
+          "supplierName": "RELIANCE INDUSTRIES LIMITED",
+          "ratePerUom": 88.5,
+          "leadTimeDays": 3,
+          "rating": 98.5,
+          "moq": 1000,
+          "paymentTerms": "Net 30 Days"
+        },
+        {
+          "supplierId": "SUP-S0129",
+          "supplierName": "INDIAN OIL CORPORATION LTD (IOCL)",
+          "ratePerUom": 87.2,
+          "leadTimeDays": 4,
+          "rating": 96.8,
+          "moq": 2000,
+          "paymentTerms": "Net 45 Days"
+        },
+        {
+          "supplierId": "SUP-S0130",
+          "supplierName": "GAIL INDIA PETROCHEMICALS",
+          "ratePerUom": 89,
+          "leadTimeDays": 5,
+          "rating": 95.4,
+          "moq": 1500,
+          "paymentTerms": "Net 30 Days"
+        }
+      ],
+      "leadTimeDays": 3,
+      "supplierRating": 98.5,
+      "stockStatus": "Sufficient Buffer",
+      "isPoConfirmed": false,
+      "isLocked": false
+    },
+    {
+      "rawItemCode": "MB-BLK-002",
+      "rawItemName": "Carbon Black Masterbatch 40% Concentration (Automotive Grade)",
+      "category": "Color Masterbatch",
+      "grossRequiredKg": 240,
+      "unitStock": {
+        "plant1Stock": 650,
+        "plant2Stock": 320,
+        "centralWarehouseStock": 1200,
+        "totalFreeStock": 2170
+      },
+      "currentStockKg": 650,
+      "safetyBufferKg": 29,
+      "netNeedKg": 0,
+      "orderQty": 0,
+      "unitPrice": 340,
+      "totalCost": 0,
+      "uom": "KG",
+      "selectedSupplierId": "SUP-S0045",
+      "selectedSupplierName": "CLARIANT COLORANTS CHEMICALS INDIA",
+      "availableSuppliers": [
+        {
+          "supplierId": "SUP-S0045",
+          "supplierName": "CLARIANT COLORANTS CHEMICALS INDIA",
+          "ratePerUom": 340,
+          "leadTimeDays": 5,
+          "rating": 97.2,
+          "moq": 50,
+          "paymentTerms": "Net 30 Days"
+        },
+        {
+          "supplierId": "SUP-S0046",
+          "supplierName": "SUPREME MASTERBATCH LTD",
+          "ratePerUom": 325,
+          "leadTimeDays": 3,
+          "rating": 94.8,
+          "moq": 100,
+          "paymentTerms": "Net 15 Days"
+        },
+        {
+          "supplierId": "SUP-S0047",
+          "supplierName": "PODDAR PIGMENTS LTD",
+          "ratePerUom": 335,
+          "leadTimeDays": 4,
+          "rating": 95.5,
+          "moq": 50,
+          "paymentTerms": "Net 30 Days"
+        }
+      ],
+      "leadTimeDays": 5,
+      "supplierRating": 97.2,
+      "stockStatus": "Sufficient Buffer",
+      "isPoConfirmed": false,
+      "isLocked": false
+    },
+    {
+      "rawItemCode": "AD-UV-STAB-003",
+      "rawItemName": "UV Stabilizer & Thermal Antioxidant Clarifier",
+      "category": "Performance Additive",
+      "grossRequiredKg": 90,
+      "unitStock": {
+        "plant1Stock": 140,
+        "plant2Stock": 70,
+        "centralWarehouseStock": 350,
+        "totalFreeStock": 560
+      },
+      "currentStockKg": 140,
+      "safetyBufferKg": 11,
+      "netNeedKg": 0,
+      "orderQty": 0,
+      "unitPrice": 520,
+      "totalCost": 0,
+      "uom": "KG",
+      "selectedSupplierId": "SUP-S0078",
+      "selectedSupplierName": "BASF PERFORMANCE CHEMICALS INDIA",
+      "availableSuppliers": [
+        {
+          "supplierId": "SUP-S0078",
+          "supplierName": "BASF PERFORMANCE CHEMICALS INDIA",
+          "ratePerUom": 520,
+          "leadTimeDays": 7,
+          "rating": 99.1,
+          "moq": 25,
+          "paymentTerms": "Net 45 Days"
+        },
+        {
+          "supplierId": "SUP-S0079",
+          "supplierName": "SOLVAY SPECIALTY CHEMICALS LTD",
+          "ratePerUom": 510,
+          "leadTimeDays": 6,
+          "rating": 97,
+          "moq": 50,
+          "paymentTerms": "Net 30 Days"
+        }
+      ],
+      "leadTimeDays": 7,
+      "supplierRating": 99.1,
+      "stockStatus": "Sufficient Buffer",
+      "isPoConfirmed": false,
+      "isLocked": false
+    },
+    {
+      "rawItemCode": "PKG-BOX-5PLY-01",
+      "rawItemName": "5-Ply Heavy-Duty Corrugated Master Cartons",
+      "category": "Secondary Packaging",
+      "grossRequiredKg": 375,
+      "unitStock": {
+        "plant1Stock": 920,
+        "plant2Stock": 420,
+        "centralWarehouseStock": 1800,
+        "totalFreeStock": 3140
+      },
+      "currentStockKg": 920,
+      "safetyBufferKg": 45,
+      "netNeedKg": 0,
+      "orderQty": 0,
+      "unitPrice": 65,
+      "totalCost": 0,
+      "uom": "BOX",
+      "selectedSupplierId": "SUP-S0164",
+      "selectedSupplierName": "PARKSONS PACKAGING LTD",
+      "availableSuppliers": [
+        {
+          "supplierId": "SUP-S0164",
+          "supplierName": "PARKSONS PACKAGING LTD",
+          "ratePerUom": 65,
+          "leadTimeDays": 2,
+          "rating": 96.8,
+          "moq": 500,
+          "paymentTerms": "Net 30 Days"
+        },
+        {
+          "supplierId": "SUP-S0165",
+          "supplierName": "UFLEX PACKAGING DIVISION",
+          "ratePerUom": 62.5,
+          "leadTimeDays": 4,
+          "rating": 95,
+          "moq": 1000,
+          "paymentTerms": "Net 30 Days"
+        },
+        {
+          "supplierId": "SUP-S0166",
+          "supplierName": "TCPL PACKAGING LIMITED",
+          "ratePerUom": 64,
+          "leadTimeDays": 3,
+          "rating": 96.2,
+          "moq": 500,
+          "paymentTerms": "Net 15 Days"
+        }
+      ],
+      "leadTimeDays": 2,
+      "supplierRating": 96.8,
+      "stockStatus": "Sufficient Buffer",
+      "isPoConfirmed": false,
+      "isLocked": false
+    },
+    {
+      "rawItemCode": "RM-PP-PCR-002",
+      "rawItemName": "Post-Consumer Recycled (PCR) PP Granules Reprocessed",
+      "category": "Polymer Granules",
+      "grossRequiredKg": 650,
+      "unitStock": {
+        "plant1Stock": 18500,
+        "plant2Stock": 9500,
+        "centralWarehouseStock": 28000,
+        "totalFreeStock": 56000
+      },
+      "currentStockKg": 18500,
+      "safetyBufferKg": 78,
+      "netNeedKg": 0,
+      "orderQty": 0,
+      "unitPrice": 88.5,
+      "totalCost": 0,
+      "uom": "KG",
+      "selectedSupplierId": "SUP-S0128",
+      "selectedSupplierName": "RELIANCE INDUSTRIES LIMITED",
+      "availableSuppliers": [
+        {
+          "supplierId": "SUP-S0128",
+          "supplierName": "RELIANCE INDUSTRIES LIMITED",
+          "ratePerUom": 88.5,
+          "leadTimeDays": 3,
+          "rating": 98.5,
+          "moq": 1000,
+          "paymentTerms": "Net 30 Days"
+        },
+        {
+          "supplierId": "SUP-S0129",
+          "supplierName": "INDIAN OIL CORPORATION LTD (IOCL)",
+          "ratePerUom": 87.2,
+          "leadTimeDays": 4,
+          "rating": 96.8,
+          "moq": 2000,
+          "paymentTerms": "Net 45 Days"
+        },
+        {
+          "supplierId": "SUP-S0130",
+          "supplierName": "GAIL INDIA PETROCHEMICALS",
+          "ratePerUom": 89,
+          "leadTimeDays": 5,
+          "rating": 95.4,
+          "moq": 1500,
+          "paymentTerms": "Net 30 Days"
+        }
+      ],
+      "leadTimeDays": 3,
+      "supplierRating": 98.5,
+      "stockStatus": "Sufficient Buffer",
+      "isPoConfirmed": false,
+      "isLocked": false
+    }
+  ],
+  "plant2": [
+    {
+      "rawItemCode": "RM-PP-NAT-001",
+      "rawItemName": "Polypropylene Injection Grade Virgin Resin H110MA",
+      "category": "Polymer Granules",
+      "grossRequiredKg": 5750,
+      "unitStock": {
+        "plant1Stock": 11000,
+        "plant2Stock": 14200,
+        "centralWarehouseStock": 28000,
+        "totalFreeStock": 53200
+      },
+      "currentStockKg": 14200,
+      "safetyBufferKg": 690,
+      "netNeedKg": 0,
+      "orderQty": 0,
+      "unitPrice": 88.5,
+      "totalCost": 0,
+      "uom": "KG",
+      "selectedSupplierId": "SUP-S0128",
+      "selectedSupplierName": "RELIANCE INDUSTRIES LIMITED",
+      "availableSuppliers": [
+        {
+          "supplierId": "SUP-S0128",
+          "supplierName": "RELIANCE INDUSTRIES LIMITED",
+          "ratePerUom": 88.5,
+          "leadTimeDays": 3,
+          "rating": 98.5,
+          "moq": 1000,
+          "paymentTerms": "Net 30 Days"
+        },
+        {
+          "supplierId": "SUP-S0129",
+          "supplierName": "INDIAN OIL CORPORATION LTD (IOCL)",
+          "ratePerUom": 87.2,
+          "leadTimeDays": 4,
+          "rating": 96.8,
+          "moq": 2000,
+          "paymentTerms": "Net 45 Days"
+        },
+        {
+          "supplierId": "SUP-S0130",
+          "supplierName": "GAIL INDIA PETROCHEMICALS",
+          "ratePerUom": 89,
+          "leadTimeDays": 5,
+          "rating": 95.4,
+          "moq": 1500,
+          "paymentTerms": "Net 30 Days"
+        }
+      ],
+      "leadTimeDays": 3,
+      "supplierRating": 98.5,
+      "stockStatus": "Sufficient Buffer",
+      "isPoConfirmed": false,
+      "isLocked": false
+    },
+    {
+      "rawItemCode": "MB-BLK-002",
+      "rawItemName": "Carbon Black Masterbatch 40% Concentration (Automotive Grade)",
+      "category": "Color Masterbatch",
+      "grossRequiredKg": 240,
+      "unitStock": {
+        "plant1Stock": 380,
+        "plant2Stock": 480,
+        "centralWarehouseStock": 1200,
+        "totalFreeStock": 2060
+      },
+      "currentStockKg": 480,
+      "safetyBufferKg": 29,
+      "netNeedKg": 0,
+      "orderQty": 0,
+      "unitPrice": 340,
+      "totalCost": 0,
+      "uom": "KG",
+      "selectedSupplierId": "SUP-S0045",
+      "selectedSupplierName": "CLARIANT COLORANTS CHEMICALS INDIA",
+      "availableSuppliers": [
+        {
+          "supplierId": "SUP-S0045",
+          "supplierName": "CLARIANT COLORANTS CHEMICALS INDIA",
+          "ratePerUom": 340,
+          "leadTimeDays": 5,
+          "rating": 97.2,
+          "moq": 50,
+          "paymentTerms": "Net 30 Days"
+        },
+        {
+          "supplierId": "SUP-S0046",
+          "supplierName": "SUPREME MASTERBATCH LTD",
+          "ratePerUom": 325,
+          "leadTimeDays": 3,
+          "rating": 94.8,
+          "moq": 100,
+          "paymentTerms": "Net 15 Days"
+        },
+        {
+          "supplierId": "SUP-S0047",
+          "supplierName": "PODDAR PIGMENTS LTD",
+          "ratePerUom": 335,
+          "leadTimeDays": 4,
+          "rating": 95.5,
+          "moq": 50,
+          "paymentTerms": "Net 30 Days"
+        }
+      ],
+      "leadTimeDays": 5,
+      "supplierRating": 97.2,
+      "stockStatus": "Sufficient Buffer",
+      "isPoConfirmed": false,
+      "isLocked": false
+    },
+    {
+      "rawItemCode": "AD-UV-STAB-003",
+      "rawItemName": "UV Stabilizer & Thermal Antioxidant Clarifier",
+      "category": "Performance Additive",
+      "grossRequiredKg": 90,
+      "unitStock": {
+        "plant1Stock": 80,
+        "plant2Stock": 110,
+        "centralWarehouseStock": 350,
+        "totalFreeStock": 540
+      },
+      "currentStockKg": 110,
+      "safetyBufferKg": 11,
+      "netNeedKg": 0,
+      "orderQty": 0,
+      "unitPrice": 520,
+      "totalCost": 0,
+      "uom": "KG",
+      "selectedSupplierId": "SUP-S0078",
+      "selectedSupplierName": "BASF PERFORMANCE CHEMICALS INDIA",
+      "availableSuppliers": [
+        {
+          "supplierId": "SUP-S0078",
+          "supplierName": "BASF PERFORMANCE CHEMICALS INDIA",
+          "ratePerUom": 520,
+          "leadTimeDays": 7,
+          "rating": 99.1,
+          "moq": 25,
+          "paymentTerms": "Net 45 Days"
+        },
+        {
+          "supplierId": "SUP-S0079",
+          "supplierName": "SOLVAY SPECIALTY CHEMICALS LTD",
+          "ratePerUom": 510,
+          "leadTimeDays": 6,
+          "rating": 97,
+          "moq": 50,
+          "paymentTerms": "Net 30 Days"
+        }
+      ],
+      "leadTimeDays": 7,
+      "supplierRating": 99.1,
+      "stockStatus": "Sufficient Buffer",
+      "isPoConfirmed": false,
+      "isLocked": false
+    },
+    {
+      "rawItemCode": "PKG-BOX-5PLY-01",
+      "rawItemName": "5-Ply Heavy-Duty Corrugated Master Cartons",
+      "category": "Secondary Packaging",
+      "grossRequiredKg": 375,
+      "unitStock": {
+        "plant1Stock": 540,
+        "plant2Stock": 780,
+        "centralWarehouseStock": 1800,
+        "totalFreeStock": 3120
+      },
+      "currentStockKg": 780,
+      "safetyBufferKg": 45,
+      "netNeedKg": 0,
+      "orderQty": 0,
+      "unitPrice": 65,
+      "totalCost": 0,
+      "uom": "BOX",
+      "selectedSupplierId": "SUP-S0164",
+      "selectedSupplierName": "PARKSONS PACKAGING LTD",
+      "availableSuppliers": [
+        {
+          "supplierId": "SUP-S0164",
+          "supplierName": "PARKSONS PACKAGING LTD",
+          "ratePerUom": 65,
+          "leadTimeDays": 2,
+          "rating": 96.8,
+          "moq": 500,
+          "paymentTerms": "Net 30 Days"
+        },
+        {
+          "supplierId": "SUP-S0165",
+          "supplierName": "UFLEX PACKAGING DIVISION",
+          "ratePerUom": 62.5,
+          "leadTimeDays": 4,
+          "rating": 95,
+          "moq": 1000,
+          "paymentTerms": "Net 30 Days"
+        },
+        {
+          "supplierId": "SUP-S0166",
+          "supplierName": "TCPL PACKAGING LIMITED",
+          "ratePerUom": 64,
+          "leadTimeDays": 3,
+          "rating": 96.2,
+          "moq": 500,
+          "paymentTerms": "Net 15 Days"
+        }
+      ],
+      "leadTimeDays": 2,
+      "supplierRating": 96.8,
+      "stockStatus": "Sufficient Buffer",
+      "isPoConfirmed": false,
+      "isLocked": false
+    },
+    {
+      "rawItemCode": "RM-PP-PCR-002",
+      "rawItemName": "Post-Consumer Recycled (PCR) PP Granules Reprocessed",
+      "category": "Polymer Granules",
+      "grossRequiredKg": 650,
+      "unitStock": {
+        "plant1Stock": 11000,
+        "plant2Stock": 14200,
+        "centralWarehouseStock": 28000,
+        "totalFreeStock": 53200
+      },
+      "currentStockKg": 14200,
+      "safetyBufferKg": 78,
+      "netNeedKg": 0,
+      "orderQty": 0,
+      "unitPrice": 88.5,
+      "totalCost": 0,
+      "uom": "KG",
+      "selectedSupplierId": "SUP-S0128",
+      "selectedSupplierName": "RELIANCE INDUSTRIES LIMITED",
+      "availableSuppliers": [
+        {
+          "supplierId": "SUP-S0128",
+          "supplierName": "RELIANCE INDUSTRIES LIMITED",
+          "ratePerUom": 88.5,
+          "leadTimeDays": 3,
+          "rating": 98.5,
+          "moq": 1000,
+          "paymentTerms": "Net 30 Days"
+        },
+        {
+          "supplierId": "SUP-S0129",
+          "supplierName": "INDIAN OIL CORPORATION LTD (IOCL)",
+          "ratePerUom": 87.2,
+          "leadTimeDays": 4,
+          "rating": 96.8,
+          "moq": 2000,
+          "paymentTerms": "Net 45 Days"
+        },
+        {
+          "supplierId": "SUP-S0130",
+          "supplierName": "GAIL INDIA PETROCHEMICALS",
+          "ratePerUom": 89,
+          "leadTimeDays": 5,
+          "rating": 95.4,
+          "moq": 1500,
+          "paymentTerms": "Net 30 Days"
+        }
+      ],
+      "leadTimeDays": 3,
+      "supplierRating": 98.5,
+      "stockStatus": "Sufficient Buffer",
+      "isPoConfirmed": false,
+      "isLocked": false
+    }
+  ],
+  "fallback": [
+    {
+      "rawItemCode": "RM-PP-NAT-001",
+      "rawItemName": "Polypropylene Injection Grade Virgin Resin H110MA",
+      "category": "Polymer Granules",
+      "grossRequiredKg": 21250,
+      "unitStock": {
+        "plant1Stock": 18500,
+        "plant2Stock": 9500,
+        "centralWarehouseStock": 28000,
+        "totalFreeStock": 56000
+      },
+      "currentStockKg": 18500,
+      "safetyBufferKg": 2550,
+      "netNeedKg": 5300,
+      "orderQty": 5300,
+      "unitPrice": 88.5,
+      "totalCost": 469050,
+      "uom": "KG",
+      "selectedSupplierId": "SUP-S0128",
+      "selectedSupplierName": "RELIANCE INDUSTRIES LIMITED",
+      "availableSuppliers": [
+        {
+          "supplierId": "SUP-S0128",
+          "supplierName": "RELIANCE INDUSTRIES LIMITED",
+          "ratePerUom": 88.5,
+          "leadTimeDays": 3,
+          "rating": 98.5,
+          "moq": 1000,
+          "paymentTerms": "Net 30 Days"
+        },
+        {
+          "supplierId": "SUP-S0129",
+          "supplierName": "INDIAN OIL CORPORATION LTD (IOCL)",
+          "ratePerUom": 87.2,
+          "leadTimeDays": 4,
+          "rating": 96.8,
+          "moq": 2000,
+          "paymentTerms": "Net 45 Days"
+        },
+        {
+          "supplierId": "SUP-S0130",
+          "supplierName": "GAIL INDIA PETROCHEMICALS",
+          "ratePerUom": 89,
+          "leadTimeDays": 5,
+          "rating": 95.4,
+          "moq": 1500,
+          "paymentTerms": "Net 30 Days"
+        }
+      ],
+      "leadTimeDays": 3,
+      "supplierRating": 98.5,
+      "stockStatus": "Partial Stock",
+      "isPoConfirmed": false,
+      "isLocked": false
+    },
+    {
+      "rawItemCode": "MB-BLK-002",
+      "rawItemName": "Carbon Black Masterbatch 40% Concentration (Automotive Grade)",
+      "category": "Color Masterbatch",
+      "grossRequiredKg": 750,
+      "unitStock": {
+        "plant1Stock": 650,
+        "plant2Stock": 320,
+        "centralWarehouseStock": 1200,
+        "totalFreeStock": 2170
+      },
+      "currentStockKg": 650,
+      "safetyBufferKg": 90,
+      "netNeedKg": 190,
+      "orderQty": 190,
+      "unitPrice": 340,
+      "totalCost": 64600,
+      "uom": "KG",
+      "selectedSupplierId": "SUP-S0045",
+      "selectedSupplierName": "CLARIANT COLORANTS CHEMICALS INDIA",
+      "availableSuppliers": [
+        {
+          "supplierId": "SUP-S0045",
+          "supplierName": "CLARIANT COLORANTS CHEMICALS INDIA",
+          "ratePerUom": 340,
+          "leadTimeDays": 5,
+          "rating": 97.2,
+          "moq": 50,
+          "paymentTerms": "Net 30 Days"
+        },
+        {
+          "supplierId": "SUP-S0046",
+          "supplierName": "SUPREME MASTERBATCH LTD",
+          "ratePerUom": 325,
+          "leadTimeDays": 3,
+          "rating": 94.8,
+          "moq": 100,
+          "paymentTerms": "Net 15 Days"
+        },
+        {
+          "supplierId": "SUP-S0047",
+          "supplierName": "PODDAR PIGMENTS LTD",
+          "ratePerUom": 335,
+          "leadTimeDays": 4,
+          "rating": 95.5,
+          "moq": 50,
+          "paymentTerms": "Net 30 Days"
+        }
+      ],
+      "leadTimeDays": 5,
+      "supplierRating": 97.2,
+      "stockStatus": "Partial Stock",
+      "isPoConfirmed": false,
+      "isLocked": false
+    },
+    {
+      "rawItemCode": "AD-UV-STAB-003",
+      "rawItemName": "UV Stabilizer & Thermal Antioxidant Clarifier",
+      "category": "Performance Additive",
+      "grossRequiredKg": 250,
+      "unitStock": {
+        "plant1Stock": 140,
+        "plant2Stock": 70,
+        "centralWarehouseStock": 350,
+        "totalFreeStock": 560
+      },
+      "currentStockKg": 140,
+      "safetyBufferKg": 30,
+      "netNeedKg": 140,
+      "orderQty": 140,
+      "unitPrice": 520,
+      "totalCost": 72800,
+      "uom": "KG",
+      "selectedSupplierId": "SUP-S0078",
+      "selectedSupplierName": "BASF PERFORMANCE CHEMICALS INDIA",
+      "availableSuppliers": [
+        {
+          "supplierId": "SUP-S0078",
+          "supplierName": "BASF PERFORMANCE CHEMICALS INDIA",
+          "ratePerUom": 520,
+          "leadTimeDays": 7,
+          "rating": 99.1,
+          "moq": 25,
+          "paymentTerms": "Net 45 Days"
+        },
+        {
+          "supplierId": "SUP-S0079",
+          "supplierName": "SOLVAY SPECIALTY CHEMICALS LTD",
+          "ratePerUom": 510,
+          "leadTimeDays": 6,
+          "rating": 97,
+          "moq": 50,
+          "paymentTerms": "Net 30 Days"
+        }
+      ],
+      "leadTimeDays": 7,
+      "supplierRating": 99.1,
+      "stockStatus": "Partial Stock",
+      "isPoConfirmed": false,
+      "isLocked": false
+    },
+    {
+      "rawItemCode": "PKG-BOX-5PLY-01",
+      "rawItemName": "5-Ply Heavy-Duty Corrugated Master Cartons",
+      "category": "Secondary Packaging",
+      "grossRequiredKg": 1250,
+      "unitStock": {
+        "plant1Stock": 920,
+        "plant2Stock": 420,
+        "centralWarehouseStock": 1800,
+        "totalFreeStock": 3140
+      },
+      "currentStockKg": 920,
+      "safetyBufferKg": 150,
+      "netNeedKg": 480,
+      "orderQty": 480,
+      "unitPrice": 65,
+      "totalCost": 31200,
+      "uom": "BOX",
+      "selectedSupplierId": "SUP-S0164",
+      "selectedSupplierName": "PARKSONS PACKAGING LTD",
+      "availableSuppliers": [
+        {
+          "supplierId": "SUP-S0164",
+          "supplierName": "PARKSONS PACKAGING LTD",
+          "ratePerUom": 65,
+          "leadTimeDays": 2,
+          "rating": 96.8,
+          "moq": 500,
+          "paymentTerms": "Net 30 Days"
+        },
+        {
+          "supplierId": "SUP-S0165",
+          "supplierName": "UFLEX PACKAGING DIVISION",
+          "ratePerUom": 62.5,
+          "leadTimeDays": 4,
+          "rating": 95,
+          "moq": 1000,
+          "paymentTerms": "Net 30 Days"
+        },
+        {
+          "supplierId": "SUP-S0166",
+          "supplierName": "TCPL PACKAGING LIMITED",
+          "ratePerUom": 64,
+          "leadTimeDays": 3,
+          "rating": 96.2,
+          "moq": 500,
+          "paymentTerms": "Net 15 Days"
+        }
+      ],
+      "leadTimeDays": 2,
+      "supplierRating": 96.8,
+      "stockStatus": "Partial Stock",
+      "isPoConfirmed": false,
+      "isLocked": false
+    }
+  ]
+}

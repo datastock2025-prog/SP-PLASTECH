@@ -1,0 +1,30 @@
+{
+  "spcResult": {
+    "grandMean": 12.0036,
+    "avgRange": 0.0448,
+    "estSigma": 0.0193,
+    "cp": 2.6,
+    "cpk": 2.53
+  },
+  "oeeResult": {
+    "availability": 91.2,
+    "performance": 94.5,
+    "quality": 98.8,
+    "overallOEE": 85.1
+  },
+  "costingResult": {
+    "shotWeightGrams": 190,
+    "rawMaterialCost": 11.17,
+    "conversionCostPerUnit": 1.42,
+    "toolingAmortizationPerUnit": 12,
+    "totalMfgCost": 26.59,
+    "quotedPricePerUnit": 35.45,
+    "profitMarginPerUnit": 8.86,
+    "totalOrderValue": 3545179.31
+  },
+  "nicValuation": {
+    "computedTotal": 177000,
+    "totInvValue": 177000,
+    "isValuationValid": true
+  }
+}

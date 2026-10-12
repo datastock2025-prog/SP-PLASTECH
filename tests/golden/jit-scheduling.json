@@ -1,0 +1,12 @@
+{
+  "schedules": [
+    {
+      "scheduleNumber": "SCH-20261001-01",
+      "planDate": "2026-10-01",
+      "totalPlannedHours": 13.5,
+      "totalTargetPcs": 2000,
+      "releasedCount": 1,
+      "hasShortage": true
+    }
+  ]
+}
