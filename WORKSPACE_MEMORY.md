@@ -94,3 +94,12 @@
 - **Immediate Direct Cache Hydration**: On mutation success, mutate TanStack Query cache directly (`queryClient.setQueriesData`) using the returned representation before invalidating background queries. This eliminates race conditions where immediate `GET` calls return stale data before replication commits.
 - **Debounced Search & Filtering**: All user-driven search inputs must be debounced (200-300ms) to prevent high-frequency connection thrashing and premature request cancellations (`net::ERR_ABORTED`).
 - **Graceful Lifecycle Abort Handling**: Database adapters must safely catch and ignore `AbortError` / unmounted query cancellations during `HEAD` / `206 Partial Content` count requests without throwing unhandled exceptions to the UI.
+
+---
+
+## 5. REPOSITORY CLEANUP & MODULAR MONOLITH PROTOCOLS
+
+1. **Branching & Commit Discipline**: Work on branch `cleanup/<phase>`. Make atomic commits: `"chore(cleanup): <what>"`. A deletion never shares a commit with a behavior change.
+2. **Empirical Deletion Rules**: Never delete on a guess. DELETE only when dead-code analysis and AST/text search prove nothing imports it. When in doubt, list under ASK and stop.
+3. **Calculation Protection**: Never "fix" or alter business calculations during cleanup. Protect all formulas (BOM explosion, JIT scheduling, OEE, costing, regrind, SPC) with Vitest characterization tests and frozen golden snapshots in `tests/golden/*.json`.
+4. **Local Runtime**: Keep Podman as the local runtime (`npm run dev:podman` / `compose.yaml`). Zero secret literals in the tree.

@@ -1,32 +1,44 @@
-# Reboot ERP Workspace Architecture
+# SP-PLASTECH ERP — Workspace Architecture
 
-## Current development topology
+## 1. Development Topology
 
-- `frontend`: the Vite/React ERP application on port 3000.
-- `backend`: Node.js / Prisma backend service on port 3000 (mapped to 3002).
-- `postgres`: PostgreSQL 16 database on port 5432.
-- The frontend calls `/api`; the Vite dev proxy forwards that path to the `backend` service. All interaction with the legacy `middleware/` folder is decommissioned.
-
-## Direction for future development
-
-The `backend` is the sole boundary between the frontend and the database for REST operations. 
-
-### Data Flow & Realtime Synchronization Protocols
-1. **TanStack React Query Cache as SSOT**: Data fetching is managed via `useQuery` with `staleTime: 5 minutes` and `refetchOnWindowFocus: true`.
-2. **Centralized Query Invalidation**: When any mutation executes (`useSaveItem`, `useDeleteItem`, `useApproveItem`), it calls `queryClient.invalidateQueries({ queryKey: ['masterData'] })` and `queryClient.invalidateQueries({ queryKey: ['items'] })`. React Query cancels stale in-flight requests and refetches the latest committed row directly from PostgreSQL.
-3. **Native PostgreSQL CDC WebSockets**: Instead of tab-level broadcast channels, `src/services/realtime/supabaseRealtime.ts` listens to database CDC change events from Supabase and automatically invalidates the React Query cache across all browsers (Chrome, Brave, Edge).
-
-## Local commands
-
-```powershell
-podman compose up --build
-podman compose down
-podman compose down -v  # removes the local PostgreSQL volume
+```mermaid
+graph TD
+    A[apps/web: React 19 / Vite UI :3000] -->|Proxy /api| B[apps/api: Hono Node/Worker API :4000]
+    B -->|Better-Auth & RBAC| C[(PostgreSQL 16 :5432)]
+    D[db/migrations: dbmate] -->|Automated Migration on Boot| C
+    E[packages/contracts: Zod / Types] -.-> A
+    E -.-> B
+    F[packages/domain: Pure Business Logic] -.-> A
+    F -.-> B
+    G[packages/db: Kysely & Pool Helpers] -.-> B
+    H[packages/adapters: Storage / Cache / Mail] -.-> B
 ```
 
-Health checks:
+- **`web` (`apps/web`)**: The Vite / React ERP application running on port `3000`.
+- **`api` (`apps/api`)**: Hono-based unified API handling Better-Auth, RBAC authorization, and module domain endpoints on port `4000`.
+- **`db`**: PostgreSQL 16 database running on port `5432`.
+- **`migrate`**: `dbmate` container running idempotent SQL migrations from `db/migrations/`.
+- **Vite Proxy**: Forward `/api` requests from Vite (`:3000`) directly to `api` (`:4000`).
 
-- `http://localhost:3002/health`
-- `http://localhost:3000`
+---
 
-On Windows with the Podman WSL machine, use the machine IP if `localhost` is not forwarded. Find it with `podman machine ssh "ip -4 addr show eth0"`, then open `http://<podman-ip>:3000`.
+## 2. Local Podman Stack Commands
+
+```powershell
+# Start the full 4-service stack (db, migrate, api, web)
+podman compose up --build
+
+# Or via npm script
+npm run dev:podman
+
+# Tear down the stack
+podman compose down
+
+# Tear down with volume removal (clean slate)
+podman compose down -v
+```
+
+Health check endpoints:
+- Web: `http://localhost:3000`
+- API Health & Auth: `http://localhost:4000/api/auth/ok`

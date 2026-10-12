@@ -64,4 +64,28 @@
 - **Eliminated Static Values & Fallbacks**: Removed hardcoded strings across Item Master tabs to display true database values and clean empty states (`"—"`).
 - **Verification**: `tsc --noEmit` 0 errors, `vite build` succeeded, GitHub Actions CI/CD completed with success.
 
+---
+
+## [2026-10-12] - Safe Repository Cleanup, Characterization Testing & Podman Unification
+
+### 1. Scope of Work
+- **Phase 0 Safety Net**: Established baseline checks (`docs/cleanup-baseline.md`). Created unmocked connected smoke test spec (`e2e/smoke/connected.spec.ts`).
+- **Characterization Testing & Golden Snapshots**: Audited domain calculation files (`docs/business-rules-inventory.md`). Built Vitest suites covering BOM explosion, JIT scheduling, regrind recycling, master data governance, SPC metrics, OEE, inquiry costing, and NIC E-Way Bill valuation (`tests/characterization/*.spec.ts`). Freezed deterministic baseline outputs into `tests/golden/*.json`.
+- **Phase 1 FIND Audit**: Executed `madge` (identified 3 circular paths), `depcheck` (identified unused dependencies), `npm audit` (triaged vulnerabilities), DDL indexing checks (identified and corrected missing `plant` column index), and storage registries (`docs/cleanup-report.md`).
+- **Phase 2 Batch Deletions**: Safely removed deprecated, unreferenced `dashboardSummaryService.ts` and non-existent `idx_items_plant` index. Verified `tsc --noEmit` (0 errors) and all characterization tests pass (5/5).
+- **Phase 3 CONNECT & Podman Unification**: Unified compose topology into `compose.yaml` (PostgreSQL 16, dbmate migrations, Hono API, Vite web). Added `db/migrations/20261012000000_baseline_erp_schema.sql`. Cleaned `.env.example` with zero secret literals. Moved legacy compose files to `infra/optional/`.
+- **Phase 6 Documentation**: Updated `ARCHITECTURE.md` topology diagram and appended evolution history.
+
+### 2. Modules & Files Touched
+- `tests/characterization/` & `tests/golden/` — Golden test suites and snapshots.
+- `e2e/smoke/connected.spec.ts` — Connected smoke lifecycle test.
+- `docs/cleanup-baseline.md`, `docs/business-rules-inventory.md`, `docs/cleanup-report.md` — Governance reports.
+- `compose.yaml`, `infra/optional/`, `auth-server/Dockerfile.dev`, `db/migrations/` — Podman stack.
+- `ARCHITECTURE.md`, `DAILY_ACTIVITY_LOG.md` — Architectural documentation.
+
+### 3. Verification & Results
+- `npx tsc --noEmit` — 0 errors (PASS).
+- `npm run test:unit` (`vitest run tests/characterization`) — 5 test files, 5 passed (100% green).
+- Clean commits per phase: `cleanup/phase-0`, `cleanup/phase-1`, `cleanup/phase-2`, `cleanup/phase-3`, `cleanup/phase-6`.
+
 
