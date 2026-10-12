@@ -1,128 +1,52 @@
 # ==============================================================================
-# SP-PLASTECH ERP — LOCAL OFFLINE DEVELOPMENT STACK (PODMAN / SUPABASE)
-# Use this compose file for local offline testing with Kong, GoTrue, PostgREST & Studio.
-# For production VPS deployment, use `docker-compose.yml`.
+# SP-PLASTECH ERP — LOCAL PODMAN DEVELOPMENT STACK
+# Usage: podman compose up (or docker compose up)
+# Replaces legacy multi-compose configurations with single lean 4-service topology
 # ==============================================================================
 
+name: sp-plastech-dev
+
 services:
-  frontend:
-    build:
-      context: .
-      dockerfile: containers/frontend.Dockerfile
-    working_dir: /workspace
-    command: npm run dev
-    environment:
-      VITE_API_BASE_URL: /api
-      VITE_SUPABASE_URL: http://localhost:8000
-      VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlYm9vdC1kZXYiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTYwMDAwMDAwMCwiZXhwIjoxOTAwMDAwMDAwfQ.reboot_dev_anon_secure_token_key_2026
-      BACKEND_URL: http://backend:3000
-      DISABLE_HMR: ${DISABLE_HMR:-false}
-    ports:
-      - "127.0.0.1:3000:3000"
-    volumes:
-      - .:/workspace:Z
-      - frontend_node_modules:/workspace/node_modules
-    depends_on:
-      backend:
-        condition: service_started
-      kong:
-        condition: service_started
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    working_dir: /app
-    environment:
-      PORT: 3000
-      NODE_ENV: development
-      DATABASE_URL: postgresql://reboot:reboot_dev@postgres:5432/reboot_erp
-      REDIS_URL: redis://redis:6379
-      JWT_SECRET: sp_plastech_enterprise_jwt_secret_2026
-    ports:
-      - "127.0.0.1:3002:3000"
-    volumes:
-      - ./backend:/app:Z
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  postgres:
+  db:
     image: docker.io/library/postgres:16-alpine
     environment:
-      POSTGRES_DB: reboot_erp
-      POSTGRES_USER: reboot
-      POSTGRES_PASSWORD: reboot_dev
-    ports:
-      - "127.0.0.1:5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./containers/init-supabase-db.sql:/docker-entrypoint-initdb.d/01-init-supabase-db.sql:ro,Z
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U reboot -d reboot_erp"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+      POSTGRES_USER: erp
+      POSTGRES_PASSWORD: ${DEV_DB_PASSWORD:-erp_local_only}   # local only; never reused anywhere else
+      POSTGRES_DB: erp
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U erp"], interval: 5s, retries: 10 }
 
-  rest:
-    image: docker.io/postgrest/postgrest:v12.0.2
-    environment:
-      PGRST_DB_URI: postgresql://reboot:reboot_dev@postgres:5432/reboot_erp
-      PGRST_DB_SCHEMAS: public,storage,auth
-      PGRST_DB_ANON_ROLE: anon
-      PGRST_JWT_SECRET: reboot_super_secure_jwt_secret_key_2026_at_least_32_characters_long
-      PGRST_DB_USE_LEGACY_GUCS: "false"
-    depends_on:
-      postgres:
-        condition: service_healthy
+  migrate:
+    image: ghcr.io/amacneil/dbmate
+    command: --migrations-dir /db/migrations --wait up
+    environment: { DATABASE_URL: "postgres://erp:${DEV_DB_PASSWORD:-erp_local_only}@db:5432/erp?sslmode=disable" }
+    volumes: ["./db/migrations:/db/migrations:ro"]
+    depends_on: { db: { condition: service_healthy } }
 
-  auth:
-    image: docker.io/supabase/gotrue:v2.158.1
+  api:
+    build: { context: ./auth-server, dockerfile: Dockerfile.dev }
+    command: npm run dev
     environment:
-      GOTRUE_JWT_SECRET: reboot_super_secure_jwt_secret_key_2026_at_least_32_characters_long
-      GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: postgresql://reboot:reboot_dev@postgres:5432/reboot_erp?sslmode=disable
-      GOTRUE_SITE_URL: http://localhost:3000
-      GOTRUE_URI_ALLOW_LIST: http://localhost:3000,http://127.0.0.1:3000
-      GOTRUE_DISABLE_SIGNUP: "false"
-      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
-      GOTRUE_MAILER_AUTOCONFIRM: "true"
-      API_EXTERNAL_URL: http://localhost:8000/auth/v1
-    depends_on:
-      postgres:
-        condition: service_healthy
+      DATABASE_URL: postgres://erp:${DEV_DB_PASSWORD:-erp_local_only}@db:5432/erp
+      AUTH_DATABASE_URL: postgres://erp:${DEV_DB_PASSWORD:-erp_local_only}@db:5432/erp
+      AUTH_PORT: "4000"
+      PORT: "4000"
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-sp_plastech_dev_auth_secret_local_only_2026}
+      AUTH_TRUSTED_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000"
+    ports: ["127.0.0.1:4000:4000"]
+    volumes: ["./auth-server:/app"]
+    depends_on: { migrate: { condition: service_completed_successfully } }
 
-  kong:
-    image: docker.io/library/kong:2.8.1-alpine
+  web:
+    build: { context: ., dockerfile: containers/frontend.Dockerfile }
+    command: npm run dev -- --host 0.0.0.0 --port 3000
     environment:
-      KONG_DATABASE: "off"
-      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
-      KONG_DNS_ORDER: LAST,A,CNAME
-      KONG_PLUGINS: request-transformer,cors,key-auth,acl
-      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
-      KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
-    ports:
-      - "127.0.0.1:8000:8000"
-    volumes:
-      - ./containers/kong.yml:/var/lib/kong/kong.yml:ro,Z
-    depends_on:
-      - rest
-      - auth
-
-  studio:
-    image: docker.io/supabase/studio:latest
-    environment:
-      STUDIO_PG_META_URL: http://postgres:5432
-      POSTGRES_PASSWORD: reboot_dev
-      SUPABASE_URL: http://kong:8000
-      SUPABASE_REST_URL: http://kong:8000/rest/v1/
-      SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlYm9vdC1kZXYiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTYwMDAwMDAwMCwiZXhwIjoxOTAwMDAwMDAwfQ.reboot_dev_anon_secure_token_key_2026
-      SUPABASE_SERVICE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlYm9vdC1kZXYiLCJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjAwMDAwMDAwLCJleHAiOjE5MDAwMDAwMDB9.reboot_dev_service_role_secure_token_key_2026
-    ports:
-      - "127.0.0.1:54323:3000"
-    depends_on:
-      - kong
+      BACKEND_URL: http://api:4000
+      VITE_API_URL: http://localhost:3000
+    ports: ["127.0.0.1:3000:3000"]     # Vite proxies /api to the api service
+    volumes: [".:/workspace"]
+    depends_on: { api: { condition: service_started } }
 
 volumes:
-  frontend_node_modules:
-  postgres_data:
+  pgdata: {}

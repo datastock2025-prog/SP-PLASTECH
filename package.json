@@ -10,6 +10,8 @@
     "seed:supabase": "node scripts/seedSupabaseLive.cjs",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
+    "dev:podman": "podman compose up --build",
+    "test:unit": "vitest run tests/characterization",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report"
