@@ -1822,7 +1822,5 @@ export interface AuthUser {
   permissions: string[];
 }
 
-export type { PurchaseRequisition, PurchaseRequisitionLine } from './types/procurement';
-
 
 
