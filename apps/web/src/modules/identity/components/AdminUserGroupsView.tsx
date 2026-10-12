@@ -1,0 +1,797 @@
+import React, { useState, useEffect } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import {
+  Users,
+  Plus,
+  Search,
+  Filter,
+  Shield,
+  Building,
+  UserCheck,
+  Edit2,
+  Trash2,
+  CheckCircle2,
+  Tag,
+  ChevronRight,
+  UserPlus,
+  X,
+  Check,
+  Download,
+  AlertCircle,
+  Clock,
+  Briefcase,
+} from 'lucide-react';
+import { UserGroup } from '../../data/adminExtendedData';
+import { adminService, adminEventBus } from '../../services/adminService';
+import { AdminUser } from '../../types/admin';
+import { useAdminUserGroups, useSaveAdminUserGroup, useAdminUsers } from '../../hooks/useAdmin';
+
+interface AdminUserGroupsViewProps {
+  showToast?: (msg: string) => void;
+}
+
+export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
+  showToast = (_msg: string) => {},
+}) => {
+  // TanStack React Query v5 dynamic data
+  const { data: groups = [], isLoading: isGroupsLoading } = useAdminUserGroups();
+  const { data: allUsers = [] } = useAdminUsers();
+  const saveGroupMutation = useSaveAdminUserGroup();
+
+  const [search, setSearch] = useState('');
+  const [selectedDept, setSelectedDept] = useState('ALL');
+  const [selectedGroup, setSelectedGroup] = useState<UserGroup | null>(null);
+
+  useEffect(() => {
+    if (groups.length > 0 && !selectedGroup) {
+      setSelectedGroup(groups[0]);
+    }
+  }, [groups, selectedGroup]);
+
+  // Modals State
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+
+  // Group Member Enrollment State (Group ID -> User IDs)
+  const [groupMembersMap, setGroupMembersMap] = useState<Record<string, string[]>>({
+    'GRP-01': ['USR-01', 'USR-04', 'USR-07'],
+    'GRP-02': ['USR-02', 'USR-07'],
+    'GRP-03': ['USR-03', 'USR-05'],
+    'GRP-04': ['USR-05', 'USR-06'],
+    'GRP-05': ['USR-03', 'USR-01'],
+  });
+
+  const [memberSearch, setMemberSearch] = useState('');
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
+
+  // Form State
+  const [groupForm, setGroupForm] = useState({
+    name: '',
+    code: '',
+    department: 'Production',
+    description: '',
+    supervisorName: '',
+    plantAccess: ['Pune / Chakan Hub'],
+    rolesAssigned: ['Standard Operator'],
+    tags: 'Injection Molds, Critical',
+  });
+
+  const departments = [
+    'ALL',
+    'Production',
+    'Tooling & Maintenance',
+    'Quality Assurance',
+    'Supply Chain & Warehousing',
+    'OEM Quality Compliance',
+  ];
+
+  const filteredGroups = groups.filter((grp) => {
+    const matchSearch =
+      grp.name.toLowerCase().includes(search.toLowerCase()) ||
+      grp.code.toLowerCase().includes(search.toLowerCase()) ||
+      grp.department.toLowerCase().includes(search.toLowerCase());
+    const matchDept = selectedDept === 'ALL' || grp.department === selectedDept;
+    return matchSearch && matchDept;
+  });
+
+  // Toggle Group Status (Active / Inactive)
+  const handleToggleStatus = (id: string) => {
+    const target = groups.find((g) => g.id === id);
+    if (!target) return;
+    const nextStatus = target.status === 'Active' ? 'Inactive' : 'Active';
+    const updated = { ...target, status: nextStatus as 'Active' | 'Inactive' };
+    saveGroupMutation.mutate(updated);
+    if (selectedGroup?.id === id) setSelectedGroup(updated);
+    showToast(`Group "${target.name}" set to ${nextStatus}.`);
+  };
+
+  // Open Create Modal
+  const handleOpenCreate = () => {
+    setGroupForm({
+      name: '',
+      code: `GRP-0${groups.length + 1}`,
+      department: 'Production',
+      description: '',
+      supervisorName: 'Priya Rao',
+      plantAccess: ['Pune / Chakan Hub', 'Sanand Precision'],
+      rolesAssigned: ['Operator Level-2'],
+      tags: 'Floor Gang, Shift A',
+    });
+    setIsCreateModalOpen(true);
+  };
+
+  // Open Edit Modal
+  const handleOpenEdit = (grp: UserGroup) => {
+    setGroupForm({
+      name: grp.name,
+      code: grp.code,
+      department: grp.department,
+      description: grp.description,
+      supervisorName: grp.supervisorName,
+      plantAccess: grp.plantAccess,
+      rolesAssigned: grp.rolesAssigned,
+      tags: grp.tags.join(', '),
+    });
+    setIsEditModalOpen(true);
+  };
+
+  // Save Create Group
+  const handleCreateGroup = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!groupForm.name || !groupForm.code) {
+      showToast('Please specify group name and code.');
+      return;
+    }
+    const createdId = `GRP-0${groups.length + 1}`;
+    const created: UserGroup = {
+      id: createdId,
+      name: groupForm.name,
+      code: groupForm.code.toUpperCase(),
+      department: groupForm.department,
+      description: groupForm.description || 'Cross-functional crew unit.',
+      membersCount: 0,
+      rolesAssigned: groupForm.rolesAssigned,
+      plantAccess: groupForm.plantAccess,
+      supervisorName: groupForm.supervisorName || 'Plant Operations Lead',
+      status: 'Active',
+      createdDate: new Date().toISOString().split('T')[0],
+      tags: groupForm.tags.split(',').map((t) => t.trim()).filter(Boolean),
+    };
+
+    saveGroupMutation.mutate(created);
+    setSelectedGroup(created);
+    setGroupMembersMap((prev) => ({ ...prev, [createdId]: [] }));
+    setIsCreateModalOpen(false);
+    showToast(`User Group "${created.name}" created successfully.`);
+  };
+
+  // Save Edit Group
+  const handleSaveEditGroup = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!groupForm.name || !groupForm.code || !selectedGroup) return;
+
+    const updated: UserGroup = {
+      ...selectedGroup,
+      name: groupForm.name,
+      code: groupForm.code.toUpperCase(),
+      department: groupForm.department,
+      description: groupForm.description,
+      supervisorName: groupForm.supervisorName,
+      plantAccess: groupForm.plantAccess,
+      rolesAssigned: groupForm.rolesAssigned,
+      tags: groupForm.tags.split(',').map((t) => t.trim()).filter(Boolean),
+    };
+
+    saveGroupMutation.mutate(updated);
+    setSelectedGroup(updated);
+    setIsEditModalOpen(false);
+    showToast(`User Group "${updated.name}" updated successfully.`);
+  };
+
+  // Open Add Members Modal
+  const handleOpenAddMembers = () => {
+    if (!selectedGroup) return;
+    const currentMemberIds = groupMembersMap[selectedGroup.id] || [];
+    setSelectedMemberIds([...currentMemberIds]);
+    setMemberSearch('');
+    setIsAddMemberModalOpen(true);
+  };
+
+  // Toggle user enrollment selection
+  const handleToggleMember = (userId: string) => {
+    setSelectedMemberIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
+  };
+
+  // Save Members Enrollment
+  const handleSaveMembers = () => {
+    if (!selectedGroup) return;
+    const count = selectedMemberIds.length;
+    setGroupMembersMap((prev) => ({
+      ...prev,
+      [selectedGroup.id]: selectedMemberIds,
+    }));
+
+    const updatedGroup: UserGroup = {
+      ...selectedGroup,
+      membersCount: count,
+    };
+
+    saveGroupMutation.mutate(updatedGroup);
+    setSelectedGroup(updatedGroup);
+    setIsAddMemberModalOpen(false);
+    showToast(`Updated crew enrollment for "${selectedGroup.name}": ${count} members assigned.`);
+  };
+
+  // Export Crew Roster CSV
+  const handleExportRoster = () => {
+    if (!selectedGroup) return;
+    const enrolledIds = groupMembersMap[selectedGroup.id] || [];
+    const enrolledUsers = allUsers.filter((u) => enrolledIds.includes(u.id));
+
+    const csvContent = [
+      ['Group Code', 'Group Name', 'Department', 'Member ID', 'Member Name', 'Email', 'Role', 'Status'],
+      ...(enrolledUsers.length > 0
+        ? enrolledUsers.map((u) => [
+            `"${selectedGroup.code}"`,
+            `"${selectedGroup.name}"`,
+            `"${selectedGroup.department}"`,
+            `"${u.id}"`,
+            `"${u.fullName}"`,
+            `"${u.email}"`,
+            `"${u.roleName}"`,
+            `"${u.status}"`,
+          ])
+        : [[
+            `"${selectedGroup.code}"`,
+            `"${selectedGroup.name}"`,
+            `"${selectedGroup.department}"`,
+            '"No members enrolled"',
+            '""',
+            '""',
+            '""',
+            '""',
+          ]]),
+    ]
+      .map((row) => row.join(','))
+      .join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Crew_Roster_${selectedGroup.code}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast(`Downloaded crew roster for "${selectedGroup.name}".`);
+  };
+
+  const filteredCandidateUsers = allUsers.filter((u) => {
+    const q = memberSearch.toLowerCase();
+    return (
+      u.fullName.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      u.designation.toLowerCase().includes(q) ||
+      u.department.toLowerCase().includes(q)
+    );
+  });
+
+  return (
+    <div className="min-w-0 space-y-4 pb-8">
+      {/* Header Banner */}
+      <Card className="rounded-md border-slate-200 shadow-none">
+        <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold uppercase tracking-wider">
+            <Users className="w-4 h-4 text-[#0F8B8D]" />
+            <span>Identity &amp; Access Governance</span>
+          </div>
+          <h2 className="mt-1 text-lg font-semibold text-slate-900">User Groups &amp; Cross-Functional Crews</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Organize shopfloor technicians, mold maintenance gangs, and lab testing cohorts into hierarchical permission units.
+          </p>
+        </div>
+
+        <Button
+          type="button"
+          onClick={handleOpenCreate}
+          className="w-full shrink-0 bg-[#0F8B8D] text-white hover:bg-[#0c7274] sm:w-auto"
+        >
+          <Plus aria-hidden="true" />
+          Create User Group
+        </Button>
+        </CardContent>
+      </Card>
+
+      {/* Filter Bar */}
+      <Card className="rounded-md border-slate-200 shadow-none">
+        <CardContent className="flex flex-col gap-3 p-3 sm:p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative w-full lg:max-w-xs">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+          <Input
+            type="text"
+            placeholder="Search groups by code, gang name, role..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search user groups"
+            className="h-10 pl-9 text-sm"
+          />
+        </div>
+
+        <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto pb-1 lg:max-w-[70%]">
+          <Filter className="mr-1 size-4 shrink-0 text-slate-400" aria-hidden="true" />
+          {departments.map((dept) => (
+            <Button
+              key={dept}
+              type="button"
+              size="sm"
+              variant={selectedDept === dept ? 'secondary' : 'outline'}
+              onClick={() => setSelectedDept(dept)}
+              aria-pressed={selectedDept === dept}
+              className={`h-8 shrink-0 px-2.5 text-xs ${
+                selectedDept === dept
+                  ? 'bg-teal-50 text-[#0F8B8D] hover:bg-teal-50'
+                  : 'text-slate-600'
+              }`}
+            >
+              {dept === 'ALL' ? 'All departments' : dept}
+            </Button>
+          ))}
+        </div>
+        </CardContent>
+      </Card>
+
+      {/* Main 2-Column Split: Groups List & Detailed Inspector */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Groups List */}
+        <div className="min-w-0 space-y-3 lg:col-span-7">
+          {!isGroupsLoading && filteredGroups.length === 0 && (
+            <Card className="rounded-md border-slate-200 shadow-none">
+              <CardContent className="py-10 text-center text-sm text-slate-500">
+                No user groups match these filters.
+              </CardContent>
+            </Card>
+          )}
+          {filteredGroups.map((grp) => {
+            const isSelected = selectedGroup?.id === grp.id;
+            return (
+              <button
+                key={grp.id}
+                type="button"
+                onClick={() => setSelectedGroup(grp)}
+                aria-pressed={isSelected}
+                className={`block w-full rounded-md border p-4 text-left transition-colors ${
+                  isSelected
+                    ? 'border-teal-600 bg-teal-50/50 ring-1 ring-teal-600/15'
+                    : 'border-slate-200 bg-white hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-lg bg-teal-50 text-[#0F8B8D] border border-teal-200 flex items-center justify-center font-bold text-xs">
+                      {grp.code.slice(0, 3)}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-xs text-slate-900">{grp.name}</h3>
+                        <span className="font-mono text-[10px] text-slate-500 px-1.5 py-0.2 bg-slate-100 rounded">
+                          {grp.code}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2">
+                        <span>{grp.department}</span>
+                        <span>&middot;</span>
+                        <span className="text-[#0F8B8D] font-semibold">{grp.membersCount} Crew Members</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Badge
+                    variant="outline"
+                    className={`h-5 shrink-0 text-[10px] ${
+                      grp.status === 'Active'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                        : 'border-slate-200 bg-slate-100 text-slate-500'
+                    }`}
+                  >
+                    {grp.status}
+                  </Badge>
+                </div>
+
+                <p className="text-xs text-slate-600 mt-3 line-clamp-2 leading-relaxed">{grp.description}</p>
+
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-500">
+                  <div className="flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>Roles: {grp.rolesAssigned.join(', ')}</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Selected Group Inspector Panel */}
+        {selectedGroup && (
+          <Card className="min-w-0 h-fit rounded-md border-slate-200 shadow-none lg:sticky lg:top-4 lg:col-span-5">
+            <CardContent className="space-y-5 p-4 sm:p-5">
+            <div className="flex items-start justify-between pb-4 border-b border-slate-200">
+              <div>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                  Group Profile
+                </span>
+                <h2 className="text-base font-bold text-slate-900 mt-0.5">{selectedGroup.name}</h2>
+                <span className="font-mono text-xs text-[#0F8B8D] font-semibold">{selectedGroup.code}</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  onClick={() => handleOpenEdit(selectedGroup)}
+                  title="Edit Group Details"
+                  aria-label={`Edit ${selectedGroup.name}`}
+                >
+                  <Edit2 aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleToggleStatus(selectedGroup.id)}
+                  className={`text-xs ${
+                    selectedGroup.status === 'Active'
+                      ? 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'
+                      : 'border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700'
+                  }`}
+                >
+                  {selectedGroup.status === 'Active' ? 'Deactivate' : 'Activate'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Crew Specs */}
+            <div className="space-y-3 text-xs">
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Department:</span>
+                  <span className="font-semibold text-slate-900">{selectedGroup.department}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Gang Supervisor:</span>
+                  <span className="font-semibold text-slate-900">{selectedGroup.supervisorName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Enrolled Personnel:</span>
+                  <span className="font-bold text-[#0F8B8D]">{selectedGroup.membersCount} Operators / Techs</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Authorized Plants:</span>
+                  <span className="font-semibold text-slate-900 text-right">{selectedGroup.plantAccess.join(', ')}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">Assigned Security Roles:</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedGroup.rolesAssigned.map((r) => (
+                    <Badge key={r} variant="secondary" className="h-5 bg-indigo-50 text-[11px] text-indigo-700">
+                      {r}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">Operational Tags:</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedGroup.tags.map((t) => (
+                    <Badge key={t} variant="outline" className="h-5 text-[10px] text-slate-600">
+                      #{t}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <label className="font-semibold text-slate-700 block mb-1">Description &amp; Mandate:</label>
+                <p className="p-3 bg-slate-50 rounded-lg text-slate-600 leading-relaxed text-[11.5px]">
+                  {selectedGroup.description}
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleExportRoster}
+                className="min-w-0 text-xs"
+              >
+                <Download aria-hidden="true" />
+                Export Crew Roster
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleOpenAddMembers}
+                className="min-w-0 bg-[#0F8B8D] text-xs text-white hover:bg-[#0c7274]"
+              >
+                <UserPlus aria-hidden="true" />
+                Add Members ({selectedGroup.membersCount})
+              </Button>
+            </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* ADD / MANAGE MEMBERS MODAL */}
+      {/* ========================================================================= */}
+      {isAddMemberModalOpen && selectedGroup && (
+        <Dialog open={isAddMemberModalOpen} onOpenChange={setIsAddMemberModalOpen}>
+          <DialogContent showCloseButton={false} className="flex max-h-[90dvh] max-w-xl flex-col overflow-hidden border-slate-200 bg-white p-0 text-slate-900">
+            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+              <DialogHeader>
+                <DialogTitle className="font-bold text-slate-900 text-base">
+                  Enroll Members &mdash; {selectedGroup.name}
+                </DialogTitle>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Select technicians, operators, or supervisors to assign to this operational crew.
+                </p>
+              </DialogHeader>
+              <button
+                onClick={() => setIsAddMemberModalOpen(false)}
+                aria-label="Close member enrollment"
+                className="p-1 rounded text-slate-400 hover:text-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 border-b border-slate-100">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Input
+                  type="text"
+                  placeholder="Search employees by name, designation, department..."
+                  value={memberSearch}
+                  onChange={(e) => setMemberSearch(e.target.value)}
+                  aria-label="Search personnel"
+                  className="h-10 pl-9 text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 overflow-y-auto space-y-2 flex-1 max-h-96 text-xs">
+              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-2">
+                Available Enterprise Personnel ({filteredCandidateUsers.length})
+              </div>
+
+              {filteredCandidateUsers.map((user) => {
+                const isEnrolled = selectedMemberIds.includes(user.id);
+                return (
+                  <button
+                    key={user.id}
+                    type="button"
+                    onClick={() => handleToggleMember(user.id)}
+                    aria-pressed={isEnrolled}
+                    className={`flex w-full items-center justify-between gap-3 rounded-md border p-3 text-left transition-colors ${
+                      isEnrolled
+                        ? 'border-teal-600 bg-teal-50/70 text-teal-950'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white bg-gradient-to-tr ${
+                          user.avatarColor || 'from-[#0F8B8D] to-[#E8622C]'
+                        }`}
+                      >
+                        {user.initials}
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                          <span>{user.fullName}</span>
+                          <span className="font-mono text-[10px] text-slate-400">({user.username})</span>
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          {user.designation} &middot; {user.department}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`w-5 h-5 rounded-md flex items-center justify-center border transition-colors ${
+                        isEnrolled
+                          ? 'bg-[#0F8B8D] border-[#0F8B8D] text-white'
+                          : 'border-slate-300 bg-white'
+                      }`}
+                    >
+                      {isEnrolled && <Check className="w-3.5 h-3.5" />}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="px-6 py-3 border-t border-slate-200 bg-slate-50/50 flex items-center justify-between">
+              <span className="text-xs text-slate-500">
+                <strong>{selectedMemberIds.length}</strong> personnel selected
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAddMemberModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleSaveMembers}
+                  className="bg-[#0F8B8D] text-white hover:bg-[#0c7274]"
+                >
+                  Save Enrolled Members
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: CREATE / EDIT USER GROUP */}
+      {/* ========================================================================= */}
+      {(isCreateModalOpen || isEditModalOpen) && (
+        <Dialog
+          open={isCreateModalOpen || isEditModalOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setIsCreateModalOpen(false);
+              setIsEditModalOpen(false);
+            }
+          }}
+        >
+          <DialogContent showCloseButton={false} className="max-h-[90dvh] max-w-lg overflow-y-auto border-slate-200 bg-white p-4 text-slate-900 sm:p-6">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <DialogHeader>
+                <DialogTitle className="font-bold text-slate-900 text-base">
+                {isEditModalOpen ? `Edit ${groupForm.code}` : 'Create New User Group'}
+                </DialogTitle>
+              </DialogHeader>
+              <button
+                onClick={() => {
+                  setIsCreateModalOpen(false);
+                  setIsEditModalOpen(false);
+                }}
+                aria-label="Close group form"
+                className="p-1 rounded text-slate-400 hover:text-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={isEditModalOpen ? handleSaveEditGroup : handleCreateGroup}
+              className="space-y-4 text-xs"
+            >
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Group Name</label>
+                  <Input
+                    type="text"
+                    required
+                    placeholder="e.g. Ultrasonic Welding Cell Operators"
+                    value={groupForm.name}
+                    onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })}
+                    className="h-10"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Group Code</label>
+                  <Input
+                    type="text"
+                    required
+                    placeholder="e.g. WELD-CELL-01"
+                    value={groupForm.code}
+                    onChange={(e) => setGroupForm({ ...groupForm, code: e.target.value.toUpperCase() })}
+                    className="h-10 font-mono uppercase"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Department</label>
+                  <select
+                    value={groupForm.department}
+                    onChange={(e) => setGroupForm({ ...groupForm, department: e.target.value })}
+                    className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm"
+                  >
+                    <option value="Production">Production</option>
+                    <option value="Tooling & Maintenance">Tooling &amp; Maintenance</option>
+                    <option value="Quality Assurance">Quality Assurance</option>
+                    <option value="Supply Chain & Warehousing">Supply Chain &amp; Warehousing</option>
+                    <option value="OEM Quality Compliance">OEM Quality Compliance</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Gang Supervisor</label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. Vikram Patel"
+                    value={groupForm.supervisorName}
+                    onChange={(e) => setGroupForm({ ...groupForm, supervisorName: e.target.value })}
+                    className="h-10"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Description &amp; Purpose</label>
+                <textarea
+                  rows={2}
+                  placeholder="Describe operational responsibilities and shift coverage..."
+                  value={groupForm.description}
+                  onChange={(e) => setGroupForm({ ...groupForm, description: e.target.value })}
+                  className="min-h-20 w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-teal-600/20"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Operational Tags (comma separated)</label>
+                <Input
+                  type="text"
+                  placeholder="e.g. Injection Molds, Shift A, Critical"
+                  value={groupForm.tags}
+                  onChange={(e) => setGroupForm({ ...groupForm, tags: e.target.value })}
+                  className="h-10"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIsCreateModalOpen(false);
+                    setIsEditModalOpen(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="bg-[#0F8B8D] text-white hover:bg-[#0c7274]"
+                >
+                  {isEditModalOpen ? 'Save Group Details' : 'Create User Group'}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+};

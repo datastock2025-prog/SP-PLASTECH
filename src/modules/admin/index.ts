@@ -2,8 +2,7 @@
 // DOMAIN MODULE: ADMIN, SECURITY & SYSTEM GOVERNANCE
 // Modular Monolithic Architecture — Reboot ERP
 // ============================================================================
-
-export { AdminViews } from '../../components/AdminViews';
+export { AdminViews } from '../../../apps/web/src/modules/identity';
 export {
   systemHealth,
   adminUsers,
