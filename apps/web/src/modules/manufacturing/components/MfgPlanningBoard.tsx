@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { WorkOrder, MachineMaster, ItemMaster, BomMaster } from '@/src/types';
 import { MoldMaster } from '@/src/data/manufacturingData';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { usePagination } from '@/src/hooks/usePagination';
 import { useDebounce } from '@/src/hooks/useDebounce';
 import {

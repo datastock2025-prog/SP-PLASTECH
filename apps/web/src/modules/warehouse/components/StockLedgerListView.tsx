@@ -44,10 +44,10 @@ import {
 import { INITIAL_INVENTORY_STOCK, INITIAL_STOCK_MOVEMENT_LEDGER } from '@/src/data/warehouseData';
 import { getStockMovementLedger, getWarehouseStock } from '../api/useWarehouse';
 import { WarehouseStatusBadge } from './WarehouseStatusBadge';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { ItemLotLedgerModal } from './ItemLotLedgerModal';
 import { masterDataGovernanceService } from '@/src/services/masterDataGovernanceService';
-import { LocationAutocompleteInput } from '../engineering/bomWizard/LocationAutocompleteInput';
+import { LocationAutocompleteInput } from '@/src/components/engineering/bomWizard/LocationAutocompleteInput';
 
 interface Props {
   stockItems?: InventoryStockItem[];

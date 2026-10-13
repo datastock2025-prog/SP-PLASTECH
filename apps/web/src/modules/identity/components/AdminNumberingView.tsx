@@ -31,9 +31,9 @@ import {
   Lock,
   Zap,
 } from 'lucide-react';
-import { NumberingSequence } from '../../types/admin';
-import { adminService } from '../../services/adminService';
-import { useAdminNumberingSeries, useSaveAdminNumberingSeries } from '../../hooks/useAdmin';
+import { NumberingSequence } from '@/src/types/admin';
+import { adminService } from '@/src/services/adminService';
+import { useAdminNumberingSeries, useSaveAdminNumberingSeries } from '@/src/hooks/useAdmin';
 
 interface AdminNumberingViewProps {
   showToast?: (msg: string) => void;

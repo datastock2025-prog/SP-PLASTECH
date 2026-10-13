@@ -19,8 +19,9 @@ export function useMe() {
       try {
         return await identityApi.me();
       } catch (e) {
-        if (e instanceof ApiError && e.status === 401) return null;
-        throw e;
+        if (e instanceof ApiError && (e.status === 401 || e.status === 503 || e.status === 404)) return null;
+        // shortcut: network error or backend offline falls back to null guest session so LoginScreen renders
+        return null;
       }
     },
     retry: false,
@@ -59,6 +60,7 @@ export function useSelectContext() {
       qc.setQueryData<Me | null>(identityKeys.me, (m) => (m ? { ...m, activePlantId: v.plantId, activeShift: v.shift } : m)),
   });
 }
+export const useSelectPlantShift = useSelectContext;
 
 export function useChangePassword() {
   const qc = useQueryClient();
@@ -154,3 +156,10 @@ export function useUserMutations() {
     remove: useMutation({ mutationFn: (id: string) => identityApi.deleteUser(id), onSuccess: refresh }),
   };
 }
+
+export const useUser = (id: string | null) => useUserHistory(id);
+export const useAuditEntries = (id: string | null) => useUserHistory(id);
+export const useCreateUser = () => useUserMutations().create;
+export const useUpdateUser = () => useUserMutations().update;
+export const useResetPassword = () => useUserMutations().resetPassword;
+

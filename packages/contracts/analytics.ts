@@ -56,7 +56,7 @@ export const SavedReportSchema = z.object({
   title: z.string().min(1, 'Report title is required'),
   reportType: z.enum(['OEE', 'QUALITY', 'FINANCIAL', 'SCM', 'CUSTOM']).default('CUSTOM'),
   createdBy: z.string().default('Admin'),
-  configuration: z.record(z.any()).optional(),
+  configuration: z.record(z.string(), z.any()).optional(),
 });
 
 export const ChatMessageSchema = z.object({

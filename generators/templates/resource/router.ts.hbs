@@ -1,0 +1,28 @@
+import { createResourceRouter } from '../../core/crud.js';
+import { z } from 'zod';
+
+const {{pascalCase name}}Schema = z.object({
+  id: z.string().uuid(),
+  {{camelCase module}}Id: z.string().uuid(),
+  code: z.string().trim().min(1),
+  name: z.string().trim().min(1),
+  quantity: z.number().default(1),
+  status: z.string().default('ACTIVE'),
+  version: z.number().int().min(1).default(1),
+});
+
+const Create{{pascalCase name}}Schema = {{pascalCase name}}Schema.omit({ id: true, version: true }).strict();
+const Update{{pascalCase name}}Schema = Create{{pascalCase name}}Schema.partial().extend({
+  version: z.number().int().min(1),
+}).strict();
+
+export function create{{pascalCase name}}Router() {
+  return createResourceRouter({
+    subject: '{{pascalCase module}}',
+    table: '{{snakeCase module}}_{{snakeCase name}}',
+    columns: ['id', '{{snakeCase module}}_id', 'tenant_id', 'plant_id', 'code', 'name', 'quantity', 'status', 'version', 'created_at', 'updated_at'],
+    sortAllowlist: ['created_at', 'updated_at', 'code', 'name'],
+    createSchema: Create{{pascalCase name}}Schema,
+    updateSchema: Update{{pascalCase name}}Schema,
+  });
+}

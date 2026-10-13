@@ -1,0 +1,42 @@
+-- migrate:up
+CREATE TABLE IF NOT EXISTS public.{{snakeCase module}}_{{snakeCase name}} (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  {{snakeCase module}}_id uuid NOT NULL,
+  tenant_id   uuid NOT NULL,
+  plant_id    uuid,
+  code        text NOT NULL,
+  name        text NOT NULL,
+  quantity    numeric(12, 4) NOT NULL DEFAULT 1,
+  status      text NOT NULL DEFAULT 'ACTIVE',
+  version     integer NOT NULL DEFAULT 1 CHECK (version >= 1),
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now(),
+  deleted_at  timestamptz,
+  created_by  text,
+  updated_by  text
+);
+
+CREATE INDEX IF NOT EXISTS idx_{{snakeCase module}}_{{snakeCase name}}_parent ON public.{{snakeCase module}}_{{snakeCase name}} ({{snakeCase module}}_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_{{snakeCase module}}_{{snakeCase name}}_tenant ON public.{{snakeCase module}}_{{snakeCase name}} (tenant_id) WHERE deleted_at IS NULL;
+
+ALTER TABLE public.{{snakeCase module}}_{{snakeCase name}} ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = '{{snakeCase module}}_{{snakeCase name}}' AND policyname = '{{snakeCase module}}_{{snakeCase name}}_tenant_isolation'
+  ) THEN
+    CREATE POLICY {{snakeCase module}}_{{snakeCase name}}_tenant_isolation ON public.{{snakeCase module}}_{{snakeCase name}}
+      FOR ALL
+      USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+  END IF;
+END $$;
+
+REVOKE ALL ON public.{{snakeCase module}}_{{snakeCase name}} FROM PUBLIC;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'erp_app') THEN
+    GRANT SELECT, INSERT, UPDATE, DELETE ON public.{{snakeCase module}}_{{snakeCase name}} TO erp_app;
+  END IF;
+END $$;
+
+-- migrate:down
+DROP TABLE IF EXISTS public.{{snakeCase module}}_{{snakeCase name}} CASCADE;

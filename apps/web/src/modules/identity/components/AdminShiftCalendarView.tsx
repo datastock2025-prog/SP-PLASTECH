@@ -24,15 +24,15 @@ import {
 import {
   ShiftCalendarConfig,
   HolidayOvertimeRule,
-} from '../../data/adminExtendedData';
-import { PlantDetails } from '../../types/admin';
+} from '@/src/data/adminExtendedData';
+import { PlantDetails } from '@/src/types/admin';
 import {
   useAdminShifts,
   useAdminHolidays,
   useAdminPlants,
   useSaveAdminShift,
   useSaveAdminHoliday,
-} from '../../hooks/useAdmin';
+} from '@/src/hooks/useAdmin';
 
 interface AdminShiftCalendarViewProps {
   showToast?: (msg: string) => void;

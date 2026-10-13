@@ -1,0 +1,28 @@
+/**
+ * {{pascalCase name}} Pure Domain Logic & Invariants
+ * Contains core calculations and domain business rules without external I/O.
+ */
+
+export interface {{pascalCase name}}ValidationResult {
+  valid: boolean;
+  code: string;
+  reasons: string[];
+}
+
+export function validate{{pascalCase name}}Code(code: string): {{pascalCase name}}ValidationResult {
+  const trimmed = code?.trim() ?? '';
+  const reasons: string[] = [];
+
+  if (trimmed.length < 2) {
+    reasons.push('Code must be at least 2 characters');
+  }
+  if (!/^[A-Za-z0-9_.-]+$/.test(trimmed)) {
+    reasons.push('Code can only contain alphanumeric characters, hyphens, and dots');
+  }
+
+  return {
+    valid: reasons.length === 0,
+    code: trimmed,
+    reasons,
+  };
+}

@@ -32,7 +32,7 @@ import {
   mockOutboundDeliveries,
 } from '@/src/data/mockScmData';
 import { SCMViewType, MrpSuggestion, ScmException } from '@/src/types/scm';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { usePagination } from '@/src/hooks/usePagination';
 
 // Memoized MRP row component

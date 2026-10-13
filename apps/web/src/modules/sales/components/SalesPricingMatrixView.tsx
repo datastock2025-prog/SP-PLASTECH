@@ -19,7 +19,7 @@ import {
   RebateProgram,
 } from '@/src/data/salesData';
 import { usePagination } from '@/src/hooks/usePagination';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 
 interface Props {
   showToast: (msg: string) => void;

@@ -64,7 +64,7 @@ export const SavedPresetSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(1, 'Preset name is required'),
   view: z.string().min(1, 'View identifier is required'),
-  filterConfig: z.record(z.any()).default({}),
+  filterConfig: z.record(z.string(), z.any()).default({}),
   isDefault: z.boolean().default(false),
   createdBy: z.string().optional(),
 });

@@ -35,22 +35,22 @@ import {
   RowLevelSecurityRule,
   BreakGlassRequest,
   AdminUser,
-} from '../../types/admin';
+} from '@/src/types/admin';
 import {
   multiContextPolicies,
   rowLevelSecurityRules,
   breakGlassRequests,
   ActiveSessionRecord,
-} from '../../data/adminExtendedData';
-import { adminService, adminEventBus } from '../../services/adminService';
-import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
-import { useAuthContext } from '../../shared/components/RequireAuth';
+} from '@/src/data/adminExtendedData';
+import { adminService, adminEventBus } from '@/src/services/adminService';
+import { masterDataGovernanceService } from '@/src/services/masterDataGovernanceService';
+import { useAuthContext } from '@/src/shared/components/RequireAuth';
 import {
   useAdminMultiContextPolicies,
   useSaveAdminMultiContextPolicy,
   useAdminUsers,
   useAdminRoles,
-} from '../../hooks/useAdmin';
+} from '@/src/hooks/useAdmin';
 
 const CONTEXTS_STORAGE_KEY = 'reboot_erp_multi_context_policies_v2';
 const RLS_STORAGE_KEY = 'reboot_erp_rls_rules_v2';

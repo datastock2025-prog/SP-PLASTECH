@@ -19,7 +19,7 @@ import {
 import { ExtendedPurchaseOrder, SupplierMaster, PurchaseRequisition } from '@/src/types/procurement';
 import { ItemMaster } from '@/src/types';
 import { ProcurementStatusBadge } from './ProcurementStatusBadge';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { PurchaseOrderCreateModal } from './PurchaseOrderCreateModal';
 
 interface Props {

@@ -1,0 +1,44 @@
+-- migrate:up
+CREATE TABLE IF NOT EXISTS public.{{snakeCase name}} (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id   uuid NOT NULL,
+  plant_id    uuid,
+  code        text NOT NULL,
+  name        text NOT NULL,
+  description text,
+  status      text NOT NULL DEFAULT 'ACTIVE',
+  version     integer NOT NULL DEFAULT 1 CHECK (version >= 1),
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now(),
+  deleted_at  timestamptz,
+  created_by  text,
+  updated_by  text
+);
+
+-- Tenant-first list index with soft-delete filter
+CREATE UNIQUE INDEX IF NOT EXISTS {{snakeCase name}}_tenant_code_uq ON public.{{snakeCase name}} (tenant_id, code) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS {{snakeCase name}}_tenant_list_idx ON public.{{snakeCase name}} (tenant_id, created_at DESC) WHERE deleted_at IS NULL;
+
+-- Row Level Security (RLS) enforcement
+ALTER TABLE public.{{snakeCase name}} ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = '{{snakeCase name}}' AND policyname = '{{snakeCase name}}_tenant_isolation'
+  ) THEN
+    CREATE POLICY {{snakeCase name}}_tenant_isolation ON public.{{snakeCase name}}
+      FOR ALL
+      USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+  END IF;
+END $$;
+
+-- Grants strictly scoped to erp_app role
+REVOKE ALL ON public.{{snakeCase name}} FROM PUBLIC;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'erp_app') THEN
+    GRANT SELECT, INSERT, UPDATE, DELETE ON public.{{snakeCase name}} TO erp_app;
+  END IF;
+END $$;
+
+-- migrate:down
+DROP TABLE IF EXISTS public.{{snakeCase name}} CASCADE;

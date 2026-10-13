@@ -30,7 +30,7 @@ import {
   Lock,
   Send,
 } from 'lucide-react';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { JIT_PLANT_OPTIONS } from './jit/JitCommonComposer';
 import {
   generateUniqueWorkOrderId,

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { PasswordPolicy } from '../auth/PasswordPolicy';
+import { PasswordPolicy } from '@/src/security/auth/PasswordPolicy';
 import { Check, X, ShieldAlert, ShieldCheck } from 'lucide-react';
 
 interface Props {

@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { SecurityEventLogger } from '../logging/SecurityEventLogger';
-import { SecurityEvent } from '../types';
-import { secureExportData } from '../privacy/secureExport';
-import { useAuth } from '../auth/AuthProvider';
+import { SecurityEventLogger } from '@/src/security/logging/SecurityEventLogger';
+import { SecurityEvent } from '@/src/security/types';
+import { secureExportData } from '@/src/security/privacy/secureExport';
+import { useAuth } from '@/src/security/auth/AuthProvider';
 import {
   ShieldAlert,
   Search,

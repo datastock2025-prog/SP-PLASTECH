@@ -16,8 +16,8 @@ import {
   PhoneCall,
   Mail,
 } from 'lucide-react';
-import { LicenseSubscriptionDetails, licenseDetails } from '../../data/adminExtendedData';
-import { useAdminLicense } from '../../hooks/useAdmin';
+import { LicenseSubscriptionDetails, licenseDetails } from '@/src/data/adminExtendedData';
+import { useAdminLicense } from '@/src/hooks/useAdmin';
 
 interface AdminLicenseSubscriptionViewProps {
   showToast?: (msg: string) => void;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Activity, Building2, Cpu, Database, RefreshCw, Terminal, Users, CheckCircle2 } from 'lucide-react';
-import { usePlants, useSystemHealth } from '../../features/identity/useIdentity';
+import { usePlants, useSystemHealth } from '@/src/features/identity/useIdentity';
 
 interface AdminDashboardViewProps {
   onNavigate?: (view: string, param?: any) => void;

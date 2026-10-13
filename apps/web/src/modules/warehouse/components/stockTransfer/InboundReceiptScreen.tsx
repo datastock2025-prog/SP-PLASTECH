@@ -26,7 +26,7 @@ import {
   UserRolePerspective,
 } from '@/src/types/stockTransferTypes';
 import { usePagination } from '@/src/hooks/usePagination';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 
 interface InboundReceiptScreenProps {
   transfers?: StockTransferRecord[];

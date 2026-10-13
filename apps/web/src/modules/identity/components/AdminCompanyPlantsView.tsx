@@ -20,10 +20,10 @@ import {
   Database,
   RefreshCw,
 } from 'lucide-react';
-import { CompanyProfile, PlantDetails } from '../../types/admin';
-import { emptyCompanyProfile as companyProfile } from '../../data/adminData';
-import { useAdminCompanyProfile, useSaveAdminCompanyProfile } from '../../hooks/useAdmin';
-import { usePlants, usePlantMutations } from '../../features/identity/useIdentity';
+import { CompanyProfile, PlantDetails } from '@/src/types/admin';
+import { emptyCompanyProfile as companyProfile } from '@/src/data/adminData';
+import { useAdminCompanyProfile, useSaveAdminCompanyProfile } from '@/src/hooks/useAdmin';
+import { usePlants, usePlantMutations } from '@/src/features/identity/useIdentity';
 
 interface AdminCompanyPlantsViewProps {
   showToast?: (msg: string) => void;

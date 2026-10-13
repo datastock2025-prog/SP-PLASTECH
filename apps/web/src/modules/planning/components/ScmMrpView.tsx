@@ -32,7 +32,7 @@ import {
 import { ItemMaster, BomMaster } from '@/src/types';
 import { PurchaseRequisition, PurchaseRequisitionLine } from '@/src/types/procurement';
 import { addPurchaseRequisition } from '@/src/data/procurementData';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { usePagination } from '@/src/hooks/usePagination';
 
 // Plant metadata definition

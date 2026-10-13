@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { CertificateOfAnalysis } from '@/src/types';
 import { usePagination } from '@/src/hooks/usePagination';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 import {
   Plus,
   Search,

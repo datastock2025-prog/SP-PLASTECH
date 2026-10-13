@@ -113,5 +113,3 @@ export const AnalyticsViews: React.FC<AnalyticsViewsProps> = ({
 };
 
 export default AnalyticsViews;
-
-export default AnalyticsViews;

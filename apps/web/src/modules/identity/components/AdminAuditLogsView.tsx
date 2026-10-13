@@ -35,9 +35,9 @@ import {
   Layers,
   FileText,
 } from 'lucide-react';
-import { AuditLogEntry } from '../../types/admin';
-import { masterDataGovernanceService, MasterDataChangeRecord } from '../../services/masterDataGovernanceService';
-import { adminEventBus } from '../../services/adminService';
+import { AuditLogEntry } from '@/src/types/admin';
+import { masterDataGovernanceService, MasterDataChangeRecord } from '@/src/services/masterDataGovernanceService';
+import { adminEventBus } from '@/src/services/adminService';
 
 const SYSTEM_AUDIT_LOGS_KEY = 'reboot_erp_system_audit_logs';
 

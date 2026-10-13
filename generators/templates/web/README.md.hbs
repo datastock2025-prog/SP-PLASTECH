@@ -1,0 +1,10 @@
+# {{pascalCase name}} Web Module
+
+Frontend vertical slice for {{pascalCase name}} domain.
+
+## Architecture
+- `api/`: TanStack Query v5 hooks (`use{{pascalCase name}}List`, `use{{pascalCase name}}Detail`, etc.) and typed HTTP client.
+- `components/`: Form and UI widgets using `react-hook-form` and Zod.
+- `screens/`: Grid and catalog views utilizing generic `EntityTable`, `EntityDrawer`, and `AuditHistoryDrawer`.
+- `model/`: Domain contracts imported from `@/packages/contracts/{{name}}`.
+- `routes.tsx`: Lazy route configuration.

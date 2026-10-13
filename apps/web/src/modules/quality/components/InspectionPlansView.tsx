@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { InspectionPlan } from '@/src/types';
 import { usePagination } from '@/src/hooks/usePagination';
 import { useDebounce } from '@/src/hooks/useDebounce';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 import {
   Ruler,
   Plus,

@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { SalesOrder, Customer } from '@/src/types';
 import { SalesStatusBadge } from './SalesStatusBadge';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 
 interface Props {
   sos: SalesOrder[];

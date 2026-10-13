@@ -26,13 +26,13 @@ import {
   Check,
   X,
 } from 'lucide-react';
-import { ReasonCodeItem } from '../../data/adminExtendedData';
-import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
-import { SupabaseDataService } from '../../services/supabaseService';
-import { adminEventBus } from '../../services/adminService';
-import { isUserAdmin } from '../../hooks/useWarehouse';
-import { useAuthContext } from '../../shared/components/RequireAuth';
-import { useAdminReasonCodes, useSaveAdminReasonCode, useDeleteAdminReasonCode } from '../../hooks/useAdmin';
+import { ReasonCodeItem } from '@/src/data/adminExtendedData';
+import { masterDataGovernanceService } from '@/src/services/masterDataGovernanceService';
+import { SupabaseDataService } from '@/src/services/supabaseService';
+import { adminEventBus } from '@/src/services/adminService';
+import { isUserAdmin } from '@/src/hooks/useWarehouse';
+import { useAuthContext } from '@/src/shared/components/RequireAuth';
+import { useAdminReasonCodes, useSaveAdminReasonCode, useDeleteAdminReasonCode } from '@/src/hooks/useAdmin';
 
 interface AdminReasonCodesViewProps {
   showToast?: (msg: string) => void;

@@ -1,0 +1,57 @@
+import { z } from 'zod';
+
+export const {{pascalCase name}}StatusSchema = z.enum(['DRAFT', 'ACTIVE', 'INACTIVE', 'ARCHIVED']);
+export type {{pascalCase name}}Status = z.infer<typeof {{pascalCase name}}StatusSchema>;
+
+export const {{pascalCase name}}Schema = z.object({
+  id: z.string().uuid(),
+  tenantId: z.string().uuid(),
+  plantId: z.string().uuid().nullable().optional(),
+  code: z
+    .string()
+    .trim()
+    .min(2, 'Code must be at least 2 characters')
+    .max(50, 'Code cannot exceed 50 characters')
+    .regex(/^[A-Za-z0-9_.-]+$/, 'Code can only contain alphanumeric characters, hyphens, and underscores'),
+  name: z.string().trim().min(2, 'Name must be at least 2 characters').max(200),
+  description: z.string().trim().max(500).nullable().optional(),
+  status: {{pascalCase name}}StatusSchema.default('ACTIVE'),
+  version: z.number().int().min(1).default(1),
+  createdAt: z.coerce.string().optional(),
+  updatedAt: z.coerce.string().optional(),
+  deletedAt: z.coerce.string().nullable().optional(),
+  createdBy: z.string().nullable().optional(),
+  updatedBy: z.string().nullable().optional(),
+});
+export type {{pascalCase name}} = z.infer<typeof {{pascalCase name}}Schema>;
+
+export const Create{{pascalCase name}}InputSchema = {{pascalCase name}}Schema.omit({
+  id: true,
+  tenantId: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+  createdBy: true,
+  updatedBy: true,
+  version: true,
+}).strict();
+export type Create{{pascalCase name}}Input = z.infer<typeof Create{{pascalCase name}}InputSchema>;
+
+export const Update{{pascalCase name}}InputSchema = Create{{pascalCase name}}InputSchema.partial().extend({
+  version: z.number().int().min(1, 'version is mandatory for optimistic concurrency'),
+}).strict();
+export type Update{{pascalCase name}}Input = z.infer<typeof Update{{pascalCase name}}InputSchema>;
+
+export const {{pascalCase name}}ListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  search: z.string().trim().max(100).optional(),
+  status: {{pascalCase name}}StatusSchema.optional(),
+  sortBy: z.enum(['created_at', 'updated_at', 'code', 'name', 'status']).default('created_at'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+});
+export type {{pascalCase name}}ListQuery = z.infer<typeof {{pascalCase name}}ListQuerySchema>;
+
+// CASL Permission Subject registration
+export const {{constantCase name}}_SUBJECT = '{{pascalCase subject}}' as const;
+export type {{pascalCase subject}}Subject = typeof {{constantCase name}}_SUBJECT;

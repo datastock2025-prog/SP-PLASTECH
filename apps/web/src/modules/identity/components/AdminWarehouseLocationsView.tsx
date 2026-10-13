@@ -21,13 +21,13 @@ import {
   X,
   RefreshCw,
 } from 'lucide-react';
-import { WarehouseLocationConfig } from '../../data/adminExtendedData';
-import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
-import { SupabaseDataService } from '../../services/supabaseService';
-import { adminEventBus } from '../../services/adminService';
-import { isStoreInUse, isUserAdmin } from '../../hooks/useWarehouse';
-import { useAuthContext } from '../../shared/components/RequireAuth';
-import { useAdminWarehouses, useSaveAdminWarehouse } from '../../hooks/useAdmin';
+import { WarehouseLocationConfig } from '@/src/data/adminExtendedData';
+import { masterDataGovernanceService } from '@/src/services/masterDataGovernanceService';
+import { SupabaseDataService } from '@/src/services/supabaseService';
+import { adminEventBus } from '@/src/services/adminService';
+import { isStoreInUse, isUserAdmin } from '@/src/hooks/useWarehouse';
+import { useAuthContext } from '@/src/shared/components/RequireAuth';
+import { useAdminWarehouses, useSaveAdminWarehouse } from '@/src/hooks/useAdmin';
 
 interface AdminWarehouseLocationsViewProps {
   showToast?: (msg: string) => void;

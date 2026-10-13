@@ -9,7 +9,7 @@ import {
   BarChart2,
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
-import { AiDocumentExporter } from '../../utils/aiDocumentExporter';
+import { AiDocumentExporter } from '@/src/utils/aiDocumentExporter';
 
 interface ChatMessageRendererProps {
   content: string;

@@ -40,7 +40,7 @@ import {
   StockMovementLedgerEntry,
 } from '@/src/types/warehouse';
 import { WarehouseStatusBadge } from './WarehouseStatusBadge';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 
 interface ItemLotLedgerModalProps {
   item: InventoryStockItem;

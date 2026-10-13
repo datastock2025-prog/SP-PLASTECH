@@ -17,7 +17,7 @@ import {
   FileSpreadsheet,
   Upload,
 } from 'lucide-react';
-import { DataExchangeJob, dataExchangeJobs } from '../../data/adminExtendedData';
+import { DataExchangeJob, dataExchangeJobs } from '@/src/data/adminExtendedData';
 
 interface AdminDataImportExportViewProps {
   showToast?: (msg: string) => void;

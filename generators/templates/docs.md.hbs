@@ -1,0 +1,25 @@
+# Module: {{pascalCase name}}
+
+## Metadata
+- **Owner**: {{owner}}
+- **Subject**: `{{pascalCase subject}}`
+- **Schema**: `{{snakeCase name}}`
+- **Tables**: `{{snakeCase name}}`
+
+## Screens
+- `{{pascalCase name}}ListView`: Main catalog grid with searching, sorting, pagination, and multi-select.
+- `{{pascalCase name}}Drawer`: Slideover inspector and editor.
+- `AuditHistoryDrawer`: Chronological timeline and field-level diff viewer.
+
+## Endpoints
+- `GET /api/v1/{{name}}`: Paginated list with filtering and projection.
+- `GET /api/v1/{{name}}/:id`: Get single record by ID.
+- `POST /api/v1/{{name}}`: Create record with tenant isolation and audit trail.
+- `PATCH /api/v1/{{name}}/:id`: Optimistic concurrency update (`version`).
+- `DELETE /api/v1/{{name}}/:id`: Soft delete (`deleted_at`).
+- `GET /api/v1/{{name}}/:id/history`: Audit trail event log.
+
+## Invariant Rules
+- Tenant isolation enforced via RLS (`tenant_id`).
+- Optimistic Concurrency Control (`WHERE version = $n`).
+- All state changes logged to `audit_logs` in same transaction.

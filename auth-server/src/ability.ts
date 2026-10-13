@@ -1,7 +1,7 @@
 import { createMongoAbility, type MongoAbility, type RawRuleOf } from '@casl/ability';
 
 export type Action = 'manage' | 'create' | 'read' | 'update' | 'delete' | 'reset-password' | 'lock';
-export type Subject = 'User' | 'Role' | 'Plant' | 'Preference' | 'AuditLog' | 'all';
+export type Subject = 'User' | 'Role' | 'Plant' | 'Preference' | 'AuditLog' | 'all' | (string & {});
 export type AppAbility = MongoAbility<[Action, Subject]>;
 export type StoredRule = RawRuleOf<AppAbility>;
 

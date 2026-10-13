@@ -19,7 +19,7 @@ import {
 import { SupplierInvoiceRecord, ExtendedPurchaseOrder } from '@/src/types/procurement';
 import { ProcurementStatusBadge } from './ProcurementStatusBadge';
 import { usePagination } from '@/src/hooks/usePagination';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { InvoiceOcrVerificationWorkspace, OcrInvoiceDocument } from './InvoiceOcrVerificationWorkspace';
 
 interface Props {

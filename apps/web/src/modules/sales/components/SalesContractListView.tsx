@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { SalesContract, SalesOrder, Customer } from '@/src/types';
 import { SALES_CONTRACTS_SEED } from '@/src/data/salesData';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 
 interface Props {
   contracts?: SalesContract[];

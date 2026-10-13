@@ -46,9 +46,9 @@ import {
   Zap,
   CheckCircle2,
 } from 'lucide-react';
-import { NAVIGATION_GROUPS, NavGroupDef, NavItemDef } from '../../data/sidebarNavigationData';
-import { useWorkspaceRbac } from '../../hooks/useWorkspaceRbac';
-import { QuarantinedScreenRecord, ScreenSyncReport } from '../../types/workspaceRbac';
+import { NAVIGATION_GROUPS, NavGroupDef, NavItemDef } from '@/src/data/sidebarNavigationData';
+import { useWorkspaceRbac } from '@/src/hooks/useWorkspaceRbac';
+import { QuarantinedScreenRecord, ScreenSyncReport } from '@/src/types/workspaceRbac';
 
 interface WorkspaceModuleRbacViewProps {
   showToast?: (msg: string) => void;

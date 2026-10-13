@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { mockSopScenarios } from '@/src/data/mockScmData';
 import { SOPScenario } from '@/src/types/scm';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { usePagination } from '@/src/hooks/usePagination';
 
 interface ScmSopViewProps {

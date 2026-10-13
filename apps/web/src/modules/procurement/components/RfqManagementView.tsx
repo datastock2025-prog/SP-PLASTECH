@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { RequestForQuotation, SupplierMaster } from '@/src/types/procurement';
 import { ProcurementStatusBadge } from './ProcurementStatusBadge';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 
 interface Props {
   rfqs: RequestForQuotation[];

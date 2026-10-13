@@ -1,0 +1,21 @@
+import type { PoolClient } from 'pg';
+import type { Actor } from '../../core/middleware.js';
+import type { Create{{pascalCase name}}Input, Update{{pascalCase name}}Input } from '../../../../../packages/contracts/{{name}}.js';
+
+export class {{pascalCase name}}Service {
+  async validateCreate(_client: PoolClient, _actor: Actor, _data: Create{{pascalCase name}}Input): Promise<void> {
+    // Domain invariant rules go here
+  }
+
+  async validateUpdate(
+    _client: PoolClient,
+    _actor: Actor,
+    _id: string,
+    _data: Update{{pascalCase name}}Input,
+    _current: any
+  ): Promise<void> {
+    // Domain invariant rules go here
+  }
+}
+
+export const {{camelCase name}}Service = new {{pascalCase name}}Service();

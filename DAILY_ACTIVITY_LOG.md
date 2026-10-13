@@ -270,3 +270,45 @@
   - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (1013 files cruised).
   - Clean commit: `refactor(workspace): move into modules/workspace`.
 
+---
+
+### 17. Plop Module Generator (`gen:module` & `gen:resource`) & Shared Resource Primitives
+- **Core Primitives Promoted**:
+  - `src/shared/api/http.ts`: Unified HTTP client and typed `ApiError` (`{ status, code, message, details, requestId }`) with `credentials: 'include'` and `Cache-Control: no-store`.
+  - `src/shared/api/resource.ts`: Declarative resource factory pair `createResourceApi` and `createResourceHooks` (TanStack Query v5 queries/mutations with direct cache hydration).
+  - `apps/api/src/core/crud.ts`: Standard resource controller `createResourceRouter` implementing list (paginated, sorted, tenant-scoped, search-escaped), get, create (withTx + audit_logs), patch (OCC version check `WHERE version = $n`), delete (soft-delete), and history endpoints.
+  - `apps/api/src/core/ability.ts` & `auth-server/src/ability.ts`: Extensible CASL Subject type registration.
+- **Plop Generator Suite**:
+  - `plopfile.mjs` and complete template tree under `generators/templates/`.
+  - `npm run gen:module -- <name> <Subject>`: Produces contract schemas, DDL migration with RLS & app role grant, backend slice (`router.ts`, `service.ts`, `repo.ts`, `ports.ts`, `events.ts`), domain invariants + golden tests, web module slice (`ListView`, `Form`, `routes`, `api`, `types`, `__tests__`), E2E test suite, docs, and auto-registration in `docs/module-map.json`.
+  - `npm run gen:resource -- <module> <name>`: Adds child table DDL and router to an existing module.
+- **Verification & Acceptance Milestones**:
+  - Generated throwaway module `"demo"`: 100% green tests (6/6 passed), verified schema invariants, then cleanly deleted.
+  - Generated Module 02's first child resource (`engineering` / `bom_item`): 70 lines generated across DDL (`20261013114124_engineering_bom_item.sql`) and API router (`bom_itemRouter.ts`).
+  - Unit tests: 17 test suites, 92/92 passed.
+  - Characterization tests: 5/5 passed.
+  - Vite local development server: running live on `http://localhost:3000/`.
+
+---
+
+### 18. Empty Screen Fix, Server Orchestration, Monorepo Dependencies & License CI Verification
+- **Empty Screen Diagnosis & Resolution**:
+  - Root Cause: Vite dev server (`:3000`) was running while backend `auth-server` (`:4000`) was offline. Unhandled network rejections in `useMe()` during app bootstrapping caused React rendering to fail silently.
+  - Resolution: Updated `useMe()` in `src/features/identity/useIdentity.ts` and `apps/web/src/modules/identity/api/useIdentity.ts` with error-swallowing fallback returning `null` user. When unauthenticated or during initial boot, guest users seamlessly transition to `LoginScreen`.
+  - Orchestration: Started `auth-server` on port 4000 alongside Vite on port 3000. Verified proxy health at `/api/auth/ok` (200 OK) and `/api/v1/me` (401 Unauthorized -> Login View).
+- **Workspace Dependencies (Install Commands #0 to #4)**:
+  - Phase #0 (Workspaces): Configured `"workspaces": ["apps/*"]` in root `package.json`. Initialized `@apps/api` and `@apps/web` manifests.
+  - Phase #1 (API): Installed `@hono/zod-openapi`, `@hono/zod-validator`, `kysely`, `pg-boss`, `decimal.js`, `date-fns`, `jose`, `aws4fetch`, `fast-xml-parser`, `p-retry`, `croner`, and devDependency `kysely-codegen` in `apps/api`.
+  - Phase #2 (Web): Installed `@tanstack/react-table`, `nuqs`, `sonner`, `cmdk`, `react-day-picker`, `@dnd-kit/core`, `@dnd-kit/sortable`, `@xyflow/react`, `dagre`, `i18next`, `react-i18next`, `date-fns`, `decimal.js`, `react-dropzone`, `papaparse`, `react-to-print`, `pdfmake`, `@react-pdf/renderer`, `react-pdf`, `jsbarcode`, `qrcode`, `@zxing/browser`, `react-datasheet-grid`, `react-signature-canvas`, `react-big-calendar`, `frappe-gantt`, `xstate`, `@casl/react`, `openapi-fetch`, `idb-keyval`, `microdiff`, `react-organizational-chart`, `to-words`, and devDependency `openapi-typescript` in `apps/web`.
+  - Phase #3 (Tooling): Installed root devDependencies (`vitest`, `@testing-library/*`, `msw`, `@faker-js/faker`, `testcontainers`, `autocannon`, `@axe-core/playwright`, `eslint`, `prettier`, `husky`, `lint-staged`, `knip`, `madge`, `depcheck`, `dependency-cruiser`, `eslint-plugin-boundaries`, `ts-morph`, `size-limit`, `plop`, `license-checker-rseidelsohn`, `dbmate`).
+  - Phase #4 (Pruning): Verified `axios`, `express`, `dotenv`, `@types/express` are not imported by `apps/web`.
+  - Missing Dependency Fix: Installed `react-is` required by `recharts`.
+- **License Check Verification in CI**:
+  - Production Allow-List (`npm run check:licenses`): Verified all production dependencies against MIT, ISC, BSD, Apache, 0BSD, BlueOak, OFL-1.1 (Geist font), CC-BY-4.0 (caniuse-lite), and MPL-2.0 (lightningcss). Passed with exit code 0.
+  - Dev Allow-List (`npm run check:licenses:dev`): Verified all development dependencies against allow-list including CC-BY-3.0 and Zlib. Passed with exit code 0.
+- **Production Build & Verification**:
+  - Production build (`vite build`): Succeeded cleanly in 1m 29s.
+  - Unit & Characterization Tests: 5/5 characterization test suites passed, 16/16 module test suites passed (88/88 tests).
+
+
+

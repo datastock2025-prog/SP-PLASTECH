@@ -7,10 +7,16 @@
       "owner": "platform-team",
       "scope": "Cross-cutting identity services: numbering engine, audit logging, system notifications, settings",
       "schemaPrefix": "cor",
-      "tables": ["audit_logs", "system_settings", "document_sequences"],
+      "tables": [
+        "audit_logs",
+        "system_settings",
+        "document_sequences"
+      ],
       "mayImport": [],
       "events": {
-        "publishes": ["SystemNotificationEmitted"],
+        "publishes": [
+          "SystemNotificationEmitted"
+        ],
         "consumes": []
       }
     },
@@ -19,10 +25,27 @@
       "owner": "security-team",
       "scope": "User authentication, profile management, RBAC authorization, and tenant isolation",
       "schemaPrefix": "idn",
-      "tables": ["user", "session", "account", "verification", "tenants", "plants", "roles", "user_profiles", "plant_user", "user_preferences"],
-      "mayImport": ["core"],
+      "tables": [
+        "user",
+        "session",
+        "account",
+        "verification",
+        "tenants",
+        "plants",
+        "roles",
+        "user_profiles",
+        "plant_user",
+        "user_preferences"
+      ],
+      "mayImport": [
+        "core"
+      ],
       "events": {
-        "publishes": ["UserCreated", "UserRoleChanged", "SessionTerminated"],
+        "publishes": [
+          "UserCreated",
+          "UserRoleChanged",
+          "SessionTerminated"
+        ],
         "consumes": []
       }
     },
@@ -31,10 +54,21 @@
       "owner": "engineering-team",
       "scope": "Item Master catalog, mold/tooling directory, warehouse/bin master, and catalog governance",
       "schemaPrefix": "mdm",
-      "tables": ["items", "mold_tools", "warehouses", "plants"],
-      "mayImport": ["core"],
+      "tables": [
+        "items",
+        "mold_tools",
+        "warehouses",
+        "plants"
+      ],
+      "mayImport": [
+        "core"
+      ],
       "events": {
-        "publishes": ["ItemCreated", "ItemUpdated", "ItemStatusChanged"],
+        "publishes": [
+          "ItemCreated",
+          "ItemUpdated",
+          "ItemStatusChanged"
+        ],
         "consumes": []
       }
     },
@@ -43,11 +77,25 @@
       "owner": "engineering-team",
       "scope": "Multi-level Bill of Materials (BOM), recipe scaling, ECO/ECR orders, and routing operations",
       "schemaPrefix": "eng",
-      "tables": ["bill_of_materials", "bom_items", "engineering_change_requests", "engineering_change_orders", "process_routings"],
-      "mayImport": ["core", "masterdata"],
+      "tables": [
+        "bill_of_materials",
+        "bom_items",
+        "engineering_change_requests",
+        "engineering_change_orders",
+        "process_routings"
+      ],
+      "mayImport": [
+        "core",
+        "masterdata"
+      ],
       "events": {
-        "publishes": ["BomVersionApproved", "EcoCompleted"],
-        "consumes": ["ItemUpdated"]
+        "publishes": [
+          "BomVersionApproved",
+          "EcoCompleted"
+        ],
+        "consumes": [
+          "ItemUpdated"
+        ]
       }
     },
     "procurement": {
@@ -55,11 +103,27 @@
       "owner": "procurement-team",
       "scope": "Suppliers, Purchase Requisitions, POs, Vendor Pricing, 3-Way Match, and Goods Receipt (GRN)",
       "schemaPrefix": "prc",
-      "tables": ["suppliers", "purchase_orders", "purchase_requisitions", "goods_receipt_notes", "rfqs"],
-      "mayImport": ["core", "masterdata", "warehouse"],
+      "tables": [
+        "suppliers",
+        "purchase_orders",
+        "purchase_requisitions",
+        "goods_receipt_notes",
+        "rfqs"
+      ],
+      "mayImport": [
+        "core",
+        "masterdata",
+        "warehouse"
+      ],
       "events": {
-        "publishes": ["GrnPosted", "PoApproved", "PoClosed"],
-        "consumes": ["StockShortageDetected"]
+        "publishes": [
+          "GrnPosted",
+          "PoApproved",
+          "PoClosed"
+        ],
+        "consumes": [
+          "StockShortageDetected"
+        ]
       }
     },
     "warehouse": {
@@ -67,11 +131,29 @@
       "owner": "supply-chain-team",
       "scope": "Inventory stock ledger, 2D bin maps, putaway, pick/pack fulfillment, stock transfers, and batch tracking",
       "schemaPrefix": "whs",
-      "tables": ["stock_ledger", "stock_transfers", "bin_locations", "inventory_batches", "cycle_counts"],
-      "mayImport": ["core", "masterdata"],
+      "tables": [
+        "stock_ledger",
+        "stock_transfers",
+        "bin_locations",
+        "inventory_batches",
+        "cycle_counts"
+      ],
+      "mayImport": [
+        "core",
+        "masterdata"
+      ],
       "events": {
-        "publishes": ["StockTransferred", "LotHeld", "LotReleased", "StockShortageDetected"],
-        "consumes": ["GrnPosted", "ProductionCompleted", "DispatchPosted"]
+        "publishes": [
+          "StockTransferred",
+          "LotHeld",
+          "LotReleased",
+          "StockShortageDetected"
+        ],
+        "consumes": [
+          "GrnPosted",
+          "ProductionCompleted",
+          "DispatchPosted"
+        ]
       }
     },
     "sales": {
@@ -79,11 +161,29 @@
       "owner": "sales-team",
       "scope": "Customer directory, Sales Orders, Quotations, Delivery Challans, and E-Way Bill transit",
       "schemaPrefix": "sal",
-      "tables": ["customers", "sales_orders", "quotations", "delivery_challans", "e_invoices", "e_way_bills"],
-      "mayImport": ["core", "masterdata", "warehouse", "integrations"],
+      "tables": [
+        "customers",
+        "sales_orders",
+        "quotations",
+        "delivery_challans",
+        "e_invoices",
+        "e_way_bills"
+      ],
+      "mayImport": [
+        "core",
+        "masterdata",
+        "warehouse",
+        "integrations"
+      ],
       "events": {
-        "publishes": ["SalesOrderConfirmed", "DispatchPosted", "InvoiceIssued"],
-        "consumes": ["ProductionCompleted"]
+        "publishes": [
+          "SalesOrderConfirmed",
+          "DispatchPosted",
+          "InvoiceIssued"
+        ],
+        "consumes": [
+          "ProductionCompleted"
+        ]
       }
     },
     "manufacturing": {
@@ -91,11 +191,28 @@
       "owner": "production-team",
       "scope": "Work orders, planning board, daily production log, shopfloor kiosk, regrind recycling, machine status",
       "schemaPrefix": "mfg",
-      "tables": ["work_orders", "daily_production_entries", "machines", "regrind_entries", "scrap_records"],
-      "mayImport": ["core", "engineering", "warehouse", "hr"],
+      "tables": [
+        "work_orders",
+        "daily_production_entries",
+        "machines",
+        "regrind_entries",
+        "scrap_records"
+      ],
+      "mayImport": [
+        "core",
+        "engineering",
+        "warehouse",
+        "hr"
+      ],
       "events": {
-        "publishes": ["ProductionCompleted", "ScrapReported", "MachineDowntimeLogged"],
-        "consumes": ["BomVersionApproved"]
+        "publishes": [
+          "ProductionCompleted",
+          "ScrapReported",
+          "MachineDowntimeLogged"
+        ],
+        "consumes": [
+          "BomVersionApproved"
+        ]
       }
     },
     "quality": {
@@ -103,11 +220,28 @@
       "owner": "quality-team",
       "scope": "QC inspections, NCR non-conformance, CAPA 8D resolution, COA certificates, and SPC telemetry",
       "schemaPrefix": "qua",
-      "tables": ["inspection_lots", "ncrs", "capas", "coas", "spc_subgroups"],
-      "mayImport": ["core", "warehouse"],
+      "tables": [
+        "inspection_lots",
+        "ncrs",
+        "capas",
+        "coas",
+        "spc_subgroups"
+      ],
+      "mayImport": [
+        "core",
+        "warehouse"
+      ],
       "events": {
-        "publishes": ["LotReleased", "LotRejected", "NcrRaised", "CapaClosed"],
-        "consumes": ["GrnPosted", "ProductionCompleted"]
+        "publishes": [
+          "LotReleased",
+          "LotRejected",
+          "NcrRaised",
+          "CapaClosed"
+        ],
+        "consumes": [
+          "GrnPosted",
+          "ProductionCompleted"
+        ]
       }
     },
     "planning": {
@@ -115,11 +249,29 @@
       "owner": "planning-team",
       "scope": "MRP requirements planning, JIT production scheduling, capacity load calculations",
       "schemaPrefix": "scm",
-      "tables": ["mrp_runs", "planned_orders", "jit_schedules", "capacity_plans"],
-      "mayImport": ["core", "engineering", "sales", "procurement", "warehouse", "manufacturing"],
+      "tables": [
+        "mrp_runs",
+        "planned_orders",
+        "jit_schedules",
+        "capacity_plans"
+      ],
+      "mayImport": [
+        "core",
+        "engineering",
+        "sales",
+        "procurement",
+        "warehouse",
+        "manufacturing"
+      ],
       "events": {
-        "publishes": ["MrpPlannedOrdersGenerated", "JitSchedulePublished"],
-        "consumes": ["SalesOrderConfirmed", "ItemCreated"]
+        "publishes": [
+          "MrpPlannedOrdersGenerated",
+          "JitSchedulePublished"
+        ],
+        "consumes": [
+          "SalesOrderConfirmed",
+          "ItemCreated"
+        ]
       }
     },
     "finance": {
@@ -127,11 +279,28 @@
       "owner": "finance-team",
       "scope": "Chart of accounts, general ledger vouchers, AR/AP aging, GST tax workbench, product costing",
       "schemaPrefix": "fin",
-      "tables": ["accounts", "journal_entries", "ar_invoices", "ap_vouchers", "tax_records", "costing_sheets"],
-      "mayImport": ["core"],
+      "tables": [
+        "accounts",
+        "journal_entries",
+        "ar_invoices",
+        "ap_vouchers",
+        "tax_records",
+        "costing_sheets"
+      ],
+      "mayImport": [
+        "core"
+      ],
       "events": {
-        "publishes": ["JournalEntryPosted", "PeriodClosed"],
-        "consumes": ["GrnPosted", "InvoiceIssued", "DispatchPosted", "ProductionCompleted"]
+        "publishes": [
+          "JournalEntryPosted",
+          "PeriodClosed"
+        ],
+        "consumes": [
+          "GrnPosted",
+          "InvoiceIssued",
+          "DispatchPosted",
+          "ProductionCompleted"
+        ]
       }
     },
     "maintenance": {
@@ -139,11 +308,25 @@
       "owner": "engineering-team",
       "scope": "Machine health telemetry, mold tooling preventive maintenance, utility MEP work orders",
       "schemaPrefix": "mep",
-      "tables": ["maintenance_work_orders", "equipment_assets", "meter_readings", "spare_inventory"],
-      "mayImport": ["core", "manufacturing", "warehouse"],
+      "tables": [
+        "maintenance_work_orders",
+        "equipment_assets",
+        "meter_readings",
+        "spare_inventory"
+      ],
+      "mayImport": [
+        "core",
+        "manufacturing",
+        "warehouse"
+      ],
       "events": {
-        "publishes": ["MachineMaintenanceScheduled", "BreakdownResolved"],
-        "consumes": ["MachineDowntimeLogged"]
+        "publishes": [
+          "MachineMaintenanceScheduled",
+          "BreakdownResolved"
+        ],
+        "consumes": [
+          "MachineDowntimeLogged"
+        ]
       }
     },
     "hr": {
@@ -151,10 +334,21 @@
       "owner": "hr-team",
       "scope": "Employee directory, shift rosters, skill matrices, attendance, and payroll slips",
       "schemaPrefix": "hrm",
-      "tables": ["employees", "shift_rosters", "skill_certifications", "payroll_runs", "attendance_records"],
-      "mayImport": ["core"],
+      "tables": [
+        "employees",
+        "shift_rosters",
+        "skill_certifications",
+        "payroll_runs",
+        "attendance_records"
+      ],
+      "mayImport": [
+        "core"
+      ],
       "events": {
-        "publishes": ["OperatorShiftAssigned", "PayrollProcessed"],
+        "publishes": [
+          "OperatorShiftAssigned",
+          "PayrollProcessed"
+        ],
         "consumes": []
       }
     },
@@ -163,10 +357,22 @@
       "owner": "sales-team",
       "scope": "Customer leads, pricing inquiries, opportunity pipeline, and quotation costing models",
       "schemaPrefix": "crm",
-      "tables": ["crm_leads", "crm_inquiries", "opportunity_pipeline", "customer_feedback"],
-      "mayImport": ["core", "sales", "manufacturing"],
+      "tables": [
+        "crm_leads",
+        "crm_inquiries",
+        "opportunity_pipeline",
+        "customer_feedback"
+      ],
+      "mayImport": [
+        "core",
+        "sales",
+        "manufacturing"
+      ],
       "events": {
-        "publishes": ["InquiryCosted", "OpportunityWon"],
+        "publishes": [
+          "InquiryCosted",
+          "OpportunityWon"
+        ],
         "consumes": []
       }
     },
@@ -175,8 +381,14 @@
       "owner": "analytics-team",
       "scope": "Executive KPI dashboards, plant OEE gauges, query assistant telemetry, and report builders",
       "schemaPrefix": "int",
-      "tables": ["analytics_dashboards", "saved_reports", "query_logs"],
-      "mayImport": ["core"],
+      "tables": [
+        "analytics_dashboards",
+        "saved_reports",
+        "query_logs"
+      ],
+      "mayImport": [
+        "core"
+      ],
       "events": {
         "publishes": [],
         "consumes": []
@@ -187,11 +399,23 @@
       "owner": "platform-team",
       "scope": "Government NIC e-way bill & e-invoice gateway, WhatsApp/email alerts, webhook dispatchers",
       "schemaPrefix": "int",
-      "tables": ["integration_logs", "webhook_endpoints", "api_tokens"],
-      "mayImport": ["core"],
+      "tables": [
+        "integration_logs",
+        "webhook_endpoints",
+        "api_tokens"
+      ],
+      "mayImport": [
+        "core"
+      ],
       "events": {
-        "publishes": ["EwbDispatched", "WebhookDelivered"],
-        "consumes": ["InvoiceIssued", "DispatchPosted"]
+        "publishes": [
+          "EwbDispatched",
+          "WebhookDelivered"
+        ],
+        "consumes": [
+          "InvoiceIssued",
+          "DispatchPosted"
+        ]
       }
     },
     "workspace": {
@@ -199,11 +423,40 @@
       "owner": "platform-team",
       "scope": "Workspace home, universal task aggregator, approvals hub, notifications drawer, saved views",
       "schemaPrefix": "wsh",
-      "tables": ["user_tasks", "approvals_queue", "user_notifications", "saved_presets"],
-      "mayImport": ["core", "identity", "masterdata", "engineering", "procurement", "warehouse", "sales", "manufacturing", "quality", "planning", "finance", "maintenance", "hr", "crm", "analytics", "integrations"],
+      "tables": [
+        "user_tasks",
+        "approvals_queue",
+        "user_notifications",
+        "saved_presets"
+      ],
+      "mayImport": [
+        "core",
+        "identity",
+        "masterdata",
+        "engineering",
+        "procurement",
+        "warehouse",
+        "sales",
+        "manufacturing",
+        "quality",
+        "planning",
+        "finance",
+        "maintenance",
+        "hr",
+        "crm",
+        "analytics",
+        "integrations"
+      ],
       "events": {
-        "publishes": ["ApprovalDecided", "TaskCompleted"],
-        "consumes": ["PoApproved", "BomVersionApproved", "NcrRaised"]
+        "publishes": [
+          "ApprovalDecided",
+          "TaskCompleted"
+        ],
+        "consumes": [
+          "PoApproved",
+          "BomVersionApproved",
+          "NcrRaised"
+        ]
       }
     }
   }

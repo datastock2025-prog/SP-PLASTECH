@@ -245,3 +245,6 @@ export const AdminIntegrationManagementView: React.FC<AdminIntegrationManagement
     </div>
   );
 };
+
+export { AdminIntegrationManagementView as IntegrationManagementView };
+

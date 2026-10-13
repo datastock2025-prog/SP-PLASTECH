@@ -19,8 +19,9 @@ export function useMe() {
       try {
         return await identityApi.me();
       } catch (e) {
-        if (e instanceof ApiError && e.status === 401) return null;
-        throw e;
+        if (e instanceof ApiError && (e.status === 401 || e.status === 503 || e.status === 404)) return null;
+        // shortcut: network error or backend offline falls back to null guest session so LoginScreen renders
+        return null;
       }
     },
     retry: false,

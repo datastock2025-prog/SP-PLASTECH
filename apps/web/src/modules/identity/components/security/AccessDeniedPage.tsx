@@ -1,6 +1,6 @@
 import React from 'react';
 import { ShieldAlert, ArrowLeft, Lock, HelpCircle } from 'lucide-react';
-import { useAuth } from '../auth/AuthProvider';
+import { useAuth } from '@/src/security/auth/AuthProvider';
 
 interface AccessDeniedPageProps {
   requiredPermission?: string;

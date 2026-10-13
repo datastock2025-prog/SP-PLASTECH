@@ -1,0 +1,46 @@
+import { createResourceRouter } from '../../core/crud.js';
+import {
+  Create{{pascalCase name}}InputSchema,
+  Update{{pascalCase name}}InputSchema,
+  {{constantCase name}}_SUBJECT,
+  type {{pascalCase name}},
+  type Create{{pascalCase name}}Input,
+  type Update{{pascalCase name}}Input,
+} from '../../../../../packages/contracts/{{name}}.js';
+import { {{camelCase name}}Service } from './service.js';
+
+export function create{{pascalCase name}}Router() {
+  return createResourceRouter<{{pascalCase name}}, Create{{pascalCase name}}Input, Update{{pascalCase name}}Input>({
+    subject: {{constantCase name}}_SUBJECT,
+    table: '{{snakeCase name}}',
+    columns: ['id', 'tenant_id', 'plant_id', 'code', 'name', 'description', 'status', 'version', 'created_at', 'updated_at'],
+    searchColumns: ['code', 'name', 'description'],
+    sortAllowlist: ['created_at', 'updated_at', 'code', 'name', 'status'],
+    defaultSort: { column: 'created_at', order: 'desc' },
+    createSchema: Create{{pascalCase name}}InputSchema,
+    updateSchema: Update{{pascalCase name}}InputSchema,
+    mapRow: (r: any) => ({
+      id: r.id,
+      tenantId: r.tenant_id,
+      plantId: r.plant_id,
+      code: r.code,
+      name: r.name,
+      description: r.description,
+      status: r.status,
+      version: r.version,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      deletedAt: r.deleted_at,
+      createdBy: r.created_by,
+      updatedBy: r.updated_by,
+    }),
+    beforeCreate: async (client, actor, data) => {
+      await {{camelCase name}}Service.validateCreate(client, actor, data);
+      return {};
+    },
+    beforeUpdate: async (client, actor, id, data, current) => {
+      await {{camelCase name}}Service.validateUpdate(client, actor, id, data, current);
+      return {};
+    },
+  });
+}

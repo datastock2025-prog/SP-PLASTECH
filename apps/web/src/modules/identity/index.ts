@@ -12,6 +12,7 @@ export {
   useLogin,
   useLogout,
   useChangePassword,
+  useSelectContext,
   useSelectPlantShift,
   useUsers,
   useUser,

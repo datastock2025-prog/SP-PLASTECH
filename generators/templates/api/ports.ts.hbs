@@ -1,0 +1,6 @@
+import type { PoolClient } from 'pg';
+import type { {{pascalCase name}} } from '../../../../../packages/contracts/{{name}}.js';
+
+export interface {{pascalCase name}}ModulePorts {
+  get{{pascalCase name}}(client: PoolClient, tenantId: string, id: string): Promise<{{pascalCase name}} | null>;
+}

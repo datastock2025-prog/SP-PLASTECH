@@ -1,0 +1,13 @@
+import React from 'react';
+import type { RouteObject } from 'react-router-dom';
+
+export const {{pascalCase name}}ListView = React.lazy(() =>
+  import('./screens/{{pascalCase name}}ListView').then((m) => ({ default: m.{{pascalCase name}}ListView }))
+);
+
+export const {{camelCase name}}Routes: RouteObject[] = [
+  {
+    path: '/{{name}}/*',
+    element: React.createElement({{pascalCase name}}ListView),
+  },
+];

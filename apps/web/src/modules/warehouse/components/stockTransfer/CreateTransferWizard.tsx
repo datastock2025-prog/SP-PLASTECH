@@ -56,9 +56,9 @@ import {
   INITIAL_ASSEMBLY_REQUISITIONS,
   INITIAL_DEFLASH_REQUISITIONS,
 } from '@/src/data/stockTransferData';
-import { calculatePureRmMassKg } from '../manufacturing/jit/jitCalculations';
-import { BomVersionRecipeDeveloperModal } from '../manufacturing/bom/BomVersionRecipeDeveloperModal';
-import { BomVersionApprovalGrid } from '../manufacturing/bom/BomVersionApprovalGrid';
+import { calculatePureRmMassKg } from '@/src/components/manufacturing/jit/jitCalculations';
+import { BomVersionRecipeDeveloperModal } from '@/src/components/manufacturing/bom/BomVersionRecipeDeveloperModal';
+import { BomVersionApprovalGrid } from '@/src/components/manufacturing/bom/BomVersionApprovalGrid';
 import { INITIAL_BOMS } from '@/src/data/engineeringData';
 import { BomMaster, ItemMaster } from '@/src/types';
 

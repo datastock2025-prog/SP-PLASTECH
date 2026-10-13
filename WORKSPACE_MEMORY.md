@@ -2,15 +2,15 @@
 
 ## 1. Project Overview
 - **Domain**: Plastic Manufacturing ERP (MRP, BOM, Production Scheduling, Procurement, Item Master).
-- **Architecture**: Hybrid Monorepo. Frontend (React/Vite) -> Backend (Node.js/Prisma) -> Database (PostgreSQL/Supabase).
-- **Deployment**: Frontend on Cloudflare Pages. Backend on Cloud/Podman.
+- **Architecture**: Hybrid Monorepo. Frontend (React/Vite) -> Backend (hono) -> Database (PostgreSQL).
+
 
 ## 2. Tech Stack
 - **Frontend**: React 19 / Vite, TypeScript, TailwindCSS.
 - **State & Data Fetching**: TanStack Query (React Query) v5 (MANDATORY for all API calls).
 - **Validation**: Zod (MANDATORY for all API responses and form inputs).
-- **Database**: PostgreSQL via Supabase (RLS enabled, Multi-tenant).
-- **Backend Service**: Node.js / Prisma (REST API Service in `backend/`).
+- **Database**: PostgreSQL (RLS enabled, Multi-tenant).
+- **Backend Service**: auth server hono.
 - **Hosting**: Cloudflare Pages (Frontend), Cloudflare Workers/Edge & Container Backend.
 
 ## 3. STRICT ENTERPRISE RULES (AI MUST FOLLOW)
@@ -103,3 +103,37 @@
 2. **Empirical Deletion Rules**: Never delete on a guess. DELETE only when dead-code analysis and AST/text search prove nothing imports it. When in doubt, list under ASK and stop.
 3. **Calculation Protection**: Never "fix" or alter business calculations during cleanup. Protect all formulas (BOM explosion, JIT scheduling, OEE, costing, regrind, SPC) with Vitest characterization tests and frozen golden snapshots in `tests/golden/*.json`.
 4. **Local Runtime**: Keep Podman as the local runtime (`npm run dev:podman` / `compose.yaml`). Zero secret literals in the tree.
+
+---
+
+## 6. MODULE GENERATOR & ENTERPRISE ARCHITECTURE DECISIONS (D1–D7)
+
+- **D1 One API**: `auth-server/` (Hono + Better Auth + pg) is the only backend the browser calls. `backend/` (NestJS/Prisma) and `middleware/` are frozen.
+- **D2 Browser Never Talks to Supabase**: No direct Supabase client in migrated modules; Supabase acts solely as Postgres host.
+- **D3 Business Table Schema**: Primary keys `uuid id (gen_random_uuid())`, `tenant_id uuid NOT NULL`, `plant_id uuid` where plant-scoped, `version int`, `created_at`, `updated_at`, `deleted_at`, `created_by`, `updated_by`. RLS enabled with tenant policy. Real child tables with FKs, not JSONB.
+- **D4 Transactional OCC Writes**: Strict Zod inputs, OCC (`WHERE version = $n`, else 409 `CONCURRENCY_CONFLICT`), interactive `withTx`, and synchronous `audit_logs` record. All queries require `can(action, Subject)`.
+- **D5 Envelope & Timing**: `{ data, meta }` envelopes, `Cache-Control: no-store` default, `Server-Timing` (`db;dur=...;desc="queries=..."`), `X-Request-Id` logged.
+- **D6 Platform Standards**: Named columns, bounded paging, tenant-first indexes, permission check before any cache read.
+- **D7 Cloudflare Worker Runtime**: API must run on edge workers; no Node-only modules in `buildApp`, background work routed to jobs table.
+- **Generator Automation**:
+  - `npm run gen:module -- <name> <Subject>`: Scaffolds complete vertical slice (contracts, migration, api slice with `createResourceRouter`, domain stub + golden tests, web module with `createResourceApi`/`createResourceHooks`, E2E test set, and docs).
+  - `npm run gen:resource -- <module> <name>`: Scaffolds child resource table and API router.
+
+---
+
+## 7. MONOREPO WORKSPACES, CI LICENSE GOVERNANCE & RUNTIME STATUS
+
+- **Workspace Topology**: Root `package.json` configures `"workspaces": ["apps/*"]` hosting `@apps/api` and `@apps/web`.
+- **Runtime Servers**:
+  - `apps/web` (Vite 6): `http://localhost:3000/` (proxies `/api` to port 4000).
+  - `auth-server` (Hono 4 + Better Auth + embedded-postgres/pg): `http://localhost:4000/`.
+  - App bootstrap gracefully renders `LoginScreen` for unauthenticated sessions.
+- **CI License Verification**:
+  - `npm run check:licenses`: Production allow-list (`MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;BlueOak-1.0.0;Python-2.0;CC0-1.0;Unlicense;OFL-1.1;CC-BY-4.0;MPL-2.0`). Verified passing (exit code 0).
+  - `npm run check:licenses:dev`: DevDependencies allow-list with `MPL-2.0`, `CC-BY-3.0`, and `Zlib`. Verified passing (exit code 0).
+- **Verification Gates**:
+  - Unit tests: 88/88 passed across 16 module suites.
+  - Characterization tests: 5/5 passed.
+  - Production build: `npm run build` (`vite build`) compiles cleanly (exit code 0).
+
+

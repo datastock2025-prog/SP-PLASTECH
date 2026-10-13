@@ -23,7 +23,7 @@ import {
   ChevronDown,
   Warehouse,
 } from 'lucide-react';
-import { PurchaseRequisition } from '../../types';
+import { PurchaseRequisition } from '../../types/procurement';
 import {
   PlantBomExplodedItem,
   PrFinishedGoodItem,

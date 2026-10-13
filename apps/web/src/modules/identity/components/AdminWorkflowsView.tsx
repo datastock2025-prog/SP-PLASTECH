@@ -14,9 +14,9 @@ import {
   ChevronRight,
   Layers,
 } from 'lucide-react';
-import { ApprovalWorkflow, ApprovalTier } from '../../types/admin';
-import { adminEventBus } from '../../services/adminService';
-import { useAdminWorkflows, useSaveAdminWorkflow, useAdminRoles } from '../../hooks/useAdmin';
+import { ApprovalWorkflow, ApprovalTier } from '@/src/types/admin';
+import { adminEventBus } from '@/src/services/adminService';
+import { useAdminWorkflows, useSaveAdminWorkflow, useAdminRoles } from '@/src/hooks/useAdmin';
 
 interface AdminWorkflowsViewProps {
   showToast?: (msg: string) => void;

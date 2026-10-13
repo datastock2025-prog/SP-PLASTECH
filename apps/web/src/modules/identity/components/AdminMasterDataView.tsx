@@ -24,12 +24,12 @@ import {
   Sparkles,
   GitMerge,
 } from 'lucide-react';
-import { MasterDataRecord, masterDataRecords } from '../../data/adminExtendedData';
-import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
-import { adminEventBus } from '../../services/adminService';
-import { PaginationBar } from '../common/PaginationBar';
-import { MasterDataCombobox } from '../common/MasterDataCombobox';
-import { useAdminMasterDataGovernance } from '../../hooks/useAdmin';
+import { MasterDataRecord, masterDataRecords } from '@/src/data/adminExtendedData';
+import { masterDataGovernanceService } from '@/src/services/masterDataGovernanceService';
+import { adminEventBus } from '@/src/services/adminService';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
+import { MasterDataCombobox } from '@/src/components/common/MasterDataCombobox';
+import { useAdminMasterDataGovernance } from '@/src/hooks/useAdmin';
 
 interface AdminMasterDataViewProps {
   showToast?: (msg: string) => void;

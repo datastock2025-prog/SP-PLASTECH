@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { GdprService } from '../compliance/GdprService';
+import { GdprService } from '@/src/security/compliance/GdprService';
 import { Shield, Settings, Check, X } from 'lucide-react';
 
 export const CookieConsentModal: React.FC = () => {

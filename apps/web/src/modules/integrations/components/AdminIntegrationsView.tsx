@@ -261,3 +261,6 @@ export const AdminIntegrationsView: React.FC<AdminIntegrationsViewProps> = ({
     </div>
   );
 };
+
+export { AdminIntegrationsView as IntegrationsView };
+

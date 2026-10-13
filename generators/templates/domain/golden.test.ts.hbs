@@ -1,0 +1,16 @@
+import { describe, it, expect } from 'vitest';
+import { validate{{pascalCase name}}Code } from '../../packages/domain/{{name}}';
+
+describe('{{pascalCase name}} Domain Characterization & Golden Tests', () => {
+  it('validates a correct code format', () => {
+    const res = validate{{pascalCase name}}Code('DEMO-001');
+    expect(res.valid).toBe(true);
+    expect(res.reasons).toHaveLength(0);
+  });
+
+  it('detects invalid code format with spaces and special characters', () => {
+    const res = validate{{pascalCase name}}Code('INVALID CODE #!');
+    expect(res.valid).toBe(false);
+    expect(res.reasons.length).toBeGreaterThan(0);
+  });
+});

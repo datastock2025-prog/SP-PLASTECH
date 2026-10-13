@@ -12,8 +12,8 @@ import {
   Code,
   Sliders,
 } from 'lucide-react';
-import { NotificationTemplate } from '../../types/admin';
-import { useAdminNotificationTemplates, useSaveAdminNotificationTemplate } from '../../hooks/useAdmin';
+import { NotificationTemplate } from '@/src/types/admin';
+import { useAdminNotificationTemplates, useSaveAdminNotificationTemplate } from '@/src/hooks/useAdmin';
 
 interface AdminNotificationsViewProps {
   showToast?: (msg: string) => void;

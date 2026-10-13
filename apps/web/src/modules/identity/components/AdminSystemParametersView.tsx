@@ -15,9 +15,9 @@ import {
   Coins,
   Globe,
 } from 'lucide-react';
-import { SystemParameter } from '../../types/admin';
-import { systemSettingsService, CURRENCY_OPTIONS, SystemSettingsConfig } from '../../services/systemSettingsService';
-import { useAdminSystemParameters, useSaveAdminSystemParameter } from '../../hooks/useAdmin';
+import { SystemParameter } from '@/src/types/admin';
+import { systemSettingsService, CURRENCY_OPTIONS, SystemSettingsConfig } from '@/src/services/systemSettingsService';
+import { useAdminSystemParameters, useSaveAdminSystemParameter } from '@/src/hooks/useAdmin';
 
 interface AdminSystemParametersViewProps {
   showToast?: (msg: string) => void;

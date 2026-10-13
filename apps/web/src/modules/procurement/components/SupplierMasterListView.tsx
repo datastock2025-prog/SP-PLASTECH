@@ -25,7 +25,7 @@ import {
   SupplierStatus,
 } from '@/src/types/procurement';
 import { ProcurementStatusBadge } from './ProcurementStatusBadge';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { masterDataGovernanceService } from '@/src/services/masterDataGovernanceService';
 import { SupplierOnboardingModal } from './SupplierOnboardingModal';
 

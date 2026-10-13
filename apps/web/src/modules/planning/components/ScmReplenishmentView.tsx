@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { mockReplenishmentItems } from '@/src/data/mockScmData';
 import { ReplenishmentItem } from '@/src/types/scm';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { usePagination } from '@/src/hooks/usePagination';
 
 interface ScmReplenishmentViewProps {

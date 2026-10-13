@@ -16,7 +16,7 @@ import {
 import { analyticsApi } from '../api/analyticsApi';
 import { ChatMessageItem } from '../model/analyticsSchemas';
 import { ChatMessageRenderer } from './ChatMessageRenderer';
-import { AiDocumentExporter } from '../../utils/aiDocumentExporter';
+import { AiDocumentExporter } from '@/src/utils/aiDocumentExporter';
 
 interface ChatAssistantModalProps {
   isOpen: boolean;

@@ -12,7 +12,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { SalesOrder } from '@/src/types';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 
 interface Props {
   sos: SalesOrder[];

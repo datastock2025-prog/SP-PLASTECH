@@ -48,15 +48,15 @@ import {
   SodConflictRule,
   SodViolation,
   AdminUser,
-} from '../../types/admin';
+} from '@/src/types/admin';
 import {
   mockSimulationScenarios,
-} from '../../data/adminExtendedData';
+} from '@/src/data/adminExtendedData';
 import { WorkspaceModuleRbacView } from './WorkspaceModuleRbacView';
-import { useWorkspaceRbac } from '../../hooks/useWorkspaceRbac';
-import { adminService, adminEventBus } from '../../services/adminService';
-import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
-import { useAuthContext } from '../../shared/components/RequireAuth';
+import { useWorkspaceRbac } from '@/src/hooks/useWorkspaceRbac';
+import { adminService, adminEventBus } from '@/src/services/adminService';
+import { masterDataGovernanceService } from '@/src/services/masterDataGovernanceService';
+import { useAuthContext } from '@/src/shared/components/RequireAuth';
 import {
   useAdminRoles,
   useSaveAdminRole,
@@ -65,7 +65,7 @@ import {
   useSodViolations,
   useAdminUsers,
   useAdminMultiContextPolicies,
-} from '../../hooks/useAdmin';
+} from '@/src/hooks/useAdmin';
 
 interface AdminRolesViewProps {
   showToast?: (msg: string) => void;

@@ -1,0 +1,56 @@
+import { describe, it, expect } from 'vitest';
+import {
+  {{pascalCase name}}Schema,
+  Create{{pascalCase name}}InputSchema,
+  Update{{pascalCase name}}InputSchema,
+} from '@/packages/contracts/{{name}}';
+
+describe('{{pascalCase name}} Module Contracts & Validation', () => {
+  it('validates a correct Create{{pascalCase name}}Input payload', () => {
+    const raw = {
+      code: 'TEST-001',
+      name: 'Test {{pascalCase name}} Record',
+      description: 'Validation testing record',
+      status: 'ACTIVE',
+    };
+
+    const parsed = Create{{pascalCase name}}InputSchema.safeParse(raw);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.code).toBe('TEST-001');
+      expect(parsed.data.status).toBe('ACTIVE');
+    }
+  });
+
+  it('rejects invalid code with illegal characters', () => {
+    const invalid = {
+      code: 'INVALID CODE *&!',
+      name: 'Test Record',
+    };
+
+    const parsed = Create{{pascalCase name}}InputSchema.safeParse(invalid);
+    expect(parsed.success).toBe(false);
+  });
+
+  it('validates Update{{pascalCase name}}Input with mandatory version number', () => {
+    const update = {
+      name: 'Updated Name',
+      version: 2,
+    };
+
+    const parsed = Update{{pascalCase name}}InputSchema.safeParse(update);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.version).toBe(2);
+    }
+  });
+
+  it('rejects Update{{pascalCase name}}Input without version', () => {
+    const missingVersion = {
+      name: 'Missing Version Update',
+    };
+
+    const parsed = Update{{pascalCase name}}InputSchema.safeParse(missingVersion);
+    expect(parsed.success).toBe(false);
+  });
+});

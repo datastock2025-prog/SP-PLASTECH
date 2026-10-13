@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { usePagination } from '@/src/hooks/usePagination';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 import {
   BarChart3,
   Plus,

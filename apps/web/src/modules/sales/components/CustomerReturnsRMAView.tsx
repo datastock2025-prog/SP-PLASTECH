@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { SalesRma } from '@/src/types';
 import { SalesStatusBadge } from './SalesStatusBadge';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 
 interface Props {
   returns: SalesRma[];

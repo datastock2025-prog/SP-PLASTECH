@@ -13,8 +13,8 @@ import {
   Play,
   Lock,
 } from 'lucide-react';
-import { BackupRecord } from '../../types/admin';
-import { useAdminBackups } from '../../hooks/useAdmin';
+import { BackupRecord } from '@/src/types/admin';
+import { useAdminBackups } from '@/src/hooks/useAdmin';
 
 interface AdminBackupsViewProps {
   showToast?: (msg: string) => void;

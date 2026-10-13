@@ -34,7 +34,7 @@ import {
   Shield,
   Layers,
 } from 'lucide-react';
-import { DocumentSettingPolicy, documentPolicies } from '../../data/adminExtendedData';
+import { DocumentSettingPolicy, documentPolicies } from '@/src/data/adminExtendedData';
 
 interface AdminDocumentSettingsViewProps {
   showToast?: (msg: string) => void;

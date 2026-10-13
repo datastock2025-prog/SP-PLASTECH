@@ -33,7 +33,7 @@ import { ProcurementStatusBadge } from './ProcurementStatusBadge';
 import { itemService } from '@/src/services/itemService';
 import { supplierService } from '@/src/services/procurement/supplierService';
 import { adminService, adminEventBus } from '@/src/services/adminService';
-import { CreateItemWizardModal } from '../masterdata/CreateItemWizardModal';
+import { CreateItemWizardModal } from '@/apps/web/src/modules/masterdata/components/CreateItemWizardModal';
 import { addPurchaseRequisition, INITIAL_PROCUREMENT_SUPPLIERS } from '@/src/data/procurementData';
 
 interface Props {

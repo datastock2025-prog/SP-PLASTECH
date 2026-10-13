@@ -30,10 +30,10 @@ import {
   Clock,
   Briefcase,
 } from 'lucide-react';
-import { UserGroup } from '../../data/adminExtendedData';
-import { adminService, adminEventBus } from '../../services/adminService';
-import { AdminUser } from '../../types/admin';
-import { useAdminUserGroups, useSaveAdminUserGroup, useAdminUsers } from '../../hooks/useAdmin';
+import { UserGroup } from '@/src/data/adminExtendedData';
+import { adminService, adminEventBus } from '@/src/services/adminService';
+import { AdminUser } from '@/src/types/admin';
+import { useAdminUserGroups, useSaveAdminUserGroup, useAdminUsers } from '@/src/hooks/useAdmin';
 
 interface AdminUserGroupsViewProps {
   showToast?: (msg: string) => void;

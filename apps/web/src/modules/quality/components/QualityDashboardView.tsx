@@ -27,7 +27,7 @@ import {
   Inbox,
   Ruler,
 } from 'lucide-react';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { usePagination } from '@/src/hooks/usePagination';
 
 interface Props {

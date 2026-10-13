@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { mockInboundShipments } from '@/src/data/mockScmData';
 import { InboundShipment } from '@/src/types/scm';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { usePagination } from '@/src/hooks/usePagination';
 
 interface ScmInboundLogisticsViewProps {

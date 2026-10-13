@@ -42,3 +42,23 @@ podman compose down -v
 Health check endpoints:
 - Web: `http://localhost:3000`
 - API Health & Auth: `http://localhost:4000/api/auth/ok`
+
+---
+
+## 3. Plop Enterprise Module Generator
+
+Every module starts from a tested, working skeleton without copy-paste drift:
+
+```powershell
+# Scaffold a new top-level module (contracts, DDL, backend slice, domain golden tests, web module, e2e suite, docs)
+npm run gen:module -- <name> <Subject>
+
+# Scaffold a child table / resource inside an existing module
+npm run gen:resource -- <module> <name>
+```
+
+### Shared Primitives
+- **Client**: `src/shared/api/http.ts` (promoted `request`, typed `ApiError`, `one`, `page`).
+- **Resource Factories**: `src/shared/api/resource.ts` (`createResourceApi`, `createResourceHooks`).
+- **Backend CRUD Router**: `apps/api/src/core/crud.ts` (`createResourceRouter` with OCC, `withTx`, and synchronous `audit_logs`).
+

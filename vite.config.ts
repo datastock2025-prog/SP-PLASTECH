@@ -14,6 +14,9 @@ export default defineConfig(() => {
       },
       dedupe: ['react', 'react-dom'],
     },
+    build: {
+      cssMinify: false,
+    },
     server: {
       host: '0.0.0.0',
       port: 3000,

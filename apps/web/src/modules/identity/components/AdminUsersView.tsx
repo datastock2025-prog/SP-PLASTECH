@@ -13,9 +13,9 @@ import {
   usePlants,
   useUserHistory,
   useUserMutations,
-} from '../../features/identity/useIdentity';
-import { SHIFT_OPTIONS } from '../../features/identity/mapMe';
-import type { AbilityRule, ManagedUser, UserStatus } from '../../features/identity/types';
+} from '@/src/features/identity/useIdentity';
+import { SHIFT_OPTIONS } from '@/src/features/identity/mapMe';
+import type { AbilityRule, ManagedUser, UserStatus } from '@/src/features/identity/types';
 
 interface AdminUsersViewProps {
   showToast?: (msg: string) => void;

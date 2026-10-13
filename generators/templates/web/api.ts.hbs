@@ -1,0 +1,33 @@
+import { createResourceApi, createResourceHooks } from '@/src/shared/api';
+import {
+  {{pascalCase name}}Schema,
+  Create{{pascalCase name}}InputSchema,
+  Update{{pascalCase name}}InputSchema,
+  {{pascalCase name}}ListQuerySchema,
+  type {{pascalCase name}},
+  type Create{{pascalCase name}}Input,
+  type Update{{pascalCase name}}Input,
+  type {{pascalCase name}}ListQuery,
+} from '@/packages/contracts/{{name}}';
+
+export const {{camelCase name}}Api = createResourceApi<
+  {{pascalCase name}},
+  Create{{pascalCase name}}Input,
+  Update{{pascalCase name}}Input,
+  {{pascalCase name}}ListQuery
+>('/api/v1/{{name}}', {
+  row: {{pascalCase name}}Schema,
+  create: Create{{pascalCase name}}InputSchema,
+  update: Update{{pascalCase name}}InputSchema,
+  query: {{pascalCase name}}ListQuerySchema,
+});
+
+export const {
+  keys: {{camelCase name}}Keys,
+  useList: use{{pascalCase name}}List,
+  useDetail: use{{pascalCase name}}Detail,
+  useCreate: useCreate{{pascalCase name}},
+  useUpdate: useUpdate{{pascalCase name}},
+  useDelete: useDelete{{pascalCase name}},
+  useHistory: use{{pascalCase name}}History,
+} = createResourceHooks('{{camelCase name}}', {{camelCase name}}Api);

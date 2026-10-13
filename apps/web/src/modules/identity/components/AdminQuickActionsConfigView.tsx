@@ -23,8 +23,8 @@ import {
   ArrowUpDown,
   Laptop,
 } from 'lucide-react';
-import { INITIAL_QUICK_ACTIONS, QuickActionItem, SAMPLE_QA_AUDIT_LOGS, QuickActionUsageAudit } from '../../data/quickActionsData';
-import { useAdminQuickActions, useSaveAdminQuickActions } from '../../hooks/useAdmin';
+import { INITIAL_QUICK_ACTIONS, QuickActionItem, SAMPLE_QA_AUDIT_LOGS, QuickActionUsageAudit } from '@/src/data/quickActionsData';
+import { useAdminQuickActions, useSaveAdminQuickActions } from '@/src/hooks/useAdmin';
 
 interface AdminQuickActionsConfigViewProps {
   showToast?: (msg: string) => void;

@@ -14,8 +14,8 @@ import {
   Shield,
   Zap,
 } from 'lucide-react';
-import { IntegrationConnector } from '../../types/admin';
-import { useAdminIntegrations, useSaveAdminIntegration } from '../../hooks/useAdmin';
+import { IntegrationConnector } from '@/src/types/admin';
+import { useAdminIntegrations, useSaveAdminIntegration } from '@/src/hooks/useAdmin';
 
 interface AdminIntegrationsViewProps {
   showToast?: (msg: string) => void;

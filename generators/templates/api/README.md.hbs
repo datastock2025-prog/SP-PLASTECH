@@ -1,0 +1,10 @@
+# {{pascalCase name}} API Module
+
+Backend vertical slice for {{pascalCase name}} domain.
+
+## Structure
+- `router.ts`: Standard resource router (list, get, create, patch with version, delete, history) via `createResourceRouter`.
+- `service.ts`: Business logic and invariant validations.
+- `repo.ts`: Data access layer queries.
+- `ports.ts`: Domain ports and interfaces.
+- `events.ts`: Domain events published by this module.

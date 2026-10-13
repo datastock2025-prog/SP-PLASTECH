@@ -15,7 +15,7 @@ import {
   CreditExposure,
 } from '@/src/data/salesData';
 import { SalesStatusBadge } from './SalesStatusBadge';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 
 interface Props {
   showToast: (msg: string) => void;

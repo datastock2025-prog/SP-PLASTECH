@@ -24,7 +24,7 @@ import {
   transportMasterService,
   TransporterRecord,
   INITIAL_TRANSPORTERS,
-} from '../../services/transportMasterService';
+} from '@/src/services/transportMasterService';
 
 interface Props {
   showToast: (msg: string) => void;

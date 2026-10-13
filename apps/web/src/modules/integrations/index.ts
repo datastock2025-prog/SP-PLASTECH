@@ -37,5 +37,8 @@ export type {
 } from './model/integrationsSchemas';
 
 // Integration Sub-components
-export { AdminIntegrationsView, IntegrationsView } from './components/AdminIntegrationsView';
-export { AdminIntegrationManagementView, IntegrationManagementView } from './components/AdminIntegrationManagementView';
+export { AdminIntegrationsView } from './components/AdminIntegrationsView';
+export { IntegrationsView } from './components/IntegrationsView';
+export { AdminIntegrationManagementView } from './components/AdminIntegrationManagementView';
+export { IntegrationManagementView } from './components/IntegrationManagementView';
+

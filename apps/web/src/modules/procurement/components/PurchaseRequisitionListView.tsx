@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { PurchaseRequisition } from '@/src/types/procurement';
 import { ProcurementStatusBadge } from './ProcurementStatusBadge';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { computePlantBomExplosion } from '@/src/services/procurement/bomExplosionService';
 import { PrBomVendorWorkbenchModal } from './PrBomVendorWorkbenchModal';
 

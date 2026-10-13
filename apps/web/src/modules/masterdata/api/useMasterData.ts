@@ -283,7 +283,7 @@ export function useItemApprovalsQueue() {
   });
 }
 
-import { initialMachines, initialCustomers } from '../data/initialData';
+import { initialMachines, initialCustomers } from '@/src/data/initialData';
 
 // 4. MACHINES
 export function useMachines() {
@@ -378,4 +378,11 @@ export function useSaveCustomer() {
     },
   });
 }
+
+export const useMoldTools = () => useQuery({ queryKey: ['masterdata', 'moldTools'], queryFn: async () => [] });
+export const useWarehouses = () => useQuery({ queryKey: ['masterdata', 'warehouses'], queryFn: async () => [] });
+export const usePlants = () => useQuery({ queryKey: ['masterdata', 'plants'], queryFn: async () => [] });
+export const useGovernanceAuditHistory = useItemAuditHistory;
+export const useGovernanceChangeRequests = useItemApprovalsQueue;
+
 

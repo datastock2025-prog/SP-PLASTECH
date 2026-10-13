@@ -26,11 +26,11 @@ import {
   Eye,
   Terminal,
 } from 'lucide-react';
-import { SecurityPolicySettings } from '../../types/admin';
-import { adminEventBus } from '../../services/adminService';
-import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
-import { useAuthContext } from '../../shared/components/RequireAuth';
-import { useAdminSecurityPolicy, useSaveAdminSecurityPolicy } from '../../hooks/useAdmin';
+import { SecurityPolicySettings } from '@/src/types/admin';
+import { adminEventBus } from '@/src/services/adminService';
+import { masterDataGovernanceService } from '@/src/services/masterDataGovernanceService';
+import { useAuthContext } from '@/src/shared/components/RequireAuth';
+import { useAdminSecurityPolicy, useSaveAdminSecurityPolicy } from '@/src/hooks/useAdmin';
 
 export interface ExtendedSecurityPolicySettings extends SecurityPolicySettings {
   mfaEnforced?: boolean;

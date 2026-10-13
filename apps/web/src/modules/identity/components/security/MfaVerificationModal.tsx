@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '../auth/AuthProvider';
+import { useAuth } from '@/src/security/auth/AuthProvider';
 import { ShieldCheck, Smartphone, Key, AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 
 interface Props {

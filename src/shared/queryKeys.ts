@@ -198,12 +198,6 @@ export const queryKeys = {
     telemetry: () => [...queryKeys.maintenance.all, 'telemetry'] as const,
     molds: () => [...queryKeys.maintenance.all, 'molds'] as const,
   },
-  mep: {
-    all: ['mep'] as const,
-    workOrders: () => ['mep', 'work-orders'] as const,
-    molds: () => ['mep', 'molds'] as const,
-    telemetry: () => ['mep', 'telemetry'] as const,
-  },
 
   // 18. CRM & Opportunities
   crm: {

@@ -24,7 +24,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Customer, SalesOrder, SalesQuotation } from '@/src/types';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 import {
   customerMasterService,
   EnrichedCustomerRecord,

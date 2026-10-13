@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { mockScmRbac } from '@/src/data/mockScmData';
 import { ScmRolePermission } from '@/src/types/scm';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { usePagination } from '@/src/hooks/usePagination';
 
 interface ScmRbacViewProps {

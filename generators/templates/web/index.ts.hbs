@@ -1,0 +1,25 @@
+// ============================================================================
+// {{constantCase name}} MODULE: PUBLIC API
+// Modular Monolithic Architecture — apps/web/src/modules/{{name}}/index.ts
+// ============================================================================
+
+export { {{pascalCase name}}ListView } from './screens/{{pascalCase name}}ListView';
+export { {{pascalCase name}}Form } from './components/{{pascalCase name}}Form';
+export {
+  {{camelCase name}}Api,
+  {{camelCase name}}Keys,
+  use{{pascalCase name}}List,
+  use{{pascalCase name}}Detail,
+  useCreate{{pascalCase name}},
+  useUpdate{{pascalCase name}},
+  useDelete{{pascalCase name}},
+  use{{pascalCase name}}History,
+} from './api/{{camelCase name}}Api';
+export { {{camelCase name}}Routes } from './routes';
+export type {
+  {{pascalCase name}},
+  Create{{pascalCase name}}Input,
+  Update{{pascalCase name}}Input,
+  {{pascalCase name}}ListQuery,
+  {{pascalCase name}}Status,
+} from './model/types';

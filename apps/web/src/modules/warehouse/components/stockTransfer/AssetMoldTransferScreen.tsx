@@ -24,7 +24,7 @@ import {
 } from '@/src/types/stockTransferTypes';
 import { MASTER_MOLDS_CATALOG } from '@/src/data/stockTransferData';
 import { usePagination } from '@/src/hooks/usePagination';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 
 interface AssetMoldTransferScreenProps {
   transfers?: StockTransferRecord[];

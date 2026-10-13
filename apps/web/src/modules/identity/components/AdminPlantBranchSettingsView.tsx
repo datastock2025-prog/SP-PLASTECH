@@ -16,8 +16,8 @@ import {
   Save,
   Check,
 } from 'lucide-react';
-import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
-import { adminEventBus } from '../../services/adminService';
+import { masterDataGovernanceService } from '@/src/services/masterDataGovernanceService';
+import { adminEventBus } from '@/src/services/adminService';
 
 interface PlantBranch {
   id: string;
@@ -41,9 +41,9 @@ interface PlantBranch {
   status: 'Operational' | 'Maintenance Overhaul';
 }
 
-import { useAdminPlants, useSaveAdminPlant } from '../../hooks/useAdmin';
+import { useAdminPlants, useSaveAdminPlant } from '@/src/hooks/useAdmin';
 
-import { PlantDetails } from '../../types/admin';
+import { PlantDetails } from '@/src/types/admin';
 
 interface AdminPlantBranchSettingsViewProps {
   onNavigate?: (view: string, param?: any) => void;

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '../auth/AuthProvider';
-import { sessionManager } from '../auth/SessionManager';
-import { useTenant } from '../rbac/TenantContext';
-import { AuthSession } from '../types';
+import { useAuth } from '@/src/security/auth/AuthProvider';
+import { sessionManager } from '@/src/security/auth/SessionManager';
+import { useTenant } from '@/src/security/rbac/TenantContext';
+import { AuthSession } from '@/src/security/types';
 import {
   ShieldCheck,
   Lock,

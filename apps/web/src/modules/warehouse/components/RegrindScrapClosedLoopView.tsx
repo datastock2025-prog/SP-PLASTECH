@@ -13,7 +13,7 @@ import {
 import { RegrindScrapRun } from '@/src/types/warehouse';
 import { WarehouseStatusBadge } from './WarehouseStatusBadge';
 import { usePagination } from '@/src/hooks/usePagination';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 
 interface Props {
   runs: RegrindScrapRun[];

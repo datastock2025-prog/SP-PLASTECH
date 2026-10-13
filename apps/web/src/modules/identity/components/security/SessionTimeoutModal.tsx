@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '../auth/AuthProvider';
-import { sessionManager } from '../auth/SessionManager';
+import { useAuth } from '@/src/security/auth/AuthProvider';
+import { sessionManager } from '@/src/security/auth/SessionManager';
 import { Clock, ShieldAlert, LogOut, RefreshCw } from 'lucide-react';
 
 export const SessionTimeoutModal: React.FC = () => {

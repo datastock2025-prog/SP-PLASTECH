@@ -17,7 +17,7 @@ import {
   ShieldCheck,
   Power,
 } from 'lucide-react';
-import { useAdminIntegrations } from '../../hooks/useAdmin';
+import { useAdminIntegrations } from '@/src/hooks/useAdmin';
 
 interface IntegrationConnectorExtended {
   id: string;

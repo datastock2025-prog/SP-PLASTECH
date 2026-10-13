@@ -1,4 +1,4 @@
-import { apiClient } from '@/src/services/apiClient';
+import { apiClient } from '@/src/shared/api/client';
 import type {
   TaskContract,
   CreateTaskContract,

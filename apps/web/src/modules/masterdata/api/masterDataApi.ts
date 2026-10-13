@@ -1,7 +1,7 @@
-import { ItemMaster } from '../../../types';
-import { itemService } from '../../../services/itemService';
-import { itemEndpoints, ItemMasterDto, PaginatedItemsResponse } from '../../../lib/api-client';
-import { CreateItemFormValues, UpdateItemFormValues } from '../types/masterDataSchemas';
+import { ItemMaster } from '@/src/types';
+import { itemService } from '@/src/services/itemService';
+import { itemEndpoints, ItemMasterDto, PaginatedItemsResponse } from '@/src/lib/api-client';
+import { CreateItemFormValues, UpdateItemFormValues } from '../model/masterDataSchemas';
 
 export interface GetItemsParams {
   page?: number;

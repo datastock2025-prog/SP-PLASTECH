@@ -1,0 +1,236 @@
+import React, { useState, useMemo } from 'react';
+import { Plus, History, RefreshCw, Trash2, Edit2, Eye } from 'lucide-react';
+import { EntityTable, type ColumnDef } from '@/src/shared/components/EntityTable';
+import { EntityDrawer } from '@/src/shared/components/EntityDrawer';
+import { AuditHistoryDrawer } from '@/src/shared/components/AuditHistoryDrawer';
+import {
+  use{{pascalCase name}}List,
+  useCreate{{pascalCase name}},
+  useUpdate{{pascalCase name}},
+  useDelete{{pascalCase name}},
+  use{{pascalCase name}}History,
+} from '../api/{{camelCase name}}Api';
+import { {{pascalCase name}}Form } from '../components/{{pascalCase name}}Form';
+import type { {{pascalCase name}}, Create{{pascalCase name}}Input } from '../model/types';
+
+export function {{pascalCase name}}ListView() {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  // Drawer states
+  const [selectedItem, setSelectedItem] = useState<{{pascalCase name}} | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<'create' | 'edit' | 'view'>('view');
+  const [historyTargetId, setHistoryTargetId] = useState<string | null>(null);
+
+  // Queries & Mutations
+  const { data: queryData, isLoading, refetch } = use{{pascalCase name}}List({
+    page,
+    limit: pageSize,
+    search: search || undefined,
+    sortBy: sortBy as any,
+    sortOrder: sortDirection,
+  });
+
+  const createMutation = useCreate{{pascalCase name}}();
+  const updateMutation = useUpdate{{pascalCase name}}();
+  const deleteMutation = useDelete{{pascalCase name}}();
+  const { data: historyRecords, isLoading: isHistoryLoading } = use{{pascalCase name}}History(historyTargetId);
+
+  const columns: ColumnDef<{{pascalCase name}}>[] = useMemo(
+    () => [
+      {
+        header: 'Code',
+        accessorKey: 'code',
+        sortable: true,
+        cell: (row) => <span className="font-semibold text-slate-900 dark:text-slate-100">{row.code}</span>,
+      },
+      {
+        header: 'Name',
+        accessorKey: 'name',
+        sortable: true,
+      },
+      {
+        header: 'Status',
+        accessorKey: 'status',
+        sortable: true,
+        cell: (row) => (
+          <span
+            className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
+              row.status === 'ACTIVE'
+                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+            }`}
+          >
+            {row.status}
+          </span>
+        ),
+      },
+      {
+        header: 'Version',
+        accessorKey: 'version',
+        cell: (row) => <span className="text-xs text-slate-500">v{row.version}</span>,
+      },
+      {
+        header: 'Created At',
+        accessorKey: 'createdAt',
+        sortable: true,
+        cell: (row) => <span className="text-xs text-slate-500">{row.createdAt?.slice(0, 10) ?? '—'}</span>,
+      },
+      {
+        header: 'Actions',
+        align: 'right',
+        cell: (row) => (
+          <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => {
+                setHistoryTargetId(row.id);
+              }}
+              className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"
+              title="Audit History"
+            >
+              <History className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => {
+                setSelectedItem(row);
+                setDrawerMode('edit');
+                setIsDrawerOpen(true);
+              }}
+              className="p-1 text-slate-400 hover:text-amber-600 transition-colors"
+              title="Edit"
+            >
+              <Edit2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={async () => {
+                if (window.confirm(`Delete ${row.name}?`)) {
+                  await deleteMutation.mutateAsync(row.id);
+                }
+              }}
+              className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
+              title="Delete"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        ),
+      },
+    ],
+    [deleteMutation]
+  );
+
+  const handleSave = async (formData: Create{{pascalCase name}}Input) => {
+    if (drawerMode === 'create') {
+      await createMutation.mutateAsync(formData);
+    } else if (selectedItem) {
+      await updateMutation.mutateAsync({
+        id: selectedItem.id,
+        data: { ...formData, version: selectedItem.version },
+      });
+    }
+    setIsDrawerOpen(false);
+  };
+
+  return (
+    <div className="p-6 space-y-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+            {{pascalCase name}}
+          </h1>
+          <p className="text-sm text-slate-500">
+            Manage {{camelCase name}} master catalog, operations, and governance.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => refetch()}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border rounded-lg bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+          <button
+            onClick={() => {
+              setSelectedItem(null);
+              setDrawerMode('create');
+              setIsDrawerOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Create {{pascalCase name}}
+          </button>
+        </div>
+      </div>
+
+      <EntityTable
+        data={queryData?.data ?? []}
+        columns={columns}
+        isLoading={isLoading}
+        totalCount={queryData?.meta?.total ?? 0}
+        page={page}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+        searchValue={search}
+        onSearchChange={setSearch}
+        sortBy={sortBy}
+        sortDirection={sortDirection}
+        onSort={(col) => {
+          if (sortBy === col) {
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+          } else {
+            setSortBy(col);
+            setSortDirection('desc');
+          }
+        }}
+        onRowClick={(row) => {
+          setSelectedItem(row);
+          setDrawerMode('view');
+          setIsDrawerOpen(true);
+        }}
+      />
+
+      {/* Slideover EntityDrawer */}
+      <EntityDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        title={
+          drawerMode === 'create'
+            ? 'New {{pascalCase name}}'
+            : drawerMode === 'edit'
+            ? `Edit: ${selectedItem?.code}`
+            : `${selectedItem?.name} (${selectedItem?.code})`
+        }
+        subtitle="{{pascalCase name}} Record Governance"
+        entityCode={selectedItem?.code}
+        onSave={drawerMode !== 'view' ? () => {
+          const form = document.getElementById('{{kebabCase name}}-form') as HTMLFormElement;
+          form?.requestSubmit();
+        } : undefined}
+        isSaving={createMutation.isPending || updateMutation.isPending}
+      >
+        <{{pascalCase name}}Form
+          initialData={selectedItem}
+          onSubmit={handleSave}
+          isLoading={createMutation.isPending || updateMutation.isPending}
+        />
+      </EntityDrawer>
+
+      {/* Audit History Drawer */}
+      <AuditHistoryDrawer
+        isOpen={!!historyTargetId}
+        onClose={() => setHistoryTargetId(null)}
+        entityType="{{snakeCase name}}"
+        entityCode={historyTargetId ?? ''}
+        records={historyRecords ?? []}
+        isLoading={isHistoryLoading}
+      />
+    </div>
+  );
+}

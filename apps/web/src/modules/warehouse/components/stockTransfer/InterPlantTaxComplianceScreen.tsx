@@ -20,7 +20,7 @@ import {
 } from '@/src/types/stockTransferTypes';
 import { usePagination } from '@/src/hooks/usePagination';
 import { useDebounce } from '@/src/hooks/useDebounce';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 
 interface InterPlantTaxComplianceScreenProps {
   transfers?: StockTransferRecord[];

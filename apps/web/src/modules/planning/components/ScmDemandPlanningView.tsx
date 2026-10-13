@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { mockDemandPlan } from '@/src/data/mockScmData';
 import { DemandPlanItem } from '@/src/types/scm';
-import { PaginationBar } from '../common/PaginationBar';
+import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { usePagination } from '@/src/hooks/usePagination';
 
 interface ScmDemandPlanningViewProps {

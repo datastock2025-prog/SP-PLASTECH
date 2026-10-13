@@ -15,9 +15,9 @@ import {
   Calendar,
   ArrowRight,
 } from 'lucide-react';
-import { SupabaseDataService } from '../../services/supabaseService';
-import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
-import { adminEventBus } from '../../services/adminService';
+import { SupabaseDataService } from '@/src/services/supabaseService';
+import { masterDataGovernanceService } from '@/src/services/masterDataGovernanceService';
+import { adminEventBus } from '@/src/services/adminService';
 
 interface AdminCompanySettingsViewProps {
   onNavigate?: (view: string, param?: any) => void;
