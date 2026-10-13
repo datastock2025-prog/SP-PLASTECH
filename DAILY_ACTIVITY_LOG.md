@@ -126,6 +126,13 @@
   - `npm run check:circular` — 0 circular dependencies (720 files cruised).
   - Clean commit: `refactor(procurement): move into modules/procurement`.
 
-
-
-
+### 5. Modular Monolith: Warehouse Module Migration
+- **Warehouse Module Extraction**: Migrated Warehouse Inventory Dashboard, Stock Ledger, 2D Bin Map, Putaway Management, Pick/Pack Dispatch, Cycle Count Audit, Quarantine Hold, Regrind Scrap Closed Loop, Subcontracting Management, Barcode Scanner, Label Printing, and Stock Transfer Manager into `apps/web/src/modules/warehouse/`.
+- **Contracts**: Established strict Zod schemas in `packages/contracts/warehouse.ts` (`StockTransferSchema`, `CreateStockTransferInputSchema`, `UpdateStockTransferInputSchema`, `WarehouseLocationSchema`, `InventoryStockItemSchema`).
+- **Backend API Modular Slice**: Created `apps/api/src/modules/warehouse/` (`events.ts`, `ports.ts`, `schema.ts`, `repo.ts`, `service.ts`, `router.ts`, `index.ts`).
+- **Verification**:
+  - `vitest run apps/web/src/modules/warehouse/__tests__/warehouse.spec.ts` — 5/5 tests passed (100% green).
+  - `npm run test:unit` (`vitest run tests/characterization`) — 5/5 passed.
+  - `npm run check:boundaries` (`depcruise src --config .dependency-cruiser.cjs`) — 0 violations found.
+  - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found.
+  - Clean commit: `refactor(warehouse): move into modules/warehouse`.

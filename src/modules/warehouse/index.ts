@@ -3,7 +3,29 @@
 // Modular Monolithic Architecture — Reboot ERP
 // ============================================================================
 
-export { WarehouseViews } from '../../components/WarehouseViews';
+export {
+  WarehouseViews,
+  useWarehouseStock,
+  useWarehouseMovementLedger,
+  useSaveWarehouseStock,
+  useStockLedger,
+  useWarehouseBins,
+  useStockTransfers,
+  useSaveStockTransfer,
+  useQuarantineLots,
+  getWarehouseStock,
+  getStockMovementLedger,
+  getWarehouseStockItem,
+  getItemStockData,
+  syncItemsWithWarehouseStock,
+  postPutawayTasksToWarehouse,
+  recordOutwardDispatchInventoryMovement,
+  recordProductionShiftInventoryMovement,
+  isUserAdmin,
+  isStoreInUse,
+  warehouseApi,
+} from '../../../apps/web/src/modules/warehouse';
+
 export { initialStockTransactions } from '../../data/initialData';
 export {
   INITIAL_WAREHOUSE_LOCATIONS,
