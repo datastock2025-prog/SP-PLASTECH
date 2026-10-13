@@ -115,5 +115,17 @@
 - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found.
 - Clean commits: `refactor(engineering): move into modules/engineering` and `chore(agents): add ponytail ruleset and skills`.
 
+### 4. Modular Monolith: Procurement Module Migration
+- **Procurement Module Extraction**: Migrated Procurement dashboard, Supplier Master, RFQs, POs, PRs, Returns, Contracts, Price Lists, and all GRN tabs into `apps/web/src/modules/procurement/`.
+- **Contracts**: Established strict Zod schemas in `packages/contracts/procurement.ts` (`PurchaseOrderSchema`, `PurchaseOrderLineSchema`, `CreatePurchaseOrderInputSchema`, `UpdatePurchaseOrderInputSchema`, `PurchaseRequisitionSchema`, `SupplierMasterSchema`, `GoodsReceiptNoteSchema`).
+- **Backend API Modular Slice**: Created `apps/api/src/modules/procurement/` (`events.ts`, `ports.ts`, `schema.ts`, `repo.ts`, `service.ts`, `router.ts`, `index.ts`).
+- **Verification**:
+  - `vitest run apps/web/src/modules/procurement/__tests__/procurement.spec.ts` — 6/6 tests passed (100% green).
+  - All module tests (17/17 tests across engineering, identity, procurement, masterdata) passed.
+  - `npm run check:boundaries` — 0 dependency violations (772 modules cruised).
+  - `npm run check:circular` — 0 circular dependencies (720 files cruised).
+  - Clean commit: `refactor(procurement): move into modules/procurement`.
+
+
 
 
