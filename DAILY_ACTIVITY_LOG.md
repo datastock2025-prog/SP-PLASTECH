@@ -149,3 +149,15 @@
   - `npm run check:boundaries` (`depcruise src --config .dependency-cruiser.cjs`) — 0 violations found (848 modules cruised).
   - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (790 files cruised).
   - Clean commit: `refactor(sales): move into modules/sales`.
+
+### 7. Modular Monolith: Manufacturing Module Migration (incl. Shop Floor)
+- **Manufacturing Module Extraction**: Migrated Work Orders, Manufacturing Planning Board, Command Center, Daily Production Grid, Material Issuing Workbench, Shop Floor Kiosk, Shop Floor Production Entry, Machine Monitoring Telemetry, Scrap Waste Dashboard, Downtime Tracking, Electronic Batch Records, Batch Genealogy Graph, Mold Tooling Manager, Changeover SMED, OEE Analytics, Quality Gate Inspection, Production Reports, and Regrind Material Entry into `apps/web/src/modules/manufacturing/`.
+- **Contracts**: Established strict Zod schemas in `packages/contracts/manufacturing.ts` (`WorkOrderSchema`, `CreateWorkOrderInputSchema`, `UpdateWorkOrderInputSchema`, `WorkOrderLogSchema`, `MachineMasterSchema`, `DailyProductionEntrySchema`, `RegrindEntrySchema`).
+- **Backend API Modular Slice**: Created `apps/api/src/modules/manufacturing/` (`events.ts`, `ports.ts`, `schema.ts`, `repo.ts`, `service.ts`, `router.ts`, `index.ts`).
+- **Verification**:
+  - `vitest run apps/web/src/modules/manufacturing/__tests__/manufacturing.spec.ts` — 6/6 tests passed (100% green).
+  - All module tests (34/34 tests across identity, masterdata, engineering, procurement, warehouse, sales, manufacturing) passed.
+  - `npm run test:unit` (`vitest run tests/characterization`) — 5/5 passed.
+  - `npm run check:boundaries` (`depcruise src --config .dependency-cruiser.cjs`) — 0 violations found (899 modules cruised).
+  - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (840 files cruised).
+  - Clean commit: `refactor(manufacturing): move into modules/manufacturing`.
