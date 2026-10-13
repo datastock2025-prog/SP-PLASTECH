@@ -222,5 +222,18 @@
   - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (951 files cruised).
   - Clean commit: `refactor(hr): move into modules/hr`.
 
+### 13. Modular Monolith: CRM Module Migration
+- **CRM Module Extraction**: Migrated CRM Command Center, Lead Lifecycle & Detail Views, Opportunity Pipeline (Kanban & Table), Account List & Customer 360, Contact Directory, Activity Management, RFQ Inquiry Costing & Pricing Models, Quotation Management, Sample Requests & Testing Approvals, Customer Complaints (CAPA/NCR linkage), Document Center, Customer RFM Segmentation, and Pipeline Analytics into `apps/web/src/modules/crm/`.
+- **Contracts**: Established strict Zod schemas in `packages/contracts/crm.ts` (`LeadSchema`, `CreateLeadInputSchema`, `UpdateLeadInputSchema`, `OpportunitySchema`, `CreateOpportunityInputSchema`, `UpdateOpportunityInputSchema`, `CustomerInquirySchema`, `ComplaintSchema`).
+- **Backend API Modular Slice**: Created `apps/api/src/modules/crm/` (`events.ts`, `ports.ts`, `schema.ts`, `repo.ts`, `service.ts`, `router.ts`, `index.ts`).
+- **Verification**:
+  - `vitest run apps/web/src/modules/crm/__tests__/crm.spec.ts` — 6/6 tests passed (100% green).
+  - All module tests (70/70 tests across 13 modules) passed.
+  - `npm run test:unit` (`vitest run tests/characterization`) — 5/5 passed.
+  - `npm run check:boundaries` (`depcruise src --config .dependency-cruiser.cjs`) — 0 violations found (1038 modules cruised).
+  - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (973 files cruised).
+  - Clean commit: `refactor(crm): move into modules/crm`.
+
+
 
 

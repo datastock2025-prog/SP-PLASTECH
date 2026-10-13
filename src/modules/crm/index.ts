@@ -3,7 +3,33 @@
 // Modular Monolithic Architecture — Reboot ERP
 // ============================================================================
 
-export { CrmViews } from '../../components/CrmViews';
+export {
+  CrmViews,
+  useCrm,
+  useLeads,
+  useSaveLead,
+  useOpportunities,
+  useSaveOpportunity,
+  crmApi,
+  crmRoutes,
+  CrmDashboardView,
+  CrmLeadListView,
+  CrmLeadDetailView,
+  CrmOpportunityPipelineView,
+  CrmOpportunityDetailView,
+  CrmAccountListView,
+  CrmCustomer360View,
+  CrmContactListView,
+  CrmActivityManagementView,
+  CrmInquiryCostingView,
+  CrmQuotationManagementView,
+  CrmSampleRequestView,
+  CrmComplaintManagementView,
+  CrmDocumentCenterView,
+  CrmCustomerSegmentationView,
+  CrmAnalyticsReportsView,
+} from '../../../apps/web/src/modules/crm';
+
 export {
   mockLeads,
   mockOpportunities,

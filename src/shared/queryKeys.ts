@@ -204,5 +204,16 @@ export const queryKeys = {
     molds: () => ['mep', 'molds'] as const,
     telemetry: () => ['mep', 'telemetry'] as const,
   },
+
+  // 18. CRM & Opportunities
+  crm: {
+    all: ['crm'] as const,
+    leads: (filter?: any) => [...queryKeys.crm.all, 'leads', { filter }] as const,
+    opportunities: (filter?: any) => [...queryKeys.crm.all, 'opportunities', { filter }] as const,
+    accounts: () => [...queryKeys.crm.all, 'accounts'] as const,
+    contacts: () => [...queryKeys.crm.all, 'contacts'] as const,
+    activities: () => [...queryKeys.crm.all, 'activities'] as const,
+  },
 };
+
 
