@@ -88,4 +88,32 @@
 - `npm run test:unit` (`vitest run tests/characterization`) — 5 test files, 5 passed (100% green).
 - Clean commits per phase: `cleanup/phase-0`, `cleanup/phase-1`, `cleanup/phase-2`, `cleanup/phase-3`, `cleanup/phase-6`.
 
+---
+
+## [2026-10-13] - Modular Monolith: Engineering Module Migration & Agent Tooling
+
+### 1. Scope of Work
+- **Engineering Module Extraction**: Migrated multi-level BOMs, BOM Wizard steps (1-9), ECO/ECR views, and process routing operations into isolated vertical slice `apps/web/src/modules/engineering/`.
+- **Contracts & Boundaries**: Established strict Zod schemas and contract DTOs in `packages/contracts/engineering.ts` (`BomSchema`, `BomLineSchema`, `CreateBomInputSchema`, `UpdateBomInputSchema`, `EcrSchema`).
+- **Backend API Modular Slice**: Created `apps/api/src/modules/engineering/` with domain ports, events, repo, service, and router.
+- **Dependency Hygiene**: Replaced broken relative imports with unified `@/src/` path aliases across all engineering components and wizard steps.
+- **Backwards Compatibility**: Updated `src/modules/engineering/index.ts` re-export shims so existing callers operate without disruptions.
+- **Agent Governance Setup**: Installed Ponytail YAGNI decision ladder ruleset (`.agents/rules/ponytail.md`) and skills (`.agents/skills/`).
+
+### 2. Modules & Files Touched
+- `packages/contracts/engineering.ts` — Zod contract definitions and DTOs.
+- `apps/api/src/modules/engineering/` — Backend events, ports, repo, schema, service, router.
+- `apps/web/src/modules/engineering/` — Complete web module with `api/`, `components/`, `model/`, `routes.tsx`, `screens/`, and `__tests__/`.
+- `src/modules/engineering/index.ts` — Root re-export barrel.
+- `.agents/rules/ponytail.md` & `.agents/skills/` — Workspace agent rules & skills.
+
+### 3. Verification & Results
+- `vitest run apps/web/src/modules/engineering/__tests__/engineering.spec.ts` — 5/5 tests passed (100% green).
+- `vitest run apps/web/src/modules/masterdata/__tests__/masterdata.spec.ts` — 3/3 tests passed.
+- `npm run test:unit` (`vitest run tests/characterization`) — 5 test suites passed.
+- `npm run check:boundaries` (`depcruise src --config .dependency-cruiser.cjs`) — 0 violations found.
+- `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found.
+- Clean commits: `refactor(engineering): move into modules/engineering` and `chore(agents): add ponytail ruleset and skills`.
+
+
 
