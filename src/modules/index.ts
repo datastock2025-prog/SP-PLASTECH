@@ -5,6 +5,7 @@
 
 export * as AuthModule from './auth';
 export * as HomeModule from './home';
+export * as WorkspaceModule from './workspace';
 export * as MasterDataModule from './masterdata';
 export * as EngineeringModule from './engineering';
 export * as ManufacturingModule from './manufacturing';
@@ -24,7 +25,16 @@ export * as ArchitectureModule from './architecture';
 
 // Direct Feature Facades for Ergonomic Routing
 export { LoginScreen } from './auth';
-export { HomeView, WorkspaceTasksView, WorkspaceApprovalsView, WorkspaceNotificationsView, WorkspaceSavedViewsView, WorkspaceRecentRecordsView } from './home';
+export {
+  HomeView,
+  WorkspaceTasksView,
+  WorkspaceApprovalsView,
+  WorkspaceNotificationsView,
+  WorkspaceSavedViewsView,
+  WorkspaceRecentRecordsView,
+  WorkspaceViews,
+} from './workspace';
+
 export { MasterDataViews } from './masterdata';
 export { EngineeringViews } from './engineering';
 export { ManufacturingViews } from './manufacturing';

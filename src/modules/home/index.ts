@@ -1,13 +1,6 @@
 // ============================================================================
-// DOMAIN MODULE: WORKSPACE HOME & DASHBOARD
+// DOMAIN MODULE: WORKSPACE HOME & DASHBOARD (COMPATIBILITY FACADE)
 // Modular Monolithic Architecture — Reboot ERP
 // ============================================================================
 
-export { HomeView } from '../../components/HomeView';
-export {
-  WorkspaceTasksView,
-  WorkspaceApprovalsView,
-  WorkspaceNotificationsView,
-  WorkspaceSavedViewsView,
-  WorkspaceRecentRecordsView,
-} from '../../components/common/WorkspaceHomeTools';
+export * from '../workspace';

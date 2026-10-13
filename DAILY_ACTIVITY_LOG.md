@@ -258,3 +258,15 @@
   - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (1004 files cruised).
   - Clean commit: `refactor(integrations): move into modules/integrations`.
 
+### 16. Modular Monolith: Workspace Module Migration (Home, Tasks, Approvals & Saved Views)
+- **Workspace Module Extraction**: Migrated Workspace Home Command Center, Universal Task Aggregator, Multi-Domain Approvals Queue, System & Plant Notifications, Saved View Presets, and Recent Records Navigation into `apps/web/src/modules/workspace/`.
+- **Contracts**: Established strict Zod schemas in `packages/contracts/workspace.ts` (`TaskSchema`, `CreateTaskInputSchema`, `UpdateTaskInputSchema`, `ApprovalSchema`, `CreateApprovalInputSchema`, `UpdateApprovalInputSchema`, `NotificationSchema`, `SavedPresetSchema`).
+- **Backend API Modular Slice**: Created `apps/api/src/modules/workspace/` (`events.ts`, `ports.ts`, `schema.ts`, `repo.ts`, `service.ts`, `router.ts`, `index.ts`).
+- **Verification**:
+  - `vitest run apps/web/src/modules/workspace/__tests__/workspace.spec.ts` — 6/6 tests passed (100% green).
+  - All module tests (88/88 tests across all 16 modules) passed.
+  - `npm run test:unit` (`vitest run tests/characterization`) — 5/5 passed.
+  - `npm run check:boundaries` (`depcruise src --config .dependency-cruiser.cjs`) — 0 violations found (1083 modules cruised).
+  - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (1013 files cruised).
+  - Clean commit: `refactor(workspace): move into modules/workspace`.
+

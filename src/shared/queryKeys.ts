@@ -222,7 +222,18 @@ export const queryKeys = {
     webhooks: () => [...queryKeys.integrations.all, 'webhooks'] as const,
     logs: (filter?: any) => [...queryKeys.integrations.all, 'logs', { filter }] as const,
   },
+
+  // 20. Workspace & User Presets
+  workspace: {
+    all: ['workspace'] as const,
+    tasks: (filter?: any) => [...queryKeys.workspace.all, 'tasks', { filter }] as const,
+    approvals: (filter?: any) => [...queryKeys.workspace.all, 'approvals', { filter }] as const,
+    notifications: () => [...queryKeys.workspace.all, 'notifications'] as const,
+    presets: (view?: string) => [...queryKeys.workspace.all, 'presets', { view }] as const,
+    recentRecords: () => [...queryKeys.workspace.all, 'recentRecords'] as const,
+  },
 };
+
 
 
 
