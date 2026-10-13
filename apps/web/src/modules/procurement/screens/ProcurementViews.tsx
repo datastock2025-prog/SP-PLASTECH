@@ -1,0 +1,582 @@
+import React, { useState } from 'react';
+import {
+  SupplierMaster,
+  PurchaseRequisition,
+  RequestForQuotation,
+  ExtendedPurchaseOrder,
+  GoodsReceiptNote,
+  SupplierInvoiceRecord,
+  MrpPurchaseSuggestion,
+  SupplierReturnRecord,
+  SupplierContractRecord,
+  SupplierPriceListEntry,
+  SupplierRiskItem,
+} from '@/src/types/procurement';
+
+import {
+  INITIAL_PROCUREMENT_SUPPLIERS,
+  INITIAL_PURCHASE_REQUISITIONS,
+  addPurchaseRequisition,
+  INITIAL_PROCUREMENT_RFQS,
+  INITIAL_EXTENDED_POS,
+  INITIAL_PROCUREMENT_GRNS,
+  INITIAL_SUPPLIER_INVOICES,
+  INITIAL_PROCUREMENT_RETURNS,
+  INITIAL_PROCUREMENT_CONTRACTS,
+  INITIAL_SUPPLIER_PRICE_LISTS,
+  INITIAL_MRP_SUGGESTIONS,
+  INITIAL_SUPPLIER_RISKS,
+} from '@/src/data/procurementData';
+
+// Subviews
+import { ProcurementDashboardView } from '../components/ProcurementDashboardView';
+import { SupplierMasterListView } from '../components/SupplierMasterListView';
+import { SupplierDetailView } from '../components/SupplierDetailView';
+import { PurchaseRequisitionListView } from '../components/PurchaseRequisitionListView';
+import { PurchaseRequisitionFormView } from '../components/PurchaseRequisitionFormView';
+import { RfqManagementView } from '../components/RfqManagementView';
+import { SupplierQuotationComparisonView } from '../components/SupplierQuotationComparisonView';
+import { PurchaseOrderListView } from '../components/PurchaseOrderListView';
+import { PurchaseOrderDetailView } from '../components/PurchaseOrderDetailView';
+import { PurchaseOrderPrintView } from '../components/PurchaseOrderPrintView';
+import { PurchaseApprovalWorkflowView } from '../components/PurchaseApprovalWorkflowView';
+import { GoodsReceiptNoteView } from '../components/GoodsReceiptNoteView';
+import { SupplierInvoiceManagementView } from '../components/SupplierInvoiceManagementView';
+import { InvoiceOcrVerificationWorkspace } from '../components/InvoiceOcrVerificationWorkspace';
+import { ProcurementPlanningMrpView } from '../components/ProcurementPlanningMrpView';
+import { SupplierPerformanceScorecardView } from '../components/SupplierPerformanceScorecardView';
+import { SupplierContractManagementView } from '../components/SupplierContractManagementView';
+import { SupplierPriceListView } from '../components/SupplierPriceListView';
+import { PurchaseReturnsView } from '../components/PurchaseReturnsView';
+import { SupplierRiskComplianceView } from '../components/SupplierRiskComplianceView';
+import { ProcurementReportsAnalyticsView } from '../components/ProcurementReportsAnalyticsView';
+import { ProcurementSettingsView } from '../components/ProcurementSettingsView';
+
+import { ItemMaster, AuthUser } from '@/src/types';
+import { INITIAL_ITEMS } from '@/src/data/initialData';
+import { supplierService } from '@/src/services/procurement/supplierService';
+import { itemService } from '@/src/services/itemService';
+import { adminEventBus } from '@/src/services/adminService';
+import { usePurchaseOrders, useSuppliers, useSupplierPriceLists } from '../api/useProcurement';
+import { useItems } from '@/src/hooks/useMasterData';
+
+interface Props {
+  view?: string;
+  currentSubView?: string;
+  viewParams?: any;
+  selectedParam?: any;
+  currentUser?: AuthUser | null;
+  items?: ItemMaster[];
+  suppliers?: SupplierMaster[];
+  prs?: PurchaseRequisition[];
+  rfqs?: RequestForQuotation[];
+  pos?: ExtendedPurchaseOrder[];
+  grns?: GoodsReceiptNote[];
+  invoices?: SupplierInvoiceRecord[];
+  mrpSuggestions?: MrpPurchaseSuggestion[];
+  onNavigate: (view: string, param?: any) => void;
+  onUpdateItem?: (item: ItemMaster) => void;
+  onUpdateSupplier?: (s: SupplierMaster) => void;
+  onCreateSupplier?: (s: SupplierMaster) => void;
+  onUpdatePR?: (pr: PurchaseRequisition) => void;
+  onCreatePR?: (pr: PurchaseRequisition) => void;
+  onUpdateRFQ?: (rfq: RequestForQuotation) => void;
+  onCreatePO?: (po: ExtendedPurchaseOrder) => void;
+  onUpdatePO?: (po: ExtendedPurchaseOrder) => void;
+  onUpdateGRN?: (grn: GoodsReceiptNote) => void;
+  onUpdateInvoice?: (inv: SupplierInvoiceRecord) => void;
+  openDrawer: (title: string, content: React.ReactNode, footer?: React.ReactNode) => void;
+  closeDrawer: () => void;
+  openConfirm?: (title: string, message: string, onConfirm: () => void) => void;
+  showToast: (msg: string) => void;
+}
+
+export const ProcurementViews: React.FC<Props> = ({
+  view,
+  currentSubView,
+  viewParams,
+  selectedParam,
+  currentUser,
+  items: propItems,
+  suppliers: propSuppliers,
+  prs: propPrs,
+  rfqs: propRfqs,
+  pos: propPos,
+  grns: propGrns,
+  invoices: propInvoices,
+  mrpSuggestions: propMrpSuggestions,
+  onNavigate,
+  onUpdateItem: propOnUpdateItem,
+  onUpdateSupplier: propOnUpdateSupplier,
+  onCreateSupplier: propOnCreateSupplier,
+  onUpdatePR: propOnUpdatePR,
+  onCreatePR: propOnCreatePR,
+  onUpdateRFQ: propOnUpdateRFQ,
+  onCreatePO: propOnCreatePO,
+  onUpdatePO: propOnUpdatePO,
+  onUpdateGRN: propOnUpdateGRN,
+  onUpdateInvoice: propOnUpdateInvoice,
+  openDrawer,
+  closeDrawer,
+  showToast,
+}) => {
+  // TanStack Query SSOT (Rule 1 & Rule 3)
+  const { data: queryItems } = useItems();
+  const { data: querySuppliers } = useSuppliers();
+  const { data: queryPos } = usePurchaseOrders();
+  const { data: queryPriceLists } = useSupplierPriceLists();
+
+  // Determine active view & param supporting both naming conventions
+  const activeView = view || currentSubView || 'procurementDash';
+  const activeParam = viewParams || selectedParam;
+
+  // Local state for full interactive procurement lifecycle with live service fallbacks
+  const [items, setItems] = useState<ItemMaster[]>(() => {
+    if (propItems && propItems.length > 0) return propItems;
+    return itemService.getItemsSync();
+  });
+  const [suppliers, setSuppliers] = useState<SupplierMaster[]>(() => {
+    if (propSuppliers && propSuppliers.length > 0) return propSuppliers;
+    return supplierService.getSuppliersSync();
+  });
+  const [prs, setPrs] = useState<PurchaseRequisition[]>(() => {
+    return propPrs && propPrs.length > 0 ? propPrs : INITIAL_PURCHASE_REQUISITIONS;
+  });
+
+  React.useEffect(() => {
+    const handlePrUpdate = (updatedPr: PurchaseRequisition) => {
+      setPrs((prev) => {
+        const idx = prev.findIndex((p) => p.id === updatedPr.id || p.prNumber === updatedPr.prNumber);
+        if (idx >= 0) {
+          const copy = [...prev];
+          copy[idx] = updatedPr;
+          return copy;
+        }
+        return [updatedPr, ...prev];
+      });
+    };
+    adminEventBus.on('PR_SAVED', handlePrUpdate);
+    adminEventBus.on('PR_CREATED', handlePrUpdate);
+    return () => {
+      adminEventBus.off('PR_SAVED', handlePrUpdate);
+      adminEventBus.off('PR_CREATED', handlePrUpdate);
+    };
+  }, []);
+  const [rfqs, setRfqs] = useState<RequestForQuotation[]>(propRfqs || INITIAL_PROCUREMENT_RFQS);
+  const [pos, setPos] = useState<ExtendedPurchaseOrder[]>(propPos || INITIAL_EXTENDED_POS);
+  const [grns, setGrns] = useState<GoodsReceiptNote[]>(propGrns || INITIAL_PROCUREMENT_GRNS);
+  const [invoices, setInvoices] = useState<SupplierInvoiceRecord[]>(propInvoices || INITIAL_SUPPLIER_INVOICES);
+  const [returns, setReturns] = useState<SupplierReturnRecord[]>(INITIAL_PROCUREMENT_RETURNS);
+  const [contracts] = useState<SupplierContractRecord[]>(INITIAL_PROCUREMENT_CONTRACTS);
+  const [priceLists, setPriceLists] = useState<SupplierPriceListEntry[]>(INITIAL_SUPPLIER_PRICE_LISTS);
+  const [mrpSuggestions] = useState<MrpPurchaseSuggestion[]>(propMrpSuggestions || INITIAL_MRP_SUGGESTIONS);
+  const [risks] = useState<SupplierRiskItem[]>(INITIAL_SUPPLIER_RISKS);
+
+  // Updaters with live database & local storage synchronization
+  const handleUpdateItem = (updated: ItemMaster) => {
+    itemService.saveItem(updated).catch(console.warn);
+    setItems((prev) => prev.map((i) => (i.code === updated.code ? updated : i)));
+    propOnUpdateItem?.(updated);
+  };
+
+  const handleUpdateSupplier = (updated: SupplierMaster) => {
+    supplierService.saveSupplier(updated).catch(console.warn);
+    setSuppliers((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+    propOnUpdateSupplier?.(updated);
+  };
+
+  const handleCreateSupplier = (created: SupplierMaster) => {
+    supplierService.saveSupplier(created).catch(console.warn);
+    setSuppliers((prev) => [created, ...prev]);
+    propOnCreateSupplier?.(created);
+  };
+
+  const handleUpdatePR = (updated: PurchaseRequisition) => {
+    addPurchaseRequisition(updated);
+    setPrs((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    propOnUpdatePR?.(updated);
+  };
+
+  const handleCreatePR = (created: PurchaseRequisition) => {
+    addPurchaseRequisition(created);
+    setPrs((prev) => [created, ...prev]);
+    propOnCreatePR?.(created);
+  };
+
+  const handleUpdateRFQ = (updated: RequestForQuotation) => {
+    setRfqs((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+    propOnUpdateRFQ?.(updated);
+  };
+
+  const handleUpdatePO = (updated: ExtendedPurchaseOrder) => {
+    setPos((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    propOnUpdatePO?.(updated);
+  };
+
+  const handleCreatePO = (created: ExtendedPurchaseOrder) => {
+    setPos((prev) => [created, ...prev]);
+    propOnCreatePO?.(created);
+  };
+
+  const handleUpdateGRN = (updated: GoodsReceiptNote) => {
+    setGrns((prev) => prev.map((g) => (g.id === updated.id ? updated : g)));
+    propOnUpdateGRN?.(updated);
+  };
+
+  const handleUpdateInvoice = (updated: SupplierInvoiceRecord) => {
+    setInvoices((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+    propOnUpdateInvoice?.(updated);
+  };
+
+  const handleUpdateReturn = (updated: SupplierReturnRecord) => {
+    setReturns((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+  };
+
+  const handleCreateReturn = (created: SupplierReturnRecord) => {
+    setReturns((prev) => [created, ...prev]);
+  };
+
+  const handleUpdatePriceList = (updated: SupplierPriceListEntry) => {
+    setPriceLists((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+  };
+
+  const handleCreatePriceList = (created: SupplierPriceListEntry) => {
+    setPriceLists((prev) => [created, ...prev]);
+  };
+
+  // View Router mapping all alias variations
+  switch (activeView) {
+    case 'supplierList':
+    case 'suppliers':
+    case 'supplierMaster':
+      return (
+        <SupplierMasterListView
+          suppliers={suppliers}
+          activeParam={activeParam}
+          onNavigate={onNavigate}
+          onUpdateSupplier={handleUpdateSupplier}
+          onCreateSupplier={handleCreateSupplier}
+          openDrawer={openDrawer}
+          closeDrawer={closeDrawer}
+          showToast={showToast}
+        />
+      );
+
+    case 'supplierDetail':
+    case 'supplierView':
+      return (
+        <SupplierDetailView
+          supplierId={typeof activeParam === 'string' ? activeParam : (activeParam?.id || suppliers[0]?.id || 'SUP-S0128')}
+          suppliers={suppliers}
+          pos={pos}
+          grns={grns}
+          invoices={invoices}
+          returns={returns}
+          onNavigate={onNavigate}
+          onUpdateSupplier={handleUpdateSupplier}
+          openDrawer={openDrawer}
+          closeDrawer={closeDrawer}
+          showToast={showToast}
+        />
+      );
+
+    case 'purchaseReqList':
+    case 'prList':
+    case 'requisitions':
+    case 'purchaseRequisitions':
+      return (
+        <PurchaseRequisitionListView
+          prs={prs}
+          onNavigate={onNavigate}
+          onUpdatePR={handleUpdatePR}
+          showToast={showToast}
+        />
+      );
+
+    case 'purchaseReqForm':
+    case 'prDetail':
+    case 'prCreate':
+    case 'newPR':
+    case 'purchaseRequisitionForm': {
+      const resolvedPrId = (activeView === 'prCreate' || activeView === 'newPR')
+        ? undefined
+        : (typeof activeParam === 'string' ? activeParam : (activeParam?.id || activeParam?.prId || activeParam?.prNumber));
+
+      return (
+        <PurchaseRequisitionFormView
+          prId={resolvedPrId}
+          prs={prs}
+          suppliers={suppliers}
+          items={items}
+          currentUser={currentUser}
+          onNavigate={onNavigate}
+          onSavePR={(savedPR) => {
+            const exists = prs.some((p) => p?.id === savedPR?.id || p?.prNumber === savedPR?.prNumber);
+            if (exists) {
+              handleUpdatePR(savedPR);
+            } else {
+              handleCreatePR(savedPR);
+            }
+          }}
+          showToast={showToast}
+        />
+      );
+    }
+
+    case 'rfqList':
+    case 'rfqs':
+    case 'requestForQuotation':
+      return (
+        <RfqManagementView
+          rfqs={rfqs}
+          suppliers={suppliers}
+          onNavigate={onNavigate}
+          onUpdateRFQ={handleUpdateRFQ}
+          openDrawer={openDrawer}
+          closeDrawer={closeDrawer}
+          showToast={showToast}
+        />
+      );
+
+    case 'rfqCompare':
+    case 'rfqComparison':
+    case 'quotationComparison':
+      return (
+        <SupplierQuotationComparisonView
+          rfqNumber={activeParam?.rfqNumber || rfqs[0]?.rfqNumber || 'RFQ-2026-018'}
+          rfqs={rfqs}
+          onNavigate={onNavigate}
+          onCreatePO={handleCreatePO}
+          showToast={showToast}
+        />
+      );
+
+    case 'poCreate':
+    case 'newPO':
+    case 'poList':
+    case 'pos':
+    case 'purchaseOrders':
+      return (
+        <PurchaseOrderListView
+          pos={pos}
+          suppliers={suppliers}
+          items={items}
+          prs={prs}
+          activeParam={activeParam || (activeView === 'poCreate' || activeView === 'newPO' ? { openCreateModal: true } : undefined)}
+          onNavigate={onNavigate}
+          onUpdatePO={handleUpdatePO}
+          onCreatePO={handleCreatePO}
+          onUpdatePR={handleUpdatePR}
+          openDrawer={openDrawer}
+          closeDrawer={closeDrawer}
+          showToast={showToast}
+        />
+      );
+
+    case 'poDetail':
+    case 'purchaseOrderDetail':
+      return (
+        <PurchaseOrderDetailView
+          poId={activeParam?.id || activeParam?.poNumber || (typeof activeParam === 'string' ? activeParam : undefined) || pos[0]?.id || 'PO-2026-001'}
+          pos={pos}
+          grns={grns}
+          invoices={invoices}
+          onNavigate={onNavigate}
+          onUpdatePO={handleUpdatePO}
+          showToast={showToast}
+        />
+      );
+
+    case 'poPrint':
+    case 'purchaseOrderPrint':
+      return (
+        <PurchaseOrderPrintView
+          poId={activeParam?.id || activeParam?.poNumber || (typeof activeParam === 'string' ? activeParam : undefined) || pos[0]?.id || 'PO-2026-001'}
+          pos={pos}
+          onNavigate={onNavigate}
+        />
+      );
+
+    case 'poApprovals':
+    case 'procApprovals':
+    case 'procApprovalQueue':
+    case 'approvalWorkflow':
+    case 'approvals':
+      return (
+        <PurchaseApprovalWorkflowView
+          prs={prs}
+          pos={pos}
+          suppliers={suppliers}
+          onNavigate={onNavigate}
+          onUpdatePR={handleUpdatePR}
+          onUpdatePO={handleUpdatePO}
+          showToast={showToast}
+        />
+      );
+
+    case 'grnList':
+    case 'grns':
+    case 'goodsReceipt':
+    case 'goodsReceiptNote':
+      return (
+        <GoodsReceiptNoteView
+          grns={grns}
+          pos={pos}
+          items={items}
+          onNavigate={onNavigate}
+          onUpdateGRN={handleUpdateGRN}
+          onUpdatePO={handleUpdatePO}
+          onUpdateItem={handleUpdateItem}
+          openDrawer={openDrawer}
+          closeDrawer={closeDrawer}
+          showToast={showToast}
+        />
+      );
+
+    case 'supplierInvoices':
+    case 'invoiceMatching':
+    case 'supplierInvoiceList':
+    case 'supplierInvoiceMatch':
+    case 'invoices':
+      return (
+        <SupplierInvoiceManagementView
+          invoices={invoices}
+          pos={pos}
+          onNavigate={onNavigate}
+          onUpdateInvoice={handleUpdateInvoice}
+          showToast={showToast}
+        />
+      );
+
+    case 'invoiceOcr':
+    case 'invoiceOcrVerification':
+    case 'ocrInvoiceMatcher':
+    case 'threeWayMatch':
+      return (
+        <InvoiceOcrVerificationWorkspace
+          initialInvoiceId={activeParam?.id || activeParam?.invoiceId}
+          onNavigate={onNavigate}
+          showToast={showToast}
+        />
+      );
+
+    case 'procurementMrp':
+    case 'procMrp':
+    case 'mrpSuggestions':
+    case 'mrpPlanning':
+      return (
+        <ProcurementPlanningMrpView
+          mrpSuggestions={mrpSuggestions}
+          onNavigate={onNavigate}
+          showToast={showToast}
+        />
+      );
+
+    case 'supplierScorecard':
+    case 'supplierScorecards':
+    case 'vendorScorecard':
+      return (
+        <SupplierPerformanceScorecardView
+          suppliers={suppliers}
+          onNavigate={onNavigate}
+          showToast={showToast}
+        />
+      );
+
+    case 'supplierContracts':
+    case 'contracts':
+    case 'blanketOrders':
+      return (
+        <SupplierContractManagementView
+          contracts={contracts}
+          onNavigate={onNavigate}
+          showToast={showToast}
+        />
+      );
+
+    case 'supplierPriceList':
+    case 'supplierPriceLists':
+    case 'priceLists':
+    case 'priceIndex':
+      return (
+        <SupplierPriceListView
+          priceLists={priceLists}
+          suppliers={suppliers}
+          items={items}
+          onNavigate={onNavigate}
+          onUpdatePriceList={handleUpdatePriceList}
+          onCreatePriceList={handleCreatePriceList}
+          showToast={showToast}
+        />
+      );
+
+    case 'purchaseReturns':
+    case 'debitNotes':
+    case 'returns':
+      return (
+        <PurchaseReturnsView
+          returns={returns}
+          suppliers={suppliers}
+          pos={pos}
+          grns={grns}
+          onNavigate={onNavigate}
+          onUpdateReturn={handleUpdateReturn}
+          onCreateReturn={handleCreateReturn}
+          showToast={showToast}
+        />
+      );
+
+    case 'supplierRisk':
+    case 'supplierRiskCompliance':
+    case 'procRiskCompliance':
+    case 'vendorRisk':
+      return (
+        <SupplierRiskComplianceView
+          suppliers={suppliers}
+          onNavigate={onNavigate}
+          showToast={showToast}
+        />
+      );
+
+    case 'procurementReports':
+    case 'procReports':
+    case 'procAnalytics':
+    case 'spendReports':
+      return (
+        <ProcurementReportsAnalyticsView
+          pos={pos}
+          suppliers={suppliers}
+          showToast={showToast}
+        />
+      );
+
+    case 'procurementSettings':
+    case 'procSettings':
+    case 'procurementConfig':
+      return <ProcurementSettingsView showToast={showToast} />;
+
+    case 'procurement':
+    case 'procurementDash':
+    case 'procDashboard':
+    case 'procurementDashboard':
+    case 'procurementHub':
+    case 'procHub':
+    default:
+      return (
+        <ProcurementDashboardView
+          suppliers={suppliers}
+          prs={prs}
+          rfqs={rfqs}
+          pos={pos}
+          grns={grns}
+          invoices={invoices}
+          mrpSuggestions={mrpSuggestions}
+          risks={risks}
+          onNavigate={onNavigate}
+          openDrawer={openDrawer}
+          closeDrawer={closeDrawer}
+          showToast={showToast}
+        />
+      );
+  }
+};
