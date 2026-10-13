@@ -189,4 +189,20 @@ export const queryKeys = {
     workspaceRbac: () => [...queryKeys.admin.all, 'workspaceRbac'] as const,
     notificationTemplates: () => [...queryKeys.admin.all, 'notificationTemplates'] as const,
   },
+
+  // 17. Maintenance & MEP
+  maintenance: {
+    all: ['maintenance'] as const,
+    workOrders: (filter?: any) => [...queryKeys.maintenance.all, 'workOrders', { filter }] as const,
+    equipment: (filter?: any) => [...queryKeys.maintenance.all, 'equipment', { filter }] as const,
+    telemetry: () => [...queryKeys.maintenance.all, 'telemetry'] as const,
+    molds: () => [...queryKeys.maintenance.all, 'molds'] as const,
+  },
+  mep: {
+    all: ['mep'] as const,
+    workOrders: () => ['mep', 'work-orders'] as const,
+    molds: () => ['mep', 'molds'] as const,
+    telemetry: () => ['mep', 'telemetry'] as const,
+  },
 };
+

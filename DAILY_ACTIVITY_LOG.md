@@ -198,3 +198,16 @@
   - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (919 files cruised).
   - Clean commit: `refactor(finance): move into modules/finance`.
 
+### 11. Modular Monolith: Maintenance Module Migration (mep & Facilities)
+- **Maintenance Module Extraction**: Migrated MEP Operations Dashboard, Mechanical Utilities (Chillers, Compressors, Cooling Towers), Electrical Systems (HT/LT panels, Transformers, DG sets, Busduct), Plumbing & Water (Water Treatment, RO, ETP, STP), HVAC & Cleanroom Zones (ISO Class 7/8 AHUs), and Maintenance Work Orders (MWOs) into `apps/web/src/modules/maintenance/`.
+- **Contracts**: Established strict Zod schemas in `packages/contracts/maintenance.ts` (`MaintenanceWorkOrderSchema`, `CreateMaintenanceWorkOrderInputSchema`, `UpdateMaintenanceWorkOrderInputSchema`, `EquipmentAssetSchema`, `MeterReadingSchema`, `MepAlarmSchema`).
+- **Backend API Modular Slice**: Created `apps/api/src/modules/maintenance/` (`events.ts`, `ports.ts`, `schema.ts`, `repo.ts`, `service.ts`, `router.ts`, `index.ts`).
+- **Verification**:
+  - `vitest run apps/web/src/modules/maintenance/__tests__/maintenance.spec.ts` — 6/6 tests passed (100% green).
+  - All module tests (58/58 tests across 11 modules) passed.
+  - `npm run test:unit` (`vitest run tests/characterization`) — 5/5 passed.
+  - `npm run check:boundaries` (`depcruise src --config .dependency-cruiser.cjs`) — 0 violations found (995 modules cruised).
+  - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (932 files cruised).
+  - Clean commit: `refactor(maintenance): move into modules/maintenance`.
+
+

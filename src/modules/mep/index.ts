@@ -3,7 +3,26 @@
 // Modular Monolithic Architecture — Reboot ERP
 // ============================================================================
 
-export { MepViews } from '../../components/MepViews';
+export {
+  MaintenanceViews,
+  MepViews,
+  useMaintenance,
+  useMaintenanceWorkOrders,
+  useSaveMaintenanceWorkOrder,
+  useEquipmentAssets,
+  useMepWorkOrders,
+  useSaveMepWorkOrder,
+  useMolds,
+  maintenanceApi,
+  maintenanceRoutes,
+  MepOperationsDash,
+  MepMechanicalView,
+  MepElectricalView,
+  MepPlumbingWaterView,
+  MepHvacCleanroomView,
+  MepWorkOrdersView,
+} from '../../../apps/web/src/modules/maintenance';
+
 export {
   INITIAL_MEP_EQUIPMENT,
   INITIAL_MEP_ALARMS,
