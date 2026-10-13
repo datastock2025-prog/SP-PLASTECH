@@ -234,6 +234,19 @@
   - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (973 files cruised).
   - Clean commit: `refactor(crm): move into modules/crm`.
 
+### 14. Modular Monolith: Analytics Module Migration (incl. AI & Document Intelligence)
+- **Analytics Module Extraction**: Migrated Executive KPI Dashboards, Plant OEE & Loss Pareto Analysis, Quality & Defect PPM Metrics, Inventory Aging & SLOB Analytics, SCM OTIF Performance, ESG Carbon & Sustainability Metrics, Maintenance MTBF & MTTR Dashboards, Custom Document Builder, AI Query Assistant Modal & Renderer, Fixed Bottom Chat Assistant, and Domain RBAC Controls into `apps/web/src/modules/analytics/`.
+- **Contracts**: Established strict Zod schemas in `packages/contracts/analytics.ts` (`ExecutiveKpiSchema`, `CreateExecutiveKpiInputSchema`, `UpdateExecutiveKpiInputSchema`, `OeeRecordSchema`, `SavedReportSchema`, `ChatMessageSchema`).
+- **Backend API Modular Slice**: Created `apps/api/src/modules/analytics/` (`events.ts`, `ports.ts`, `schema.ts`, `repo.ts`, `service.ts`, `router.ts`, `index.ts`).
+- **Verification**:
+  - `vitest run apps/web/src/modules/analytics/__tests__/analytics.spec.ts` — 6/6 tests passed (100% green).
+  - All module tests (76/76 tests across 14 modules) passed.
+  - `npm run test:unit` (`vitest run tests/characterization`) — 5/5 passed.
+  - `npm run check:boundaries` (`depcruise src --config .dependency-cruiser.cjs`) — 0 violations found (1062 modules cruised).
+  - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (995 files cruised).
+  - Clean commit: `refactor(analytics): move into modules/analytics`.
+
+
 
 
 
