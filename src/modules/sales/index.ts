@@ -3,13 +3,26 @@
 // Modular Monolithic Architecture — Reboot ERP
 // ============================================================================
 
-export { SalesViews } from '../../components/SalesViews';
+export {
+  SalesViews,
+  useSales,
+  useSalesOrders,
+  useSaveSalesOrder,
+  useQuotations,
+  useSaveQuotation,
+  useSalesRmas,
+  useSaveSalesRma,
+  salesApi,
+  salesRoutes,
+} from '../../../apps/web/src/modules/sales';
+
 export {
   initialSalesOrders,
   initialCustomers,
   initialQuotations,
   INITIAL_RMAS,
 } from '../../data/initialData';
+
 export {
   SALES_CUSTOMERS,
   SALES_CONTRACTS_SEED,
@@ -32,4 +45,3 @@ export type {
 } from '../../types';
 
 export * from '../../services/nic';
-

@@ -136,3 +136,16 @@
   - `npm run check:boundaries` (`depcruise src --config .dependency-cruiser.cjs`) — 0 violations found.
   - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found.
   - Clean commit: `refactor(warehouse): move into modules/warehouse`.
+
+### 6. Modular Monolith: Sales Module Migration (incl. Dispatch & Compliance)
+- **Sales Module Extraction**: Migrated Sales Orders, Quotations, Customer Master, Pricing Matrix, Delivery Schedules, Credit Control, Billing Status, RMAs, Redesigned Sales Order Dashboard/Wizard/List, Delivery Challans, Gate Pass Verification, E-Way Bill Management, E-Invoice Management, and Compliance Exceptions into `apps/web/src/modules/sales/`.
+- **Contracts**: Established strict Zod schemas in `packages/contracts/sales.ts` (`SalesOrderSchema`, `SalesOrderLineSchema`, `CreateSalesOrderInputSchema`, `UpdateSalesOrderInputSchema`, `CustomerSchema`, `SalesQuotationSchema`, `DeliveryChallanSchema`).
+- **Backend API Modular Slice**: Created `apps/api/src/modules/sales/` (`events.ts`, `ports.ts`, `schema.ts`, `repo.ts`, `service.ts`, `router.ts`, `index.ts`).
+- **Leaks Register**: Created `docs/module-leaks.md` tracking cross-module data import in `SalesOrderWizard.tsx` (`INITIAL_MOLDS` from `data/manufacturingData`) to be retired during manufacturing prompt.
+- **Verification**:
+  - `vitest run apps/web/src/modules/sales/__tests__/sales.spec.ts` — 6/6 tests passed (100% green).
+  - All module tests (28/28 tests across identity, masterdata, engineering, procurement, warehouse, sales) passed.
+  - `npm run test:unit` (`vitest run tests/characterization`) — 5/5 passed.
+  - `npm run check:boundaries` (`depcruise src --config .dependency-cruiser.cjs`) — 0 violations found (848 modules cruised).
+  - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (790 files cruised).
+  - Clean commit: `refactor(sales): move into modules/sales`.
