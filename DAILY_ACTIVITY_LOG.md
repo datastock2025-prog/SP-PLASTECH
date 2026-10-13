@@ -173,3 +173,15 @@
   - `npm run check:boundaries` (`depcruise src --config .dependency-cruiser.cjs`) — 0 violations found (917 modules cruised).
   - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (857 files cruised).
   - Clean commit: `refactor(quality): move into modules/quality`.
+
+### 9. Modular Monolith: Planning Module Migration (SCM & Advanced Planning)
+- **Planning Module Extraction**: Migrated SCM Control Tower, Demand Planning, Sales Forecast, S&OP Scenarios, Inventory Planning, MRP Runs, Replenishment, Supplier Collaboration, Inbound/Outbound Logistics, Freight & Transport, Track & Trace, Supplier Risk, Inventory Aging, Order Timelines, Exceptions, Sustainability, Reports, and RBAC into `apps/web/src/modules/planning/`.
+- **Contracts**: Established strict Zod schemas in `packages/contracts/planning.ts` (`PlannedOrderSchema`, `CreatePlannedOrderInputSchema`, `UpdatePlannedOrderInputSchema`, `MrpRunSchema`, `JitScheduleSchema`, `ShipmentTrackingSchema`).
+- **Backend API Modular Slice**: Created `apps/api/src/modules/planning/` (`events.ts`, `ports.ts`, `schema.ts`, `repo.ts`, `service.ts`, `router.ts`, `index.ts`).
+- **Verification**:
+  - `vitest run apps/web/src/modules/planning/__tests__/planning.spec.ts` — 6/6 tests passed (100% green).
+  - All module tests (46/46 tests across identity, masterdata, engineering, procurement, warehouse, sales, manufacturing, quality, planning) passed.
+  - `npm run test:unit` (`vitest run tests/characterization`) — 5/5 passed.
+  - `npm run check:boundaries` (`depcruise src --config .dependency-cruiser.cjs`) — 0 violations found (945 modules cruised).
+  - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (884 files cruised).
+  - Clean commit: `refactor(planning): move into modules/planning`.

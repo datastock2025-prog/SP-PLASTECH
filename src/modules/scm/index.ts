@@ -3,7 +3,38 @@
 // Modular Monolithic Architecture — Reboot ERP
 // ============================================================================
 
-export { ScmViews } from '../../components/scm/ScmViews';
+export {
+  ScmViews,
+  PlanningViews,
+  usePlanning,
+  useScm,
+  usePlannedOrders,
+  useMrpRuns,
+  useShipments,
+  planningApi,
+  planningRoutes,
+  ScmControlTowerView,
+  ScmDemandPlanningView,
+  ScmSalesForecastView,
+  ScmSopView,
+  ScmInventoryPlanningView,
+  ScmMrpView,
+  ScmReplenishmentView,
+  ScmSupplierCollaborationView,
+  ScmInboundLogisticsView,
+  ScmOutboundLogisticsView,
+  ScmFreightTransportView,
+  ScmTrackTraceView,
+  ScmSupplierRiskView,
+  ScmInventoryAgingView,
+  ScmOrderTimelineView,
+  ScmExceptionsView,
+  ScmSustainabilityView,
+  ScmReportsView,
+  ScmSettingsView,
+  ScmRbacView,
+} from '../../../apps/web/src/modules/planning';
+
 export {
   mockScmKPIs,
   mockSupplyChainFlowNodes,
