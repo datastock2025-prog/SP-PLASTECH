@@ -161,3 +161,15 @@
   - `npm run check:boundaries` (`depcruise src --config .dependency-cruiser.cjs`) — 0 violations found (899 modules cruised).
   - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (840 files cruised).
   - Clean commit: `refactor(manufacturing): move into modules/manufacturing`.
+
+### 8. Modular Monolith: Quality Module Migration
+- **Quality Module Extraction**: Migrated Quality Dashboard, Inspection Plans, Incoming Inspection, Final Inspection, SPC Monitor, NCR Management, CAPA 8D Resolution, Certificate of Analysis (COA), Calibration Equipment, Document Control, and WIP Store QC Inspection into `apps/web/src/modules/quality/`.
+- **Contracts**: Established strict Zod schemas in `packages/contracts/quality.ts` (`NcrSchema`, `CreateNcrInputSchema`, `UpdateNcrInputSchema`, `CapaSchema`, `CertificateOfAnalysisSchema`, `InspectionPlanSchema`).
+- **Backend API Modular Slice**: Created `apps/api/src/modules/quality/` (`events.ts`, `ports.ts`, `schema.ts`, `repo.ts`, `service.ts`, `router.ts`, `index.ts`).
+- **Verification**:
+  - `vitest run apps/web/src/modules/quality/__tests__/quality.spec.ts` — 6/6 tests passed (100% green).
+  - All module tests (40/40 tests across identity, masterdata, engineering, procurement, warehouse, sales, manufacturing, quality) passed.
+  - `npm run test:unit` (`vitest run tests/characterization`) — 5/5 passed.
+  - `npm run check:boundaries` (`depcruise src --config .dependency-cruiser.cjs`) — 0 violations found (917 modules cruised).
+  - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (857 files cruised).
+  - Clean commit: `refactor(quality): move into modules/quality`.

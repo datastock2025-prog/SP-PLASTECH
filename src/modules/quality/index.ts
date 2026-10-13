@@ -3,7 +3,31 @@
 // Modular Monolithic Architecture — Reboot ERP
 // ============================================================================
 
-export { QualityViews } from '../../components/QualityViews';
+export {
+  QualityViews,
+  useQuality,
+  useNcrs,
+  useSaveNcr,
+  useCapas,
+  useSaveCapa,
+  useCoas,
+  useSaveCoa,
+  useInspectionPlans,
+  qualityApi,
+  qualityRoutes,
+  QualityDashboardView,
+  InspectionPlansView,
+  IncomingInspectionView,
+  SpcMonitorView,
+  FinalInspectionView,
+  NcrManagementView,
+  CapaManagementView,
+  CoaManagementView,
+  CalibrationEquipmentView,
+  DocControlAuditView,
+  WipStoreQcInspectionView,
+} from '../../../apps/web/src/modules/quality';
+
 export {
   initialNcrs,
   initialCapas,
