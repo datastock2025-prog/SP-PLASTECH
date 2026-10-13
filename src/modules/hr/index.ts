@@ -3,7 +3,30 @@
 // Modular Monolithic Architecture — Reboot ERP
 // ============================================================================
 
-export { HrViews } from '../../components/HrViews';
+export {
+  HrViews,
+  useHr,
+  useEmployees,
+  useSaveEmployee,
+  useAttendance,
+  useShiftRosters,
+  hrApi,
+  hrRoutes,
+  HrAttendanceView,
+  HrCommandCenter,
+  HrComplianceContractView,
+  HrEmployeeDetailView,
+  HrEmployeeListView,
+  HrLeaveOvertimeView,
+  HrOnboardingOffboardingView,
+  HrOrgStructureView,
+  HrPayrollView,
+  HrReportsAnalyticsView,
+  HrSafetyPpeView,
+  HrShiftRosterView,
+  HrSkillsTrainingView,
+} from '../../../apps/web/src/modules/hr';
+
 export {
   INITIAL_HR_DEPARTMENTS,
   INITIAL_HR_DESIGNATIONS,

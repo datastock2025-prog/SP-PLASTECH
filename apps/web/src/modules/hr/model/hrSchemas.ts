@@ -1,0 +1,92 @@
+import { z } from 'zod';
+import {
+  HrEmployee,
+  HrDepartment,
+  HrAttendanceRecord,
+  HrShiftMaster,
+  HrShiftRosterCell,
+  HrLeaveRequest,
+  HrOvertimeRequest,
+  HrTrainingMaster,
+  HrSkillMatrixItem,
+  HrSafetyIncident,
+  HrPpeMasterItem,
+  HrPpeIssueRecord,
+  HrPayrollInputRow,
+  HrLaborAllocationLine,
+  HrComplianceDoc,
+  HrContractAgency,
+  HrAuditEntry,
+  HrDesignation,
+  HrTrainingProgram,
+  HrPpeInventoryItem,
+  HrEmployeeStatus,
+  HrEmployeeType,
+  HrAttendanceStatus,
+  HrSkillMatrixRecord,
+} from '@/src/types';
+
+export {
+  EmployeeSchema,
+  CreateEmployeeInputSchema,
+  UpdateEmployeeInputSchema,
+  AttendanceRecordSchema,
+  ShiftRosterSchema,
+  PayrollRunSchema,
+  SkillCertificationSchema,
+  EmployeeStatusEnum,
+  SkillLevelEnum,
+  AttendanceStatusEnum,
+} from '@/packages/contracts/hr';
+
+export type {
+  EmployeeContract,
+  CreateEmployeeContract,
+  UpdateEmployeeContract,
+  AttendanceRecordContract,
+  ShiftRosterContract,
+  PayrollRunContract,
+  SkillCertificationContract,
+} from '@/packages/contracts/hr';
+
+export const employeeFormSchema = z.object({
+  employeeCode: z.string().min(1, 'Employee code is required'),
+  fullName: z.string().min(1, 'Full name is required'),
+  department: z.string().min(1, 'Department is required'),
+  designation: z.string().min(1, 'Designation is required'),
+  role: z.string().default('Operator'),
+  shift: z.string().default('Shift A'),
+  status: z.enum(['Active', 'On Leave', 'Resigned', 'Suspended', 'Probation']).default('Active'),
+  email: z.string().email().optional().or(z.literal('')),
+  phone: z.string().optional(),
+  joiningDate: z.string().min(1, 'Joining date is required'),
+});
+
+export type EmployeeFormValues = z.infer<typeof employeeFormSchema>;
+
+export type {
+  HrEmployee,
+  HrDepartment,
+  HrAttendanceRecord,
+  HrShiftMaster,
+  HrShiftRosterCell,
+  HrLeaveRequest,
+  HrOvertimeRequest,
+  HrTrainingMaster,
+  HrSkillMatrixItem,
+  HrSafetyIncident,
+  HrPpeMasterItem,
+  HrPpeIssueRecord,
+  HrPayrollInputRow,
+  HrLaborAllocationLine,
+  HrComplianceDoc,
+  HrContractAgency,
+  HrAuditEntry,
+  HrDesignation,
+  HrTrainingProgram,
+  HrPpeInventoryItem,
+  HrEmployeeStatus,
+  HrEmployeeType,
+  HrAttendanceStatus,
+  HrSkillMatrixRecord,
+};

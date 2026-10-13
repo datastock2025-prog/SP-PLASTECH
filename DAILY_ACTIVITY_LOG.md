@@ -210,4 +210,17 @@
   - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (932 files cruised).
   - Clean commit: `refactor(maintenance): move into modules/maintenance`.
 
+### 12. Modular Monolith: HR Module Migration
+- **HR Module Extraction**: Migrated HR Command Center, Org Structure, Employee Directory & Profiles, Employee Onboarding/Offboarding, Attendance Logging, Shift Rostering & Rotation, Leave & Overtime Requests, Skills Matrix & Training Programs, Safety Incidents & PPE Inventory, Payroll Input Sheets, Compliance & Contract Agencies, and HR Analytics into `apps/web/src/modules/hr/`.
+- **Contracts**: Established strict Zod schemas in `packages/contracts/hr.ts` (`EmployeeSchema`, `CreateEmployeeInputSchema`, `UpdateEmployeeInputSchema`, `AttendanceRecordSchema`, `ShiftRosterSchema`, `PayrollRunSchema`, `SkillCertificationSchema`).
+- **Backend API Modular Slice**: Created `apps/api/src/modules/hr/` (`events.ts`, `ports.ts`, `schema.ts`, `repo.ts`, `service.ts`, `router.ts`, `index.ts`).
+- **Verification**:
+  - `vitest run apps/web/src/modules/hr/__tests__/hr.spec.ts` — 6/6 tests passed (100% green).
+  - All module tests (64/64 tests across 12 modules) passed.
+  - `npm run test:unit` (`vitest run tests/characterization`) — 5/5 passed.
+  - `npm run check:boundaries` (`depcruise src --config .dependency-cruiser.cjs`) — 0 violations found (1015 modules cruised).
+  - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (951 files cruised).
+  - Clean commit: `refactor(hr): move into modules/hr`.
+
+
 
