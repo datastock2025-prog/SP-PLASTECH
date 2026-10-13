@@ -19,6 +19,7 @@ export * as ScmModule from './scm';
 export * as CrmModule from './crm';
 export * as AdminModule from './admin';
 export * as AnalyticsModule from './analytics';
+export * as IntegrationsModule from './integrations';
 export * as ArchitectureModule from './architecture';
 
 // Direct Feature Facades for Ergonomic Routing
@@ -38,5 +39,7 @@ export { ScmViews } from './scm';
 export { CrmViews } from './crm';
 export { AdminViews } from './admin';
 export { AnalyticsViews } from './analytics';
+export { IntegrationsViews } from './integrations';
 export { ReactArchitectureGuide } from './architecture';
+
 

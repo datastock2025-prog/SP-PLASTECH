@@ -246,7 +246,15 @@
   - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (995 files cruised).
   - Clean commit: `refactor(analytics): move into modules/analytics`.
 
-
-
-
+### 15. Modular Monolith: Integrations Module Migration (Webhooks, API Tokens & External Services)
+- **Integrations Module Extraction**: Migrated Government NIC E-Way Bill & E-Invoice connectors, Real-time Webhook Dispatchers, API Token Management, Integration Event Audit Logs, and External Connector Configuration into `apps/web/src/modules/integrations/`.
+- **Contracts**: Established strict Zod schemas in `packages/contracts/integrations.ts` (`WebhookEndpointSchema`, `CreateWebhookEndpointInputSchema`, `UpdateWebhookEndpointInputSchema`, `ApiTokenSchema`, `IntegrationLogSchema`, `IntegrationConnectorSchema`).
+- **Backend API Modular Slice**: Created `apps/api/src/modules/integrations/` (`events.ts`, `ports.ts`, `schema.ts`, `repo.ts`, `service.ts`, `router.ts`, `index.ts`).
+- **Verification**:
+  - `vitest run apps/web/src/modules/integrations/__tests__/integrations.spec.ts` — 6/6 tests passed (100% green).
+  - All module tests (82/82 tests across 15 modules) passed.
+  - `npm run test:unit` (`vitest run tests/characterization`) — 5/5 passed.
+  - `npm run check:boundaries` (`depcruise src --config .dependency-cruiser.cjs`) — 0 violations found (1072 modules cruised).
+  - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (1004 files cruised).
+  - Clean commit: `refactor(integrations): move into modules/integrations`.
 

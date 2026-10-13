@@ -214,6 +214,15 @@ export const queryKeys = {
     contacts: () => [...queryKeys.crm.all, 'contacts'] as const,
     activities: () => [...queryKeys.crm.all, 'activities'] as const,
   },
+
+  // 19. Integrations & Gateways
+  integrations: {
+    all: ['integrations'] as const,
+    connectors: () => [...queryKeys.integrations.all, 'connectors'] as const,
+    webhooks: () => [...queryKeys.integrations.all, 'webhooks'] as const,
+    logs: (filter?: any) => [...queryKeys.integrations.all, 'logs', { filter }] as const,
+  },
 };
+
 
 
