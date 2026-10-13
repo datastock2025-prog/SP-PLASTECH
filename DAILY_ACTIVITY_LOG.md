@@ -185,3 +185,16 @@
   - `npm run check:boundaries` (`depcruise src --config .dependency-cruiser.cjs`) — 0 violations found (945 modules cruised).
   - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (884 files cruised).
   - Clean commit: `refactor(planning): move into modules/planning`.
+
+### 10. Modular Monolith: Finance Module Migration (incl. Ledger)
+- **Finance Module Extraction**: Migrated Chart of Accounts, General Ledger, Unified Ledger Workspace, Journal Entries, Accounts Payable, Accounts Receivable, Cost Center Accounting, Fixed Assets, Bank Reconciliation, and Financial Reports into `apps/web/src/modules/finance/`.
+- **Contracts**: Established strict Zod schemas in `packages/contracts/finance.ts` (`AccountSchema`, `CreateAccountInputSchema`, `UpdateAccountInputSchema`, `JournalEntrySchema`, `CreateJournalEntryInputSchema`, `CostCenterSchema`, `FixedAssetSchema`).
+- **Backend API Modular Slice**: Created `apps/api/src/modules/finance/` (`events.ts`, `ports.ts`, `schema.ts`, `repo.ts`, `service.ts`, `router.ts`, `index.ts`).
+- **Verification**:
+  - `vitest run apps/web/src/modules/finance/__tests__/finance.spec.ts` — 6/6 tests passed (100% green).
+  - All module tests (52/52 tests across 10 modules) passed.
+  - `npm run test:unit` (`vitest run tests/characterization`) — 5/5 passed.
+  - `npm run check:boundaries` (`depcruise src --config .dependency-cruiser.cjs`) — 0 violations found (981 modules cruised).
+  - `npm run check:circular` (`madge --circular src`) — 0 circular dependencies found (919 files cruised).
+  - Clean commit: `refactor(finance): move into modules/finance`.
+

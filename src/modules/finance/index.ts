@@ -3,7 +3,29 @@
 // Modular Monolithic Architecture — Reboot ERP
 // ============================================================================
 
-export { FinanceViews } from '../../components/FinanceViews';
+export {
+  FinanceViews,
+  useFinance,
+  useAccounts,
+  useSaveAccount,
+  useJournalEntries,
+  useSaveJournalEntry,
+  financeApi,
+  financeRoutes,
+  FinanceDashboardView,
+  ChartOfAccountsView,
+  JournalEntriesView,
+  AccountsPayableDashView,
+  AccountsReceivableDashView,
+  CustomerInvoicesView,
+  CostCentersView,
+  ProductCostingView,
+  ProductionVarianceView,
+  PeriodCloseView,
+  FixedAssetsView,
+  UnifiedLedgerWorkspace,
+} from '../../../apps/web/src/modules/finance';
+
 export {
   initialAccounts,
   initialJournalEntries,
