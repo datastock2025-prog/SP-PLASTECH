@@ -737,21 +737,19 @@ table {
 thead th {
   text-align: left;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .05em;
-  color: #374151;
-  padding: 11px 14px;
-  border-bottom: 2px solid #DDD6C6;
-  background: linear-gradient(180deg, #F8F6F0 0%, #EDEAE1 100%);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
-  text-shadow: 0 1px 0 #FFFFFF;
+  color: #64748B;
+  padding: 10px 14px;
+  border-bottom: 1px solid #E2E8F0;
+  background: #F8FAFC;
   white-space: nowrap;
 }
 
 tbody td {
   padding: 11px 14px;
-  border-bottom: 1px solid #EAE5D8;
+  border-bottom: 1px solid #F1F5F9;
   color: var(--text);
   vertical-align: middle;
   background: inherit;
@@ -760,16 +758,15 @@ tbody td {
 tbody tr {
   cursor: pointer;
   background: #FFFFFF;
-  transition: all 0.12s ease-in-out;
+  transition: background-color 0.12s ease-in-out;
 }
 
 tbody tr:nth-child(even) {
-  background: #FAF9F6;
+  background: #FFFFFF;
 }
 
 tbody tr:hover {
-  background: #F0F6FF !important;
-  box-shadow: 0 1px 3px rgba(20, 33, 61, 0.05);
+  background: #F8FAFC !important;
 }
 
 tbody tr:last-child td {
