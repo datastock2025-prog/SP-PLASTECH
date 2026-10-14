@@ -108,7 +108,7 @@
 
 ## 6. MODULE GENERATOR & ENTERPRISE ARCHITECTURE DECISIONS (D1–D7)
 
-- **D1 One API**: `auth-server/` (Hono + Better Auth + pg) is the only backend the browser calls. `backend/` (NestJS/Prisma) and `middleware/` are frozen.
+- **D1 One API**: `auth-server/` (Hono + Better Auth + pg) is the only backend the browser calls. Legacy `backend/` (NestJS/Prisma) and `middleware/` have been permanently removed.
 - **D2 Browser Never Talks to Supabase**: No direct Supabase client in migrated modules; Supabase acts solely as Postgres host.
 - **D3 Business Table Schema**: Primary keys `uuid id (gen_random_uuid())`, `tenant_id uuid NOT NULL`, `plant_id uuid` where plant-scoped, `version int`, `created_at`, `updated_at`, `deleted_at`, `created_by`, `updated_by`. RLS enabled with tenant policy. Real child tables with FKs, not JSONB.
 - **D4 Transactional OCC Writes**: Strict Zod inputs, OCC (`WHERE version = $n`, else 409 `CONCURRENCY_CONFLICT`), interactive `withTx`, and synchronous `audit_logs` record. All queries require `can(action, Subject)`.
@@ -132,8 +132,8 @@
   - `npm run check:licenses`: Production allow-list (`MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;BlueOak-1.0.0;Python-2.0;CC0-1.0;Unlicense;OFL-1.1;CC-BY-4.0;MPL-2.0`). Verified passing (exit code 0).
   - `npm run check:licenses:dev`: DevDependencies allow-list with `MPL-2.0`, `CC-BY-3.0`, and `Zlib`. Verified passing (exit code 0).
 - **Verification Gates**:
-  - Unit tests: 88/88 passed across 16 module suites.
-  - Characterization tests: 5/5 passed.
+  - Unit & Characterization tests: 93/93 passed across 21 test suites.
+  - Type checking: `npm run lint` (`tsc --noEmit`) passes with 0 errors.
   - Production build: `npm run build` (`vite build`) compiles cleanly (exit code 0).
 
 
