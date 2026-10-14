@@ -8,7 +8,7 @@ import {
   ScmKpiItem,
   MaintenanceMetricItem,
   InventoryAgingItem,
-  EsgSustainabilityItem,
+  EsgMetricItem,
   ChatMessageItem,
 } from '@/src/types/analyticsTypes';
 
@@ -43,6 +43,6 @@ export type {
   ScmKpiItem,
   MaintenanceMetricItem,
   InventoryAgingItem,
-  EsgSustainabilityItem,
+  EsgMetricItem,
   ChatMessageItem,
 };

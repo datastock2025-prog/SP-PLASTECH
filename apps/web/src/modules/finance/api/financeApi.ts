@@ -14,16 +14,19 @@ export const financeApi = {
 
   createAccount: async (acc: Partial<Account>): Promise<Account> => {
     const newAcc: Account = {
-      id: acc.id || `ACC-${Date.now().toString().slice(-4)}`,
-      code: acc.code || '1000',
+      code: acc.code || `ACC-${Date.now().toString().slice(-4)}`,
       name: acc.name || 'New General Account',
       type: acc.type || 'Asset',
-      category: acc.category || 'Current Assets',
+      sub: acc.sub || 'Current Assets',
+      parent: acc.parent || null,
       balance: acc.balance || 0,
       currency: acc.currency || 'INR',
+      tax: acc.tax ?? false,
+      cc: acc.cc ?? false,
+      status: acc.status || 'active',
     };
     try {
-      await db.upsert('accounts', newAcc, 'id');
+      await db.upsert('accounts', newAcc, 'code');
     } catch {}
     return newAcc;
   },
@@ -40,13 +43,16 @@ export const financeApi = {
     const newJE: JournalEntry = {
       id: `JE-${Date.now().toString().slice(-4)}`,
       date: data.date,
-      description: data.description,
+      ref: 'Manual Journal Entry',
+      memo: data.description,
+      currency: 'INR',
+      status: 'posted',
+      createdBy: 'Finance Admin',
+      approvedBy: 'Finance Controller',
       lines: [
-        { account: data.debitAccount, debit: data.amount, credit: 0 },
-        { account: data.creditAccount, debit: 0, credit: data.amount },
+        { account: data.debitAccount, desc: data.description, debit: data.amount, credit: 0, cc: 'CC-01', tax: 'GST-18' },
+        { account: data.creditAccount, desc: data.description, debit: 0, credit: data.amount, cc: 'CC-01', tax: 'GST-18' },
       ],
-      posted: true,
-      reference: 'Manual Journal Entry',
     };
     try {
       await db.upsert('journal_entries', newJE, 'id');

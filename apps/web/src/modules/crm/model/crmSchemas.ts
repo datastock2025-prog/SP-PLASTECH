@@ -26,6 +26,7 @@ import {
   QuotationStatus,
   SampleApprovalStatus,
 } from '@/src/types/crm';
+export type { SalesOrder } from '@/src/types';
 
 export {
   LeadSchema,

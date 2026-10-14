@@ -18,7 +18,7 @@ export function useOeeStream(plantId?: string) {
     queryKey: queryKeys.analytics.oeeStream(plantId),
     queryFn: async () => {
       try {
-        const records = await analyticsApi.getOeeRecords({ plantId });
+        const records = await analyticsApi.getOeeMetrics({ plantId });
         if (Array.isArray(records) && records.length > 0) {
           return records.map((r: any) => ({
             machineId: r.machineId,

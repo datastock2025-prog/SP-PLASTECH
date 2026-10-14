@@ -37,15 +37,9 @@ export const qualityApi = {
         action: null,
         qty: null,
         approvedBy: null,
-        date: null,
-        notes: '',
       },
-      correctiveAction: {
-        type: 'Standard Containment',
-        assignedTo: data.reportedBy,
-        dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-        status: 'open',
-      },
+      capaId: null,
+      history: [{ event: 'Created NCR', time: new Date().toISOString() }],
     };
 
     try {
