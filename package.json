@@ -14,6 +14,7 @@
     "dev:middleware": "npm --prefix middleware run dev",
     "build": "npm --prefix frontend run build",
     "preview": "npm --prefix frontend run preview",
+    "preview:cloudflare": "npm --prefix frontend run build && npm --prefix middleware run preview:cloudflare",
     "seed:supabase": "node scripts/seedSupabaseLive.cjs",
     "clean": "rm -rf dist server.js frontend/dist",
     "lint": "npm --prefix frontend run lint",
