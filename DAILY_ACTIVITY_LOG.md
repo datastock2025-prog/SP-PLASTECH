@@ -360,5 +360,42 @@
 - Monorepo Module Tests: 16/16 test suites passed (88/88 tests).
 - Clean Git staging on branch `chore/remove-backend-middleware`.
 
+---
+
+## 20. 2026-10-14 — REPOSITORY REORGANIZATION: FRONTEND MIGRATION & MIDDLEWARE UNIFICATION
+
+### 1. Architectural Reorganization
+- **Frontend Consolidation (`frontend/`)**:
+  - Migrated all frontend-related code into a unified `frontend/` directory:
+    - `src/` (Core application shell, layout, router, services, data fixtures, security).
+    - `apps/web/` (All 16 domain feature modules in their full modular monolithic structure).
+    - `packages/` (Domain contracts and logic).
+    - `components/` & `lib/` (UI design system primitives and utility libraries).
+    - `tests/` (Vitest characterization tests and golden regression snapshots).
+    - `index.html`, `vite.config.ts`, `components.json`, `tsconfig.json`, `package.json`.
+  - Preserved internal modular monolithic folder structure without altering domain business calculations or logic.
+- **Middleware Unification (`middleware/`)**:
+  - Renamed `auth-server/` to `middleware/`, establishing it as the single, authoritative API gateway and auth middleware service on port 4000.
+  - Updated `middleware/package.json` (`sp-plastech-middleware`) and server logging.
+  - Updated infrastructure orchestration in `compose.yaml` (contexts and volumes) and `playwright.config.ts`.
+- **Root Workspace & Script Delegation**:
+  - Root `package.json` updated with workspaces `["frontend", "middleware", "frontend/apps/*"]`.
+  - Configured top-level delegation scripts:
+    - `"dev"`: Runs Vite dev server in `frontend` on port 3000.
+    - `"dev:frontend"`: Starts frontend Vite server (`:3000`).
+    - `"dev:middleware"`: Starts middleware Hono server (`:4000`).
+    - `"build"`: Compiles production frontend bundle.
+    - `"lint"`: Typechecks frontend TypeScript codebase.
+    - `"test:unit"`: Executes 21 test suites across characterization and modules.
+
+### 2. Verification & Validation Gates
+- **Type Safety**: `npm run lint` (`tsc --noEmit`) verified 0 errors across all modules.
+- **Unit & Characterization Tests**: `npm run test:unit` verified all 21 test suites passed (93/93 tests green).
+- **Production Bundle**: `npm run build` compiled cleanly into `frontend/dist/` in 1m 1s.
+- **Active Runtime Services**:
+  - Middleware daemon running on `http://localhost:4000/` (`/api/auth/ok` -> 200 OK `{"ok":true}`).
+  - Frontend dev server running on `http://localhost:3000/` (serving React 19 app with reverse-proxy `/api` to `:4000`).
+- **Git Commit**: `refactor(repo): migrate frontend code into frontend/ and auth-server to middleware/`.
+
 
 
