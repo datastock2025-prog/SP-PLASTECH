@@ -10,34 +10,41 @@ import type {
 
 export const workspaceApi = {
   getTasks: async (status?: string): Promise<TaskContract[]> => {
-    return apiClient.get<TaskContract[]>('/api/v1/workspace/tasks', { params: { status } });
+    const res = await apiClient.get<TaskContract[]>('/api/v1/workspace/tasks', { params: { status } });
+    return res.data || [];
   },
 
   createTask: async (input: CreateTaskContract): Promise<TaskContract> => {
-    return apiClient.post<TaskContract>('/api/v1/workspace/tasks', input);
+    const res = await apiClient.post<TaskContract>('/api/v1/workspace/tasks', input);
+    return res.data;
   },
 
   updateTask: async (id: string, input: UpdateTaskContract): Promise<TaskContract> => {
-    return apiClient.patch<TaskContract>(`/api/v1/workspace/tasks/${id}`, input);
+    const res = await apiClient.patch<TaskContract>(`/api/v1/workspace/tasks/${id}`, input);
+    return res.data;
   },
 
   getApprovals: async (status?: string): Promise<ApprovalContract[]> => {
-    return apiClient.get<ApprovalContract[]>('/api/v1/workspace/approvals', { params: { status } });
+    const res = await apiClient.get<ApprovalContract[]>('/api/v1/workspace/approvals', { params: { status } });
+    return res.data || [];
   },
 
   decideApproval: async (id: string, decision: 'APPROVED' | 'REJECTED', comments?: string): Promise<ApprovalContract> => {
-    return apiClient.post<ApprovalContract>(`/api/v1/workspace/approvals/${id}/decision`, { decision, comments });
+    const res = await apiClient.post<ApprovalContract>(`/api/v1/workspace/approvals/${id}/decision`, { decision, comments });
+    return res.data;
   },
 
   getNotifications: async (): Promise<NotificationContract[]> => {
-    return apiClient.get<NotificationContract[]>('/api/v1/workspace/notifications');
+    const res = await apiClient.get<NotificationContract[]>('/api/v1/workspace/notifications');
+    return res.data || [];
   },
 
   markNotificationAsRead: async (id: string): Promise<void> => {
-    return apiClient.patch<void>(`/api/v1/workspace/notifications/${id}/read`, {});
+    await apiClient.patch<void>(`/api/v1/workspace/notifications/${id}/read`, {});
   },
 
   getSavedPresets: async (view?: string): Promise<SavedPresetContract[]> => {
-    return apiClient.get<SavedPresetContract[]>('/api/v1/workspace/presets', { params: { view } });
+    const res = await apiClient.get<SavedPresetContract[]>('/api/v1/workspace/presets', { params: { view } });
+    return res.data || [];
   },
 };

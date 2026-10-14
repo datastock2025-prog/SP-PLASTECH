@@ -14,17 +14,38 @@ export const qualityApi = {
   createNcr: async (data: NcrCreateFormValues): Promise<NonConformanceReport> => {
     const newNcr: NonConformanceReport = {
       id: `NCR-${Date.now().toString().slice(-4)}`,
-      title: data.title,
+      source: 'Production Floor',
       item: data.itemCode,
-      severity: data.severity as any,
-      type: data.defectType,
+      itemName: data.title,
+      ref: `WO-REF-${Date.now().toString().slice(-3)}`,
       lot: data.lotNumber,
-      by: data.reportedBy,
-      desc: data.description,
-      qtyAffected: data.quantityAffected,
+      qty: data.quantityAffected,
+      uom: 'PCS',
+      severity: data.severity as any,
+      category: data.defectType,
+      description: data.description,
+      containment: 'Segregated into quarantine area pending review.',
       status: 'open',
-      date: new Date().toISOString().split('T')[0],
-      history: [{ event: 'Created NCR', time: 'Just now' }],
+      discoveredBy: data.reportedBy,
+      discoveredDate: new Date().toISOString().split('T')[0],
+      rca: {
+        method: '5-Why',
+        whys: [],
+        rootCause: '',
+      },
+      disposition: {
+        action: null,
+        qty: null,
+        approvedBy: null,
+        date: null,
+        notes: '',
+      },
+      correctiveAction: {
+        type: 'Standard Containment',
+        assignedTo: data.reportedBy,
+        dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+        status: 'open',
+      },
     };
 
     try {

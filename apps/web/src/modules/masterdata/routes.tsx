@@ -22,6 +22,11 @@ export const masterDataRoutes: RouteObject[] = [
       onCreateBom: () => {},
       onUpdateMachine: () => {},
       onDeleteMachine: () => {},
+      onCreateMachine: () => {},
+      openDrawer: () => {},
+      closeDrawer: () => {},
+      openConfirm: () => {},
+      showToast: () => {},
     }),
   },
 ];

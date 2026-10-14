@@ -7,7 +7,7 @@ import {
   ApprovalStatus,
   ItemType,
   AuthUser,
-} from '../types';
+} from '@/src/types';
 import {
   Search,
   Plus,
