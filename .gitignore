@@ -33,9 +33,11 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Auth server local data/secrets
+# Middleware / auth server local data/secrets
 auth-server/.pgdata/
 auth-server/.dev-secret
+middleware/.pgdata/
+middleware/.dev-secret
 
 .wrangler/
 .wr-empty/
