@@ -4,17 +4,21 @@
   "version": "0.0.0",
   "type": "module",
   "workspaces": [
-    "apps/*"
+    "frontend",
+    "middleware",
+    "frontend/apps/*"
   ],
   "scripts": {
-    "dev": "vite --port=3000 --host=0.0.0.0",
-    "build": "vite build",
-    "preview": "vite preview",
+    "dev": "npm --prefix frontend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:middleware": "npm --prefix middleware run dev",
+    "build": "npm --prefix frontend run build",
+    "preview": "npm --prefix frontend run preview",
     "seed:supabase": "node scripts/seedSupabaseLive.cjs",
-    "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist server.js frontend/dist",
+    "lint": "npm --prefix frontend run lint",
     "dev:podman": "podman compose up --build",
-    "test:unit": "vitest run tests/characterization",
+    "test:unit": "npm --prefix frontend run test:unit",
     "check:boundaries": "depcruise src --config .dependency-cruiser.cjs",
     "check:circular": "node ./node_modules/madge/bin/cli.js --circular --extensions ts,tsx src",
     "test:e2e": "playwright test",

@@ -25,7 +25,7 @@ services:
     depends_on: { db: { condition: service_healthy } }
 
   api:
-    build: { context: ./auth-server, dockerfile: Dockerfile.dev }
+    build: { context: ./middleware, dockerfile: Dockerfile.dev }
     command: npm run dev
     environment:
       DATABASE_URL: postgres://erp:${DEV_DB_PASSWORD:-erp_local_only}@db:5432/erp
@@ -35,7 +35,7 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-sp_plastech_dev_auth_secret_local_only_2026}
       AUTH_TRUSTED_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000"
     ports: ["127.0.0.1:4000:4000"]
-    volumes: ["./auth-server:/app"]
+    volumes: ["./middleware:/app"]
     depends_on: { migrate: { condition: service_completed_successfully } }
 
   web:

@@ -1,7 +1,7 @@
-import { configure } from '../../auth-server/src/config';
-import { createPool, runWithPool } from '../../auth-server/src/db';
-import { buildApp } from '../../auth-server/src/app';
-import { identitySql } from '../../auth-server/src/identitySql';
+import { configure } from '../../middleware/src/config';
+import { createPool, runWithPool } from '../../middleware/src/db';
+import { buildApp } from '../../middleware/src/app';
+import { identitySql } from '../../middleware/src/identitySql';
 
 export interface IdentityEnv {
   AUTH_DATABASE_URL?: string;

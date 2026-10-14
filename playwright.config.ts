@@ -36,7 +36,7 @@ export default defineConfig({
     },
     {
       command: 'npm run start',
-      cwd: './auth-server',
+      cwd: './middleware',
       port: 4000,
       reuseExistingServer: true,
       timeout: 180 * 1000,

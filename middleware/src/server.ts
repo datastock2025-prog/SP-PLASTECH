@@ -18,7 +18,7 @@ async function main() {
   await bootstrap();
 
   const app = buildApp(identitySql);
-  const server = serve({ fetch: app.fetch, port: config.port }, () => console.log(`[auth-server] listening on :${config.port}`));
+  const server = serve({ fetch: app.fetch, port: config.port }, () => console.log(`[middleware] listening on :${config.port}`));
   const shutdown = async () => {
     server.close();
     await closeNodeDatabase(getGlobalPool()!);
