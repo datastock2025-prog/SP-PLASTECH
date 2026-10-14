@@ -15,7 +15,7 @@
     "build": "npm --prefix frontend run build",
     "preview": "npm --prefix frontend run preview",
     "preview:cloudflare": "npm --prefix frontend run build && npm --prefix middleware run preview:cloudflare",
-    "seed:supabase": "node scripts/seedSupabaseLive.cjs",
+    "seed:db": "node scripts/seedDatabaseLive.cjs",
     "clean": "rm -rf dist frontend/dist",
     "lint": "npm --prefix frontend run lint",
     "dev:podman": "podman compose up --build",

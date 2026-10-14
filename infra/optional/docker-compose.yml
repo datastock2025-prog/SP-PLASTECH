@@ -18,7 +18,7 @@ services:
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./containers/init-supabase-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./containers/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     ports:
       - "127.0.0.1:5432:5432"
     deploy:

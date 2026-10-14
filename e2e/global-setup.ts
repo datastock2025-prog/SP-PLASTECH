@@ -1,7 +1,7 @@
 const API = process.env.E2E_API_URL ?? 'http://127.0.0.1:4000';
 const ORIGIN = 'http://localhost:3000';
 export const E2E_ADMIN_USER = process.env.E2E_ADMIN_USER ?? 'admin';
-export const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'E2e#Secure2026pw';
+export const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'Plas!Tech#Boot91';
 const BOOTSTRAP_PASSWORD = process.env.E2E_BOOTSTRAP_PASSWORD ?? 'Plas!Tech#Boot91';
 
 async function signIn(password: string): Promise<string | null> {
@@ -14,20 +14,22 @@ async function signIn(password: string): Promise<string | null> {
   return res.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ');
 }
 
-// Provisions a usable admin (password rotated) and one plant so the app reaches the main shell.
+// Provisions a usable admin and one plant so the app reaches the main shell.
 export default async function globalSetup() {
   let cookie = await signIn(E2E_ADMIN_PASSWORD);
   if (!cookie) {
     cookie = await signIn(BOOTSTRAP_PASSWORD);
     if (!cookie) throw new Error('E2E setup: could not sign in with the admin or bootstrap password');
-    const res = await fetch(`${API}/api/v1/me/password`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: ORIGIN, Cookie: cookie },
-      body: JSON.stringify({ currentPassword: BOOTSTRAP_PASSWORD, newPassword: E2E_ADMIN_PASSWORD }),
-    });
-    if (!res.ok) throw new Error(`E2E setup: password change failed (${res.status})`);
-    cookie = await signIn(E2E_ADMIN_PASSWORD);
-    if (!cookie) throw new Error('E2E setup: sign-in after password change failed');
+    if (BOOTSTRAP_PASSWORD !== E2E_ADMIN_PASSWORD) {
+      const res = await fetch(`${API}/api/v1/me/password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: ORIGIN, Cookie: cookie },
+        body: JSON.stringify({ currentPassword: BOOTSTRAP_PASSWORD, newPassword: E2E_ADMIN_PASSWORD }),
+      });
+      if (!res.ok) throw new Error(`E2E setup: password change failed (${res.status})`);
+      cookie = await signIn(E2E_ADMIN_PASSWORD);
+      if (!cookie) throw new Error('E2E setup: sign-in after password change failed');
+    }
   }
 
   const headers = { 'Content-Type': 'application/json', Origin: ORIGIN, Cookie: cookie };

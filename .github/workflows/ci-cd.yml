@@ -202,7 +202,7 @@ jobs:
         run: npm ci
 
       - name: Run Supabase Database Synchronizer
-        run: node scripts/syncPodmanAndSupabase.cjs
+        run: node scripts/syncPodmanAndCloud.cjs
 
   # ==========================================
   # 6. Deploy to Cloudflare (Pages & Workers)
