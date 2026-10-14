@@ -4,17 +4,11 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 // SUPABASE CLIENT (SECURITY HARDENED & VENDOR-AGNOSTIC)
 // ============================================================================
 
-const DEFAULT_SUPABASE_URL = 'https://gqrelwvmeoqvfnanoutz.supabase.co';
-const DEFAULT_ANON_KEY =
-  'sb_publishable_RN013pGcuejquwnEeW-n3Q_Ly2qVu2R';
-
 const supabaseUrl =
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) ||
-  DEFAULT_SUPABASE_URL;
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || 'http://localhost:54321';
 
 const supabaseAnonKey =
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) ||
-  DEFAULT_ANON_KEY;
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || 'anon-key-placeholder';
 
 /**
  * Hardened Supabase Client instance

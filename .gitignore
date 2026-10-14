@@ -42,3 +42,5 @@ middleware/.dev-secret
 .wrangler/
 .wr-empty/
 test-results/
+playwright-report/
+

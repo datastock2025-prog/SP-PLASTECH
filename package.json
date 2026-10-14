@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "sp-plastech-erp",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -16,7 +16,7 @@
     "preview": "npm --prefix frontend run preview",
     "preview:cloudflare": "npm --prefix frontend run build && npm --prefix middleware run preview:cloudflare",
     "seed:supabase": "node scripts/seedSupabaseLive.cjs",
-    "clean": "rm -rf dist server.js frontend/dist",
+    "clean": "rm -rf dist frontend/dist",
     "lint": "npm --prefix frontend run lint",
     "dev:podman": "podman compose up --build",
     "test:unit": "npm --prefix frontend run test:unit",

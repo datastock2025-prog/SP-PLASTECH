@@ -2,7 +2,8 @@ import { z } from 'zod';
 import type { PoolClient } from 'pg';
 import type { Auth } from './auth.js';
 import { hashPassword, verifyPassword } from './auth.js';
-import { pool, withTx } from './db.js';
+import { eq, ne, and, isNull, asc, desc, sql } from 'drizzle-orm';
+import { pool, withTx, withDrizzleTx, schema, type DrizzleTransaction } from './db.js';
 import { AppError, can, enforcePasswordChange, errorHandler, requireSession, wrap, type Actor } from './middleware.js';
 import { createRouter } from './router.js';
 import { generateTempPassword, insertUser, writeAudit } from './userStore.js';
@@ -42,7 +43,7 @@ const mapUser = (r: any) => ({
   plantIds: r.plant_ids,
 });
 
-const mapPlant = (r: any) => ({ id: r.id, code: r.code, name: r.name, location: r.location, isActive: r.is_active, version: r.version });
+const mapPlant = (r: any) => ({ id: r.id, code: r.code, name: r.name, location: r.location, isActive: r.is_active ?? r.isActive, version: r.version });
 const ctx = (a: Actor) => ({ tenantId: a.tenantId, userId: a.userId });
 
 async function loadUser(c: PoolClient, id: string, lock = false) {
@@ -65,10 +66,13 @@ async function assertAssignable(c: PoolClient, a: Actor, roleId: string | undefi
   }
 }
 
-async function replacePlants(c: PoolClient, tenantId: string, userId: string, plantIds: string[]) {
-  await c.query(`DELETE FROM plant_user WHERE user_id = $1`, [userId]);
-  for (const p of new Set(plantIds)) {
-    await c.query(`INSERT INTO plant_user (plant_id, user_id, tenant_id) VALUES ($1,$2,$3)`, [p, userId, tenantId]);
+async function replacePlants(tx: DrizzleTransaction, tenantId: string, userId: string, plantIds: string[]) {
+  await tx.delete(schema.plantUser).where(eq(schema.plantUser.userId, userId));
+  const uniquePlants = Array.from(new Set(plantIds));
+  if (uniquePlants.length > 0) {
+    await tx.insert(schema.plantUser).values(
+      uniquePlants.map((plantId) => ({ plantId, userId, tenantId }))
+    );
   }
 }
 
@@ -159,7 +163,7 @@ export function buildRouter(auth: Auth) {
       department: optStr(100),
       designation: optStr(100),
     }).strict().parse(req.body);
-    const data = await withTx(ctx(a), async (c) => {
+    const data = await withDrizzleTx(ctx(a), async (tx, c) => {
       const before = mapUser(await loadUser(c, a.userId, true));
       const next = {
         fullName: body.fullName ?? before.fullName,
@@ -167,13 +171,23 @@ export function buildRouter(auth: Auth) {
         department: 'department' in req.body ? body.department : before.department,
         designation: 'designation' in req.body ? body.designation : before.designation,
       };
-      const u = await c.query(
-        `UPDATE user_profiles SET full_name=$1, phone=$2, department=$3, designation=$4, version = version + 1
-          WHERE user_id = $5 AND version = $6`,
-        [next.fullName, next.phone, next.department, next.designation, a.userId, body.version],
-      );
-      if (u.rowCount === 0) throw new AppError(409, 'CONCURRENCY_CONFLICT', 'Profile was changed elsewhere. Reload and retry.');
-      await c.query(`UPDATE "user" SET name = $1, "updatedAt" = now() WHERE id = $2`, [next.fullName, a.userId]);
+      const [u] = await tx
+        .update(schema.userProfiles)
+        .set({
+          fullName: next.fullName,
+          phone: next.phone,
+          department: next.department,
+          designation: next.designation,
+          version: sql`${schema.userProfiles.version} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(schema.userProfiles.userId, a.userId), eq(schema.userProfiles.version, body.version)))
+        .returning();
+      if (!u) throw new AppError(409, 'CONCURRENCY_CONFLICT', 'Profile was changed elsewhere. Reload and retry.');
+      await tx
+        .update(schema.user)
+        .set({ name: next.fullName, updatedAt: new Date() })
+        .where(eq(schema.user.id, a.userId));
       const after = mapUser(await loadUser(c, a.userId));
       await writeAudit(c, { tenantId: a.tenantId, entityType: 'user', entityId: a.userId, action: 'UPDATE', performedBy: a.userId,
         oldValues: snapshot(before), newValues: snapshot(after), ip: a.ip });
@@ -189,14 +203,26 @@ export function buildRouter(auth: Auth) {
     if (!/[a-z]/.test(body.newPassword) || !/[A-Z]/.test(body.newPassword) || !/\d/.test(body.newPassword) || !/[^A-Za-z0-9]/.test(body.newPassword)) {
       throw new AppError(422, 'WEAK_PASSWORD', 'Password needs upper, lower, digit and symbol characters');
     }
-    await withTx(ctx(a), async (c) => {
+    await withDrizzleTx(ctx(a), async (tx, c) => {
       const acc = await c.query(`SELECT id, password FROM "account" WHERE "userId" = $1 AND "providerId" = 'credential' FOR UPDATE`, [a.userId]);
       if (!acc.rows[0] || !(await verifyPassword({ hash: acc.rows[0].password, password: body.currentPassword }))) {
         throw new AppError(403, 'INVALID_CREDENTIALS', 'Current password is incorrect');
       }
-      await c.query(`UPDATE "account" SET password = $1, "updatedAt" = now() WHERE id = $2`, [await hashPassword(body.newPassword), acc.rows[0].id]);
-      await c.query(`UPDATE user_profiles SET must_change_password = false, version = version + 1 WHERE user_id = $1`, [a.userId]);
-      await c.query(`DELETE FROM "session" WHERE "userId" = $1 AND id <> $2`, [a.userId, a.sessionId]);
+      await tx
+        .update(schema.account)
+        .set({ password: await hashPassword(body.newPassword), updatedAt: new Date() })
+        .where(eq(schema.account.id, acc.rows[0].id));
+      await tx
+        .update(schema.userProfiles)
+        .set({
+          mustChangePassword: false,
+          version: sql`${schema.userProfiles.version} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.userProfiles.userId, a.userId));
+      await tx
+        .delete(schema.session)
+        .where(and(eq(schema.session.userId, a.userId), ne(schema.session.id, a.sessionId)));
       await writeAudit(c, { tenantId: a.tenantId, entityType: 'user', entityId: a.userId, action: 'UPDATE', performedBy: a.userId,
         newValues: { passwordChanged: true }, ip: a.ip });
     });
@@ -205,12 +231,18 @@ export function buildRouter(auth: Auth) {
 
   // ---------- preferences ----------
   const prefRow = (p: any) => ({
-    theme: p.theme, density: p.density, landingView: p.landing_view, language: p.language, timezone: p.timezone,
-    dateFormat: p.date_format, notifications: p.notifications, version: p.version,
+    theme: p.theme, density: p.density, landingView: p.landing_view ?? p.landingView, language: p.language, timezone: p.timezone,
+    dateFormat: p.date_format ?? p.dateFormat, notifications: p.notifications, version: p.version,
   });
   r.get('/me/preferences', can('read', 'Preference'), wrap(async (req, res) => {
     const a = req.actor!;
-    const row = await withTx(ctx(a), async (c) => (await c.query(`SELECT * FROM user_preferences WHERE user_id = $1`, [a.userId])).rows[0]);
+    const row = await withDrizzleTx(ctx(a), async (tx) => {
+      const [p] = await tx
+        .select()
+        .from(schema.userPreferences)
+        .where(eq(schema.userPreferences.userId, a.userId));
+      return p;
+    });
     if (!row) throw new AppError(404, 'NOT_FOUND', 'Preferences not found');
     res.json({ data: prefRow(row) });
   }));
@@ -226,29 +258,49 @@ export function buildRouter(auth: Auth) {
       dateFormat: z.enum(['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD']).optional(),
       notifications: z.record(z.string().max(40), z.boolean()).optional(),
     }).strict().parse(req.body);
-    const data = await withTx(ctx(a), async (c) => {
+    const data = await withDrizzleTx(ctx(a), async (tx, c) => {
       const old = (await c.query(`SELECT * FROM user_preferences WHERE user_id = $1 FOR UPDATE`, [a.userId])).rows[0];
       if (!old) throw new AppError(404, 'NOT_FOUND', 'Preferences not found');
-      const up = await c.query(
-        `UPDATE user_preferences SET theme=$1, density=$2, landing_view=$3, language=$4, timezone=$5, date_format=$6,
-                notifications=$7, version = version + 1
-          WHERE user_id = $8 AND version = $9 RETURNING *`,
-        [b.theme ?? old.theme, b.density ?? old.density, b.landingView ?? old.landing_view, b.language ?? old.language,
-         b.timezone ?? old.timezone, b.dateFormat ?? old.date_format, JSON.stringify(b.notifications ?? old.notifications),
-         a.userId, b.version],
-      );
-      if (up.rowCount === 0) throw new AppError(409, 'CONCURRENCY_CONFLICT', 'Preferences were changed elsewhere. Reload and retry.');
+      if (old.version !== b.version) throw new AppError(409, 'CONCURRENCY_CONFLICT', 'Preferences were changed elsewhere. Reload and retry.');
+      const [up] = await tx
+        .update(schema.userPreferences)
+        .set({
+          ...(b.theme ? { theme: b.theme } : {}),
+          ...(b.density ? { density: b.density } : {}),
+          ...(b.landingView ? { landingView: b.landingView } : {}),
+          ...(b.language ? { language: b.language } : {}),
+          ...(b.timezone ? { timezone: b.timezone } : {}),
+          ...(b.dateFormat ? { dateFormat: b.dateFormat } : {}),
+          ...(b.notifications ? { notifications: b.notifications } : {}),
+          version: sql`${schema.userPreferences.version} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(schema.userPreferences.userId, a.userId), eq(schema.userPreferences.version, b.version)))
+        .returning();
+      if (!up) throw new AppError(409, 'CONCURRENCY_CONFLICT', 'Preferences were changed elsewhere. Reload and retry.');
       await writeAudit(c, { tenantId: a.tenantId, entityType: 'preference', entityId: a.userId, action: 'UPDATE', performedBy: a.userId,
-        oldValues: prefRow(old), newValues: prefRow(up.rows[0]), ip: a.ip });
-      return prefRow(up.rows[0]);
+        oldValues: prefRow(old), newValues: prefRow(up), ip: a.ip });
+      return prefRow(up);
     });
     res.json({ data });
   }));
 
   // ---------- reference lists ----------
   r.get('/roles', can('read', 'Role'), wrap(async (req, res) => {
-    const rows = await withTx(ctx(req.actor!), async (c) => (await c.query(`SELECT id, code, name, description, is_system FROM roles WHERE deleted_at IS NULL ORDER BY name`)).rows);
-    res.json({ data: rows.map((x) => ({ id: x.id, code: x.code, name: x.name, description: x.description, isSystem: x.is_system })) });
+    const rows = await withDrizzleTx(ctx(req.actor!), async (tx) => {
+      return tx
+        .select({
+          id: schema.roles.id,
+          code: schema.roles.code,
+          name: schema.roles.name,
+          description: schema.roles.description,
+          isSystem: schema.roles.isSystem,
+        })
+        .from(schema.roles)
+        .where(isNull(schema.roles.deletedAt))
+        .orderBy(asc(schema.roles.name));
+    });
+    res.json({ data: rows });
   }));
 
   r.get('/system/health', can('manage', 'Plant'), wrap(async (_req, res) => {
@@ -265,16 +317,30 @@ export function buildRouter(auth: Auth) {
     } });
   }));
   r.get('/plants', can('read', 'Plant'), wrap(async (req, res) => {
-    const rows = await withTx(ctx(req.actor!), async (c) => (await c.query(`SELECT * FROM plants WHERE deleted_at IS NULL ORDER BY code`)).rows);
+    const rows = await withDrizzleTx(ctx(req.actor!), async (tx) => {
+      return tx
+        .select()
+        .from(schema.plants)
+        .where(isNull(schema.plants.deletedAt))
+        .orderBy(asc(schema.plants.code));
+    });
     res.json({ data: rows.map(mapPlant) });
   }));
   r.post('/plants', can('create', 'Plant'), wrap(async (req, res) => {
     const a = req.actor!;
     const b = z.object({ code: str(30).transform((v) => v.toUpperCase()), name: str(120), location: optStr(200) }).strict().parse(req.body);
-    const row = await withTx(ctx(a), async (c) => {
-      const { rows } = await c.query(`INSERT INTO plants (tenant_id, code, name, location) VALUES ($1,$2,$3,$4) RETURNING *`, [a.tenantId, b.code, b.name, b.location]);
-      await writeAudit(c, { tenantId: a.tenantId, entityType: 'plant', entityId: rows[0].id, action: 'CREATE', performedBy: a.userId, newValues: mapPlant(rows[0]), ip: a.ip });
-      return rows[0];
+    const row = await withDrizzleTx(ctx(a), async (tx, c) => {
+      const [inserted] = await tx
+        .insert(schema.plants)
+        .values({
+          tenantId: a.tenantId,
+          code: b.code,
+          name: b.name,
+          location: b.location,
+        })
+        .returning();
+      await writeAudit(c, { tenantId: a.tenantId, entityType: 'plant', entityId: inserted.id, action: 'CREATE', performedBy: a.userId, newValues: mapPlant(inserted), ip: a.ip });
+      return inserted;
     });
     res.status(201).json({ data: mapPlant(row) });
   }));
@@ -284,30 +350,45 @@ export function buildRouter(auth: Auth) {
     const b = z.object({
       version: z.number().int().min(1), code: str(30).transform((v) => v.toUpperCase()), name: str(120), location: optStr(200),
     }).strict().parse(req.body);
-    const row = await withTx(ctx(a), async (c) => {
+    const row = await withDrizzleTx(ctx(a), async (tx, c) => {
       const old = (await c.query(`SELECT * FROM plants WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`, [id])).rows[0];
       if (!old) throw new AppError(404, 'NOT_FOUND', 'Plant not found');
       if (old.version !== b.version) throw new AppError(409, 'CONCURRENCY_CONFLICT', 'Plant was modified by someone else. Reload and retry.');
-      const { rows } = await c.query(
-        `UPDATE plants SET code=$1, name=$2, location=$3, version = version + 1, updated_at = now() WHERE id = $4 RETURNING *`,
-        [b.code, b.name, b.location, id]);
+      const [updated] = await tx
+        .update(schema.plants)
+        .set({
+          code: b.code,
+          name: b.name,
+          location: b.location,
+          version: sql`${schema.plants.version} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.plants.id, id))
+        .returning();
       await writeAudit(c, { tenantId: a.tenantId, entityType: 'plant', entityId: id, action: 'UPDATE', performedBy: a.userId,
-        oldValues: mapPlant(old), newValues: mapPlant(rows[0]), ip: a.ip });
-      return rows[0];
+        oldValues: mapPlant(old), newValues: mapPlant(updated), ip: a.ip });
+      return updated;
     });
     res.json({ data: mapPlant(row) });
   }));
   r.delete('/plants/:id', can('delete', 'Plant'), wrap(async (req, res) => {
     const a = req.actor!;
     const id = z.string().uuid().parse(req.params.id);
-    await withTx(ctx(a), async (c) => {
+    await withDrizzleTx(ctx(a), async (tx, c) => {
       const old = (await c.query(`SELECT * FROM plants WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`, [id])).rows[0];
       if (!old) throw new AppError(404, 'NOT_FOUND', 'Plant not found');
       const n = (await c.query(
         `SELECT count(*)::int AS n FROM plant_user pu JOIN user_profiles p ON p.user_id = pu.user_id
           WHERE pu.plant_id = $1 AND p.deleted_at IS NULL`, [id])).rows[0].n;
       if (n > 0) throw new AppError(409, 'PLANT_IN_USE', `${n} user(s) are assigned to this plant. Reassign them first.`);
-      await c.query(`UPDATE plants SET deleted_at = now(), is_active = false, version = version + 1 WHERE id = $1`, [id]);
+      await tx
+        .update(schema.plants)
+        .set({
+          deletedAt: new Date(),
+          isActive: false,
+          version: sql`${schema.plants.version} + 1`,
+        })
+        .where(eq(schema.plants.id, id));
       await writeAudit(c, { tenantId: a.tenantId, entityType: 'plant', entityId: id, action: 'DELETE', performedBy: a.userId, oldValues: mapPlant(old), ip: a.ip });
     });
     res.status(204).end();
@@ -375,21 +456,29 @@ export function buildRouter(auth: Auth) {
       plantIds: z.array(z.string().uuid()).max(100).optional(),
     }).strict().parse(req.body);
     if (id === a.userId && b.roleId && b.roleId !== a.roleId) throw new AppError(403, 'FORBIDDEN', 'You cannot change your own role');
-    const row = await withTx(ctx(a), async (c) => {
+    const row = await withDrizzleTx(ctx(a), async (tx, c) => {
       const before = mapUser(await loadUser(c, id, true));
       await assertAssignable(c, a, b.roleId, b.plantIds);
       const has = (k: string) => k in req.body;
-      const up = await c.query(
-        `UPDATE user_profiles SET full_name=$1, role_id=$2, phone=$3, badge_id=$4, department=$5, designation=$6, assigned_shift=$7, version = version + 1
-          WHERE user_id = $8 AND version = $9`,
-        [b.fullName ?? before.fullName, b.roleId ?? before.roleId, has('phone') ? b.phone : before.phone, has('badgeId') ? b.badgeId : before.badgeId,
-         has('department') ? b.department : before.department, has('designation') ? b.designation : before.designation,
-         has('assignedShift') ? b.assignedShift : before.assignedShift, id, b.version],
-      );
-      if (up.rowCount === 0) throw new AppError(409, 'CONCURRENCY_CONFLICT', 'User was changed by someone else. Reload and retry.');
-      if (b.fullName) await c.query(`UPDATE "user" SET name = $1, "updatedAt" = now() WHERE id = $2`, [b.fullName, id]);
-      if (b.plantIds) await replacePlants(c, a.tenantId, id, b.plantIds);
-      if (b.roleId && b.roleId !== before.roleId) await c.query(`DELETE FROM "session" WHERE "userId" = $1`, [id]);
+      const [up] = await tx
+        .update(schema.userProfiles)
+        .set({
+          fullName: b.fullName ?? before.fullName,
+          roleId: b.roleId ?? before.roleId,
+          phone: has('phone') ? b.phone : before.phone,
+          badgeId: has('badgeId') ? b.badgeId : before.badgeId,
+          department: has('department') ? b.department : before.department,
+          designation: has('designation') ? b.designation : before.designation,
+          assignedShift: has('assignedShift') ? b.assignedShift : before.assignedShift,
+          version: sql`${schema.userProfiles.version} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(schema.userProfiles.userId, id), eq(schema.userProfiles.version, b.version)))
+        .returning();
+      if (!up) throw new AppError(409, 'CONCURRENCY_CONFLICT', 'User was changed by someone else. Reload and retry.');
+      if (b.fullName) await tx.update(schema.user).set({ name: b.fullName, updatedAt: new Date() }).where(eq(schema.user.id, id));
+      if (b.plantIds) await replacePlants(tx, a.tenantId, id, b.plantIds);
+      if (b.roleId && b.roleId !== before.roleId) await tx.delete(schema.session).where(eq(schema.session.userId, id));
       const after = mapUser(await loadUser(c, id));
       await writeAudit(c, { tenantId: a.tenantId, entityType: 'user', entityId: id, action: 'UPDATE', performedBy: a.userId, oldValues: snapshot(before), newValues: snapshot(after), ip: a.ip });
       return after;
@@ -402,11 +491,23 @@ export function buildRouter(auth: Auth) {
     const id = idParam.parse(req.params.id);
     if (id === a.userId) throw new AppError(403, 'FORBIDDEN', 'Use Change Password for your own account');
     const tempPassword = generateTempPassword();
-    await withTx(ctx(a), async (c) => {
+    await withDrizzleTx(ctx(a), async (tx, c) => {
       await loadUser(c, id, true);
-      await c.query(`UPDATE "account" SET password = $1, "updatedAt" = now() WHERE "userId" = $2 AND "providerId" = 'credential'`, [await hashPassword(tempPassword), id]);
-      await c.query(`UPDATE user_profiles SET must_change_password = true, version = version + 1 WHERE user_id = $1`, [id]);
-      await c.query(`DELETE FROM "session" WHERE "userId" = $1`, [id]);
+      await tx
+        .update(schema.account)
+        .set({ password: await hashPassword(tempPassword), updatedAt: new Date() })
+        .where(and(eq(schema.account.userId, id), eq(schema.account.providerId, 'credential')));
+      await tx
+        .update(schema.userProfiles)
+        .set({
+          mustChangePassword: true,
+          version: sql`${schema.userProfiles.version} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.userProfiles.userId, id));
+      await tx
+        .delete(schema.session)
+        .where(eq(schema.session.userId, id));
       await writeAudit(c, { tenantId: a.tenantId, entityType: 'user', entityId: id, action: 'UPDATE', performedBy: a.userId, newValues: { passwordReset: true }, ip: a.ip });
     });
     res.json({ data: { ok: true }, meta: { tempPassword } });
@@ -417,10 +518,18 @@ export function buildRouter(auth: Auth) {
     const id = idParam.parse(req.params.id);
     const { locked } = z.object({ locked: z.boolean() }).strict().parse(req.body);
     if (id === a.userId) throw new AppError(403, 'FORBIDDEN', 'You cannot lock your own account');
-    const row = await withTx(ctx(a), async (c) => {
+    const row = await withDrizzleTx(ctx(a), async (tx, c) => {
       const before = mapUser(await loadUser(c, id, true));
-      await c.query(`UPDATE user_profiles SET status = $1, failed_login_attempts = 0, version = version + 1 WHERE user_id = $2`, [locked ? 'LOCKED' : 'ACTIVE', id]);
-      if (locked) await c.query(`DELETE FROM "session" WHERE "userId" = $1`, [id]);
+      await tx
+        .update(schema.userProfiles)
+        .set({
+          status: locked ? 'LOCKED' : 'ACTIVE',
+          failedLoginAttempts: 0,
+          version: sql`${schema.userProfiles.version} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.userProfiles.userId, id));
+      if (locked) await tx.delete(schema.session).where(eq(schema.session.userId, id));
       await writeAudit(c, { tenantId: a.tenantId, entityType: 'user', entityId: id, action: 'UPDATE', performedBy: a.userId,
         oldValues: { status: before.status }, newValues: { status: locked ? 'LOCKED' : 'ACTIVE' }, ip: a.ip });
       return mapUser(await loadUser(c, id));
@@ -432,13 +541,28 @@ export function buildRouter(auth: Auth) {
     const a = req.actor!;
     const id = idParam.parse(req.params.id);
     if (id === a.userId) throw new AppError(403, 'FORBIDDEN', 'You cannot delete your own account');
-    await withTx(ctx(a), async (c) => {
+    await withDrizzleTx(ctx(a), async (tx, c) => {
       const before = mapUser(await loadUser(c, id, true));
       if (before.roleCode === 'SUPER_ADMIN' && a.roleCode !== 'SUPER_ADMIN') throw new AppError(403, 'FORBIDDEN', 'Only a super admin can delete a super admin');
-      await c.query(`UPDATE user_profiles SET deleted_at = now(), status = 'SUSPENDED', version = version + 1 WHERE user_id = $1`, [id]);
+      await tx
+        .update(schema.userProfiles)
+        .set({
+          deletedAt: new Date(),
+          status: 'SUSPENDED',
+          version: sql`${schema.userProfiles.version} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.userProfiles.userId, id));
       // Frees the unique email/username so they can be reused.
-      await c.query(`UPDATE "user" SET email = $2, username = NULL, "displayUsername" = NULL, "updatedAt" = now() WHERE id = $1`, [id, `deleted+${id}@invalid.local`]);
-      await c.query(`DELETE FROM "session" WHERE "userId" = $1`, [id]);
+      await tx
+        .update(schema.user)
+        .set({
+          email: `deleted+${id}@invalid.local`,
+          username: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.user.id, id));
+      await tx.delete(schema.session).where(eq(schema.session.userId, id));
       await writeAudit(c, { tenantId: a.tenantId, entityType: 'user', entityId: id, action: 'DELETE', performedBy: a.userId, oldValues: snapshot(before), ip: a.ip });
     });
     res.status(204).end();
@@ -447,17 +571,33 @@ export function buildRouter(auth: Auth) {
   r.get('/users/:id/history', can('read', 'AuditLog'), wrap(async (req, res) => {
     const id = idParam.parse(req.params.id);
     const q = z.object({ page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(20) }).parse(req.query);
-    const out = await withTx(ctx(req.actor!), async (c) => {
-      const total = (await c.query(`SELECT count(*)::int AS n FROM audit_logs WHERE entity_type = 'user' AND entity_id = $1`, [id])).rows[0].n;
-      const rows = (await c.query(
-        `SELECT l.id, l.action, l.changed_fields, l.old_values, l.new_values, l.performed_at, l.performed_by, pu.full_name AS performed_by_name
-           FROM audit_logs l LEFT JOIN user_profiles pu ON pu.user_id = l.performed_by
-          WHERE l.entity_type = 'user' AND l.entity_id = $1 ORDER BY l.performed_at DESC LIMIT $2 OFFSET $3`,
-        [id, q.limit, (q.page - 1) * q.limit])).rows;
+    const out = await withDrizzleTx(ctx(req.actor!), async (tx) => {
+      const [countResult] = await tx
+        .select({ count: sql<number>`count(*)::int` })
+        .from(schema.auditLogs)
+        .where(and(eq(schema.auditLogs.entityType, 'user'), eq(schema.auditLogs.entityId, id)));
+      const total = countResult?.count ?? 0;
+      const rows = await tx
+        .select({
+          id: schema.auditLogs.id,
+          action: schema.auditLogs.action,
+          changedFields: schema.auditLogs.changedFields,
+          oldValues: schema.auditLogs.oldValues,
+          newValues: schema.auditLogs.newValues,
+          performedAt: schema.auditLogs.performedAt,
+          performedBy: schema.auditLogs.performedBy,
+          performedByName: schema.userProfiles.fullName,
+        })
+        .from(schema.auditLogs)
+        .leftJoin(schema.userProfiles, eq(schema.userProfiles.userId, schema.auditLogs.performedBy))
+        .where(and(eq(schema.auditLogs.entityType, 'user'), eq(schema.auditLogs.entityId, id)))
+        .orderBy(desc(schema.auditLogs.performedAt))
+        .limit(q.limit)
+        .offset((q.page - 1) * q.limit);
       return { total, rows };
     });
     res.json({
-      data: out.rows.map((l) => ({ id: l.id, action: l.action, changedFields: l.changed_fields, oldValues: l.old_values, newValues: l.new_values, performedAt: l.performed_at, performedBy: l.performed_by, performedByName: l.performed_by_name ?? 'System' })),
+      data: out.rows.map((l) => ({ id: l.id, action: l.action, changedFields: l.changedFields, oldValues: l.oldValues, newValues: l.newValues, performedAt: l.performedAt, performedBy: l.performedBy, performedByName: l.performedByName ?? 'System' })),
       meta: { page: q.page, limit: q.limit, total: out.total, totalPages: Math.max(1, Math.ceil(out.total / q.limit)) },
     });
   }));

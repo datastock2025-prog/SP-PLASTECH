@@ -17,14 +17,18 @@ export { RestApiAdapter } from './adapters/RestApiAdapter';
  * - 'rest_api': Unified Hono API Gateway
  */
 function createDatabaseAdapter(): IDatabaseAdapter {
-  const url =
-    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) ||
-    'https://gqrelwvmeoqvfnanoutz.supabase.co';
-  const anonKey =
-    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) ||
-    'sb_publishable_RN013pGcuejquwnEeW-n3Q_Ly2qVu2R';
+  const provider = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_DB_PROVIDER) || 'rest_api';
 
-  return new SupabaseAdapter(url, anonKey, supabase);
+  if (provider === 'supabase') {
+    const url = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || '';
+    const anonKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || '';
+    if (url && anonKey) {
+      return new SupabaseAdapter(url, anonKey, supabase);
+    }
+  }
+
+  // Default: RestApiAdapter calling authoritative backend at /api/v1
+  return new RestApiAdapter();
 }
 
 /**

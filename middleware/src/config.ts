@@ -1,7 +1,22 @@
+import dotenv from 'dotenv';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+if (typeof process !== 'undefined') {
+  try {
+    const here = dirname(fileURLToPath(import.meta.url));
+    dotenv.config({ path: resolve(here, '../../.env') });
+    dotenv.config({ path: resolve(here, '../.env') });
+    dotenv.config();
+  } catch {
+    // Ignore in non-Node or restricted environments
+  }
+}
+
 // Runtime-agnostic configuration. On Node the values come from process.env at
 // start-up; on Cloudflare Workers `configure(env)` is called with the bindings.
 const read = (env: Record<string, any>) => {
-  const port = Number(env.AUTH_PORT ?? 4000);
+  const port = Number(env.PORT ?? env.AUTH_PORT ?? 4000);
   return {
     isProd: env.NODE_ENV === 'production' || env.APP_ENV === 'production',
     port,
@@ -11,7 +26,7 @@ const read = (env: Record<string, any>) => {
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean),
-    databaseUrl: String(env.AUTH_DATABASE_URL ?? ''),
+    databaseUrl: String(env.AUTH_DATABASE_URL ?? env.DATABASE_URL ?? ''),
     embeddedPgPort: Number(env.EMBEDDED_PG_PORT ?? 54329),
     tenantCode: String(env.TENANT_CODE ?? 'SP-PLASTECH'),
     tenantName: String(env.TENANT_NAME ?? 'SP-PLASTECH Polymer Solutions'),

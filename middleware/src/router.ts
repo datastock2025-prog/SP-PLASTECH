@@ -17,6 +17,7 @@ export interface Res {
   status(code: number): Res;
   json(body: unknown): void;
   end(): void;
+  setHeader(name: string, value: string): Res;
 }
 
 export type Next = (err?: unknown) => void;
@@ -75,15 +76,22 @@ export function createRouter(errorHandler: ErrorHandler) {
       headers: c.req.raw.headers,
     };
     let response: Response | undefined;
+    const pendingHeaders = new Map<string, string>();
     const res: Res = {
       status(code) {
         (res as any)._code = code;
         return res;
       },
+      setHeader(name, value) {
+        pendingHeaders.set(name, value);
+        return res;
+      },
       json(b) {
+        pendingHeaders.forEach((v, k) => c.header(k, v));
         response = c.json(b as any, ((res as any)._code ?? 200) as any);
       },
       end() {
+        pendingHeaders.forEach((v, k) => c.header(k, v));
         response = new Response(null, { status: (res as any)._code ?? 200 });
       },
     };

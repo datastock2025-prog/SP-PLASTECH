@@ -31,6 +31,11 @@ export function buildApp(sqlText: string) {
   const auth = createAuth();
   const app = new Hono();
 
+  app.use('*', async (c, next) => {
+    const reqId = c.req.header('x-request-id') || crypto.randomUUID();
+    await next();
+    c.header('X-Request-Id', reqId);
+  });
   app.use('*', secureHeaders());
   app.use('/api/*', cors({ origin: (o) => (config.trustedOrigins.includes(o) ? o : null), credentials: true }));
   app.use('/api/*', async (c, next) => {
@@ -40,7 +45,7 @@ export function buildApp(sqlText: string) {
   app.use('/api/*', async (c, next) => {
     const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'local';
     if (limited(ip)) {
-      return c.json({ error: { code: 'RATE_LIMITED', message: 'Too many requests' } }, 429);
+      return c.json({ error: { code: 'RATE_LIMITED', message: 'Too many requests. Please slow down.' } }, 429);
     }
     await next();
   });
@@ -56,11 +61,21 @@ export function buildApp(sqlText: string) {
   });
 
   app.onError((err, c) => {
-    console.error('[error]', err);
-    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Unexpected server error' } }, 500);
+    const reqId = c.res.headers.get('X-Request-Id') || c.req.header('x-request-id') || '';
+    console.error(`[error] [req:${reqId}]`, err);
+    return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Unexpected server error', requestId: reqId } }, 500);
   });
 
-  app.get('/api/health', (c) => c.json({ data: { status: 'ok' } }));
+  app.get('/api/health', async (c) => {
+    const t0 = performance.now();
+    try {
+      const { pool } = await import('./db.js');
+      await pool.query('SELECT 1');
+    } catch {}
+    const dur = Math.round((performance.now() - t0) * 10) / 10;
+    c.header('Server-Timing', `db;dur=${dur};desc="queries=1"`);
+    return c.json({ data: { status: 'ok' } });
+  });
 
   // One-time provisioning of the identity schema and first admin, protected by SETUP_TOKEN.
   app.post('/api/setup', async (c) => {

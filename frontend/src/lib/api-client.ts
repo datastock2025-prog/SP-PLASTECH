@@ -9,7 +9,7 @@ import { db } from '../shared/db';
 
 const DEFAULT_BASE_URL =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) ||
-  'https://gqrelwvmeoqvfnanoutz.supabase.co/rest/v1';
+  '/api/v1';
 
 export const api: AxiosInstance = axios.create({
   baseURL: DEFAULT_BASE_URL,

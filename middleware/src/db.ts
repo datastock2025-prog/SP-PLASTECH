@@ -1,17 +1,28 @@
 import pg from 'pg';
-import { AsyncLocalStorage } from 'node:async_hooks';
+import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { config } from './config.js';
+import * as schema from './schema/index.js';
+
+export * as schema from './schema/index.js';
 
 const APP_ROLE = 'erp_app';
-const als = new AsyncLocalStorage<pg.Pool>();
 let globalPool: pg.Pool | undefined;
 
-export const createPool = (connectionString: string) => new pg.Pool({ connectionString, max: 1 });
+export const createPool = (connectionString: string) => new pg.Pool({ connectionString, max: 10 });
 export const setGlobalPool = (p: pg.Pool) => { globalPool = p; };
-export const getGlobalPool = () => globalPool;
-// Cloudflare Workers cannot share sockets between requests, so each request runs with its own pool.
-export const runWithPool = <T>(p: pg.Pool, fn: () => Promise<T>) => als.run(p, fn);
+export const getGlobalPool = () => {
+  if (!globalPool && config.databaseUrl) {
+    globalPool = createPool(config.databaseUrl);
+  }
+  return globalPool;
+};
+export const runWithPool = async <T>(p: pg.Pool, fn: () => Promise<T>): Promise<T> => {
+  setGlobalPool(p);
+  return fn();
+};
+
 const current = () => {
-  const p = als.getStore() ?? globalPool;
+  const p = getGlobalPool();
   if (!p) throw new Error('Database is not initialised');
   return p;
 };
@@ -22,8 +33,7 @@ export const pool: pg.Pool = new Proxy({} as pg.Pool, {
     const v = p[key];
     return typeof v === 'function' ? v.bind(p) : v;
   },
-  // Better Auth probes the pool shape while constructing, before any request-scoped pool exists.
-  has: (_t, key) => key in (als.getStore() ?? globalPool ?? pg.Pool.prototype),
+  has: (_t, key) => key in (getGlobalPool() ?? pg.Pool.prototype),
 });
 
 export interface RequestContext {
@@ -52,3 +62,17 @@ export async function withTx<T>(ctx: RequestContext, fn: (c: pg.PoolClient) => P
     client.release();
   }
 }
+
+export type DrizzleTransaction = NodePgDatabase<any>;
+
+// Drizzle ORM transaction wrapper binding RLS settings via withTx
+export async function withDrizzleTx<T>(
+  ctx: RequestContext,
+  fn: (tx: DrizzleTransaction, client: pg.PoolClient) => Promise<T>,
+): Promise<T> {
+  return withTx(ctx, (client) => {
+    const tx = drizzle(client, { schema });
+    return fn(tx, client);
+  });
+}
+

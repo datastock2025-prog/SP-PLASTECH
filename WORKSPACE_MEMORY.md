@@ -10,7 +10,7 @@
 - **State & Data Fetching**: TanStack Query (React Query) v5 (MANDATORY for all API calls).
 - **Validation**: Zod (MANDATORY for all API responses and form inputs).
 - **Database**: PostgreSQL (RLS enabled, Multi-tenant).
-- **Backend Service**: auth server hono.
+- **Backend Service**: middleware (Hono + Better Auth + Drizzle ORM on port 4000).
 - **Hosting**: Cloudflare Pages (Frontend), Cloudflare Workers/Edge & Container Backend.
 
 ## 3. STRICT ENTERPRISE RULES (AI MUST FOLLOW)
@@ -123,17 +123,19 @@
 
 ## 7. MONOREPO WORKSPACES, CI LICENSE GOVERNANCE & RUNTIME STATUS
 
-- **Workspace Topology**: Root `package.json` configures `"workspaces": ["apps/*"]` hosting `@apps/api` and `@apps/web`.
+- **Workspace Topology**: Root `package.json` configures workspaces `["frontend", "middleware", "frontend/apps/*"]`.
 - **Runtime Servers**:
-  - `apps/web` (Vite 6): `http://localhost:3000/` (proxies `/api` to port 4000).
-  - `auth-server` (Hono 4 + Better Auth + embedded-postgres/pg): `http://localhost:4000/`.
-  - App bootstrap gracefully renders `LoginScreen` for unauthenticated sessions.
-- **CI License Verification**:
-  - `npm run check:licenses`: Production allow-list (`MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;BlueOak-1.0.0;Python-2.0;CC0-1.0;Unlicense;OFL-1.1;CC-BY-4.0;MPL-2.0`). Verified passing (exit code 0).
-  - `npm run check:licenses:dev`: DevDependencies allow-list with `MPL-2.0`, `CC-BY-3.0`, and `Zlib`. Verified passing (exit code 0).
+  - `sp-plastech-db` (Podman PostgreSQL 16 on WSL): `172.18.214.127:5432` (database `erp`).
+  - `middleware` (Hono 4 + Better Auth + Drizzle ORM on port 4000): `http://localhost:4000/`.
+  - `frontend` (React 19 / Vite 6 on port 3000): `http://localhost:3000/` (reverse-proxies `/api` to port 4000).
+- **Environment Synchronization**:
+  - Root `.env` mirrored to `frontend/.env` and `middleware/.env`. Configured with `VITE_DB_PROVIDER=rest_api`, local Podman connection strings, Better-Auth dev secrets, and bootstrap admin credentials.
+- **CI Pipeline (`.github/workflows/ci-cd.yml`)**:
+  - Hardened with Gitleaks, `postgres:16-alpine` service container for E2E tests, zero-secret bundle scan, and Playwright artifact uploads.
 - **Verification Gates**:
   - Unit & Characterization tests: 93/93 passed across 21 test suites.
-  - Type checking: `npm run lint` (`tsc --noEmit`) passes with 0 errors.
-  - Production build: `npm run build` (`vite build`) compiles cleanly (exit code 0).
+  - Type checking: `npm run lint` and `npm --prefix middleware run typecheck` both pass with 0 errors.
+  - Production build: `npm run build` compiles cleanly with zero hardcoded credentials.
+  - Playwright security test suite: 4/4 passed (100% green).
 
 

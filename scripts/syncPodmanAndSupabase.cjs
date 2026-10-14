@@ -42,7 +42,7 @@ async function getPgClient() {
 
   for (const host of hosts) {
     try {
-      const connStr = `postgresql://reboot:reboot_dev@${host}:5432/reboot_erp`;
+      const connStr = process.env.DATABASE_URL || `postgresql://erp:erp_local_only@${host}:5432/erp`;
       const client = new Client({ connectionString: connStr, connectionTimeoutMillis: 3000 });
       await client.connect();
       return { client, host };

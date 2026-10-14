@@ -397,5 +397,71 @@
   - Frontend dev server running on `http://localhost:3000/` (serving React 19 app with reverse-proxy `/api` to `:4000`).
 - **Git Commit**: `refactor(repo): migrate frontend code into frontend/ and auth-server to middleware/`.
 
+---
+
+## 21. [2026-10-14] - Platform Security Hardening, Local Offline Dev Alignment & Drizzle ORM CRUD Unification
+
+### 1. Scope of Work (Ponytail Mode)
+- **Zero-Secret Bundles & Environment Isolation**:
+  - Purged hardcoded Supabase URLs and publishable key literals from `frontend/src/shared/db/index.ts`, `frontend/src/shared/supabaseClient.ts`, `frontend/src/lib/api-client.ts`, `functions/rest/[[path]].ts`, and `frontend/index.html`.
+  - Configured `VITE_DB_PROVIDER=rest_api` in `.env` to route all local development directly through the local middleware gateway (`:4000`), completely isolating local execution from remote Supabase cloud.
+  - Hardened `playwright.config.ts` to read credentials from environment variables.
+- **Truthful Error Handling & HTTP Client**:
+  - Enhanced `frontend/src/shared/api/http.ts` with request timeout (15s abort controller), GET-only transient retry logic, and typed `ApiError` with `X-Request-Id`.
+  - Rewrote `frontend/src/services/api.ts` and `RestApiAdapter.ts` to delegate to `http.ts` and throw on failure, eliminating `success: true` on error swallowing.
+  - Updated `SupabaseAdapter.ts` to throw error on unhandled failure instead of returning `[]`.
+- **Drizzle ORM Resource CRUD Router in Middleware**:
+  - Built `middleware/src/crud.ts` implementing `createResourceRouter` with optimistic concurrency control (`WHERE version = $n`, throwing 409 `CONCURRENCY_CONFLICT`), interactive `withTx`, and synchronous `writeAudit` logging.
+  - Added `Server-Timing` header (`db;dur=...;desc="queries=..."`) and `X-Request-Id` tracking across all middleware responses.
+- **CORS & Rate Limiting Lockdown**:
+  - Removed wildcard `Access-Control-Allow-Origin: *` from `functions/api/[[path]].ts` and `functions/rest/[[path]].ts`.
+  - Documented Cloudflare WAF rate limiting rule (300 req/min per IP) in `docs/rate-limiting.md`.
+  - Recorded pre-Hyperdrive performance baseline in `docs/performance-baseline.md`.
+- **Tooling & Housekeeping**:
+  - Deleted stale empty `tsc_errors.txt` and duplicate workflow `infrastructure/github/workflows/ci.yml`.
+  - Added `playwright-report/` to `.gitignore`.
+  - Folded `supabase_cloud_migration_21_tables.sql` into `supabase/migrations/0001_baseline.sql`.
+  - Removed backend packages (`express`, `@types/express`, `dotenv`, `pg`, `@types/pg`) from `frontend/package.json`.
+  - Renamed root package to `sp-plastech-erp`.
+  - Authored `docs/security-baseline.md` and `scripts/sql/revoke_anon_template.sql`.
+  - Authored acceptance test suite in `e2e/security-platform.spec.ts`.
+
+### 2. Verification & Validation Gates
+- `npm run lint` (`tsc --noEmit` in `frontend/`): 0 errors (PASS).
+- `npm --prefix middleware run typecheck`: 0 errors (PASS).
+- `npm run test:unit` (`vitest`): 21 test suites passed (93/93 tests 100% green).
+- `npm run build` (`vite build` in `frontend/`): Compiled cleanly into `frontend/dist/`.
+- `grep_search` on `frontend/dist`: 0 matches for Supabase URL or publishable key literals.
+
+---
+
+## 22. [2026-10-14] - GitHub Actions Hardening, Environment Synchronization & Local Servers Live Launch
+
+### 1. Scope of Work
+- **GitHub Actions Pipeline Hardening (`.github/workflows/ci-cd.yml`)**:
+  - Added dedicated `postgres:16-alpine` service container to `e2e-playwright` job with automatic healthcheck (`pg_isready`) and environment credentials (`postgres://erp:erp_local_only@localhost:5432/erp`).
+  - Configured Gitleaks secret detection, monorepo & middleware dependency installations, zero-secret production bundle scanning, and Playwright artifact retention.
+  - Ensured deployments only fire on `refs/heads/main` and database synchronizer requires explicit `VITE_SUPABASE_URL` secrets.
+- **Environment File Synchronization**:
+  - Updated root `.env` with full local development settings: `VITE_DB_PROVIDER=rest_api`, `DATABASE_URL=postgres://erp:erp_local_only@172.18.214.127:5432/erp`, `AUTH_DATABASE_URL=postgres://erp:erp_local_only@172.18.214.127:5432/erp`, `PORT=4000`, `BETTER_AUTH_SECRET`, and bootstrap admin credentials.
+  - Mirrored `.env` to `frontend/.env` and `middleware/.env`. Configured `envDir: '..'` in `frontend/vite.config.ts` and automated multi-path `dotenv` loading in `middleware/src/config.ts`.
+- **Local Servers Startup & Verification**:
+  - Verified local Podman PostgreSQL database `sp-plastech-db` running on `172.18.214.127:5432` with all migrations applied.
+  - Started middleware backend server daemon (`npm --prefix middleware run dev`) listening on `http://localhost:4000/`.
+  - Started frontend Vite dev server daemon (`npm --prefix frontend run dev`) listening on `http://localhost:3000/`.
+  - Verified reverse-proxy routing from frontend `http://localhost:3000/api/health` to backend `http://localhost:4000/api/health` with `Server-Timing`, `x-request-id`, and security headers.
+  - Executed Playwright security suite `npx playwright test e2e/security-platform.spec.ts` with 4/4 tests passing green.
+
+### 2. Verification & Validation Summary
+- `npm run lint`: 0 TypeScript diagnostics.
+- `npm --prefix middleware run typecheck`: 0 TypeScript diagnostics.
+- `npm run check:boundaries`: 0 violations.
+- `npm run check:circular`: 0 circular dependencies.
+- `npm run test:unit`: 21 test suites passed (93/93 tests 100% green).
+- `npm run build`: Production assets built cleanly into `frontend/dist/` in 25.5s with zero hardcoded credentials.
+- `npx playwright test e2e/security-platform.spec.ts`: 4/4 passed (100% green in 3.4s).
+
+
+
 
 

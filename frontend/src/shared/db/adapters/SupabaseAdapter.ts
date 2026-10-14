@@ -138,11 +138,10 @@ export class SupabaseAdapter implements IDatabaseAdapter {
           } catch {}
         }
       } else if (error.message?.includes('aborted') || error.name === 'AbortError') {
-        // Safe lifecycle unmount cancellation
+        return [];
       } else {
-        console.warn(`[SupabaseAdapter] findMany(${resolvedTable}) query issue:`, error.message);
+        throw new Error(`[SupabaseAdapter] findMany(${resolvedTable}) failed: ${error.message}`);
       }
-      return [];
     }
     return (data || []) as T[];
   }

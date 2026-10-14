@@ -15,6 +15,7 @@ export class ApiError extends Error {
 
 export interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined | null>;
+  timeoutMs?: number;
 }
 
 export async function request<T = any>(
@@ -37,52 +38,86 @@ export async function request<T = any>(
     }
   }
 
-  const { params: _params, headers: customHeaders, ...restOptions } = options || {};
+  const { params: _params, timeoutMs = 15000, headers: customHeaders, ...restOptions } = options || {};
 
   const headers: Record<string, string> = {
     ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     ...((customHeaders as Record<string, string>) || {}),
   };
 
-  const res = await fetch(url, {
-    method,
-    credentials: 'include',
-    cache: 'no-store',
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-    ...restOptions,
-  });
+  const isGet = method === 'GET' || method === 'HEAD';
+  const maxAttempts = isGet ? 2 : 1;
+  let lastError: unknown = null;
 
-  if (res.status === 204) {
-    return null as T;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const controller = new AbortController();
+    const timeoutTimer = setTimeout(() => controller.abort(new Error('Request timeout')), timeoutMs);
+
+    try {
+      const res = await fetch(url, {
+        method,
+        credentials: 'include',
+        cache: 'no-store',
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal: options?.signal ?? controller.signal,
+        ...restOptions,
+      });
+      clearTimeout(timeoutTimer);
+
+      if (res.status === 204) {
+        return null as T;
+      }
+
+      let json: any = null;
+      try {
+        json = await res.json();
+      } catch {
+        // Non-JSON response (e.g. gateway error or empty payload)
+      }
+
+      if (!res.ok) {
+        // Retry on transient 502/503/504 for GET requests on first attempt
+        if (isGet && attempt < maxAttempts && [502, 503, 504].includes(res.status)) {
+          await new Promise((r) => setTimeout(r, 300));
+          continue;
+        }
+
+        const e = json?.error;
+        const detail = Array.isArray(e?.details) && e.details[0]?.message ? `: ${e.details[0].message}` : '';
+        const requestId = res.headers.get('x-request-id') || (typeof e === 'object' && e?.requestId) || undefined;
+
+        throw new ApiError(
+          res.status,
+          typeof e === 'object' && e?.code ? e.code : 'HTTP_ERROR',
+          typeof e === 'object' && e?.message
+            ? `${e.message}${detail}`
+            : res.status >= 500
+            ? 'Server is unavailable. Please try again.'
+            : 'Request failed',
+          e?.details,
+          requestId
+        );
+      }
+
+      return json;
+    } catch (err: any) {
+      clearTimeout(timeoutTimer);
+      lastError = err;
+      if (err instanceof ApiError) throw err;
+      if (isGet && attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, 300));
+        continue;
+      }
+      throw new ApiError(
+        0,
+        err.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK_ERROR',
+        err.message || 'Network request failed'
+      );
+    }
   }
 
-  let json: any = null;
-  try {
-    json = await res.json();
-  } catch {
-    // Non-JSON response (e.g. gateway error or empty payload)
-  }
-
-  if (!res.ok) {
-    const e = json?.error;
-    const detail = Array.isArray(e?.details) && e.details[0]?.message ? `: ${e.details[0].message}` : '';
-    const requestId = res.headers.get('x-request-id') || (typeof e === 'object' && e?.requestId) || undefined;
-    
-    throw new ApiError(
-      res.status,
-      typeof e === 'object' && e?.code ? e.code : 'HTTP_ERROR',
-      typeof e === 'object' && e?.message
-        ? `${e.message}${detail}`
-        : res.status >= 500
-        ? 'Server is unavailable. Please try again.'
-        : 'Request failed',
-      e?.details,
-      requestId
-    );
-  }
-
-  return json;
+  throw lastError;
 }
 
 export const one = <T extends z.ZodTypeAny>(schema: T, json: any): z.infer<T> => {

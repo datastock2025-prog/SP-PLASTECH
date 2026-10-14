@@ -15,10 +15,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
   const url = new URL(request.url);
 
-  const supabaseUrl =
-    env.VITE_SUPABASE_URL || 'https://gqrelwvmeoqvfnanoutz.supabase.co';
-  const supabaseKey =
-    env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_RN013pGcuejquwnEeW-n3Q_Ly2qVu2R';
+  const supabaseUrl = env.VITE_SUPABASE_URL || '';
+  const supabaseKey = env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+  if (!supabaseUrl || !supabaseKey) {
+    return new Response(
+      JSON.stringify({ error: 'ConfigError', message: 'VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is not configured' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
 
   // Rewrite destination to target Supabase PostgREST
   const targetPath = url.pathname.replace(/^\/rest/, '/rest');
@@ -40,8 +45,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     });
 
     const responseHeaders = new Headers(response.headers);
-    responseHeaders.set('Access-Control-Allow-Origin', '*');
-    responseHeaders.set('Access-Control-Allow-Headers', '*');
+    // Secure origin header: only echo request origin if present, no wildcard *
+    const origin = request.headers.get('origin');
+    if (origin) responseHeaders.set('Access-Control-Allow-Origin', origin);
+    responseHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, apikey, Prefer, Range');
     responseHeaders.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD');
 
     return new Response(response.body, {

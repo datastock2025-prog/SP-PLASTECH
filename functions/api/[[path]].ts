@@ -19,13 +19,15 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   // Default backend URL or fallback
   const backendBase = env.BACKEND_URL || 'http://localhost:4000';
 
+  const origin = request.headers.get('origin') || '';
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        ...(origin ? { 'Access-Control-Allow-Origin': origin } : {}),
         'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Tenant-ID, X-Correlation-ID',
+        'Access-Control-Allow-Credentials': 'true',
       },
     });
   }
@@ -40,7 +42,10 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     });
 
     const responseHeaders = new Headers(response.headers);
-    responseHeaders.set('Access-Control-Allow-Origin', '*');
+    if (origin) {
+      responseHeaders.set('Access-Control-Allow-Origin', origin);
+      responseHeaders.set('Access-Control-Allow-Credentials', 'true');
+    }
 
     return new Response(response.body, {
       status: response.status,

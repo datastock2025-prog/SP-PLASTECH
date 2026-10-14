@@ -2,9 +2,9 @@ name: SP-PLASTECH ERP — Enterprise CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main ]
   workflow_dispatch:
 
 concurrency:
@@ -13,11 +13,53 @@ concurrency:
 
 jobs:
   # ==========================================
-  # 1. Frontend Quality & Static Analysis
+  # 1. Code Quality, Typecheck & Static Analysis
   # ==========================================
-  frontend-quality:
+  code-quality:
     name: Typecheck & Static Analysis
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks Secret Detection
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Monorepo Dependencies
+        run: npm ci
+
+      - name: Install Middleware Dependencies
+        run: npm ci --prefix middleware
+
+      - name: Frontend Strict Type Check (Zero Diagnostics)
+        run: npm run lint
+
+      - name: Middleware Strict Type Check
+        run: npm --prefix middleware run typecheck
+
+      - name: Architecture Boundary Check
+        run: npm run check:boundaries
+
+      - name: Circular Dependency Check
+        run: npm run check:circular
+
+  # ==========================================
+  # 2. Vitest Unit & Characterization Suite
+  # ==========================================
+  unit-tests:
+    name: Unit & Characterization Tests (93 Tests)
+    runs-on: ubuntu-latest
+    needs: [code-quality]
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -28,19 +70,19 @@ jobs:
           node-version: 22
           cache: 'npm'
 
-      - name: Install Frontend Dependencies
+      - name: Install Monorepo Dependencies
         run: npm ci
 
-      - name: Run TypeScript Strict Type Check (Zero Diagnostics)
-        run: npm run lint
+      - name: Run Vitest Unit & Characterization Suite
+        run: npm run test:unit
 
   # ==========================================
-  # 2. Frontend Production Build
+  # 3. Frontend Production Build
   # ==========================================
   frontend-build:
     name: Production Bundle Build (Vite)
     runs-on: ubuntu-latest
-    needs: [frontend-quality]
+    needs: [code-quality]
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -59,19 +101,51 @@ jobs:
         env:
           NODE_OPTIONS: "--max-old-space-size=4096"
 
-      - name: Verify Distribution Artifacts
+      - name: Verify Zero Hardcoded Secrets in Distribution Bundle (TC-IDN-1A-02)
         run: |
-          test -d dist
-          test -f dist/index.html
-          echo "✓ Vite production bundle verified successfully."
+          test -d frontend/dist
+          test -f frontend/dist/index.html
+          if grep -ri "gqrelwvmeoqvfnanoutz" frontend/dist; then
+            echo "::error::Found hardcoded Supabase URL in production build bundle!"
+            exit 1
+          fi
+          if grep -ri "sb_publishable" frontend/dist; then
+            echo "::error::Found hardcoded Supabase publishable key in production build bundle!"
+            exit 1
+          fi
+          echo "✓ Verified zero credentials in production bundle."
+
+      - name: Upload Production Dist Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 7
 
   # ==========================================
-  # 3. Playwright End-to-End Suite
+  # 4. Playwright End-to-End Suite
   # ==========================================
   e2e-playwright:
-    name: Playwright E2E Test Suite (13 Tests)
+    name: Playwright E2E Test Suite
     runs-on: ubuntu-latest
-    needs: [frontend-quality]
+    needs: [code-quality, frontend-build]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: erp
+          POSTGRES_PASSWORD: erp_local_only
+          POSTGRES_DB: erp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://erp:erp_local_only@localhost:5432/erp
+      AUTH_DATABASE_URL: postgres://erp:erp_local_only@localhost:5432/erp
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -82,14 +156,14 @@ jobs:
           node-version: 22
           cache: 'npm'
 
-      - name: Install Dependencies
+      - name: Install Monorepo Dependencies
         run: npm ci
+
+      - name: Install Middleware Dependencies
+        run: npm ci --prefix middleware
 
       - name: Install Playwright Chromium Browser & OS Dependencies
         run: npx playwright install --with-deps chromium
-
-      - name: Install Auth Server Dependencies
-        run: npm ci --prefix auth-server
 
       - name: Run Playwright E2E Suite
         run: npm run test:e2e
@@ -105,13 +179,13 @@ jobs:
           retention-days: 14
 
   # ==========================================
-  # 4. Database Synchronization & Verification
+  # 5. Database Synchronization & Verification
   # ==========================================
   sync-database:
     name: Verify & Synchronize Supabase Database
     runs-on: ubuntu-latest
     needs: [frontend-build]
-    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    if: github.ref == 'refs/heads/main' && secrets.VITE_SUPABASE_URL != ''
     env:
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
       VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
@@ -131,13 +205,13 @@ jobs:
         run: node scripts/syncPodmanAndSupabase.cjs
 
   # ==========================================
-  # 6. Deploy Frontend to Cloudflare Pages
+  # 6. Deploy to Cloudflare (Pages & Workers)
   # ==========================================
   deploy-cloudflare:
-    name: Deploy to Cloudflare Pages
+    name: Deploy to Cloudflare
     runs-on: ubuntu-latest
-    needs: [frontend-build]
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+    needs: [frontend-build, e2e-playwright]
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
       deployments: write
@@ -151,25 +225,34 @@ jobs:
           node-version: 22
           cache: 'npm'
 
-      - name: Install Dependencies
+      - name: Install Monorepo Dependencies
         run: npm ci
 
-      - name: Install identity API dependencies (bundled into Pages Functions)
-        run: npm ci --prefix auth-server
+      - name: Install Middleware Dependencies
+        run: npm ci --prefix middleware
 
       - name: Build Production Assets
         run: npm run build
         env:
           NODE_OPTIONS: "--max-old-space-size=4096"
-          VITE_DB_PROVIDER: "hybrid_sync"
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://gqrelwvmeoqvfnanoutz.supabase.co' }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'sb_publishable_RN013pGcuejquwnEeW-n3Q_Ly2qVu2R' }}
+          VITE_DB_PROVIDER: ${{ secrets.VITE_DB_PROVIDER || 'rest_api' }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
 
-      - name: Deploy to Cloudflare Pages (Wrangler)
+      - name: Deploy Frontend to Cloudflare Pages (Wrangler)
         uses: cloudflare/wrangler-action@v3
-        continue-on-error: true
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=${{ secrets.CLOUDFLARE_PROJECT_NAME || 'sp-plastech' }} --branch=main --commit-dirty=true
+          command: pages deploy frontend/dist --project-name=${{ secrets.CLOUDFLARE_PROJECT_NAME || 'sp-plastech' }} --branch=main --commit-dirty=true
+
+      - name: Deploy Middleware Worker to Cloudflare (Wrangler)
+        uses: cloudflare/wrangler-action@v3
+        if: secrets.CLOUDFLARE_API_TOKEN != ''
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: middleware
+          command: deploy --config wrangler.jsonc
+

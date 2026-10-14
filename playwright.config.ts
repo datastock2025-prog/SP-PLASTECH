@@ -41,8 +41,8 @@ export default defineConfig({
       reuseExistingServer: true,
       timeout: 180 * 1000,
       env: {
-        BOOTSTRAP_ADMIN_EMAIL: 'admin@spplastech.com',
-        BOOTSTRAP_ADMIN_PASSWORD: 'Plas!Tech#Boot91',
+        BOOTSTRAP_ADMIN_EMAIL: process.env.BOOTSTRAP_ADMIN_EMAIL ?? 'admin@spplastech.com',
+        BOOTSTRAP_ADMIN_PASSWORD: process.env.BOOTSTRAP_ADMIN_PASSWORD ?? 'Plas!Tech#Boot91',
       },
     },
   ],
