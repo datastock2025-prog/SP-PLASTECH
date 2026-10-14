@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/shared/queryKeys';
-import { broadcastLocalMutation } from '@/src/services/realtime/supabaseRealtime';
+import { broadcastLocalMutation } from '@/src/services/realtime/realtimeService';
 import { supplierService } from '@/src/services/procurement/supplierService';
 import { db } from '@/src/shared/db';
 import { PurchaseOrder } from '@/src/types';

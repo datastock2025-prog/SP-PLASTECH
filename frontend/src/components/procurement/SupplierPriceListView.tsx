@@ -36,7 +36,7 @@ import { ItemMaster } from '../../types';
 import { ProcurementStatusBadge } from './ProcurementStatusBadge';
 import { INITIAL_SUPPLIER_PRICE_LISTS } from '../../data/procurementData';
 import { itemService } from '../../services/itemService';
-import { SupabaseDataService } from '../../services/supabaseService';
+import { SupabaseDataService } from '../../services/dataService';
 
 interface Props {
   priceLists?: SupplierPriceListEntry[];

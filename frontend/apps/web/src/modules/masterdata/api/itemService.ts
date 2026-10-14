@@ -2,7 +2,7 @@ import { ItemMaster } from '@/src/types';
 import { db } from '@/src/shared/db';
 import { itemEndpoints, ITEM_LEAN_SELECT_COLUMNS } from '@/src/lib/api-client';
 import { adminEventBus } from '@/src/services/adminService';
-import { broadcastLocalMutation } from '@/src/services/realtime/supabaseRealtime';
+import { broadcastLocalMutation } from '@/src/services/realtime/realtimeService';
 import { masterDataGovernanceService } from './masterDataGovernanceService';
 import { mapDbRowToItemMaster } from '@/src/shared/utils/dtoMappers';
 

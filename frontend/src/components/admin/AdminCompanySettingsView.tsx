@@ -15,7 +15,7 @@ import {
   Calendar,
   ArrowRight,
 } from 'lucide-react';
-import { SupabaseDataService } from '../../services/supabaseService';
+import { SupabaseDataService } from '../../services/dataService';
 import { masterDataGovernanceService } from '../../services/masterDataGovernanceService';
 import { adminEventBus } from '../../services/adminService';
 

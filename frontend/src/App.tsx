@@ -15,7 +15,7 @@ import { workspaceRbacService, normalizeRoleKey } from './services/workspaceRbac
 import { itemService } from './services/itemService';
 import { adminEventBus } from './services/adminService';
 import { db } from './shared/db';
-import { initializeSupabaseRealtime } from './services/realtime/supabaseRealtime';
+import { initializeRealtime } from './services/realtime/realtimeService';
 import { SessionTimeoutModal, MfaVerificationModal, CookieConsentModal } from './security';
 import { UserProfilePreferencesView } from './components/profile/UserProfilePreferencesView';
 import { ModuleLoadingFallback } from './components/common/ModuleLoadingFallback';
@@ -359,8 +359,8 @@ export const App: React.FC = () => {
       (window as any).__ERP_EVENT_BUS__ = adminEventBus;
     }
 
-    // 0. Initialize native Supabase Realtime PostgreSQL CDC WebSocket Mesh
-    const cleanupRealtime = initializeSupabaseRealtime();
+    // 0. Initialize realtime event listener
+    const cleanupRealtime = initializeRealtime();
 
     // 1. Initial Domain State Hydration directly from Single Source of Truth
     itemService.getItems().then((fetched) => {

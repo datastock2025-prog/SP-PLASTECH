@@ -3,7 +3,7 @@ import { queryKeys } from '@/src/shared/queryKeys';
 import { bomEndpoints, BomDto } from '@/src/lib/api-client';
 import { db } from '@/src/shared/db';
 import { adminEventBus } from '@/src/services/adminService';
-import { broadcastLocalMutation } from '@/src/services/realtime/supabaseRealtime';
+import { broadcastLocalMutation } from '@/src/services/realtime/realtimeService';
 import { INITIAL_BOMS } from '@/src/data/engineeringData';
 import { BomMaster } from '@/src/types';
 import { engineeringApi } from './engineeringApi';

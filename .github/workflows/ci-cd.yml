@@ -178,31 +178,6 @@ jobs:
           path: playwright-report/
           retention-days: 14
 
-  # ==========================================
-  # 5. Database Synchronization & Verification
-  # ==========================================
-  sync-database:
-    name: Verify & Synchronize Supabase Database
-    runs-on: ubuntu-latest
-    needs: [frontend-build]
-    if: github.ref == 'refs/heads/main' && secrets.VITE_SUPABASE_URL != ''
-    env:
-      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install Dependencies for DB Sync
-        run: npm ci
-
-      - name: Run Supabase Database Synchronizer
-        run: node scripts/syncPodmanAndCloud.cjs
 
   # ==========================================
   # 6. Deploy to Cloudflare (Pages & Workers)

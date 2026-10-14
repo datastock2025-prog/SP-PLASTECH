@@ -10,7 +10,6 @@
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
-    "seed:db": "node ../scripts/seedDatabaseLive.cjs",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "dev:podman": "podman compose up --build",

@@ -149,12 +149,16 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
     await expect(skuCellInUi).toBeVisible({ timeout: 10000 });
     console.log(`[READ - UI VERIFY] SKU ${testItemCode} visible in catalog table.`);
 
-    // Read through the isolated REST fixture using the application's Supabase client.
+    // Read through the isolated REST fixture using the application's db adapter.
     const dbReadResult = await page.evaluate(async (code) => {
       // @ts-ignore
-      const mod = await import('../src/shared/supabaseClient');
-      const { data, error } = await mod.supabase.from('items').select('*').eq('code', code).maybeSingle();
-      return { data, error: error?.message || null };
+      const mod = await import('../frontend/src/shared/db');
+      try {
+        const data = await mod.db.findOne('items', code);
+        return { data, error: null };
+      } catch (err: any) {
+        return { data: null, error: err.message };
+      }
     }, testItemCode);
 
     console.log('[READ - REST FIXTURE RESULT]:', {
@@ -209,9 +213,12 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
     // Read updated values through the isolated REST fixture.
     const dbPostUpdateResult = await page.evaluate(async (code) => {
       // @ts-ignore
-      const mod = await import('../src/shared/supabaseClient');
-      const { data } = await mod.supabase.from('items').select('*').eq('code', code).maybeSingle();
-      return data;
+      const mod = await import('../frontend/src/shared/db');
+      try {
+        return await mod.db.findOne('items', code);
+      } catch {
+        return null;
+      }
     }, testItemCode);
 
     console.log('[UPDATE - DATABASE VERIFY]:', {
@@ -250,9 +257,13 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
     // Verify deletion through the isolated REST fixture.
     const dbPostDeleteResult = await page.evaluate(async (code) => {
       // @ts-ignore
-      const mod = await import('../src/shared/supabaseClient');
-      const { data } = await mod.supabase.from('items').select('*').eq('code', code).maybeSingle();
-      return { foundInDb: !!data };
+      const mod = await import('../frontend/src/shared/db');
+      try {
+        const item = await mod.db.findOne('items', code);
+        return { foundInDb: !!item };
+      } catch {
+        return { foundInDb: false };
+      }
     }, testItemCode);
 
     console.log('[DELETE - DATABASE VERIFY]:', {

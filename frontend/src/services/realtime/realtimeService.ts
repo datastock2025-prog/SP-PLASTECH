@@ -1,10 +1,8 @@
 // ============================================================================
-// SUPABASE REALTIME POSTGRESQL CHANGE LISTENER & QUERY INVALIDATION LAYER
-// Replaces custom sync managers with standard Supabase WebSocket CDC subscriptions
+// REACTIVE LOCAL MUTATION & QUERY INVALIDATION LAYER
+// Invalidates TanStack React Query caches and emits domain events
 // ============================================================================
 
-import { RealtimeChannel } from '@supabase/supabase-js';
-import { supabase } from '../../shared/supabaseClient';
 import { queryClient } from '../../shared/providers/QueryProvider';
 import { adminEventBus } from '../adminService';
 import { queryKeys } from '../../shared/queryKeys';
@@ -63,71 +61,6 @@ const TABLE_QUERY_MAP: Record<string, { queryKeys: readonly (readonly unknown[])
   },
 };
 
-let realtimeChannel: RealtimeChannel | null = null;
-let isSubscribed = false;
-
-/**
- * Initializes Supabase Realtime WebSocket subscription on public tables.
- * When a change is detected in PostgreSQL, it automatically invalidates TanStack React Query
- * caches and emits domain events so all open browsers (Chrome, Brave, Edge) re-fetch in real-time.
- */
-export function initializeSupabaseRealtime(): () => void {
-  if (isSubscribed || typeof window === 'undefined') return () => {};
-  isSubscribed = true;
-
-  try {
-    realtimeChannel = supabase
-      .channel('public:realtime_erp_mesh')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public' },
-        (payload) => {
-          const table = payload.table;
-          const config = TABLE_QUERY_MAP[table];
-
-          if (config) {
-            // 1. Invalidate TanStack Query caches across all open browsers
-            config.queryKeys.forEach((key) => {
-              try {
-                queryClient.invalidateQueries({ queryKey: key as any });
-              } catch (err) {
-                console.warn(`[SupabaseRealtime] Invalidation error for ${table}:`, err);
-              }
-            });
-
-            // 2. Dispatch domain sync event to reactive state listeners
-            adminEventBus.emit(config.eventName, payload.new || payload.old);
-
-            // 3. Handle item-specific events
-            if (table === 'items') {
-              if (payload.eventType === 'DELETE') {
-                const code = (payload.old as any)?.code || (payload.old as any)?.id;
-                if (code) adminEventBus.emit('ITEM_DELETED', { code });
-              } else if (payload.new) {
-                adminEventBus.emit('ITEM_SAVED', payload.new);
-              }
-            }
-          }
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.info('[SupabaseRealtime] Connected to PostgreSQL Realtime WebSocket Mesh');
-        }
-      });
-  } catch (err) {
-    console.warn('[SupabaseRealtime] Initialization skipped:', err);
-  }
-
-  return () => {
-    if (realtimeChannel) {
-      supabase.removeChannel(realtimeChannel);
-      realtimeChannel = null;
-    }
-    isSubscribed = false;
-  };
-}
-
 export function broadcastLocalMutation(domain: string, eventType: string, data: any) {
   const config = TABLE_QUERY_MAP[domain.toLowerCase()] || TABLE_QUERY_MAP[domain];
   if (config) {
@@ -139,3 +72,9 @@ export function broadcastLocalMutation(domain: string, eventType: string, data: 
     adminEventBus.emit(config.eventName, data);
   }
 }
+
+export function initializeRealtime(): () => void {
+  return () => {};
+}
+
+export const initializerealtimeService = initializeRealtime;

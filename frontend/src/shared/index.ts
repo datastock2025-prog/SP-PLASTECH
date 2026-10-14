@@ -5,7 +5,6 @@
 
 // Centralized API Client & TanStack Query Provider
 export { apiClient } from './api/client';
-export { supabase, checkSupabaseConnection } from './supabaseClient';
 export { QueryProvider, queryClient } from './providers/QueryProvider';
 
 // Ephemeral UI State (Zustand)

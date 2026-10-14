@@ -1,5 +1,4 @@
 import { db } from '../shared/db';
-import { checkSupabaseConnection } from '../shared/supabaseClient';
 
 // ============================================================================
 // ENTERPRISE DATA SERVICE — REBOOT ERP
@@ -11,7 +10,7 @@ export interface DbResult<T> {
   error: string | null;
 }
 
-export const SupabaseDataService = {
+export const DataService = {
   // 1. MASTER DATA: ITEMS
   async getItems(): Promise<DbResult<any[]>> {
     try {
@@ -232,9 +231,10 @@ export const SupabaseDataService = {
   // 8d. LIVE TELEMETRY HEALTH PING
   async pingDatabase(): Promise<{ latencyMs: number; status: 'healthy' | 'degraded' | 'offline' }> {
     try {
-      const res = await checkSupabaseConnection();
-      const latency = res.latencyMs ?? 1.2;
-      if (!res.connected) {
+      const start = performance.now();
+      const res = await fetch('/api/health');
+      const latency = Math.max(1, Math.round(performance.now() - start));
+      if (!res.ok) {
         return { latencyMs: latency, status: 'degraded' };
       }
       return { latencyMs: latency, status: 'healthy' };
@@ -355,4 +355,5 @@ export const SupabaseDataService = {
   },
 };
 
-export default SupabaseDataService;
+export const SupabaseDataService = DataService;
+export default DataService;

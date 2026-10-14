@@ -6,7 +6,7 @@ import { InventoryStockItem, InventoryStockLot, StockMovementLedgerEntry, StoreC
 import { INITIAL_INVENTORY_STOCK, INITIAL_STOCK_MOVEMENT_LEDGER } from '../data/warehouseData';
 import { GrnPutawayTask } from '../types/grnTypes';
 import { WorkOrder, BomMaster, ItemMaster } from '../types';
-import { broadcastLocalMutation } from '../services/realtime/supabaseRealtime';
+import { broadcastLocalMutation } from '../services/realtime/realtimeService';
 
 export interface StockItem {
   id: string;

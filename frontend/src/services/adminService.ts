@@ -109,7 +109,7 @@ class AdminEventBus {
 
 export const adminEventBus = new AdminEventBus();
 
-import { SupabaseDataService } from './supabaseService';
+import { SupabaseDataService } from './dataService';
 import { masterDataGovernanceService } from './masterDataGovernanceService';
 
 const LIVE_USERS_KEY = 'reboot_erp_live_users_v2';

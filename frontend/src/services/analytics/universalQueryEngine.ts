@@ -13,7 +13,7 @@ import {
   INITIAL_MOLDS,
   INITIAL_CHANGEOVERS,
 } from '../../data/manufacturingData';
-import { SupabaseDataService } from '../supabaseService';
+import { SupabaseDataService } from '../dataService';
 
 export interface QueryResult {
   reply: string;

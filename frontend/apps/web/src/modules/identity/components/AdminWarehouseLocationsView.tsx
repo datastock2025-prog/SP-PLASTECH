@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { WarehouseLocationConfig } from '@/src/data/adminExtendedData';
 import { masterDataGovernanceService } from '@/src/services/masterDataGovernanceService';
-import { SupabaseDataService } from '@/src/services/supabaseService';
+import { SupabaseDataService } from '@/src/services/dataService';
 import { adminEventBus } from '@/src/services/adminService';
 import { isStoreInUse, isUserAdmin } from '@/src/hooks/useWarehouse';
 import { useAuthContext } from '@/src/shared/components/RequireAuth';

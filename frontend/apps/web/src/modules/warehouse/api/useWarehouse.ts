@@ -10,7 +10,7 @@ import {
 import { INITIAL_INVENTORY_STOCK, INITIAL_STOCK_MOVEMENT_LEDGER } from '@/src/data/warehouseData';
 import { GrnPutawayTask } from '@/src/types/grnTypes';
 import { WorkOrder, BomMaster, ItemMaster } from '@/src/types';
-import { broadcastLocalMutation } from '@/src/services/realtime/supabaseRealtime';
+import { broadcastLocalMutation } from '@/src/services/realtime/realtimeService';
 
 export interface StockItem {
   id: string;

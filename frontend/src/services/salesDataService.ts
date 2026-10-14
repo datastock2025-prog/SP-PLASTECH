@@ -1,5 +1,5 @@
 import { db } from '../shared/db';
-import { broadcastLocalMutation } from './realtime/supabaseRealtime';
+import { broadcastLocalMutation } from './realtime/realtimeService';
 import {
   PlasticSalesOrder,
   MonthlyPlanOrder,

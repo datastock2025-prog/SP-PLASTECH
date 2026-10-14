@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Search,
   Bell,
@@ -58,7 +58,6 @@ import { QuickActionModal } from './common/QuickActionModal';
 import { SecurityIndicators } from '../security';
 import { useMe } from '../features/identity/useIdentity';
 import { usePlantScope, setAllPlantsScope } from '../features/identity/plantScope';
-import { checkSupabaseConnection } from '../shared/supabaseClient';
 
 export interface PlantEntity {
   id: string;
@@ -263,11 +262,13 @@ export const Topbar: React.FC<TopbarProps> = ({
     return (localStorage.getItem('sp_density') as any) || 'standard';
   });
 
-  // Real-Time Supabase WebSocket Mesh Connection Status
+  // Real-Time Backend API & Database Connection Status
   const [isSyncConnected, setIsSyncConnected] = useState<boolean>(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
   useEffect(() => {
     const checkStatus = () => {
-      checkSupabaseConnection().then((res) => setIsSyncConnected(res.connected || (typeof navigator !== 'undefined' && navigator.onLine)));
+      fetch('/api/health')
+        .then((res) => setIsSyncConnected(res.ok))
+        .catch(() => setIsSyncConnected(false));
     };
     checkStatus();
     if (typeof window !== 'undefined') {
