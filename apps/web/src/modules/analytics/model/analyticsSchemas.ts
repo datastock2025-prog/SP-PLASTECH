@@ -34,6 +34,8 @@ export type {
   PeriodType,
 } from '@/packages/contracts/analytics';
 
+type EsgSustainabilityItem = EsgMetricItem;
+
 export type {
   ExecutiveKpiItem,
   ExecutiveKpiSummary,
@@ -44,5 +46,6 @@ export type {
   MaintenanceMetricItem,
   InventoryAgingItem,
   EsgMetricItem,
+  EsgSustainabilityItem,
   ChatMessageItem,
 };

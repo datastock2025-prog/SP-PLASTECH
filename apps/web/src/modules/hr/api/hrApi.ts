@@ -49,6 +49,15 @@ export const hrApi = {
       grade: emp.grade || 'L1',
       costCenter: emp.costCenter || 'CC-PROD-01',
       skills: emp.skills || [],
+      certifications: emp.certifications || [],
+      assignedTrainings: emp.assignedTrainings || [],
+      issuedPpe: emp.issuedPpe || [],
+      leaveBalances: emp.leaveBalances || {
+        casual: 12,
+        sick: 10,
+        earned: 15,
+        compOff: 0,
+      },
     };
     try {
       await db.upsert('employees', newEmp, 'id');
