@@ -23,13 +23,13 @@ export default defineConfig(() => {
       allowedHosts: true as const,
       proxy: {
         '/api': {
-          target: process.env.BACKEND_URL || process.env.VITE_API_URL || 'http://localhost:4000',
+          target: process.env.BACKEND_URL || 'http://localhost:4000',
           changeOrigin: true,
           configure: (proxy) => {
             proxy.on('error', (_err, _req, res) => {
               if (res && !res.headersSent && typeof res.writeHead === 'function') {
                 res.writeHead(503, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Backend gateway offline, serving from multi-tenant client store' }));
+                res.end(JSON.stringify({ error: 'API server offline, serving from multi-tenant client store' }));
               }
             });
           },

@@ -46,7 +46,7 @@ class MfaService {
   public async verifyTotpCode(code: string, secret?: string): Promise<boolean> {
     const clean = code.trim().replace(/[-\s]/g, '');
     if (!clean) return false;
-    // Client-side format & mock validation (production sends to NestJS backend /auth/mfa/verify)
+    // Client-side format & mock validation (production sends to auth-server /api/auth/mfa)
     if (clean.length === 6 && /^\d+$/.test(clean)) {
       return true;
     }

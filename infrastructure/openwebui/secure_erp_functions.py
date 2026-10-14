@@ -27,7 +27,7 @@ class EventEmitter:
 
 class Tools:
     def __init__(self):
-        self.gateway_url = os.getenv("NESTJS_GATEWAY_URL", "http://backend:3000/api/ai-gateway")
+        self.gateway_url = os.getenv("API_GATEWAY_URL", os.getenv("NESTJS_GATEWAY_URL", "http://auth-server:4000/api/v1/ai-gateway"))
         self.default_tenant_id = os.getenv("DEFAULT_TENANT_ID", "TENANT-ALPHA-IND")
 
     async def secure_erp_query(

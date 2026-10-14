@@ -1,7 +1,7 @@
 // ============================================================================
 // UNIVERSAL DATABASE ADAPTER INTERFACE — VENDOR-AGNOSTIC DATA ACCESS LAYER
-// Enables zero-effort database provider swapping (Supabase, NestJS REST API,
-// PostgreSQL/Prisma, Firebase, IndexedDB) without changing any UI or domain logic.
+// Enables zero-effort database provider swapping (PostgreSQL, Supabase,
+// Hono REST API, Firebase, IndexedDB) without changing any UI or domain logic.
 // ============================================================================
 
 export interface QueryFilter {

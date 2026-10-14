@@ -310,5 +310,55 @@
   - Production build (`vite build`): Succeeded cleanly in 1m 29s.
   - Unit & Characterization Tests: 5/5 characterization test suites passed, 16/16 module test suites passed (88/88 tests).
 
+---
+
+## [2026-10-14] - Complete Removal of Legacy Backend & Middleware & Unified Gateway Alignment
+
+### 1. Scope of Work
+- **Execution of Removal Step 3**: Following read-only impact assessment (`docs/removal-report.md`) and salvage cataloging (`docs/removed-code.md`) anchored to git archive tag `archive/backend-middleware-2026-10`, permanently removed legacy NestJS `backend/` and `middleware/` directories.
+- **CI/CD Pipeline Decoupling**:
+  - Removed `backend-build` job and detached build dependency from `sync-database` in `.github/workflows/ci-cd.yml`.
+  - Removed `backend-check` job from `infrastructure/github/workflows/ci.yml`.
+- **Infrastructure & Container Repointing**:
+  - Pointed Kong reverse proxy upstream to `http://auth-server:4000/` in `containers/kong.yml`.
+  - Pruned unused `redis` and `backend` services and `redis_data` volume from `infra/optional/docker-compose.yml`.
+  - Repointed AI sidecar network and `API_GATEWAY_URL` in `infra/optional/docker-compose.ai.yml` to `http://auth-server:4000/api/v1/ai-gateway`.
+  - Pointed NGINX reverse proxy upstream to `127.0.0.1:4000` in `infrastructure/nginx/sp-plastech.conf`.
+  - Updated Cloudflare Functions proxy (`functions/api/[[path]].ts`), Cloudflare worker (`infrastructure/cloudflare/worker.js`), and n8n webhook workflow (`infrastructure/n8n/error_trigger_workflow.json`) to target port 4000.
+- **Frontend & Environment Alignment**:
+  - Updated Vite proxy in `vite.config.ts` with direct fallback to port 4000 and offline message.
+  - Cleaned `.env` to point `BACKEND_URL=http://localhost:4000` and purged `MIDDLEWARE_URL`.
+  - Updated codebase comments across database adapters (`src/shared/db/`), security services (`MfaService.ts`, `GdprService.ts`), and AI API (`aiApi.ts`).
+  - Modernized documentation in `README.md`, `MIGRATION_PLAN_16_MODULES.md`, and `docs/ARCHITECTURE_RUNBOOK.md`.
+
+### 2. Modules & Files Touched
+- Deleted: `backend/` (all files), `middleware/` (all files).
+- Modified:
+  - `containers/kong.yml`
+  - `infra/optional/docker-compose.yml`
+  - `infra/optional/docker-compose.ai.yml`
+  - `.github/workflows/ci-cd.yml`
+  - `infrastructure/github/workflows/ci.yml`
+  - `vite.config.ts`
+  - `.env`
+  - `functions/api/[[path]].ts`
+  - `infrastructure/cloudflare/worker.js`
+  - `infrastructure/nginx/sp-plastech.conf`
+  - `infrastructure/openwebui/secure_erp_functions.py`
+  - `infrastructure/n8n/error_trigger_workflow.json`
+  - `src/shared/db/index.ts` & `src/shared/db/types.ts`
+  - `src/security/auth/MfaService.ts` & `src/security/compliance/GdprService.ts`
+  - `src/features/ai/api/aiApi.ts`
+  - `MIGRATION_PLAN_16_MODULES.md`
+  - `README.md`
+  - `docs/ARCHITECTURE_RUNBOOK.md`
+  - `docs/removal-report.md`
+  - `DAILY_ACTIVITY_LOG.md`
+
+### 3. Verification & Results
+- Characterization Tests: 5/5 test suites passed (100% green).
+- Monorepo Module Tests: 16/16 test suites passed (88/88 tests).
+- Clean Git staging on branch `chore/remove-backend-middleware`.
+
 
 

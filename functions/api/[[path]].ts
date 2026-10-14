@@ -1,13 +1,12 @@
 /**
  * Cloudflare Pages Functions — Secure Server-Side Enterprise API Proxy
- * Intercepts /api/* requests and routes to the active backend / NestJS gateway
+ * Intercepts /api/* requests and routes to the active backend / Hono API gateway
  */
 
 import { handleIdentity, isIdentityPath, type IdentityEnv } from './_identity';
 
 interface Env extends IdentityEnv {
   BACKEND_URL?: string;
-  MIDDLEWARE_URL?: string;
 }
 
 export const onRequest: PagesFunction<Env> = async (context) => {
@@ -18,7 +17,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   if (isIdentityPath(url.pathname)) return handleIdentity(request, env as IdentityEnv, context.waitUntil.bind(context));
 
   // Default backend URL or fallback
-  const backendBase = env.BACKEND_URL || env.MIDDLEWARE_URL || 'http://localhost:3000';
+  const backendBase = env.BACKEND_URL || 'http://localhost:4000';
 
   if (request.method === 'OPTIONS') {
     return new Response(null, {

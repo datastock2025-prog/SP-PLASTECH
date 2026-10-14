@@ -66,34 +66,7 @@ jobs:
           echo "✓ Vite production bundle verified successfully."
 
   # ==========================================
-  # 3. Core Enterprise Backend Build
-  # ==========================================
-  backend-build:
-    name: Backend Build & Prisma Validation
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install Backend Dependencies
-        working-directory: ./backend
-        run: npm install --no-audit --prefer-offline
-
-      - name: Generate Prisma Schema Client
-        working-directory: ./backend
-        run: npx prisma generate || true
-
-      - name: Compile Backend TypeScript
-        working-directory: ./backend
-        run: npm run build
-
-  # ==========================================
-  # 4. Playwright End-to-End Suite
+  # 3. Playwright End-to-End Suite
   # ==========================================
   e2e-playwright:
     name: Playwright E2E Test Suite (13 Tests)
@@ -132,12 +105,12 @@ jobs:
           retention-days: 14
 
   # ==========================================
-  # 5. Database Synchronization & Verification
+  # 4. Database Synchronization & Verification
   # ==========================================
   sync-database:
     name: Verify & Synchronize Supabase Database
     runs-on: ubuntu-latest
-    needs: [frontend-build, backend-build]
+    needs: [frontend-build]
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     env:
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}

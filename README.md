@@ -282,15 +282,14 @@ sequenceDiagram
     actor User
     participant Frontend as React Client (In-Memory)
     participant Axios as Secure Axios Interceptor
-    participant Gateway as Backend API Gateway
-    participant Redis as Redis Session Store
+    participant Gateway as Auth Server (Hono)
     participant DB as PostgreSQL DB
 
     User->>Frontend: Submit credentials (Email / Password / MFA)
-    Frontend->>Gateway: POST /api/auth/login { email, password }
+    Frontend->>Gateway: POST /api/auth/sign-in/email { email, password }
     Gateway->>DB: Validate credentials & tenant status
     DB-->>Gateway: User Record & Role/Permissions
-    Gateway->>Redis: Create Session (session_id, user_id, device_fingerprint)
+    Gateway->>DB: Create Session in PostgreSQL
     Gateway-->>Frontend: HTTP 200 + Body: { accessToken, expiresIn: 900 }<br/>Set-Cookie: reboot_refresh=TOKEN; HttpOnly; Secure; SameSite=Strict<br/>Set-Cookie: XSRF-TOKEN=CSRF_SECRET; SameSite=Strict
     Note over Frontend: Access token stored strictly in-memory (JS variable).<br/>Zero tokens in localStorage/sessionStorage.
 
@@ -301,7 +300,7 @@ sequenceDiagram
     
     Note over Axios: 401 Interceptor traps response.<br/>Queues requests & fires single refresh request.
     Axios->>Gateway: POST /api/auth/refresh (Sends HttpOnly refresh cookie)
-    Gateway->>Redis: Validate refresh token & session active status
+    Gateway->>DB: Validate refresh token & session active status
     Gateway-->>Axios: HTTP 200 { newAccessToken, expiresIn: 900 }
     
     Note over Axios: Updates in-memory token.<br/>Retries queued requests with new token.
@@ -318,17 +317,17 @@ sequenceDiagram
     autonumber
     participant React as React UI (<RequirePermission>)
     participant Client as SecureHttpClient (Axios)
-    participant Middleware as Auth & Multi-Tenant Middleware
+    participant Gateway as Auth Server Gateway (Hono)
     participant Controller as Business Controller
     participant DB as Multi-Tenant Database
 
     React->>React: Evaluates local permission (e.g. 'mrp.approve')
     React->>Client: Trigger Action (e.g. Dispatch PR #PR-2026-MRP-01)
-    Client->>Middleware: POST /api/procurement/requisitions<br/>Header: Authorization: Bearer <Token><br/>Header: X-Tenant-ID: TENANT-ALPHA-IND<br/>Header: X-CSRF-Token: <CSRF_TOKEN>
+    Client->>Gateway: POST /api/procurement/requisitions<br/>Header: Authorization: Bearer <Token><br/>Header: X-Tenant-ID: TENANT-ALPHA-IND<br/>Header: X-CSRF-Token: <CSRF_TOKEN>
     
-    Note over Middleware: 1. Verify CSRF Token match.<br/>2. Decode JWT & check user.tenantId === X-Tenant-ID.<br/>3. Verify user has permission.
+    Note over Gateway: 1. Verify CSRF Token match.<br/>2. Decode session & check user.tenantId === X-Tenant-ID.<br/>3. Verify user has permission.
     
-    Middleware->>Controller: Forward sanitized request context
+    Gateway->>Controller: Forward sanitized request context
     Controller->>DB: INSERT INTO purchase_requisitions ...
     DB-->>Controller: Insert confirmed
     Controller-->>Client: HTTP 200 { success: true, prNumber: ... }

@@ -44,7 +44,7 @@
       "parameters": {
         "authentication": "none",
         "requestMethod": "POST",
-        "url": "http://backend:3000/api/ai-gateway/n8n-trigger",
+        "url": "http://auth-server:4000/api/v1/ai-gateway/n8n-trigger",
         "options": {
           "headers": {
             "Content-Type": "application/json",

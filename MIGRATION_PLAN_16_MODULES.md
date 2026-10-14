@@ -2,7 +2,7 @@
 
 > **Target Architecture**: Hybrid Multi-Tenant Monorepo  
 > **Frontend**: React 18+ / Vite / TypeScript / TailwindCSS deployed on **Cloudflare Pages & Edge Workers**  
-> **Backend Service**: Node.js / Prisma & Next.js BFF deployed in **Local Podman** (Seamlessly hostable to Cloud Containers)  
+> **Backend Service**: Hono API Gateway & Node.js deployed in **Local Podman** (Seamlessly hostable to Cloud Containers)  
 > **Database Layer**: PostgreSQL via **Supabase Cloud / Kong Gateway** (Multi-Tenant RLS Enabled)  
 > **State & Cache Management**: **TanStack Query (React Query) v5** Single Source of Truth (SSOT)  
 > **Contract Validation**: **Zod Schemas** for all API inputs, outputs, and form submissions  
@@ -15,7 +15,7 @@
 graph TD
     A[Cloudflare Pages Frontend React 18 / Vite] -->|Zod Validated API Gateway| B[Unified IDatabaseAdapter / API Client Bridge]
     B -->|Production Cloud Mode| C[(Supabase Cloud PostgreSQL / RLS)]
-    B -->|Local Podman Dev Mode| D[(Local PostgreSQL / Prisma Backend)]
+    B -->|Local Podman Dev Mode| D[(Local PostgreSQL / Hono Backend)]
     B -->|Future Cloud Container Mode| E[(Cloud Native PostgreSQL / Edge Node)]
     A -->|State & Cache SSOT| F[TanStack React Query v5 Cache Mesh]
     C -->|PostgreSQL CDC WebSocket| G[Supabase Realtime Invalidation Mesh]

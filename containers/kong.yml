@@ -4,7 +4,7 @@ _transform: true
 services:
   # PostgREST REST API
   - name: rest-v1
-    url: http://rest:3000/
+    url: http://auth-server:4000/
     routes:
       - name: rest-v1-routes
         strip_path: true

@@ -22,44 +22,37 @@ flowchart TD
         NGINX["NGINX Reverse Proxy (SSL, Rate Limits, Upstream Proxy)"]
         
         subgraph Docker ["Podman / Docker Monorepo Network"]
-            NestJS["NestJS Backend (Node 20 Alpine)"]
-            OTEL["OpenTelemetry + Pino + Prometheus Metrics"]
-            LangChain["LangChain NL-to-SQL + MCP SQL Parser"]
-            DocGen["Document Generator (PDFKit, ExcelJS, Docx)"]
-            Prisma["Prisma ORM Multi-Tenant Client"]
-            Redis["Redis 7 (Sessions, Cache, Rate Limits)"]
+            HonoAPI["Hono API Server (Node 22 / Cloudflare Compatible)"]
+            BetterAuth["Better Auth (PostgreSQL Session Store)"]
+            Dbmate["dbmate SQL Migrations Engine"]
             LocalPG["PostgreSQL 16 (Local High-Performance DB)"]
         end
     end
 
     subgraph CloudDB ["Cloud Database Layer"]
-        Supabase["Supabase Cloud PostgreSQL (Realtime & Master Accounts)"]
+        Supabase["Supabase Cloud PostgreSQL (Realtime CDC & Managed Postgres)"]
     end
 
     Browser -->|HTTPS / WSS| CF_Worker
-    CF_Worker -->|Verified JWT & Tenant| NGINX
+    CF_Worker -->|Verified Session & Tenant| NGINX
     CF_Worker -.->|Static Cached Responses| CF_KV
-    NGINX -->|Reverse Proxy :3000| NestJS
-    NestJS --> LangChain
-    NestJS --> DocGen
-    DocGen -->|Upload S3/R2| CF_R2
-    NestJS --> OTEL
-    NestJS --> Redis
-    NestJS --> Prisma
-    Prisma -->|Primary Queries| LocalPG
-    Prisma -.->|Master Catalog Sync| Supabase
+    NGINX -->|Reverse Proxy :4000| HonoAPI
+    HonoAPI --> BetterAuth
+    BetterAuth --> LocalPG
+    HonoAPI -->|Primary Queries| LocalPG
+    LocalPG -.->|CDC Sync| Supabase
 ```
 
 ---
 
 ## 2. Multi-Tenancy & Financial Precision Rules
 
-1. **Decimal Precision**: All currency, material weights (kg, g), cycle times (s), and scrap rates are computed using `Decimal.js` (or Prisma `Decimal(18,4)`), never IEEE-754 floating point numbers.
-2. **Tenant Isolation**: Every database table contains a mandatory `tenantId` column with composite index `[tenantId, id]`. Queries enforce tenant filters at three distinct layers:
+1. **Decimal Precision**: All currency, material weights (kg, g), cycle times (s), and scrap rates are computed using `Decimal.js` (or SQL `numeric(18,4)`), never IEEE-754 floating point numbers.
+2. **Tenant Isolation**: Every database table contains a mandatory `tenant_id` column with composite index `[tenant_id, id]`. Queries enforce tenant filters at three distinct layers:
    - Cloudflare Worker Gateway (`X-Tenant-ID` header validation)
-   - NestJS `TenantGuard` via `AsyncLocalStorage`
-   - Prisma Extension / Base Repository filter injection
-3. **Audit Snapshotting**: All mutations (`CREATE`, `UPDATE`, `DELETE`) automatically write JSON delta diffs to `AuditLog` and increment `EntityVersion`.
+   - Hono `tenantContext` middleware via `AsyncLocalStorage`
+   - SQL query builders with strict tenant parameter binding
+3. **Audit Snapshotting**: All mutations (`CREATE`, `UPDATE`, `DELETE`) automatically write JSON delta diffs to `audit_logs` and increment integer `version` (OCC).
 
 ---
 
@@ -67,8 +60,8 @@ flowchart TD
 
 1. **AST Blocklist**: Any SQL query emitted by the AI chain is parsed against an AST syntax validator:
    - Prohibits: `DROP`, `DELETE`, `TRUNCATE`, `ALTER`, `INSERT`, `UPDATE`, `GRANT`, `REVOKE`, `EXEC`.
-   - Prohibits accessing internal tables: `_prisma_migrations`, `User`, `Role`, `Tenant`.
-2. **Enforced Tenant Scope**: The SQL parser automatically injects or verifies `WHERE tenantId = :activeTenantId` on all table targets.
+   - Prohibits accessing internal tables: `schema_migrations`, `users`, `roles`, `tenants`.
+2. **Enforced Tenant Scope**: The SQL parser automatically injects or verifies `WHERE tenant_id = :activeTenantId` on all table targets.
 3. **Reporting Pipeline**: If the query requests tabular analytics, `DocumentGeneratorService` streams PDFKit (PDF), ExcelJS (XLSX), or DOCX to Cloudflare R2 and returns a presigned download URL.
 
 ---
@@ -86,18 +79,19 @@ flowchart TD
    git clone https://github.com/datastock2025-prog/SP-PLASTECH.git /opt/sp-plastech
    cd /opt/sp-plastech
    cp .env.example .env
-   # Edit .env with your secrets (DATABASE_URL, JWT_SECRET, R2 credentials)
+   # Edit .env with your secrets (DATABASE_URL, BETTER_AUTH_SECRET, R2 credentials)
    ```
 
 2. **Launch Podman / Docker Compose**:
    ```bash
-   docker compose -f docker-compose.yml up -d --build
+   podman compose up -d --build
    ```
 
-3. **Run Prisma Migrations & Seeding**:
+3. **Database Migrations (dbmate)**:
    ```bash
-   docker compose exec backend npx prisma migrate deploy
-   docker compose exec backend npx prisma db seed
+   # Executed automatically on container boot via migrate service in compose.yaml
+   # Or run manually:
+   npx dbmate --migrations-dir ./db/migrations up
    ```
 
 4. **Configure NGINX & SSL**:
@@ -118,6 +112,5 @@ flowchart TD
 
 ## 5. Observability & Health Checking
 
-- **Health Check Endpoint**: `GET http://localhost:3000/health` (Reports NestJS status, DB connection, Redis memory).
-- **Prometheus Metrics**: `GET http://localhost:3000/metrics`
-- **Audit Logs View**: Accessible in Admin Panel or querying `SELECT * FROM "AuditLog" ORDER BY "createdAt" DESC LIMIT 50;`.
+- **Health Check Endpoint**: `GET http://localhost:4000/api/auth/ok` (Reports auth-server and database readiness).
+- **Audit Logs View**: Accessible in Admin Panel or querying `SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 50;`.

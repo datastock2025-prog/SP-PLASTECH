@@ -133,9 +133,9 @@ async function verifyJwtEdge(token, secret) {
 }
 
 async function forwardToOrigin(request, env) {
-  const backendUrl = env.BACKEND_ORIGIN_URL || 'https://api.spplastech.com';
+  const apiOriginUrl = env.BACKEND_ORIGIN_URL || 'https://api.spplastech.com';
   const url = new URL(request.url);
-  const targetUrl = new URL(url.pathname + url.search, backendUrl);
+  const targetUrl = new URL(url.pathname + url.search, apiOriginUrl);
 
   const newHeaders = new Headers(request.headers);
   newHeaders.set('X-Forwarded-Host', url.hostname);

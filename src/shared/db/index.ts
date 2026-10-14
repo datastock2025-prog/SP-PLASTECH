@@ -14,7 +14,7 @@ export { RestApiAdapter } from './adapters/RestApiAdapter';
  *
  * Supported providers:
  * - 'supabase': Supabase Cloud / PostgreSQL
- * - 'rest_api': NestJS BFF / Local REST API Gateway
+ * - 'rest_api': Unified Hono API Gateway
  */
 function createDatabaseAdapter(): IDatabaseAdapter {
   const url =

@@ -49,7 +49,7 @@ export class GdprService {
       userId
     );
 
-    // In production, dispatch to backend API /api/v1/compliance/anonymize
+    // In production, dispatch to API /api/v1/compliance/anonymize
     return {
       success: true,
       trackingNumber,

@@ -8,7 +8,7 @@ export interface PromptAnalysisResponse {
 }
 
 export const aiApi = {
-  // Post prompt to AI Backend / BFF Gateway
+  // Post prompt to AI Gateway
   analyzePrompt: async (payload: { config: PromptBuilderFormValues; promptText: string }): Promise<PromptAnalysisResponse> => {
     try {
       const response = await apiClient.post<PromptAnalysisResponse>('/ai/analyze', payload);

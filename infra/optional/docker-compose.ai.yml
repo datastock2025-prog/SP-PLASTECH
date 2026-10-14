@@ -8,7 +8,7 @@ version: '3.8'
 networks:
   sp-plastech-internal:
     driver: bridge
-    internal: false # Internal bridge connecting AI sidecars to NestJS backend
+    internal: false # Internal bridge connecting AI sidecars to auth-server API gateway
 
 services:
   # ----------------------------------------------------------------------------
@@ -47,7 +47,7 @@ services:
       - OLLAMA_BASE_URL=http://ollama:11434
       - WEBUI_AUTH=true
       - WEBUI_SECRET_KEY=${OPEN_WEBUI_SECRET:-sp_plastech_openwebui_supersecret_2026}
-      - NESTJS_GATEWAY_URL=http://backend:3000/api/ai-gateway
+      - API_GATEWAY_URL=http://auth-server:4000/api/v1/ai-gateway
       - ENABLE_SIGNUP=false
     volumes:
       - openwebui_data:/app/backend/data
