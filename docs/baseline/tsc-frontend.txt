@@ -1,0 +1,13 @@
+﻿apps/web/src/modules/sales/components/redesign/SalesOrderWizard.tsx(216,51): error TS2552: Cannot find name 'LIVE_CUSTOMERS_CATALOG'. Did you mean 'customerCatalog'?
+src/hooks/index.ts(9,3): error TS2724: '"./useProcurement"' has no exported member named 'usePurchaseOrderDetail'. Did you mean 'usePurchaseOrders'?
+src/hooks/index.ts(12,3): error TS2724: '"./useProcurement"' has no exported member named 'useApprovePurchaseOrder'. Did you mean 'useSavePurchaseOrder'?
+src/hooks/index.ts(13,3): error TS2724: '"./useProcurement"' has no exported member named 'useDeletePurchaseOrder'. Did you mean 'usePurchaseOrders'?
+src/hooks/index.ts(14,3): error TS2724: '"./useProcurement"' has no exported member named 'useCreateSupplierPriceList'. Did you mean 'useSupplierPriceLists'?
+src/shared/api/http.ts(171,19): error TS2304: Cannot find name 'ApiError'.
+src/shared/api/http.ts(188,26): error TS2304: Cannot find name 'ApiError'.
+src/shared/api/http.ts(193,17): error TS2304: Cannot find name 'ApiError'.
+src/shared/utils/dtoMappers.ts(44,99): error TS2339: Property 'defaultWarehouse' does not exist on type 'Partial<ItemMaster>'.
+src/shared/utils/dtoMappers.ts(45,91): error TS2339: Property 'defaultBin' does not exist on type 'Partial<ItemMaster>'.
+src/shared/utils/dtoMappers.ts(46,65): error TS2339: Property 'imageUrl' does not exist on type 'Partial<ItemMaster>'.
+src/shared/utils/dtoMappers.ts(47,87): error TS2339: Property 'technicalDocUrl' does not exist on type 'Partial<ItemMaster>'.
+src/shared/utils/dtoMappers.ts(48,89): error TS2339: Property 'processingMethod' does not exist on type 'Partial<ItemMaster>'.

@@ -6,12 +6,8 @@ export * from './useQuality';
 export {
   usePurchaseOrders,
   useProcurementSummary,
-  usePurchaseOrderDetail,
   useSupplierPriceLists,
   useSavePurchaseOrder,
-  useApprovePurchaseOrder,
-  useDeletePurchaseOrder,
-  useCreateSupplierPriceList,
   type ProcurementSummaryDto,
 } from './useProcurement';
 export * from './useFinance';

@@ -26,7 +26,6 @@ export * from './privacy/useClipboardProtection';
 
 // Network & API Security
 export * from './network/secureHttpClient';
-export * from './network/secureWebSocket';
 export * from './network/apiValidator';
 
 // UI Security Components
