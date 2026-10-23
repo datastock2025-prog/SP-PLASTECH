@@ -35,7 +35,7 @@ import { SupplierPriceListEntry, SupplierMaster } from '@/src/types/procurement'
 import { ItemMaster } from '@/src/types';
 import { ProcurementStatusBadge } from './ProcurementStatusBadge';
 import { INITIAL_SUPPLIER_PRICE_LISTS } from '@/src/data/procurementData';
-import { itemService } from '@/src/services/itemService';
+import { useItems } from '@/src/hooks/useMasterData';
 import { SupabaseDataService } from '@/src/services/dataService';
 
 interface Props {
@@ -65,7 +65,7 @@ const safeFormatCurrency = (val: any): string => {
 export const SupplierPriceListView: React.FC<Props> = ({
   priceLists: propPriceLists = INITIAL_SUPPLIER_PRICE_LISTS,
   suppliers = [],
-  items = itemService.getItemsSync(),
+  items,
   onNavigate,
   onUpdatePriceList,
   onCreatePriceList,
@@ -90,7 +90,8 @@ export const SupplierPriceListView: React.FC<Props> = ({
   const [isItemCodeFocused, setIsItemCodeFocused] = useState(false);
   const [isItemNameFocused, setIsItemNameFocused] = useState(false);
 
-  const activeItemsList = items && items.length > 0 ? items : itemService.getItemsSync();
+  const { data: liveItems = [] } = useItems(undefined, 100);
+  const activeItemsList = items && items.length > 0 ? items : liveItems;
 
   // Sync live price lists from Supabase on mount
   React.useEffect(() => {

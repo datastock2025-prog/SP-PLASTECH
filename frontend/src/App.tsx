@@ -12,7 +12,7 @@ import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { UnauthorizedScreen } from './components/common/UnauthorizedScreen';
 import { ROLE_DEFAULT_VIEW } from './data/roleDefaultViews';
 import { workspaceRbacService, normalizeRoleKey } from './services/workspaceRbacService';
-import { itemService } from './services/itemService';
+import { useSaveItem } from './hooks/useMasterData';
 import { adminEventBus } from './services/adminService';
 import { initializeRealtime } from './services/realtime/realtimeService';
 import { api } from './lib/api-client';
@@ -403,12 +403,12 @@ function resolveViewFromLocation(pathname: string, search: string): string {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [rmas, setRmas] = useState<ReturnMerchandise[]>([]);
+  const saveItemMutation = useSaveItem();
 
   // Cross-Browser Realtime WebSocket Invalidation Bridge (Supabase Realtime CDC)
   useEffect(() => {
     // 0. Expose services globally for testing & external hooks
     if (typeof window !== 'undefined') {
-      (window as any).__ERP_ITEM_SERVICE__ = itemService;
       (window as any).__ERP_EVENT_BUS__ = adminEventBus;
       (window as any).__ERP_DB__ = db;
     }
@@ -466,9 +466,11 @@ function resolveViewFromLocation(pathname: string, search: string): string {
     });
 
     const unsubItemsSynced = adminEventBus.on('ITEMS_SYNCED', () => {
-      itemService.getItems().then((fetched) => {
-        if (Array.isArray(fetched)) setItems(fetched);
-      });
+      api.get<any>('/items', { params: { limit: 100 } }).then((res) => {
+        const env = res?.data !== undefined ? res.data : res;
+        const fetched = Array.isArray(env?.data) ? env.data : Array.isArray(env) ? env : null;
+        if (fetched) setItems(fetched);
+      }).catch(console.debug);
     });
 
     const unsubNcrsSynced = adminEventBus.on('QUALITY_NCRS_SYNCED', () => {
@@ -1668,7 +1670,7 @@ function resolveViewFromLocation(pathname: string, search: string): string {
               currentUser={currentUser}
               onUpdateItem={(updated) => {
                 setItems((prev) => prev.map((i) => (i.code === updated.code ? updated : i)));
-                itemService.saveItem(updated).catch(console.warn);
+                saveItemMutation.mutate(updated, { onError: (e) => console.warn(e) });
               }}
               onNavigate={handleNavigate}
               openDrawer={openDrawer}
@@ -1689,7 +1691,7 @@ function resolveViewFromLocation(pathname: string, search: string): string {
               onNavigate={handleNavigate}
               onUpdateItem={(updated) => {
                 setItems((prev) => prev.map((i) => (i.code === updated.code ? updated : i)));
-                itemService.saveItem(updated).catch(console.warn);
+                saveItemMutation.mutate(updated, { onError: (e) => console.warn(e) });
               }}
               onUpdatePO={(updated) => {
                 setPurchaseOrders((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));

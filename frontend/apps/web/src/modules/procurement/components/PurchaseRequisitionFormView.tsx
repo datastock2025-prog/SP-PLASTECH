@@ -30,7 +30,7 @@ import {
 } from '@/src/types/procurement';
 import { ItemMaster, AuthUser } from '@/src/types';
 import { ProcurementStatusBadge } from './ProcurementStatusBadge';
-import { itemService } from '@/src/services/itemService';
+import { useItems, useSaveItem } from '@/src/hooks/useMasterData';
 import { supplierService } from '@/src/services/procurement/supplierService';
 import { adminService, adminEventBus } from '@/src/services/adminService';
 import { CreateItemWizardModal } from '@/apps/web/src/modules/masterdata/components/CreateItemWizardModal';
@@ -94,31 +94,14 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
   const existingPr = prs.find((p) => p && (p.id === prId || p.prNumber === prId));
   const isEditing = Boolean(existingPr);
 
-  // Live items state - itemService as single source of truth
-  const [itemsList, setItemsList] = useState<ItemMaster[]>(() => {
-    const list = itemService.getItemsSync();
-    if (list && list.length > 0) return list;
-    if (propItems && propItems.length > 0) return propItems;
-    return [];
-  });
+  // Live items: TanStack Query is the single source of truth (invalidated by item mutations)
+  const { data: liveItems = [] } = useItems(undefined, 100);
+  const saveItemMutation = useSaveItem();
+  const [itemsList, setItemsList] = useState<ItemMaster[]>(() => propItems ?? []);
 
-  // Listen for real-time Item Master events across ERP
   useEffect(() => {
-    const handleUpdate = () => {
-      const refreshed = itemService.getItemsSync();
-      if (refreshed && refreshed.length > 0) {
-        setItemsList(refreshed);
-      }
-    };
-    adminEventBus.on('ITEM_SAVED', handleUpdate);
-    adminEventBus.on('ITEM_DELETED', handleUpdate);
-    adminEventBus.on('CATALOG_RELOADED', handleUpdate);
-    return () => {
-      adminEventBus.off('ITEM_SAVED', handleUpdate);
-      adminEventBus.off('ITEM_DELETED', handleUpdate);
-      adminEventBus.off('CATALOG_RELOADED', handleUpdate);
-    };
-  }, []);
+    if (liveItems.length > 0) setItemsList(liveItems);
+  }, [liveItems]);
 
   // Admin PR sequence generator
   const [prNumber, setPrNumber] = useState<string>(() => {
@@ -422,7 +405,7 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
 
   // Handle newly created item from wizard
   const handleSaveCreatedItem = async (newItem: ItemMaster) => {
-    const persistedItem = await itemService.saveItem(newItem);
+    const persistedItem = await saveItemMutation.mutateAsync(newItem);
     setItemsList((prev) => [persistedItem, ...prev.filter((i) => i.code !== persistedItem.code)]);
 
     if (activeCreatingItemLineIdx >= 0 && activeCreatingItemLineIdx < lines.length) {

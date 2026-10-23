@@ -42,7 +42,6 @@ import {
 import { ItemMaster, ItemType, ApprovalStatus, ItemStatus } from '@/src/types';
 import { MasterDataRecord } from '@/src/data/adminExtendedData';
 import { masterDataGovernanceService } from '../api/masterDataGovernanceService';
-import { itemService } from '../api/itemService';
 import { adminEventBus } from '@/src/services/adminService';
 import { MasterDataCombobox } from '@/src/components/common/MasterDataCombobox';
 import { r2StorageService } from '@/src/services/storage/r2StorageService';
@@ -281,7 +280,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   };
 
   // Active Item Master Grid Items & Duplicate Validation
-  const currentGridItems: ItemMaster[] = (allItems && allItems.length > 0) ? allItems : itemService.getItemsSync();
+  const currentGridItems: ItemMaster[] = (allItems && allItems.length > 0) ? allItems : [];
   const isEditing = !!editItem;
   const currentEditCode = (editItem?.code || '').trim().toLowerCase();
   const currentEditName = (editItem?.name || '').trim().toLowerCase();
@@ -440,7 +439,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
     setSyncedMasterRecord(rec);
     setItemCodeError(false);
     setShowCodeDropdown(false);
-    showToast(`✓ Master data "${rec.code}" auto-filled: Name, Category, Group, Resin (${derivedResin || 'PP'}), Color (${derivedColor || 'Natural'})`);
+    showToast(`âœ“ Master data "${rec.code}" auto-filled: Name, Category, Group, Resin (${derivedResin || 'PP'}), Color (${derivedColor || 'Natural'})`);
   };
 
   const handleItemCodeChange = (val: string) => {
@@ -543,7 +542,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
     if (sup.moq) setPurchaseMoq(sup.moq);
     if (sup.leadTimeDays) setLeadTimeDays(sup.leadTimeDays);
     setShowSupplierDropdown(false);
-    showToast(`✓ Supplier "${sup.name}" selected: HSN (${sup.hsnCode || '39021000'}) & MOQ (${sup.moq || 1000}) auto-filled!`);
+    showToast(`âœ“ Supplier "${sup.name}" selected: HSN (${sup.hsnCode || '39021000'}) & MOQ (${sup.moq || 1000}) auto-filled!`);
   };
 
   const handleOpenNewSupplierModal = (prefilledName?: string) => {
@@ -593,7 +592,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
     setPurchaseMoq(saved.moq);
     setLeadTimeDays(saved.leadTimeDays);
     setIsNewSupplierModalOpen(false);
-    showToast(`✓ Supplier "${saved.name}" registered in Master Data & auto-filled HSN (${saved.hsnCode}) and MOQ (${saved.moq})!`);
+    showToast(`âœ“ Supplier "${saved.name}" registered in Master Data & auto-filled HSN (${saved.hsnCode}) and MOQ (${saved.moq})!`);
   };
 
   // Task 3: Warehouse & Bin Governance Handlers
@@ -635,7 +634,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
     setLocalWarehouses(masterDataGovernanceService.getWarehouses());
     setDefaultWarehouse(saved.code);
     setIsNewWarehouseModalOpen(false);
-    showToast(`✓ Warehouse "${saved.code} - ${saved.name}" registered in Master Data & selected!`);
+    showToast(`âœ“ Warehouse "${saved.code} - ${saved.name}" registered in Master Data & selected!`);
   };
 
   const handleSaveNewBin = async (codeToSave?: string) => {
@@ -663,7 +662,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
     setDefaultBin(saved.code);
     setShowBinDropdown(false);
     setIsNewBinModalOpen(false);
-    showToast(`✓ Storage Bin "${saved.code}" registered in Master Data under warehouse ${defaultWarehouse}!`);
+    showToast(`âœ“ Storage Bin "${saved.code}" registered in Master Data under warehouse ${defaultWarehouse}!`);
   };
 
   // Finished Good Technical & Injection Molding Parameters
@@ -1155,7 +1154,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       lot: lotControlled,
       qc: iqcMandatory,
       status: 'inactive',
-      icon: isFgItem ? '▣' : selectedType === 'Masterbatch' || selectedType === 'Colorant' ? '●' : selectedType === 'Spare Part' ? '🔧' : '◇',
+      icon: isFgItem ? 'â–£' : selectedType === 'Masterbatch' || selectedType === 'Colorant' ? 'â—' : selectedType === 'Spare Part' ? 'ðŸ”§' : 'â—‡',
       baseUOM,
       approval: 'draft',
       createdOn: 'Today',
@@ -1254,7 +1253,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       lot: lotControlled,
       qc: iqcMandatory,
       status: isApprovedDirectly ? 'active' : (editItem?.status === 'active' ? 'active' : 'inactive'),
-      icon: isFgItem ? '▣' : selectedType === 'Masterbatch' || selectedType === 'Colorant' ? '●' : selectedType === 'Spare Part' ? '🔧' : '◇',
+      icon: isFgItem ? 'â–£' : selectedType === 'Masterbatch' || selectedType === 'Colorant' ? 'â—' : selectedType === 'Spare Part' ? 'ðŸ”§' : 'â—‡',
       baseUOM,
       approval: isApprovedDirectly ? 'approved' : (editItem?.approval || 'pending'),
       createdOn: editItem?.createdOn || 'Today',
@@ -1327,10 +1326,10 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-white">
           <div>
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-              {editItem ? `Edit item — ${editItem.code}` : 'Create item'}
+              {editItem ? `Edit item â€” ${editItem.code}` : 'Create item'}
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Guided setup — fields adapt to the selected item type. Draft auto-saves every 30 seconds.
+              Guided setup â€” fields adapt to the selected item type. Draft auto-saves every 30 seconds.
             </p>
           </div>
 
@@ -1444,7 +1443,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
               <span className="truncate">
                 {isAutoSaving
                   ? 'Auto-saving progress...'
-                  : `Auto-saved ${lastAutoSaveTime} • draft ${itemCode}`}
+                  : `Auto-saved ${lastAutoSaveTime} â€¢ draft ${itemCode}`}
               </span>
             </div>
           </div>
@@ -1757,7 +1756,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                           {isApprovedLocked && <span className="ml-1 text-[10px] text-amber-600 font-normal">(Locked)</span>}
                         </label>
                         {syncedMasterRecord && (
-                          <span className="text-[10px] text-emerald-700 font-medium">✓ Auto-filled</span>
+                          <span className="text-[10px] text-emerald-700 font-medium">âœ“ Auto-filled</span>
                         )}
                       </div>
                       <input
@@ -1795,7 +1794,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                       <div className="flex items-center justify-between mb-1">
                         <label className="block font-semibold text-slate-700">Classification / Category *</label>
                         {syncedMasterRecord && (
-                          <span className="text-[10px] text-emerald-700 font-medium">✓ Auto-filled</span>
+                          <span className="text-[10px] text-emerald-700 font-medium">âœ“ Auto-filled</span>
                         )}
                       </div>
                       <MasterDataCombobox
@@ -1807,7 +1806,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         onSaveCustomOption={(newVal) => {
                           const updated = masterDataGovernanceService.saveCategory(newVal);
                           setCategoryList(updated);
-                          showToast(`✓ Category "${newVal}" registered in Admin Master Catalog!`);
+                          showToast(`âœ“ Category "${newVal}" registered in Admin Master Catalog!`);
                         }}
                       />
                     </div>
@@ -1817,7 +1816,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                       <div className="flex items-center justify-between mb-1">
                         <label className="block font-semibold text-slate-700">Item Group *</label>
                         {syncedMasterRecord && (
-                          <span className="text-[10px] text-emerald-700 font-medium">✓ Auto-filled</span>
+                          <span className="text-[10px] text-emerald-700 font-medium">âœ“ Auto-filled</span>
                         )}
                       </div>
                       <MasterDataCombobox
@@ -1829,7 +1828,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         onSaveCustomOption={(newVal) => {
                           const updated = masterDataGovernanceService.saveItemGroup(newVal);
                           setItemGroupList(updated);
-                          showToast(`✓ Item Group "${newVal}" registered in Admin Master Catalog!`);
+                          showToast(`âœ“ Item Group "${newVal}" registered in Admin Master Catalog!`);
                         }}
                       />
                     </div>
@@ -1850,7 +1849,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         onSaveCustomOption={(newVal) => {
                           const updated = masterDataGovernanceService.savePlantScope(newVal);
                           setPlantScopeList(updated);
-                          showToast(`✓ Plant "${newVal}" registered!`);
+                          showToast(`âœ“ Plant "${newVal}" registered!`);
                         }}
                       />
                     </div>
@@ -2065,7 +2064,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                               onSaveCustomOption={(newVal) => {
                                 const updated = masterDataGovernanceService.saveResinType(newVal);
                                 setResinTypeList(updated);
-                                showToast(`✓ Resin "${newVal}" registered!`);
+                                showToast(`âœ“ Resin "${newVal}" registered!`);
                               }}
                             />
                           </div>
@@ -2096,7 +2095,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                           </div>
 
                           <div>
-                            <label className="block font-semibold text-slate-700 mb-1">Density (g/cm³)</label>
+                            <label className="block font-semibold text-slate-700 mb-1">Density (g/cmÂ³)</label>
                             <div className="relative">
                               <input
                                 type="text"
@@ -2105,7 +2104,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                                 className="w-full pl-3 pr-12 py-2 rounded-lg border border-slate-300 font-mono text-xs bg-white"
                                 placeholder="e.g. 0.905"
                               />
-                              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-semibold">g/cm³</span>
+                              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-semibold">g/cmÂ³</span>
                             </div>
                           </div>
                         </div>
@@ -2118,7 +2117,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                                 Rheology Balance:
                               </span>
                               <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                                MFI {mfi || '11.0'} &bull; Density {density || '0.905'} g/cm³
+                                MFI {mfi || '11.0'} &bull; Density {density || '0.905'} g/cmÂ³
                               </span>
                               <span className="text-slate-400">&bull;</span>
                               <span className="text-slate-700 font-semibold text-[11px]">
@@ -2126,7 +2125,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                               </span>
                             </div>
                             <div className="font-mono text-[11px] text-slate-600">
-                              Material Grade: <strong className="text-slate-800">{polymerGrade || 'Virgin Polymer'}</strong> ({resinType || 'Polypropylene'}) &bull; Pre-drying: {moistureSensitive ? 'Mandatory (80°C / 2h)' : 'Standard ambient'}
+                              Material Grade: <strong className="text-slate-800">{polymerGrade || 'Virgin Polymer'}</strong> ({resinType || 'Polypropylene'}) &bull; Pre-drying: {moistureSensitive ? 'Mandatory (80Â°C / 2h)' : 'Standard ambient'}
                             </div>
                           </div>
                           <div className="shrink-0 text-right font-mono text-[11px] text-slate-500">
@@ -2171,7 +2170,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                               onSaveCustomOption={(newVal) => {
                                 const updated = masterDataGovernanceService.saveColor(newVal);
                                 setColorList(updated);
-                                showToast(`✓ Color "${newVal}" registered!`);
+                                showToast(`âœ“ Color "${newVal}" registered!`);
                               }}
                             />
                           </div>
@@ -2209,9 +2208,9 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                                 value={heatStability}
                                 onChange={(e) => setHeatStability(e.target.value)}
                                 className="w-full pl-3 pr-8 py-2 rounded-lg border border-slate-300 font-mono text-xs bg-white"
-                                placeholder="e.g. 280°C"
+                                placeholder="e.g. 280Â°C"
                               />
-                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-semibold">°C</span>
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-semibold">Â°C</span>
                             </div>
                           </div>
                         </div>
@@ -2232,7 +2231,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                               </span>
                             </div>
                             <div className="font-mono text-[11px] text-slate-600">
-                              Shade: <strong className="text-slate-800">{color || 'Natural / Custom'}</strong> &bull; Carrier: <strong className="text-slate-800">{carrierResin || '—'}</strong> &bull; Heat Limit: {heatStability ? `${heatStability}°C` : '—'}
+                              Shade: <strong className="text-slate-800">{color || 'Natural / Custom'}</strong> &bull; Carrier: <strong className="text-slate-800">{carrierResin || 'â€”'}</strong> &bull; Heat Limit: {heatStability ? `${heatStability}Â°C` : 'â€”'}
                             </div>
                           </div>
                           <div className="shrink-0 text-right font-mono text-[11px] text-slate-500">
@@ -2277,13 +2276,13 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                               onSaveCustomOption={(newVal) => {
                                 const updated = masterDataGovernanceService.savePackingStandard(newVal);
                                 setPackingStandardList(updated);
-                                showToast(`✓ Packaging Standard "${newVal}" registered!`);
+                                showToast(`âœ“ Packaging Standard "${newVal}" registered!`);
                               }}
                             />
                           </div>
 
                           <div>
-                            <label className="block font-semibold text-slate-700 mb-1">Outer Dimensions (L × W × H mm)</label>
+                            <label className="block font-semibold text-slate-700 mb-1">Outer Dimensions (L Ã— W Ã— H mm)</label>
                             <input
                               type="text"
                               value={boxDimensions}
@@ -2324,15 +2323,15 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                                 Container Matrix:
                               </span>
                               <span className="font-mono text-xs font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                                {boxDimensions || '—'}
+                                {boxDimensions || 'â€”'}
                               </span>
                               <span className="text-slate-400">&bull;</span>
                               <span className="text-slate-700 font-semibold text-[11px]">
-                                Capacity: <strong className="font-mono text-amber-900">{unitsPerPack ? `${unitsPerPack} pcs / pack` : '—'}</strong>
+                                Capacity: <strong className="font-mono text-amber-900">{unitsPerPack ? `${unitsPerPack} pcs / pack` : 'â€”'}</strong>
                               </span>
                             </div>
                             <div className="font-mono text-[11px] text-slate-600">
-                              Standard: <strong className="text-slate-800">{packagingStandard || '—'}</strong> &bull; HSN: {hsnCode || '—'}
+                              Standard: <strong className="text-slate-800">{packagingStandard || 'â€”'}</strong> &bull; HSN: {hsnCode || 'â€”'}
                             </div>
                           </div>
                           <div className="shrink-0 text-right font-mono text-[11px] text-slate-500">
@@ -2485,7 +2484,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                                     setItemImageName(file.name);
                                     setItemImageSize(sizeKb);
                                     setItemImage(URL.createObjectURL(file));
-                                    showToast(`✓ Photo "${file.name}" (${sizeKb}) loaded live!`);
+                                    showToast(`âœ“ Photo "${file.name}" (${sizeKb}) loaded live!`);
                                   }
                                 }}
                               />
@@ -2523,7 +2522,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                               setItemImageName(file.name);
                               setItemImageSize(sizeKb);
                               setItemImage(URL.createObjectURL(file));
-                              showToast(`✓ Photo "${file.name}" (${sizeKb}) loaded live!`);
+                              showToast(`âœ“ Photo "${file.name}" (${sizeKb}) loaded live!`);
                             }
                           }}
                           className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors flex flex-col items-center justify-center gap-2 ${
@@ -2548,7 +2547,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                                   setItemImageName(file.name);
                                   setItemImageSize(sizeKb);
                                   setItemImage(URL.createObjectURL(file));
-                                  showToast(`✓ Photo "${file.name}" (${sizeKb}) loaded live!`);
+                                  showToast(`âœ“ Photo "${file.name}" (${sizeKb}) loaded live!`);
                                 }
                               }}
                             />
@@ -2580,7 +2579,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         onSaveCustomOption={(newVal) => {
                           const updated = masterDataGovernanceService.saveUom(newVal);
                           setUomList(updated);
-                          showToast(`✓ UOM "${newVal}" registered in Admin Master Catalog!`);
+                          showToast(`âœ“ UOM "${newVal}" registered in Admin Master Catalog!`);
                         }}
                       />
                     </div>
@@ -2720,7 +2719,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                       <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
                         <span>Resin Type *</span>
                         {syncedMasterRecord?.resinType && (
-                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-medium border border-emerald-100">✓ Master Synced</span>
+                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-medium border border-emerald-100">âœ“ Master Synced</span>
                         )}
                       </label>
                       <MasterDataCombobox
@@ -2732,7 +2731,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         onSaveCustomOption={(newVal) => {
                           const updated = masterDataGovernanceService.saveResinType(newVal);
                           setResinTypeList(updated);
-                          showToast(`✓ Resin "${newVal}" registered in Admin Master Catalog!`);
+                          showToast(`âœ“ Resin "${newVal}" registered in Admin Master Catalog!`);
                         }}
                       />
                     </div>
@@ -2742,7 +2741,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                       <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
                         <span>Color / Finish *</span>
                         {syncedMasterRecord?.color && (
-                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-medium border border-emerald-100">✓ Master Synced</span>
+                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-medium border border-emerald-100">âœ“ Master Synced</span>
                         )}
                       </label>
                       <MasterDataCombobox
@@ -2754,7 +2753,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         onSaveCustomOption={(newVal) => {
                           const updated = masterDataGovernanceService.saveColor(newVal);
                           setColorList(updated);
-                          showToast(`✓ Color "${newVal}" registered in Admin Master Catalog!`);
+                          showToast(`âœ“ Color "${newVal}" registered in Admin Master Catalog!`);
                         }}
                       />
                     </div>
@@ -2763,7 +2762,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                       <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
                         <span>Polymer grade</span>
                         {syncedMasterRecord?.polymerGrade && (
-                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-medium border border-emerald-100">✓ Master Synced</span>
+                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-medium border border-emerald-100">âœ“ Master Synced</span>
                         )}
                       </label>
                       <input
@@ -2790,7 +2789,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     </div>
 
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Density (g/cm³)</label>
+                      <label className="block font-semibold text-slate-700 mb-1">Density (g/cmÂ³)</label>
                       <input
                         type="text"
                         value={density}
@@ -3269,10 +3268,10 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                           </span>
                         </div>
                         <div className="text-[11px] font-bold">
-                          {routingDestination === 'WIP' && '✓ Staged in WIP store ready for QA sampling or secondary routing'}
-                          {routingDestination === 'DOL' && '✓ Bypasses WIP staging directly to customer dispatch ready'}
-                          {routingDestination === 'ASSEMBLY' && '⚡ Queued for assembly hardware & packaging lines'}
-                          {routingDestination === 'DEFLASH' && '⚡ Queued for secondary deflashing & gate trimming'}
+                          {routingDestination === 'WIP' && 'âœ“ Staged in WIP store ready for QA sampling or secondary routing'}
+                          {routingDestination === 'DOL' && 'âœ“ Bypasses WIP staging directly to customer dispatch ready'}
+                          {routingDestination === 'ASSEMBLY' && 'âš¡ Queued for assembly hardware & packaging lines'}
+                          {routingDestination === 'DEFLASH' && 'âš¡ Queued for secondary deflashing & gate trimming'}
                         </div>
                       </div>
                     </div>
@@ -3334,7 +3333,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         onSaveCustomOption={(newVal) => {
                           const updated = masterDataGovernanceService.saveTestingLab(newVal);
                           setTestingLabList(updated);
-                          showToast(`✓ Testing Lab "${newVal}" registered in Admin Master Catalog!`);
+                          showToast(`âœ“ Testing Lab "${newVal}" registered in Admin Master Catalog!`);
                         }}
                       />
                     </div>
@@ -3484,7 +3483,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     </div>
 
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Standard Purchase Cost (₹ / UOM)</label>
+                      <label className="block font-semibold text-slate-700 mb-1">Standard Purchase Cost (â‚¹ / UOM)</label>
                       <input
                         type="number"
                         step={0.5}
@@ -3554,7 +3553,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Standard List Price (₹ / UOM)</label>
+                      <label className="block font-semibold text-slate-700 mb-1">Standard List Price (â‚¹ / UOM)</label>
                       <input
                         type="number"
                         step={1}
@@ -3601,7 +3600,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         onSaveCustomOption={(newVal) => {
                           const updated = masterDataGovernanceService.savePackingStandard(newVal);
                           setPackingStandardList(updated);
-                          showToast(`✓ Packaging Standard "${newVal}" registered in Admin Master Catalog!`);
+                          showToast(`âœ“ Packaging Standard "${newVal}" registered in Admin Master Catalog!`);
                         }}
                       />
                     </div>
@@ -3645,7 +3644,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                                 url: fileUrl,
                               },
                             ]);
-                            showToast(`✓ RoHS Compliance document "${file.name}" (${sizeKb}) attached live!`);
+                            showToast(`âœ“ RoHS Compliance document "${file.name}" (${sizeKb}) attached live!`);
                           }
                         }}
                       />
@@ -3744,7 +3743,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                           };
                         });
                         setDocuments([...documents, ...newDocs]);
-                        showToast(`✓ ${newDocs.length} live document(s) uploaded!`);
+                        showToast(`âœ“ ${newDocs.length} live document(s) uploaded!`);
                       }
                     }}
                     className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors flex flex-col items-center justify-center gap-2 ${
@@ -3786,7 +3785,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                               };
                             });
                             setDocuments([...documents, ...newDocs]);
-                            showToast(`✓ ${newDocs.length} live document(s) uploaded!`);
+                            showToast(`âœ“ ${newDocs.length} live document(s) uploaded!`);
                           }
                         }}
                       />
@@ -3822,30 +3821,30 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                       {(selectedType === 'Finished Good' || selectedType === 'Semi-Finished Good') ? (
                         <>
                           <div className="text-slate-800 font-mono text-[11px]">
-                            Cycle: <strong>{cycleTime ? `${cycleTime}s` : '—'}</strong> &bull; Cavities: <strong>{cavityCount ? `${cavityCount} cav` : '—'}</strong>
+                            Cycle: <strong>{cycleTime ? `${cycleTime}s` : 'â€”'}</strong> &bull; Cavities: <strong>{cavityCount ? `${cavityCount} cav` : 'â€”'}</strong>
                           </div>
                           <div className="text-[#0066CC] font-mono text-[11px] font-semibold">
-                            Part: {partWeight ? `${partWeight}g` : '—'} + Runner: {runnerWeight ? `${runnerWeight}g` : '0g'} = Shot: {calculatedSingleShotWeight > 0 ? `${calculatedSingleShotWeight}g` : '—'}
+                            Part: {partWeight ? `${partWeight}g` : 'â€”'} + Runner: {runnerWeight ? `${runnerWeight}g` : '0g'} = Shot: {calculatedSingleShotWeight > 0 ? `${calculatedSingleShotWeight}g` : 'â€”'}
                           </div>
                         </>
                       ) : (selectedType === 'Raw Material' || selectedType === 'Regrind') ? (
                         <>
-                          <div className="text-slate-800 font-mono text-[11px]">MFI: <strong>{mfi ? `${mfi} g/10min` : '—'}</strong> &bull; Dens: <strong>{density || '—'}</strong></div>
-                          <div className="text-emerald-700 text-[11px] font-semibold">Resin: {resinType || '—'} ({polymerGrade || '—'}) {regrindAllowance ? `• Regrind: ${regrindAllowance}%` : ''}</div>
+                          <div className="text-slate-800 font-mono text-[11px]">MFI: <strong>{mfi ? `${mfi} g/10min` : 'â€”'}</strong> &bull; Dens: <strong>{density || 'â€”'}</strong></div>
+                          <div className="text-emerald-700 text-[11px] font-semibold">Resin: {resinType || 'â€”'} ({polymerGrade || 'â€”'}) {regrindAllowance ? `â€¢ Regrind: ${regrindAllowance}%` : ''}</div>
                         </>
                       ) : (selectedType === 'Masterbatch' || selectedType === 'Colorant' || selectedType === 'Additive') ? (
                         <>
-                          <div className="text-slate-800 font-mono text-[11px]">LDR Dosage: <strong>{masterbatchDosage ? `${masterbatchDosage}%` : '—'}</strong> &bull; Heat: <strong>{heatStability || '—'}</strong></div>
-                          <div className="text-purple-700 text-[11px] font-semibold">Color: {color || '—'} &bull; Carrier: {carrierResin || '—'}</div>
+                          <div className="text-slate-800 font-mono text-[11px]">LDR Dosage: <strong>{masterbatchDosage ? `${masterbatchDosage}%` : 'â€”'}</strong> &bull; Heat: <strong>{heatStability || 'â€”'}</strong></div>
+                          <div className="text-purple-700 text-[11px] font-semibold">Color: {color || 'â€”'} &bull; Carrier: {carrierResin || 'â€”'}</div>
                         </>
                       ) : selectedType === 'Packaging Material' ? (
                         <>
-                          <div className="text-slate-800 font-mono text-[11px]">Dim: <strong>{boxDimensions || '—'}</strong></div>
-                          <div className="text-amber-800 text-[11px] font-semibold">Pack: {unitsPerPack ? `${unitsPerPack} pcs/box` : '—'} &bull; {packagingStandard || '—'}</div>
+                          <div className="text-slate-800 font-mono text-[11px]">Dim: <strong>{boxDimensions || 'â€”'}</strong></div>
+                          <div className="text-amber-800 text-[11px] font-semibold">Pack: {unitsPerPack ? `${unitsPerPack} pcs/box` : 'â€”'} &bull; {packagingStandard || 'â€”'}</div>
                         </>
                       ) : (
                         <>
-                          <div className="text-slate-800 font-mono text-[11px]">Fitment: <strong>{machineFitment || '—'}</strong></div>
+                          <div className="text-slate-800 font-mono text-[11px]">Fitment: <strong>{machineFitment || 'â€”'}</strong></div>
                           <div className="text-slate-700 text-[11px] font-semibold">Class: {spareClass} &bull; Lead: {leadTimeDays}d</div>
                         </>
                       )}
@@ -4065,7 +4064,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     onSaveCustomOption={(newVal) => {
                       const updated = masterDataGovernanceService.saveCategory(newVal);
                       setCategoryList(updated);
-                      showToast(`✓ Category "${newVal}" saved to Master Catalog!`);
+                      showToast(`âœ“ Category "${newVal}" saved to Master Catalog!`);
                     }}
                   />
                 </div>
@@ -4081,7 +4080,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     onSaveCustomOption={(newVal) => {
                       const updated = masterDataGovernanceService.saveItemGroup(newVal);
                       setItemGroupList(updated);
-                      showToast(`✓ Item Group "${newVal}" saved to Master Catalog!`);
+                      showToast(`âœ“ Item Group "${newVal}" saved to Master Catalog!`);
                     }}
                   />
                 </div>
@@ -4097,7 +4096,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     onSaveCustomOption={(newVal) => {
                       const updated = masterDataGovernanceService.saveUom(newVal);
                       setUomList(updated);
-                      showToast(`✓ UOM "${newVal}" saved to Master Catalog!`);
+                      showToast(`âœ“ UOM "${newVal}" saved to Master Catalog!`);
                     }}
                   />
                 </div>
@@ -4113,7 +4112,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     onSaveCustomOption={(newVal) => {
                       const updated = masterDataGovernanceService.savePlantScope(newVal);
                       setPlantScopeList(updated);
-                      showToast(`✓ Plant Scope "${newVal}" saved to Master Catalog!`);
+                      showToast(`âœ“ Plant Scope "${newVal}" saved to Master Catalog!`);
                     }}
                   />
                 </div>
@@ -4129,7 +4128,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     onSaveCustomOption={(newVal) => {
                       const updated = masterDataGovernanceService.saveResinType(newVal);
                       setResinTypeList(updated);
-                      showToast(`✓ Resin "${newVal}" saved to Master Catalog!`);
+                      showToast(`âœ“ Resin "${newVal}" saved to Master Catalog!`);
                     }}
                   />
                 </div>
@@ -4145,7 +4144,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     onSaveCustomOption={(newVal) => {
                       const updated = masterDataGovernanceService.saveColor(newVal);
                       setColorList(updated);
-                      showToast(`✓ Color "${newVal}" saved to Master Catalog!`);
+                      showToast(`âœ“ Color "${newVal}" saved to Master Catalog!`);
                     }}
                   />
                 </div>
@@ -4161,7 +4160,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     onSaveCustomOption={(newVal) => {
                       const updated = masterDataGovernanceService.saveComplianceMandate(newVal);
                       setComplianceList(updated);
-                      showToast(`✓ Compliance Mandate "${newVal}" saved to Master Catalog!`);
+                      showToast(`âœ“ Compliance Mandate "${newVal}" saved to Master Catalog!`);
                     }}
                   />
                 </div>

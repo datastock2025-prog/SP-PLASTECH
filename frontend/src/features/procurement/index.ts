@@ -6,4 +6,3 @@
 export * from './types/procurementSchemas';
 export * from './api/procurementApi';
 export * from './hooks/useProcurement';
-export { ProcurementViews } from '../../components/ProcurementViews';

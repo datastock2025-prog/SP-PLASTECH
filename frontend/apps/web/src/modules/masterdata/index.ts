@@ -1,6 +1,6 @@
 // ============================================================================
 // MASTERDATA MODULE: PUBLIC API
-// Modular Monolithic Architecture — apps/web/src/modules/masterdata/index.ts
+// Modular Monolithic Architecture â€” apps/web/src/modules/masterdata/index.ts
 // ============================================================================
 
 export { MasterDataViews } from './screens/MasterDataViews';
@@ -27,7 +27,6 @@ export {
   useGovernanceAuditHistory,
   useGovernanceChangeRequests,
 } from './api/useMasterData';
-export { itemService } from './api/itemService';
 export { masterDataGovernanceService } from './api/masterDataGovernanceService';
 
 export { masterDataRoutes } from './routes';

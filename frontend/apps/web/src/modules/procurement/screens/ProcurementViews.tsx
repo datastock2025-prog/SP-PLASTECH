@@ -55,10 +55,9 @@ import { ProcurementSettingsView } from '../components/ProcurementSettingsView';
 import { ItemMaster, AuthUser } from '@/src/types';
 import { INITIAL_ITEMS } from '@/src/data/initialData';
 import { supplierService } from '@/src/services/procurement/supplierService';
-import { itemService } from '@/src/services/itemService';
 import { adminEventBus } from '@/src/services/adminService';
 import { usePurchaseOrders, useSuppliers, useSupplierPriceLists } from '../api/useProcurement';
-import { useItems } from '@/src/hooks/useMasterData';
+import { useItems, useSaveItem } from '@/src/hooks/useMasterData';
 
 interface Props {
   view?: string;
@@ -125,6 +124,7 @@ export const ProcurementViews: React.FC<Props> = ({
   const { data: querySuppliers } = useSuppliers();
   const { data: queryPos } = usePurchaseOrders();
   const { data: queryPriceLists } = useSupplierPriceLists();
+  const saveItemMutation = useSaveItem();
 
   // Determine active view & param supporting both naming conventions
   const activeView = view || currentSubView || 'procurementDash';
@@ -133,7 +133,7 @@ export const ProcurementViews: React.FC<Props> = ({
   // Local state for full interactive procurement lifecycle with live service fallbacks
   const [items, setItems] = useState<ItemMaster[]>(() => {
     if (propItems && propItems.length > 0) return propItems;
-    return itemService.getItemsSync();
+    return [];
   });
   const [suppliers, setSuppliers] = useState<SupplierMaster[]>(() => {
     if (propSuppliers && propSuppliers.length > 0) return propSuppliers;
@@ -174,7 +174,7 @@ export const ProcurementViews: React.FC<Props> = ({
 
   // Updaters with live database & local storage synchronization
   const handleUpdateItem = (updated: ItemMaster) => {
-    itemService.saveItem(updated).catch(console.warn);
+    saveItemMutation.mutate(updated, { onError: (e) => console.warn(e) });
     setItems((prev) => prev.map((i) => (i.code === updated.code ? updated : i)));
     propOnUpdateItem?.(updated);
   };

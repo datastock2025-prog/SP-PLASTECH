@@ -84,8 +84,8 @@ import {
   useSubmitForApproval,
   useItemAuditHistory,
   useBulkImportItems,
+  useBulkSyncCatalog,
 } from '../api/useMasterData';
-import { itemService } from '../api/itemService';
 import {
   masterDataGovernanceService,
   MasterDataChangeRecord,
@@ -1905,6 +1905,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
 
   const saveItemMutation = useSaveItem();
   const deleteItemMutation = useDeleteItem();
+  const syncCatalogMutation = useBulkSyncCatalog();
   const approveItemMutation = useApproveItem();
   const rejectItemMutation = useRejectItem();
   const submitForApprovalMutation = useSubmitForApproval();
@@ -2570,7 +2571,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                               'Reload Master Catalog from Database?',
                               'This will synchronize and ensure all live items from the database are refreshed.',
                               async () => {
-                                const reloaded = await itemService.syncLiveCatalog();
+                                const reloaded: ItemMaster[] = await syncCatalogMutation.mutateAsync();
                                 reloaded.forEach((i) => onUpdateItem(i));
                                 showToast(`✓ Synchronized ${reloaded.length} live items from database!`);
                               }

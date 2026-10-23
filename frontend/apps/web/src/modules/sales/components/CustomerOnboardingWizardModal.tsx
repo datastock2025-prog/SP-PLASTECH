@@ -23,7 +23,7 @@ import {
   customerMasterService,
 } from '@/src/services/customerMasterService';
 import { ItemMaster } from '@/src/types';
-import { itemService } from '@/src/services/itemService';
+import { useItems } from '@/src/hooks/useMasterData';
 import { transportMasterService, TransporterRecord } from '@/src/services/transportMasterService';
 
 interface Props {
@@ -96,7 +96,7 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
   );
 
   // Step 3: Contracted Line Items
-  const [masterItemsList] = useState<ItemMaster[]>(() => itemService.getItemsSync());
+  const { data: masterItemsList = [] } = useItems(undefined, 100);
   const [contractedLines, setContractedLines] = useState<ContractedCustomerLine[]>(
     initialCustomer?.contractedLines && initialCustomer.contractedLines.length > 0
       ? initialCustomer.contractedLines

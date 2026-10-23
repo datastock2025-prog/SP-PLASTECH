@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/shared/queryKeys';
 import { broadcastLocalMutation } from '@/src/services/realtime/realtimeService';
+import { adminEventBus } from '@/src/services/adminService';
 import { api } from '@/src/lib/api-client';
 import {
   masterDataGovernanceService,
@@ -158,6 +159,7 @@ export function useSaveItem() {
       queryClient.invalidateQueries({ queryKey: ['masterData', 'itemCatalogStats'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       broadcastLocalMutation('ITEMS', 'UPDATE', savedItem);
+      adminEventBus.emit('ITEM_SAVED', savedItem);
     },
   });
 }
@@ -185,6 +187,7 @@ export function useDeleteItem() {
       queryClient.invalidateQueries({ queryKey: ['masterData', 'itemCatalogStats'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       broadcastLocalMutation('ITEMS', 'DELETE', { code });
+      adminEventBus.emit('ITEM_DELETED', { code });
     },
   });
 }
@@ -225,6 +228,8 @@ export function useApproveItem() {
       queryClient.invalidateQueries({ queryKey: ['masterData', 'itemCatalogStats'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       broadcastLocalMutation('ITEMS', 'UPDATE', approvedItem);
+      adminEventBus.emit('ITEM_SAVED', approvedItem);
+      adminEventBus.emit('ITEM_APPROVED', approvedItem);
     },
   });
 }
@@ -263,6 +268,8 @@ export function useRejectItem() {
       queryClient.invalidateQueries({ queryKey: ['masterData', 'itemCatalogStats'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       broadcastLocalMutation('ITEMS', 'UPDATE', rejectedItem);
+      adminEventBus.emit('ITEM_SAVED', rejectedItem);
+      adminEventBus.emit('ITEM_REJECTED', rejectedItem);
     },
   });
 }
@@ -300,6 +307,8 @@ export function useBulkSyncCatalog() {
       queryClient.invalidateQueries({ queryKey: ['items'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       broadcastLocalMutation('ITEMS', 'UPDATE', { count: catalog.length });
+      adminEventBus.emit('CATALOG_RELOADED', catalog);
+      adminEventBus.emit('ITEMS_SYNCED', { data: catalog });
     },
   });
 }
