@@ -22,6 +22,7 @@
     "check:boundaries": "depcruise frontend/src --config .dependency-cruiser.cjs",
     "check:circular": "node ./node_modules/madge/bin/cli.js --circular --extensions ts,tsx frontend/src",
     "check:storage": "node scripts/check-client-storage.cjs",
+    "check:sql": "node scripts/check-sql.cjs",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report",

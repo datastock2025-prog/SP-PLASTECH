@@ -14,6 +14,8 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { z } from 'zod';
 import { AppError } from './errors.js';
 import { decodeCursor, encodeCursor } from './pagination.js';
+import { idempotencyKeys } from '../schema/erp.js';
+import { createHash } from 'node:crypto';
 
 type Db = NodePgDatabase<any>;
 type Row = Record<string, any>;
@@ -361,4 +363,42 @@ export async function softDelete(db: Db, table: ScopedTable, actor: ScopeActor, 
     .where(rowWhere(table, actor, idOrKey, s))
     .returning({ id: table.id });
   if (!res.length) throw new AppError(404, 'NOT_FOUND', 'Record not found');
+}
+
+// ── Idempotency ──────────────────────────────────────────────────────────────────────────────
+
+const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Replay-safe create: same key + same body within 24h returns the stored response (`replay: true`);
+ * same key + different body is a 409. Runs inside the caller's transaction.
+ */
+export async function withIdempotency<T>(
+  db: Db, actor: ScopeActor, key: string | undefined, body: unknown, run: () => Promise<T>,
+): Promise<{ replay: boolean; data: T }> {
+  const k = key?.trim();
+  if (!k) return { replay: false, data: await run() };
+
+  const hash = createHash('sha256').update(JSON.stringify(body ?? {})).digest('hex');
+  const [hit] = await db
+    .select()
+    .from(idempotencyKeys)
+    .where(and(eq(idempotencyKeys.tenantId, actor.tenantId), eq(idempotencyKeys.key, k)))
+    .limit(1);
+  if (hit && Date.now() - hit.createdAt.getTime() < IDEMPOTENCY_TTL_MS) {
+    if (hit.requestHash !== hash) {
+      throw new AppError(409, 'IDEMPOTENCY_KEY_MISMATCH', 'Idempotency key was previously used with a different request payload');
+    }
+    return { replay: true, data: hit.response as T };
+  }
+
+  const data = await run();
+  await db
+    .insert(idempotencyKeys)
+    .values({ tenantId: actor.tenantId, key: k, requestHash: hash, response: data as any })
+    .onConflictDoUpdate({
+      target: [idempotencyKeys.tenantId, idempotencyKeys.key],
+      set: { requestHash: hash, response: data as any, createdAt: new Date() },
+    });
+  return { replay: false, data };
 }
