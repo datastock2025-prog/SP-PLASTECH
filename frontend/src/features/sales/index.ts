@@ -5,4 +5,4 @@
 
 export * from './types/salesSchemas';
 export * from './hooks/useSales';
-export { SalesViews } from '../../components/SalesViews';
+export { SalesViews } from '../../../apps/web/src/modules/sales/screens/SalesViews';

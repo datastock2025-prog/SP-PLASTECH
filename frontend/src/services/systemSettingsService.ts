@@ -1,4 +1,5 @@
 import { adminEventBus } from './adminService';
+import { memoryStorage } from '../shared/memoryStore';
 
 export interface SystemSettingsConfig {
   baseCurrency: 'INR' | 'USD' | 'EUR' | 'GBP' | 'JPY' | 'AED' | string;
@@ -33,7 +34,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettingsConfig = {
 
 function loadSettings(): SystemSettingsConfig {
   try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
+    const raw = memoryStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
@@ -47,7 +48,7 @@ function loadSettings(): SystemSettingsConfig {
       }
     }
   } catch (e) {
-    console.warn('Failed to load system settings from localStorage', e);
+    console.warn('Failed to load system settings from memoryStorage', e);
   }
   return { ...DEFAULT_SYSTEM_SETTINGS };
 }
@@ -99,11 +100,9 @@ class SystemSettingsService {
     };
 
     try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.current));
-      }
+      memoryStorage.setItem(STORAGE_KEY, JSON.stringify(this.current));
     } catch (e) {
-      console.warn('Failed to save system settings to localStorage', e);
+      console.warn('Failed to save system settings to memoryStorage', e);
     }
 
     adminEventBus.emit('SYSTEM_SETTINGS_UPDATED', this.current);

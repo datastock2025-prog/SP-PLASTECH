@@ -1,5 +1,6 @@
-import axios, { AxiosInstance } from 'axios';
+import { createHttpClient, type HttpClient } from '../../shared/api/http';
 import { getApiBaseUrl } from '../../shared/config';
+import { getActiveTenantId } from '../../shared/tenant';
 
 const API_BASE = getApiBaseUrl('/api');
 
@@ -435,41 +436,10 @@ export interface SalesForecastRecord {
 // ============================================================================
 export class FrontOfficeApi {
   private static instance: FrontOfficeApi;
-  private api: AxiosInstance;
+  private api: HttpClient;
 
   private constructor() {
-    this.api = axios.create({
-      baseURL: API_BASE,
-      withCredentials: true,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    this.api.interceptors.request.use((config) => {
-      const tenantId = this.getActiveTenantId();
-      const csrfToken = this.getCsrfToken();
-      if (tenantId) config.headers['X-Tenant-ID'] = tenantId;
-      if (csrfToken) config.headers['X-CSRF-Token'] = csrfToken;
-      return config;
-    });
-
-    this.api.interceptors.response.use(
-      (response) => response,
-      async (error) => {
-        const originalRequest = error.config;
-        if (error.response?.status === 401 && !originalRequest._retry) {
-          originalRequest._retry = true;
-          try {
-            await axios.post(`${API_BASE}/auth/refresh`, {}, { withCredentials: true });
-            return this.api(originalRequest);
-          } catch (refreshErr) {
-            console.warn('[FrontOfficeApi] Session expired.');
-          }
-        }
-        return Promise.reject(error);
-      }
-    );
+    this.api = createHttpClient(API_BASE);
   }
 
   public static getInstance(): FrontOfficeApi {
@@ -480,7 +450,7 @@ export class FrontOfficeApi {
   }
 
   private getActiveTenantId(): string {
-    return localStorage.getItem('reboot_tenant_id') || 'TENANT-ALPHA-IND';
+    return getActiveTenantId();
   }
 
   private getCsrfToken(): string | null {

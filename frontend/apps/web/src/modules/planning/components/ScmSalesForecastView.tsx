@@ -14,7 +14,6 @@ import {
   ArrowDownRight,
   Sparkles,
 } from 'lucide-react';
-import { mockSalesForecasts } from '@/src/data/mockScmData';
 import { SalesForecastEntry } from '@/src/types/scm';
 import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { usePagination } from '@/src/hooks/usePagination';
@@ -25,10 +24,10 @@ interface ScmSalesForecastViewProps {
 }
 
 export const ScmSalesForecastView: React.FC<ScmSalesForecastViewProps> = ({ onNavigate, showToast }) => {
-  const [forecasts, setForecasts] = useState<SalesForecastEntry[]>(mockSalesForecasts);
+  const [forecasts, setForecasts] = useState<SalesForecastEntry[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedForecast, setSelectedForecast] = useState<SalesForecastEntry | null>(mockSalesForecasts[0]);
+  const [selectedForecast, setSelectedForecast] = useState<SalesForecastEntry | null>(null);
 
   const filteredForecasts = forecasts.filter((fc) => {
     const q = searchQuery.toLowerCase();

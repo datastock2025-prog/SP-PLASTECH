@@ -45,7 +45,7 @@ export const MaterialIssuingWorkbench: React.FC<MaterialIssuingProps> = ({
   const currentWO = workOrders.find((w) => w.id === selectedWO) || workOrders[0];
   const itemName = (code: string) => items.find((i) => i.code === code)?.name || code;
 
-  // Mock materials required for current WO
+  // Materials required for current WO
   const requiredMaterials = [
     { code: 'RM-PP-NAT-001', name: 'PP Natural Granules', reqKg: 500, issuedKg: 500, uom: 'KG', lotSuggested: 'LOT-001-01', bin: 'RM-WH-01-A1', status: 'Issued' },
     { code: 'MB-WHT-002', name: 'White Masterbatch (2%)', reqKg: 10, issuedKg: 10, uom: 'KG', lotSuggested: 'LOT-MB-00456', bin: 'RM-WH-02-B2', status: 'Issued' },

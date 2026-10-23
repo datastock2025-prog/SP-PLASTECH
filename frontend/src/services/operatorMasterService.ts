@@ -26,13 +26,15 @@ const DEFAULT_OPERATORS: OperatorRecord[] = [
   { id: 'op-15', name: 'V. Natarajan', code: 'OP-115', role: 'Lead Technician', department: 'Injection Molding', active: true },
 ];
 
+import { memoryStorage } from '../shared/memoryStore';
+
 class OperatorMasterService {
   private operators: OperatorRecord[] = [...DEFAULT_OPERATORS];
   private listeners: Array<() => void> = [];
 
   constructor() {
     try {
-      const saved = localStorage.getItem('reboot_operator_master');
+      const saved = memoryStorage.getItem('reboot_operator_master');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -85,7 +87,7 @@ class OperatorMasterService {
 
   private save() {
     try {
-      localStorage.setItem('reboot_operator_master', JSON.stringify(this.operators));
+      memoryStorage.setItem('reboot_operator_master', JSON.stringify(this.operators));
     } catch {
       // silent
     }

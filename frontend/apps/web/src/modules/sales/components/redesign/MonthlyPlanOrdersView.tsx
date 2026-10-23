@@ -397,7 +397,7 @@ export const MonthlyPlanOrdersView: React.FC<MonthlyPlanOrdersViewProps> = ({
 
   // Login plant awareness: if user is assigned to e.g. Plant 1, scope initializes to that plant
   const [selectedPlantScope, setSelectedPlantScope] = useState<string>(() => {
-    const activeStored = localStorage.getItem('sp_active_plant');
+    const activeStored = typeof window !== 'undefined' ? sessionStorage.getItem('sp_active_plant') : null;
     if (activeStored && activeStored !== 'PLANT-01' && activeStored !== 'ALL') {
       return activeStored;
     }

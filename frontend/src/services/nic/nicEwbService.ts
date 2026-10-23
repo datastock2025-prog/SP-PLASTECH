@@ -5,7 +5,7 @@
 // ============================================================================
 
 import { INicEwbProvider } from './INicEwbProvider';
-import { MockNicEwbProvider } from './MockNicEwbProvider';
+import { MockNicEwbProvider } from './SimulatorNicEwbProvider';
 import { LiveNicEwbProvider } from './LiveNicEwbProvider';
 import {
   NicCredentials,
@@ -25,7 +25,7 @@ export const DEFAULT_NIC_CREDENTIALS: NicCredentials = {
   gstin: '27AABCP1234F1Z1',
   username: 'SP_PLASTECH_NIC',
   clientId: 'GSP_CLIENT_SPPLAST_01',
-  environment: 'MOCK',
+  environment: 'SIMULATOR',
   authEndpoint: 'https://gsp.preprod.nic.in/e-waybill/v1.03/auth',
   apiEndpoint: 'https://gsp.preprod.nic.in/e-waybill/v1.03',
 };
@@ -39,7 +39,7 @@ class NicEwbService {
    * Get active provider based on environment setting
    */
   public getProvider(): INicEwbProvider {
-    if (this.credentials.environment === 'MOCK') {
+    if (this.credentials.environment === 'SIMULATOR') {
       return this.mockProvider;
     }
     return this.liveProvider;

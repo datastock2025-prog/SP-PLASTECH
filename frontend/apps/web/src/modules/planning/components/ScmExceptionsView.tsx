@@ -12,7 +12,6 @@ import {
   UserCheck,
   Building,
 } from 'lucide-react';
-import { mockScmExceptions } from '@/src/data/mockScmData';
 import { SCMException } from '@/src/types/scm';
 
 interface ScmExceptionsViewProps {
@@ -21,8 +20,8 @@ interface ScmExceptionsViewProps {
 }
 
 export const ScmExceptionsView: React.FC<ScmExceptionsViewProps> = ({ onNavigate, showToast }) => {
-  const [exceptions, setExceptions] = useState<SCMException[]>(mockScmExceptions);
-  const [selectedEx, setSelectedEx] = useState<SCMException | null>(mockScmExceptions[0]);
+  const [exceptions, setExceptions] = useState<SCMException[]>([]);
+  const [selectedEx, setSelectedEx] = useState<SCMException | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [severityFilter, setSeverityFilter] = useState('All');
 

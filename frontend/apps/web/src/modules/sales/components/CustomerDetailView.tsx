@@ -28,7 +28,7 @@ import {
   Archive,
 } from 'lucide-react';
 import { Customer, SalesOrder, SalesQuotation, ReturnMerchandise } from '@/src/types';
-import { SALES_CONTRACTS_SEED, SALES_PRICE_LISTS } from '@/src/data/salesData';
+import { SALES_CONTRACTS, SALES_PRICE_LISTS } from '@/src/data/salesData';
 import { SalesStatusBadge } from './SalesStatusBadge';
 
 interface Props {
@@ -81,7 +81,7 @@ export const CustomerDetailView: React.FC<Props> = ({
   const customerSOs = sos.filter(
     (s) => s.customer === customer.code || s.customer === customer.name
   );
-  const customerContracts = SALES_CONTRACTS_SEED.filter(
+  const customerContracts = SALES_CONTRACTS.filter(
     (c) => c.customer === customer.name || c.customer === customer.code
   );
   const customerRMAs = rmas.filter(

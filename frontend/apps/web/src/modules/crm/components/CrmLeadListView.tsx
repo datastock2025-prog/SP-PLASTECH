@@ -23,7 +23,8 @@ import {
   Zap,
 } from 'lucide-react';
 import { Lead, LeadStatus, ProductInterestType } from '../model/crmSchemas';
-import { mockLeads } from '@/src/data/mockCrmData';
+import { useLeads } from '../api/useCrm';
+import { useEffect } from 'react';
 
 interface CrmLeadListViewProps {
   onNavigate: (view: string, params?: any) => void;
@@ -32,7 +33,11 @@ interface CrmLeadListViewProps {
 }
 
 export const CrmLeadListView: React.FC<CrmLeadListViewProps> = ({ onNavigate, showToast, initialFilter }) => {
-  const [leads, setLeads] = useState<Lead[]>(mockLeads);
+  const { data: serverLeads = [] } = useLeads();
+  const [leads, setLeads] = useState<Lead[]>([]);
+  useEffect(() => {
+    if (serverLeads.length > 0) setLeads(serverLeads);
+  }, [serverLeads]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedView, setSelectedView] = useState<string>(initialFilter || 'All Leads');
   const [statusFilter, setStatusFilter] = useState<string>('All');

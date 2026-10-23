@@ -12,7 +12,6 @@ import {
   Calendar,
   ArrowRight,
 } from 'lucide-react';
-import { mockOrderTimelines } from '@/src/data/mockScmData';
 import { OrderTimelineItem } from '@/src/types/scm';
 
 interface ScmOrderTimelineViewProps {
@@ -21,8 +20,8 @@ interface ScmOrderTimelineViewProps {
 }
 
 export const ScmOrderTimelineView: React.FC<ScmOrderTimelineViewProps> = ({ onNavigate, showToast }) => {
-  const [orders, setOrders] = useState<OrderTimelineItem[]>(mockOrderTimelines);
-  const [selectedOrder, setSelectedOrder] = useState<OrderTimelineItem>(mockOrderTimelines[0]);
+  const [orders, setOrders] = useState<OrderTimelineItem[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<OrderTimelineItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredOrders = orders.filter(
@@ -87,7 +86,7 @@ export const ScmOrderTimelineView: React.FC<ScmOrderTimelineViewProps> = ({ onNa
                 key={o.id}
                 onClick={() => setSelectedOrder(o)}
                 className={`p-3.5 rounded-xl border transition cursor-pointer text-xs space-y-1.5 ${
-                  selectedOrder.id === o.id
+                  selectedOrder?.id === o.id
                     ? 'border-[#0F8B8D] bg-[#0F8B8D]/5'
                     : 'border-slate-200 hover:border-slate-300'
                 }`}
@@ -125,23 +124,23 @@ export const ScmOrderTimelineView: React.FC<ScmOrderTimelineViewProps> = ({ onNa
                 Fulfillment Milestone Diagnostics
               </span>
               <h2 className="text-base font-bold font-['Space_Grotesk'] text-[#14213D] mt-0.5">
-                {selectedOrder.salesOrderNumber} · {selectedOrder.customer}
+                {selectedOrder?.salesOrderNumber} · {selectedOrder?.customer}
               </h2>
               <p className="text-xs text-slate-500">
-                {selectedOrder.partName} · {selectedOrder.orderQty.toLocaleString()} Units · Commit: {selectedOrder.promisedDeliveryDate}
+                {selectedOrder?.partName} · {selectedOrder?.orderQty.toLocaleString()} Units · Commit: {selectedOrder?.promisedDeliveryDate}
               </p>
             </div>
             <div className="text-right">
               <span className="text-xs font-bold text-slate-700 block">Current Stage:</span>
               <span className="text-xs font-bold font-mono px-2.5 py-1 bg-blue-50 text-blue-800 rounded-lg">
-                {selectedOrder.currentStage}
+                {selectedOrder?.currentStage}
               </span>
             </div>
           </div>
 
           {/* 16-Stage Interactive Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {selectedOrder.stages.map((st, idx) => (
+            {selectedOrder?.stages.map((st, idx) => (
               <div
                 key={idx}
                 className={`p-3 rounded-xl border text-xs space-y-1.5 transition ${
@@ -180,7 +179,7 @@ export const ScmOrderTimelineView: React.FC<ScmOrderTimelineViewProps> = ({ onNa
               Need to reschedule or expedite this customer order?
             </div>
             <button
-              onClick={() => onNavigate('scmExceptions', { soNumber: selectedOrder.salesOrderNumber })}
+              onClick={() => onNavigate('scmExceptions', { soNumber: selectedOrder?.salesOrderNumber })}
               className="px-3.5 py-1.5 bg-[#E8622C] hover:bg-[#d45422] text-white rounded-lg font-bold transition cursor-pointer"
             >
               Open CAPA Exception

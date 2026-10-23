@@ -22,7 +22,7 @@ import {
   Percent,
 } from 'lucide-react';
 import { Opportunity, Quotation, SampleRequest } from '../model/crmSchemas';
-import { mockOpportunities, mockQuotations, mockSampleRequests } from '@/src/data/mockCrmData';
+import { useOpportunities } from '../api/useCrm';
 
 interface CrmOpportunityDetailViewProps {
   oppId?: string;
@@ -37,7 +37,10 @@ export const CrmOpportunityDetailView: React.FC<CrmOpportunityDetailViewProps> =
   onNavigate,
   showToast,
 }) => {
-  const opp = mockOpportunities.find(o => o.id === oppId) || mockOpportunities[0];
+  const { data: opportunitiesList = [] } = useOpportunities();
+  const quotationsList: any[] = [];
+  const sampleRequestsList: any[] = [];
+  const opp = opportunitiesList.find(o => o.id === oppId) || opportunitiesList[0] || { id: oppId || 'OPP-001', opportunityName: 'Opportunity', accountName: '', stage: 'Qualification', winProbability: 50, expectedValue: 0, salesperson: '', expectedCloseDate: '', status: 'Open' } as any;
   const [activeTab, setActiveTab] = useState<
     'overview' | 'requirement' | 'quotations' | 'samples' | 'competitors' | 'activities' | 'documents' | 'approvals' | 'history'
   >('overview');

@@ -10,8 +10,8 @@ export async function bootstrap(): Promise<{ tenantId: string }> {
   try {
     await c.query('BEGIN');
     const t = await c.query(
-      `INSERT INTO tenants (code, name) VALUES ($1,$2)
-       ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name RETURNING id`,
+      `INSERT INTO tenants (code, name, slug) VALUES ($1, $2, lower($1))
+       ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, slug = COALESCE(tenants.slug, EXCLUDED.slug) RETURNING id`,
       [config.tenantCode, config.tenantName],
     );
     const tenantId: string = t.rows[0].id;

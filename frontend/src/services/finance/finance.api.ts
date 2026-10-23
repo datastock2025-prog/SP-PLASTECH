@@ -1,4 +1,4 @@
-import axios, { AxiosInstance } from 'axios';
+import { createHttpClient, type HttpClient } from '../../shared/api/http';
 import { getApiBaseUrl } from '../../shared/config';
 
 const API_BASE = getApiBaseUrl('/api');
@@ -418,27 +418,10 @@ export interface EprCredit {
 // ============================================================================
 
 class FinanceApiClient {
-  private client: AxiosInstance;
+  private client: HttpClient;
 
   constructor() {
-    this.client = axios.create({
-      baseURL: `${API_BASE}/finance`,
-      withCredentials: true,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    // Auto-inject CSRF and Tenant headers
-    this.client.interceptors.request.use((config) => {
-      const match = document.cookie.match(new RegExp('(^| )XSRF-TOKEN=([^;]+)'));
-      if (match) {
-        config.headers['x-csrf-token'] = decodeURIComponent(match[2]);
-      }
-      const tenantId = localStorage.getItem('tenant_id') || 'TENANT-ALPHA-IND';
-      config.headers['x-tenant-id'] = tenantId;
-      return config;
-    });
+    this.client = createHttpClient(`${API_BASE}/finance`);
   }
 
   // --------------------------------------------------------------------------

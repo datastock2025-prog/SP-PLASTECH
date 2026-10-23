@@ -22,7 +22,7 @@ import {
   RotateCw,
 } from 'lucide-react';
 import { SalesContract, SalesOrder, Customer } from '../../types';
-import { SALES_CONTRACTS_SEED } from '../../data/salesData';
+import { SALES_CONTRACTS } from '../../data/salesData';
 import { PaginationBar } from '../common/PaginationBar';
 
 interface Props {
@@ -36,7 +36,7 @@ interface Props {
 }
 
 export const SalesContractListView: React.FC<Props> = ({
-  contracts = SALES_CONTRACTS_SEED,
+  contracts = SALES_CONTRACTS,
   customers = [],
   onNavigate,
   onCreateSO,

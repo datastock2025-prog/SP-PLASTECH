@@ -13,18 +13,19 @@ import {
   RefreshCw,
   Info
 } from 'lucide-react';
-import { ItemMasterSchema, ItemMasterDto } from '@/src/lib/api-client';
+import { ItemMaster } from '@/src/types';
+import { createItemSchema } from '../model/masterDataSchemas';
 
 interface ItemGridImportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onImport: (items: ItemMasterDto[]) => Promise<any>;
+  onImport: (items: any[]) => Promise<any>;
   onSuccessToast: (msg: string) => void;
 }
 
 interface ParsedRow {
   rowNum: number;
-  data: Partial<ItemMasterDto>;
+  data: Partial<ItemMaster>;
   isValid: boolean;
   errors: string[];
 }
@@ -171,18 +172,18 @@ export const ItemGridImportModal: React.FC<ItemGridImportModalProps> = ({
         };
 
         // Zod validation
-        const valResult = ItemMasterSchema.safeParse(itemObj);
+        const valResult = createItemSchema.safeParse(itemObj);
         if (valResult.success) {
           return {
             rowNum: idx + 2,
-            data: valResult.data as ItemMasterDto,
+            data: { ...itemObj, ...valResult.data } as any,
             isValid: true,
             errors: [],
           };
         } else {
           return {
             rowNum: idx + 2,
-            data: itemObj as ItemMasterDto,
+            data: itemObj as any,
             isValid: false,
             errors: valResult.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
           };
@@ -206,7 +207,7 @@ export const ItemGridImportModal: React.FC<ItemGridImportModalProps> = ({
   };
 
   const handleExecuteImport = async () => {
-    const validItems = parsedRows.filter((r) => r.isValid).map((r) => r.data as ItemMasterDto);
+    const validItems = parsedRows.filter((r) => r.isValid).map((r) => r.data as ItemMaster);
     if (validItems.length === 0) {
       alert('No valid items found to import.');
       return;
@@ -408,9 +409,9 @@ export const ItemGridImportModal: React.FC<ItemGridImportModalProps> = ({
                         </td>
                         <td className="py-2 px-3 text-slate-600">{row.data.type || '—'}</td>
                         <td className="py-2 px-3 text-slate-600">{row.data.category || row.data.cat || '—'}</td>
-                        <td className="py-2 px-3 font-mono text-slate-600">{row.data.baseUOM || row.data.base_uom || 'PCS'}</td>
-                        <td className="py-2 px-3 font-mono text-slate-600">{row.data.standardCycleTime || row.data.cycle_time || row.data.cycleTimeSec || 0}s</td>
-                        <td className="py-2 px-3 text-slate-600">{row.data.resinType || row.data.resin_type || '—'}</td>
+                        <td className="py-2 px-3 font-mono text-slate-600">{row.data.baseUOM || (row.data as any).base_uom || 'PCS'}</td>
+                        <td className="py-2 px-3 font-mono text-slate-600">{(row.data as any).standardCycleTime || (row.data as any).cycle_time || (row.data as any).cycleTimeSec || 0}s</td>
+                        <td className="py-2 px-3 text-slate-600">{row.data.resinType || (row.data as any).resin_type || '—'}</td>
                       </tr>
                     ))}
                   </tbody>

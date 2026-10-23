@@ -1,4 +1,4 @@
-import { db } from '../shared/db';
+import { memoryStorage } from '../shared/memoryStore';
 import { broadcastLocalMutation } from './realtime/realtimeService';
 import {
   PlasticSalesOrder,
@@ -25,6 +25,53 @@ import {
 } from '../data/salesOrderDeliveryData';
 import { adminEventBus, adminService } from './adminService';
 import { customerMasterService, CustomerPoVersion } from './customerMasterService';
+import { api } from '../lib/api-client';
+
+// Pure REST domain bridge replacing deprecated legacy db adapter
+const db = {
+  findMany: async <T = any>(table: string, _opts?: any): Promise<T[]> => {
+    try {
+      const endpoint = `/${table.replace(/_/g, '-')}`;
+      const res = await api.get<any>(endpoint, { params: { limit: 100 } });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows)) return rows;
+    } catch {}
+    return [];
+  },
+  findOne: async <T = any>(table: string, id: string): Promise<T | null> => {
+    try {
+      const endpoint = `/${table.replace(/_/g, '-')}/${encodeURIComponent(id)}`;
+      const res = await api.get<any>(endpoint);
+      return res?.data?.data || res?.data || null;
+    } catch {}
+    return null;
+  },
+  upsert: async <T = any>(table: string, item: any, key: string = 'id'): Promise<T> => {
+    const id = item[key] || item.id;
+    const endpoint = `/${table.replace(/_/g, '-')}`;
+    if (id) {
+      try {
+        const res = await api.patch<any>(`${endpoint}/${encodeURIComponent(id)}`, item);
+        const row = res?.data?.data || res?.data;
+        if (row && typeof row === 'object') return row;
+      } catch {}
+    }
+    try {
+      const res = await api.post<any>(endpoint, item);
+      const row = res?.data?.data || res?.data;
+      if (row && typeof row === 'object') return row;
+    } catch {}
+    return item;
+  },
+  delete: async (table: string, id: string): Promise<boolean> => {
+    try {
+      await api.delete(`/${table.replace(/_/g, '-')}/${encodeURIComponent(id)}`);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+};
 
 const SALES_ORDERS_CACHE_KEY = 'sp_plastech_live_sales_orders_v2';
 const MONTHLY_PLANS_CACHE_KEY = 'sp_plastech_live_monthly_plans_v2';
@@ -81,7 +128,7 @@ class SalesDataService {
       return this.inMemoryOrders;
     }
     try {
-      const stored = localStorage.getItem(SALES_ORDERS_CACHE_KEY);
+      const stored = memoryStorage.getItem(SALES_ORDERS_CACHE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
@@ -98,7 +145,7 @@ class SalesDataService {
   public saveSalesOrdersSync(orders: PlasticSalesOrder[]) {
     this.inMemoryOrders = orders;
     try {
-      localStorage.setItem(SALES_ORDERS_CACHE_KEY, JSON.stringify(orders));
+      memoryStorage.setItem(SALES_ORDERS_CACHE_KEY, JSON.stringify(orders));
     } catch (e) {
       console.warn('Error saving sales orders to cache:', e);
     }
@@ -107,7 +154,7 @@ class SalesDataService {
   public saveMonthlyPlansSync(plans: MonthlyPlanOrder[]) {
     this.inMemoryPlans = plans;
     try {
-      localStorage.setItem(MONTHLY_PLANS_CACHE_KEY, JSON.stringify(plans));
+      memoryStorage.setItem(MONTHLY_PLANS_CACHE_KEY, JSON.stringify(plans));
     } catch (e) {
       console.warn('Error saving monthly plans to cache:', e);
     }
@@ -243,7 +290,7 @@ class SalesDataService {
 
   private setSalesOrdersCache(orders: PlasticSalesOrder[]) {
     try {
-      localStorage.setItem(SALES_ORDERS_CACHE_KEY, JSON.stringify(orders));
+      memoryStorage.setItem(SALES_ORDERS_CACHE_KEY, JSON.stringify(orders));
     } catch (e) {
       console.warn('Error caching sales orders:', e);
     }
@@ -257,7 +304,7 @@ class SalesDataService {
       return this.inMemoryPlans;
     }
     try {
-      const stored = localStorage.getItem(MONTHLY_PLANS_CACHE_KEY);
+      const stored = memoryStorage.getItem(MONTHLY_PLANS_CACHE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
@@ -345,7 +392,7 @@ class SalesDataService {
 
   private setMonthlyPlansCache(plans: MonthlyPlanOrder[]) {
     try {
-      localStorage.setItem(MONTHLY_PLANS_CACHE_KEY, JSON.stringify(plans));
+      memoryStorage.setItem(MONTHLY_PLANS_CACHE_KEY, JSON.stringify(plans));
     } catch (e) {
       console.warn('Error caching monthly plans:', e);
     }
@@ -356,7 +403,7 @@ class SalesDataService {
   // ==========================================================================
   public getRelationshipsSync(): OrderRelationship[] {
     try {
-      const stored = localStorage.getItem(RELATIONSHIPS_CACHE_KEY);
+      const stored = memoryStorage.getItem(RELATIONSHIPS_CACHE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) return parsed;
@@ -369,7 +416,7 @@ class SalesDataService {
 
   public async saveRelationships(newRels: OrderRelationship[]): Promise<OrderRelationship[]> {
     try {
-      localStorage.setItem(RELATIONSHIPS_CACHE_KEY, JSON.stringify(newRels));
+      memoryStorage.setItem(RELATIONSHIPS_CACHE_KEY, JSON.stringify(newRels));
     } catch (e) {
       console.warn('Error caching relationships:', e);
     }
@@ -404,7 +451,7 @@ class SalesDataService {
   // ==========================================================================
   public getDeliveriesSync(): DeliveryNoteChallan[] {
     try {
-      const stored = localStorage.getItem(DELIVERIES_CACHE_KEY);
+      const stored = memoryStorage.getItem(DELIVERIES_CACHE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) return parsed;
@@ -412,14 +459,115 @@ class SalesDataService {
     } catch (e) {
       console.warn('Error reading cached deliveries:', e);
     }
-    return INITIAL_DELIVERY_NOTES;
+    return [];
+  }
+
+  public async getDeliveries(): Promise<DeliveryNoteChallan[]> {
+    try {
+      const data = await db.findMany<any>('delivery_challans', {
+        orderBy: { column: 'created_at', ascending: false },
+      });
+      if (Array.isArray(data)) {
+        const mapped: DeliveryNoteChallan[] = data.map((d: any) => ({
+          id: d.id,
+          type: 'Delivery Challan',
+          salesOrderId: d.so_id,
+          salesOrderType: 'Daily dispatch call-off',
+          customer: d.customer_id,
+          customerGstin: '27AABCA1234A1Z5',
+          shipToAddress: 'Delivery Address',
+          shipToGstin: '27AABCA1234A1Z5',
+          placeOfSupply: 'Maharashtra (27)',
+          plant: 'Main Plant Pune',
+          fgStore: 'WH-FG-01',
+          deliveryDate: d.dispatch_date || new Date().toISOString().split('T')[0],
+          status: (d.status === 'dispatched' ? 'Dispatched' : 'Draft') as any,
+          transportMode: 'Road',
+          transporterName: d.transporter || 'VRL Logistics',
+          transporterIdGstin: '27AAACL1234A1Z1',
+          vehicleNumber: d.vehicle_no || '',
+          lrNumber: d.lr_number || '',
+          dispatchPoint: 'Gate 1',
+          estimatedDistanceKm: 50,
+          expectedDeparture: new Date().toISOString(),
+          expectedArrival: new Date().toISOString(),
+          invoiceValue: Number(d.total_amount || 0),
+          taxableValue: Number(d.total_amount || 0),
+          cgstAmount: 0,
+          sgstAmount: 0,
+          igstAmount: 0,
+          eInvoiceStatus: 'Not Required',
+          eWayBillStatus: 'Not Required',
+          ewbPartA: false,
+          ewbPartB: false,
+          gatePassStatus: 'Not Generated',
+          packageCount: 1,
+          grossWeightKg: 0,
+          netWeightKg: 0,
+          podStatus: 'Pending',
+          items: Array.isArray(d.lines)
+            ? d.lines.map((l: any, idx: number) => ({
+                soLineNumber: idx + 1,
+                itemCode: l.item_code || l.itemCode || '',
+                itemName: l.item_name || l.itemName || l.item_code || '',
+                orderedQty: Number(l.quantity || l.qty || 0),
+                deliveredQty: Number(l.quantity || l.qty || 0),
+                remainingQty: 0,
+                requestedQty: Number(l.quantity || l.qty || 0),
+                pickedQty: Number(l.quantity || l.qty || 0),
+                packedQty: Number(l.quantity || l.qty || 0),
+                uom: l.uom || 'PCS',
+                plant: 'Main Plant Pune',
+                fgStore: 'WH-FG-01',
+                batchLot: 'DEFAULT',
+                locationCode: 'WH-FG-01',
+                hsn: '3923',
+                unitPrice: Number(l.unit_price || l.unitPrice || 0),
+                taxableValue: Number(l.total_price || 0),
+                gstRatePct: 18,
+                cgstAmount: 0,
+                sgstAmount: 0,
+                igstAmount: 0,
+                cessAmount: 0,
+                totalValue: Number(l.total_price || 0),
+              }))
+            : [],
+        } as unknown as DeliveryNoteChallan));
+        memoryStorage.setItem(DELIVERIES_CACHE_KEY, JSON.stringify(mapped));
+        return mapped;
+      }
+    } catch (err) {
+      console.warn('DB delivery_challans query fallback:', err);
+    }
+    return this.getDeliveriesSync();
+  }
+
+  public async saveDelivery(delivery: DeliveryNoteChallan): Promise<DeliveryNoteChallan> {
+    try {
+      await db.upsert('delivery_challans', {
+        id: delivery.id,
+        challan_number: (delivery as any).challanNumber || delivery.id,
+        so_id: delivery.salesOrderId || (delivery as any).soNumber,
+        customer_id: delivery.customer,
+        vehicle_no: delivery.vehicleNumber,
+        transporter: delivery.transporterName,
+        lr_number: delivery.lrNumber,
+        status: String(delivery.status).toLowerCase(),
+        lines: (delivery as any).lines || delivery.items || [],
+        total_amount: (delivery as any).totalAmount || delivery.invoiceValue || delivery.taxableValue || 0,
+      });
+    } catch (e) {
+      console.warn('Failed to upsert delivery to DB:', e);
+    }
+    this.saveDeliverySync(delivery);
+    return delivery;
   }
 
   public saveDeliverySync(delivery: DeliveryNoteChallan): DeliveryNoteChallan[] {
     const current = this.getDeliveriesSync();
     const updated = [delivery, ...current.filter((d) => d.id !== delivery.id)];
     try {
-      localStorage.setItem(DELIVERIES_CACHE_KEY, JSON.stringify(updated));
+      memoryStorage.setItem(DELIVERIES_CACHE_KEY, JSON.stringify(updated));
     } catch (e) {
       console.warn('Error saving delivery cache:', e);
     }
@@ -433,7 +581,7 @@ class SalesDataService {
   // ==========================================================================
   public getEInvoicesSync(): EInvoiceRecord[] {
     try {
-      const stored = localStorage.getItem(E_INVOICES_CACHE_KEY);
+      const stored = memoryStorage.getItem(E_INVOICES_CACHE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) return parsed;
@@ -446,7 +594,7 @@ class SalesDataService {
 
   public saveEInvoicesSync(invoices: EInvoiceRecord[]) {
     try {
-      localStorage.setItem(E_INVOICES_CACHE_KEY, JSON.stringify(invoices));
+      memoryStorage.setItem(E_INVOICES_CACHE_KEY, JSON.stringify(invoices));
     } catch (e) {
       console.warn('Error caching e-invoices:', e);
     }
@@ -454,7 +602,7 @@ class SalesDataService {
 
   public getEWayBillsSync(): EWayBillRecord[] {
     try {
-      const stored = localStorage.getItem(E_WAY_BILLS_CACHE_KEY);
+      const stored = memoryStorage.getItem(E_WAY_BILLS_CACHE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) return parsed;
@@ -467,7 +615,7 @@ class SalesDataService {
 
   public saveEWayBillsSync(ewbs: EWayBillRecord[]) {
     try {
-      localStorage.setItem(E_WAY_BILLS_CACHE_KEY, JSON.stringify(ewbs));
+      memoryStorage.setItem(E_WAY_BILLS_CACHE_KEY, JSON.stringify(ewbs));
     } catch (e) {
       console.warn('Error caching e-way bills:', e);
     }
@@ -475,7 +623,7 @@ class SalesDataService {
 
   public getGatePassesSync(): GatePassRecord[] {
     try {
-      const stored = localStorage.getItem(GATE_PASSES_CACHE_KEY);
+      const stored = memoryStorage.getItem(GATE_PASSES_CACHE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) return parsed;
@@ -488,7 +636,7 @@ class SalesDataService {
 
   public saveGatePassesSync(passes: GatePassRecord[]) {
     try {
-      localStorage.setItem(GATE_PASSES_CACHE_KEY, JSON.stringify(passes));
+      memoryStorage.setItem(GATE_PASSES_CACHE_KEY, JSON.stringify(passes));
     } catch (e) {
       console.warn('Error caching gate passes:', e);
     }
@@ -496,7 +644,7 @@ class SalesDataService {
 
   public getBatchesSync(): FgBatchStock[] {
     try {
-      const stored = localStorage.getItem(FG_BATCHES_CACHE_KEY);
+      const stored = memoryStorage.getItem(FG_BATCHES_CACHE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -509,7 +657,7 @@ class SalesDataService {
 
   public saveBatchesSync(batches: FgBatchStock[]) {
     try {
-      localStorage.setItem(FG_BATCHES_CACHE_KEY, JSON.stringify(batches));
+      memoryStorage.setItem(FG_BATCHES_CACHE_KEY, JSON.stringify(batches));
     } catch (e) {
       console.warn('Error caching FG batches:', e);
     }

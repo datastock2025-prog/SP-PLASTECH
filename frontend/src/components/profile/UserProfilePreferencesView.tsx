@@ -34,7 +34,16 @@ import {
 } from 'lucide-react';
 import { AuthUser } from '../../types';
 import { GdprService } from '../../security/compliance/GdprService';
-import { useMe, useUpdateMe, usePreferences, useUpdatePreferences, useChangePassword } from '../../features/identity/useIdentity';
+import {
+  useMe,
+  useUpdateMe,
+  usePreferences,
+  useUpdatePreferences,
+  useChangePassword,
+  useSessions,
+  useRevokeSession,
+  useRevokeOtherSessions,
+} from '../../features/identity/useIdentity';
 import type { Me, Preferences } from '../../features/identity/types';
 
 export interface UserProfilePreferences {
@@ -222,18 +231,31 @@ export const UserProfilePreferencesView: React.FC<Props> = ({
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // Only the current browser session is known to the server.
-  const sessions = [
-    {
-      id: 'current',
-      device: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 80) : 'This device',
-      ip: 'Current connection',
-      location: prefs.plantName || '—',
-      lastActive: 'Active Now (Current Session)',
-      isCurrent: true,
-      icon: Laptop,
-    },
-  ];
+  const sessionsQuery = useSessions();
+  const revokeSessionMutation = useRevokeSession();
+  const revokeOtherSessionsMutation = useRevokeOtherSessions();
+
+  const sessions = (sessionsQuery.data && sessionsQuery.data.length > 0)
+    ? sessionsQuery.data.map((s) => ({
+        id: s.id,
+        device: s.userAgent || (s.isCurrent ? (typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 80) : 'This device') : 'Remote Client'),
+        ip: s.ipAddress || '—',
+        location: prefs.plantName || '—',
+        lastActive: s.isCurrent ? 'Active Now (Current Session)' : new Date(s.createdAt).toLocaleString(),
+        isCurrent: s.isCurrent,
+        icon: (s.userAgent?.toLowerCase().includes('mobile') || s.userAgent?.toLowerCase().includes('android') || s.userAgent?.toLowerCase().includes('iphone')) ? Smartphone : Laptop,
+      }))
+    : [
+        {
+          id: 'current',
+          device: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 80) : 'This device',
+          ip: 'Current connection',
+          location: prefs.plantName || '—',
+          lastActive: 'Active Now (Current Session)',
+          isCurrent: true,
+          icon: Laptop,
+        },
+      ];
 
   const handleSaveAll = async () => {
     if (!me || !prefsQuery.data) {
@@ -287,8 +309,22 @@ export const UserProfilePreferencesView: React.FC<Props> = ({
     }
   };
 
-  const handleRevokeSession = (_sessionId: string) => {
-    showToast('Only the current session is tracked by the server.');
+  const handleRevokeSession = async (sessionId: string) => {
+    try {
+      await revokeSessionMutation.mutateAsync(sessionId);
+      showToast('✓ Session revoked successfully.');
+    } catch (err) {
+      showToast(`⚠ ${err instanceof Error ? err.message : 'Failed to revoke session'}`);
+    }
+  };
+
+  const handleRevokeOtherSessions = async () => {
+    try {
+      const res = await revokeOtherSessionsMutation.mutateAsync();
+      showToast(`✓ ${res.message || 'All other active sessions revoked.'}`);
+    } catch (err) {
+      showToast(`⚠ ${err instanceof Error ? err.message : 'Failed to revoke other sessions'}`);
+    }
   };
 
   const handleExportMyData = () => {
@@ -964,8 +1000,9 @@ export const UserProfilePreferencesView: React.FC<Props> = ({
                   <label className="text-xs font-bold text-slate-700">Active Connected Sessions</label>
                   <button
                     type="button"
-                    onClick={() => showToast('No other sessions are active for this account.')}
-                    className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold cursor-pointer"
+                    onClick={handleRevokeOtherSessions}
+                    disabled={revokeOtherSessionsMutation.isPending}
+                    className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold cursor-pointer disabled:opacity-50"
                   >
                     Terminate Other Sessions
                   </button>

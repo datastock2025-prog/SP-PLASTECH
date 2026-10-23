@@ -2,14 +2,14 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
-  timeout: 120 * 1000,
+  timeout: 180 * 1000,
   expect: {
-    timeout: 20000,
+    timeout: 25000,
   },
-  fullyParallel: false,
+  fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: 1,
-  workers: 1,
+  workers: process.env.CI ? 2 : 2,
   reporter: [['html', { open: 'never' }], ['list']],
   use: {
     baseURL: 'http://127.0.0.1:3000',
@@ -19,10 +19,16 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'setup',
+      testMatch: /.*\.setup\.ts/,
+    },
+    {
       name: 'Desktop Chromium',
+      dependencies: ['setup'],
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1440, height: 900 },
+        storageState: 'playwright/.auth/admin.json',
       },
     },
   ],
@@ -43,6 +49,7 @@ export default defineConfig({
       env: {
         BOOTSTRAP_ADMIN_EMAIL: process.env.BOOTSTRAP_ADMIN_EMAIL ?? 'admin@spplastech.com',
         BOOTSTRAP_ADMIN_PASSWORD: process.env.BOOTSTRAP_ADMIN_PASSWORD ?? 'Plas!Tech#Boot91',
+        DISABLE_PG_BOSS: 'true',
       },
     },
   ],

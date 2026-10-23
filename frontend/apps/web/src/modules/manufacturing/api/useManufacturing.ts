@@ -1,9 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/shared/queryKeys';
 import { broadcastLocalMutation } from '@/src/services/realtime/realtimeService';
-import { db } from '@/src/shared/db';
+import { api } from '@/src/lib/api-client';
 import { WorkOrder } from '@/src/types';
-import { initialWorkOrders } from '@/src/data/initialData';
 import { mapDbRowToWorkOrder } from '@/src/shared/utils/dtoMappers';
 
 export interface ProductionEntryPayload {
@@ -27,20 +26,18 @@ export function useWorkOrders(status?: string) {
     queryKey: queryKeys.manufacturing.workOrders(status),
     queryFn: async () => {
       try {
-        const data = await db.findMany<any>('work_orders', {
-          orderBy: { column: 'created_at', ascending: false },
-          limit: 100,
+        const res = await api.get<any>('/work-orders', {
+          params: { limit: 100, sortBy: 'created_at', sortOrder: 'desc', includeTotal: true },
         });
-
-        if (Array.isArray(data) && data.length > 0) {
-          const mapped = data.map((row: any) => mapDbRowToWorkOrder(row));
-          const filtered = mapped.filter((w: any) => !['WO-1188', 'WO-1189', 'WO-1190', 'WO-1191', 'WO-1192', 'WO-1193'].includes(w.id));
-          return status ? filtered.filter((w: any) => w.status?.toLowerCase() === status.toLowerCase()) : filtered;
+        const rows = res?.data?.data || res?.data;
+        if (Array.isArray(rows)) {
+          const mapped = rows.map((row: any) => mapDbRowToWorkOrder(row));
+          return status ? mapped.filter((w: any) => w.status?.toLowerCase() === status.toLowerCase()) : mapped;
         }
       } catch (e) {
-        console.debug('[useWorkOrders] error:', e);
+        console.debug('[useWorkOrders] REST query notice:', e);
       }
-      return initialWorkOrders;
+      return [];
     },
     staleTime: 1000 * 30,
     refetchOnWindowFocus: false,
@@ -51,19 +48,25 @@ export function useSaveWorkOrder() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (wo: WorkOrder) => {
-      try {
-        const payload: Record<string, any> = {
-          id: wo.id,
-          item_code: wo.item || (wo as any).itemCode,
-          status: wo.status,
-          updated_at: new Date().toISOString(),
-        };
-        if (wo.machine || (wo as any).machineId) {
-          payload.machine_code = wo.machine || (wo as any).machineId;
-        }
-        await db.upsert('work_orders', payload);
-      } catch (e) {
-        console.debug('[useSaveWorkOrder] db upsert notice:', e);
+      const payload: Record<string, any> = {
+        id: wo.id,
+        item_code: wo.item || (wo as any).itemCode,
+        status: wo.status,
+        updated_at: new Date().toISOString(),
+      };
+      if (wo.machine || (wo as any).machineId) {
+        payload.machine_id = wo.machine || (wo as any).machineId;
+      }
+      if (wo.id) {
+        try {
+          const res = await api.patch<any>(`/work-orders/${encodeURIComponent(wo.id)}`, payload);
+          if (res?.data) return res.data.data || res.data;
+        } catch {}
+      } else {
+        try {
+          const res = await api.post<any>('/work-orders', payload);
+          if (res?.data) return res.data.data || res.data;
+        } catch {}
       }
       return wo;
     },
@@ -93,15 +96,18 @@ export function useLogProductionEntry() {
         status: 'in_progress',
       });
 
+      const prodPayload = {
+        work_order_id: payload.workOrderId,
+        good_qty: payload.goodQty,
+        rejected_qty: payload.scrapQty,
+        operator_id: payload.operator,
+        shift_id: payload.shift,
+      };
+
       try {
-        await db.upsert('work_orders', {
-          id: payload.workOrderId,
-          produced_qty: payload.goodQty,
-          scrap_qty: payload.scrapQty,
-          updated_at: new Date().toISOString(),
-        });
+        await api.post<any>('/production-entries', prodPayload);
       } catch (e) {
-        console.debug('[useLogProductionEntry] db upsert notice:', e);
+        console.debug('[useLogProductionEntry] REST notice:', e);
       }
 
       return { success: true, workOrder: updatedWO };

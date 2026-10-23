@@ -77,7 +77,7 @@ export const JitCommonComposer: React.FC<Props> = ({
 }) => {
   const authContext = useAuthContext();
   const effectiveUser = propUser || authContext.currentUser;
-  const userAssignedPlant = effectiveUser?.plantId || localStorage.getItem('sp_active_plant') || 'PLANT-01';
+  const userAssignedPlant = effectiveUser?.plantId || (typeof window !== 'undefined' ? sessionStorage.getItem('sp_active_plant') : null) || 'PLANT-01';
 
   // Task 1: Check admin permission based on user ID / role / roleType / permissions
   const isAdmin = Boolean(
@@ -212,7 +212,7 @@ export const JitCommonComposer: React.FC<Props> = ({
     if (!selectedItemCode) return 0;
     let sum = 0;
     try {
-      const savedJobsRaw = localStorage.getItem('sp_jit_production_jobs');
+      const savedJobsRaw = typeof window !== 'undefined' ? sessionStorage.getItem('sp_jit_production_jobs') : null;
       if (savedJobsRaw) {
         const savedJobs = JSON.parse(savedJobsRaw);
         if (Array.isArray(savedJobs)) {

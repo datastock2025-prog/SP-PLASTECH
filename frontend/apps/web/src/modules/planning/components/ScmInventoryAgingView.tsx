@@ -12,7 +12,6 @@ import {
   DollarSign,
   Calendar,
 } from 'lucide-react';
-import { mockInventoryAging } from '@/src/data/mockScmData';
 import { InventoryAgingRecord } from '@/src/types/scm';
 import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { usePagination } from '@/src/hooks/usePagination';
@@ -82,7 +81,7 @@ const AgingTableRow = memo(({
 ));
 
 export const ScmInventoryAgingView: React.FC<ScmInventoryAgingViewProps> = ({ onNavigate, showToast }) => {
-  const [records, setRecords] = useState<InventoryAgingRecord[]>(mockInventoryAging);
+  const [records, setRecords] = useState<InventoryAgingRecord[]>([]);
   const [bucketFilter, setBucketFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
 

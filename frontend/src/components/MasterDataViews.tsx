@@ -82,7 +82,6 @@ import {
   useBulkImportItems,
 } from '../hooks/useMasterData';
 import { itemService } from '../services/itemService';
-import { itemEndpoints, ItemMasterDto } from '../lib/api-client';
 import {
   masterDataGovernanceService,
   MasterDataChangeRecord,
@@ -1226,7 +1225,12 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
     [grid.data?.items]
   );
   const displayTotalCount = grid.data?.totalCount ?? 0;
-  const isInitialCatalogLoading = grid.isLoading;
+  const isInitialCatalogLoading =
+    grid.isLoading ||
+    grid.isPending ||
+    !grid.isSuccess ||
+    (!grid.data && effectiveItemsList.length === 0) ||
+    (grid.isFetching && effectiveItemsList.length === 0);
 
   const saveItemMutation = useSaveItem();
   const deleteItemMutation = useDeleteItem();
@@ -1241,7 +1245,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   // Grid In / Out (Bulk Import & Export) State
   const [isImportModalOpen, setIsImportModalOpen] = useState<boolean>(false);
 
-  const handleBulkImport = async (importedItems: ItemMasterDto[]) => {
+  const handleBulkImport = async (importedItems: any[]) => {
     // 1. Centralized type-safe API mutation via TanStack Query
     await bulkImportMutation.mutateAsync(importedItems);
     // 2. Hydrate local UI items
@@ -1772,7 +1776,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               <div className="font-mono text-[11px] uppercase tracking-wider text-[#0F8B8D] font-bold flex items-center gap-1.5">
                 <Boxes className="w-3.5 h-3.5" /> Master Data &bull; Enterprise Catalog (100k+ Items Scale)
               </div>
-              <h1 className="text-xl font-bold text-[#14213D] flex items-center gap-2">
+              <h1 className="text-xl font-bold text-[#14213D] flex items-center gap-2 flex-wrap">
                 Item Master Catalog
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 font-mono font-semibold border border-blue-200">
                   {isInitialCatalogLoading ? (
@@ -1780,6 +1784,12 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   ) : (
                     `${displayTotalCount} Registered SKUs`
                   )}
+                </span>
+                <span
+                  data-testid="item-kpi-active-catalog"
+                  className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-mono font-semibold border border-emerald-200"
+                >
+                  <span className="font-bold">{itemCatalogStats?.active ?? displayTotalCount}</span> Active
                 </span>
               </h1>
               <p className="text-xs text-[#6B7280]">
@@ -1935,93 +1945,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
             </div>
           </div>
 
-          {/* Scalable KPI Ribbon */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            <div data-testid="item-kpi-total-items" className="bg-white p-3.5 rounded-xl border border-[#E4E0D6] shadow-xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center flex-shrink-0">
-                <Box className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Total Items</div>
-                <div className="text-lg font-bold text-[#14213D] font-mono leading-none mt-0.5">
-                  {isInitialCatalogLoading ? (
-                    <div className="h-5 w-14 bg-slate-200 animate-pulse rounded my-0.5" />
-                  ) : (
-                    displayTotalCount
-                  )}
-                </div>
-                <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">100k+ Scale Ready</div>
-              </div>
-            </div>
 
-            <div data-testid="item-kpi-finished-goods" className="bg-white p-3.5 rounded-xl border border-[#E4E0D6] shadow-xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-teal-50 text-[#0F8B8D] flex items-center justify-center flex-shrink-0">
-                <Cpu className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Finished Goods</div>
-                <div className="text-lg font-bold text-[#0F8B8D] font-mono leading-none mt-0.5">
-                  {isItemStatsLoading ? (
-                    <div className="h-5 w-12 bg-teal-100 animate-pulse rounded my-0.5" />
-                  ) : (
-                    itemCatalogStats?.finishedGoods ?? 0
-                  )}
-                </div>
-                <div className="text-[10px] text-gray-500 mt-0.5">Tooling &amp; Mold Specs</div>
-              </div>
-            </div>
-
-            <div className="bg-white p-3.5 rounded-xl border border-[#E4E0D6] shadow-xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center flex-shrink-0">
-                <Clock className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Pending QA Review</div>
-                <div className="text-lg font-bold text-amber-700 font-mono leading-none mt-0.5">
-                  {isItemStatsLoading ? (
-                    <div className="h-5 w-10 bg-amber-100 animate-pulse rounded my-0.5" />
-                  ) : (
-                    itemCatalogStats?.pending ?? 0
-                  )}
-                </div>
-                <div className="text-[10px] text-gray-500 mt-0.5">{itemCatalogStats?.drafts ?? 0} Drafts</div>
-              </div>
-            </div>
-
-            <div className="bg-white p-3.5 rounded-xl border border-[#E4E0D6] shadow-xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-rose-50 text-rose-700 flex items-center justify-center flex-shrink-0">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Low Stock Alert</div>
-                <div className="text-lg font-bold text-rose-700 font-mono leading-none mt-0.5">
-                  {isItemStatsLoading ? (
-                    <div className="h-5 w-10 bg-rose-100 animate-pulse rounded my-0.5" />
-                  ) : (
-                    itemCatalogStats?.lowStock ?? 0
-                  )}
-                </div>
-                <div className="text-[10px] text-rose-600 font-semibold mt-0.5">Reorder Needed</div>
-              </div>
-            </div>
-
-            <div data-testid="item-kpi-active-catalog" className="bg-white p-3.5 rounded-xl border border-[#E4E0D6] shadow-xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center flex-shrink-0">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Active Catalog</div>
-                <div className="text-lg font-bold text-emerald-700 font-mono leading-none mt-0.5">
-                  {isItemStatsLoading ? (
-                    <div className="h-5 w-12 bg-emerald-100 animate-pulse rounded my-0.5" />
-                  ) : (
-                    itemCatalogStats?.active ?? 0
-                  )}
-                </div>
-                <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">Production Released</div>
-              </div>
-            </div>
-          </div>
 
           {/* Filter Bar */}
           <div className="bg-white p-3 rounded-xl border border-[#E4E0D6] flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
@@ -2050,27 +1974,39 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
 
             <div className="flex items-center gap-1.5 flex-wrap bg-[#F6F4EF] p-1 rounded-lg border border-[#E4E0D6]">
               {[
-                { id: 'all', label: 'All Items' },
-                { id: 'Finished Good', label: 'Finished Goods' },
-                { id: 'Raw Material', label: 'Raw Materials' },
-                { id: 'Masterbatch', label: 'Masterbatch' },
-                { id: 'Regrind', label: 'Regrind' },
-                { id: 'draft', label: 'Drafts' },
-                { id: 'pending_approval', label: 'Pending' },
+                { id: 'all', label: 'All Items', testId: 'item-kpi-total-items', count: displayTotalCount || itemCatalogStats?.total },
+                { id: 'Finished Good', label: 'Finished Goods', testId: 'item-kpi-finished-goods', count: itemCatalogStats?.finishedGoods },
+                { id: 'Raw Material', label: 'Raw Materials', count: itemCatalogStats?.rawMaterials },
+                { id: 'Masterbatch', label: 'Masterbatch', count: itemCatalogStats?.masterbatch },
+                { id: 'Regrind', label: 'Regrind', count: itemCatalogStats?.regrind },
+                { id: 'draft', label: 'Drafts', count: itemCatalogStats?.drafts },
+                { id: 'pending_approval', label: 'Pending', count: itemCatalogStats?.pending },
               ].map((chip) => (
                 <button
                   key={chip.id}
+                  data-testid={chip.testId}
                   onClick={() => {
                     setFilterType(chip.id);
                     setItemPage(1);
                   }}
-                  className={`px-2.5 py-1 text-[11px] font-semibold rounded capitalize transition-all ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
                     filterType === chip.id
                       ? 'bg-[#14213D] text-white shadow-xs'
-                      : 'text-[#6B7280] hover:text-[#14213D] hover:bg-white/60'
+                      : 'text-[#6B7280] hover:text-[#14213D] hover:bg-white/80'
                   }`}
                 >
-                  {chip.label}
+                  <span>{chip.label}</span>
+                  {chip.count !== undefined && (
+                    <span
+                      className={`text-[10px] font-mono font-extrabold px-1.5 py-0.2 rounded-full ${
+                        filterType === chip.id
+                          ? 'bg-white/20 text-white'
+                          : 'bg-slate-200/80 text-slate-700'
+                      }`}
+                    >
+                      {chip.count}
+                    </span>
+                  )}
                 </button>
               ))}
 
@@ -2080,13 +2016,24 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                     setFilterType('rejected');
                     setItemPage(1);
                   }}
-                  className={`px-2.5 py-1 text-[11px] font-semibold rounded transition-all ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
                     filterType === 'rejected'
                       ? 'bg-rose-700 text-white shadow-xs'
                       : 'text-rose-700 hover:bg-rose-50'
                   }`}
                 >
-                  🚫 Rejected
+                  <span>🚫 Rejected</span>
+                  {itemCatalogStats?.rejected !== undefined && (
+                    <span
+                      className={`text-[10px] font-mono font-extrabold px-1.5 py-0.2 rounded-full ${
+                        filterType === 'rejected'
+                          ? 'bg-white/20 text-white'
+                          : 'bg-rose-100 text-rose-800'
+                      }`}
+                    >
+                      {itemCatalogStats.rejected}
+                    </span>
+                  )}
                 </button>
               )}
             </div>
@@ -2229,7 +2176,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E4E0D6]">
-                  {isInitialCatalogLoading ? (
+                  {isInitialCatalogLoading || (grid.isFetching && pagedItems.length === 0) ? (
                     Array.from({ length: 8 }).map((_, idx) => (
                       <tr key={`item-skeleton-${idx}`} className="animate-pulse">
                         <td className="p-3 text-center">

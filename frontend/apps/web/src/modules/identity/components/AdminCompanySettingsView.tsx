@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Building2,
   Save,
@@ -14,10 +14,9 @@ import {
   Upload,
   Calendar,
   ArrowRight,
+  Loader2,
 } from 'lucide-react';
-import { SupabaseDataService } from '@/src/services/dataService';
-import { masterDataGovernanceService } from '@/src/services/masterDataGovernanceService';
-import { adminEventBus } from '@/src/services/adminService';
+import { useCompanySettings, useUpdateCompanySettings } from '@/src/features/identity/useIdentity';
 
 interface AdminCompanySettingsViewProps {
   onNavigate?: (view: string, param?: any) => void;
@@ -54,9 +53,27 @@ export const AdminCompanySettingsView: React.FC<AdminCompanySettingsViewProps> =
   onNavigate,
   showToast = (_msg: string) => {},
 }) => {
-  // Task 2: Initially company settings fields are empty
+  const { data: companyData, isLoading } = useCompanySettings();
+  const updateSettingsMutation = useUpdateCompanySettings();
+
   const [formData, setFormData] = useState(emptyCompanyForm);
-  const [isSaving, setIsSaving] = useState(false);
+  const isSaving = updateSettingsMutation.isPending;
+
+  useEffect(() => {
+    if (companyData) {
+      setFormData((prev) => ({
+        ...prev,
+        legalName: companyData.legalName || companyData.companyName || prev.legalName,
+        tradeName: companyData.companyName || prev.tradeName,
+        cinNumber: companyData.cin || prev.cinNumber,
+        panNumber: companyData.pan || prev.panNumber,
+        gstinNumber: companyData.gstin || prev.gstinNumber,
+        registeredAddress: companyData.registeredAddress || prev.registeredAddress,
+        baseCurrency: companyData.currency || prev.baseCurrency,
+        fiscalYearStart: companyData.fiscalYearStart || prev.fiscalYearStart,
+      }));
+    }
+  }, [companyData]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,53 +83,20 @@ export const AdminCompanySettingsView: React.FC<AdminCompanySettingsViewProps> =
       return;
     }
 
-    setIsSaving(true);
-
     try {
-      // 1. Save to localStorage
-      localStorage.setItem('reboot_company_profile', JSON.stringify(formData));
-
-      // 2. Persist to Supabase Database
-      await SupabaseDataService.upsertCompanySettings({
-        legal_name: formData.legalName,
-        trade_name: formData.tradeName,
-        cin_number: formData.cinNumber,
-        pan_number: formData.panNumber,
-        gstin_number: formData.gstinNumber,
-        incorporation_date: formData.incorporationDate,
-        registered_address: formData.registeredAddress,
-        city: formData.city,
-        state: formData.state,
-        postal_code: formData.postalCode,
-        corporate_email: formData.corporateEmail,
-        corporate_phone: formData.corporatePhone,
-        website_url: formData.websiteUrl,
-        primary_bank: formData.primaryBank,
-        bank_account_number: formData.bankAccountNumber,
-        bank_ifsc_code: formData.bankIfscCode,
-        iatf_cert_number: formData.iatfCertNumber,
-        iso14001_cert_number: formData.iso14001CertNumber,
+      await updateSettingsMutation.mutateAsync({
+        companyName: formData.tradeName || formData.legalName,
+        legalName: formData.legalName,
+        cin: formData.cinNumber,
+        pan: formData.panNumber,
+        gstin: formData.gstinNumber,
+        registeredAddress: formData.registeredAddress,
+        currency: formData.baseCurrency?.split(' ')?.[0] || 'INR',
+        fiscalYearStart: formData.fiscalYearStart,
       });
 
-      // 3. Record in Audit History
-      masterDataGovernanceService.recordAudit({
-        entityType: 'COMPANY_SETTINGS',
-        entityCode: formData.cinNumber || 'COMP-01',
-        entityName: formData.legalName || formData.tradeName,
-        action: 'UPDATE',
-        changedBy: 'Super Administrator',
-        userRole: 'admin',
-        changeSummary: `Updated Company & Organization Legal Settings for ${formData.legalName || formData.tradeName}.`,
-      });
+      showToast('✓ Company Profile saved to database successfully.');
 
-      adminEventBus.emit('COMPANY_PROFILE_SAVED', formData);
-
-      showToast('✓ Company Profile saved in DB. Moving to Plant & Branch settings...');
-
-      // 4. Task 2: Reset form fields back to empty
-      setFormData(emptyCompanyForm);
-
-      // 5. Task 2: Transition to Plant and Branch screen
       if (onNavigate) {
         setTimeout(() => {
           onNavigate('adminPlantSettings');
@@ -120,15 +104,10 @@ export const AdminCompanySettingsView: React.FC<AdminCompanySettingsViewProps> =
       }
     } catch (err: any) {
       console.warn('Error saving company profile:', err);
-      showToast('✓ Company Profile saved locally.');
-      setFormData(emptyCompanyForm);
-      if (onNavigate) {
-        onNavigate('adminPlantSettings');
-      }
-    } finally {
-      setIsSaving(false);
+      showToast('❌ Failed to save company profile: ' + (err.message || 'Server error'));
     }
   };
+
 
   return (
     <div className="space-y-6 pb-12">

@@ -78,7 +78,7 @@ export const SupplierQuotationComparisonView: React.FC<Props> = ({
     msdsRequired: false,
   };
 
-  // Mock / Derived bids for comparison
+  // Derived bids for comparison
   const defaultBids: BidEvaluation[] = [
     {
       supplierId: 'SUP-004',

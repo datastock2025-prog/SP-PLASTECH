@@ -412,7 +412,7 @@ export const NicEwbDiagnosticRunnerModal: React.FC<NicEwbDiagnosticRunnerModalPr
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Environment Mode</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {(['MOCK', 'SANDBOX', 'PRODUCTION'] as NicEnvironment[]).map((env) => (
+                  {(['SIMULATOR', 'SANDBOX', 'PRODUCTION'] as NicEnvironment[]).map((env) => (
                     <button
                       key={env}
                       type="button"

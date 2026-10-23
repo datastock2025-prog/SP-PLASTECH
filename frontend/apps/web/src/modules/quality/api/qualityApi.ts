@@ -1,66 +1,60 @@
-import { db } from '@/src/shared/db';
+import { api } from '@/src/lib/api-client';
 import { NonConformanceReport, CapaReport, CertificateOfAnalysis } from '@/src/types';
 import { NcrCreateFormValues } from '../model/qualitySchemas';
 
 export const qualityApi = {
   getNcrs: async (): Promise<NonConformanceReport[]> => {
     try {
-      const data = await db.findMany<NonConformanceReport>('quality_ncrs');
-      if (Array.isArray(data) && data.length > 0) return data;
-    } catch {}
+      const res = await api.get<any>('/qc-inspections', {
+        params: { limit: 100, sortBy: 'created_at', sortOrder: 'desc', includeTotal: true },
+      });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows)) return rows;
+    } catch (e) {
+      console.debug('[qualityApi.getNcrs] REST query notice:', e);
+    }
     return [];
   },
 
   createNcr: async (data: NcrCreateFormValues): Promise<NonConformanceReport> => {
-    const newNcr: NonConformanceReport = {
-      id: `NCR-${Date.now().toString().slice(-4)}`,
-      source: 'Production Floor',
-      item: data.itemCode,
-      itemName: data.title,
-      ref: `WO-REF-${Date.now().toString().slice(-3)}`,
-      lot: data.lotNumber,
-      qty: data.quantityAffected,
-      uom: 'PCS',
-      severity: data.severity as any,
-      category: data.defectType,
-      description: data.description,
-      containment: 'Segregated into quarantine area pending review.',
-      status: 'open',
-      discoveredBy: data.reportedBy,
-      discoveredDate: new Date().toISOString().split('T')[0],
-      rca: {
-        method: '5-Why',
-        whys: [],
-        rootCause: '',
-      },
-      disposition: {
-        action: null,
-        qty: null,
-        approvedBy: null,
-      },
-      capaId: null,
-      history: [{ event: 'Created NCR', time: new Date().toISOString() }],
+    const newNcr: any = {
+      inspection_no: `NCR-${Date.now().toString().slice(-4)}`,
+      doc_type: 'WORK_ORDER',
+      doc_id: `WO-REF-${Date.now().toString().slice(-3)}`,
+      item_code: data.itemCode,
+      lot_number: data.lotNumber,
+      inspected_qty: data.quantityAffected,
+      rejected_qty: data.quantityAffected,
+      disposition: 'QUARANTINE',
+      notes: data.description,
+      defects: [{ category: data.defectType, severity: data.severity, title: data.title }],
     };
 
     try {
-      await db.upsert('quality_ncrs', newNcr, 'id');
-    } catch {}
+      const res = await api.post<any>('/qc-inspections', newNcr);
+      const row = res?.data?.data || res?.data;
+      if (row && typeof row === 'object') return row as NonConformanceReport;
+    } catch (e) {
+      console.debug('[qualityApi.createNcr] REST notice:', e);
+    }
 
-    return newNcr;
+    return newNcr as NonConformanceReport;
   },
 
   getCapas: async (): Promise<CapaReport[]> => {
     try {
-      const data = await db.findMany<CapaReport>('quality_capas');
-      if (Array.isArray(data) && data.length > 0) return data;
+      const res = await api.get<any>('/qc-capas', { params: { limit: 100 } });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows)) return rows;
     } catch {}
     return [];
   },
 
   getCoas: async (): Promise<CertificateOfAnalysis[]> => {
     try {
-      const data = await db.findMany<CertificateOfAnalysis>('quality_coas');
-      if (Array.isArray(data) && data.length > 0) return data;
+      const res = await api.get<any>('/qc-coas', { params: { limit: 100 } });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows)) return rows;
     } catch {}
     return [];
   },

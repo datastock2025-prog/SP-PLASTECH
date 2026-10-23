@@ -97,7 +97,7 @@ export const DailyOrderQuickEntry: React.FC<DailyOrderQuickEntryProps> = ({
   const [fgStore, setFgStore] = useState('FG-Automotive Cell');
   const [customerPoNumber, setCustomerPoNumber] = useState('PO-TM-JIT-9921');
 
-  // Customer metadata mock
+  // Customer metadata preview
   const isInterState = customer.includes('Maruti');
   const customerCreditAvailable = customer.includes('Bajaj') ? -450000 : 8580000;
 

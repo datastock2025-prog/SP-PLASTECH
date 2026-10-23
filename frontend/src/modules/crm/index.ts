@@ -30,24 +30,6 @@ export {
   CrmAnalyticsReportsView,
 } from '../../../apps/web/src/modules/crm';
 
-export {
-  mockLeads,
-  mockOpportunities,
-  mockAccounts,
-  mockContacts,
-  mockActivities,
-  mockCustomerInquiries,
-  mockQuotations,
-  mockSampleRequests,
-  mockCustomerComplaints,
-  mockCustomerDocuments,
-  mockCustomerSegmentations,
-  mockCrmReports,
-  mockCrmSettings,
-  mockCrmRbac,
-  mockComplaints,
-  mockSalesOrders,
-} from '../../data/mockCrmData';
 
 export type {
   Lead,

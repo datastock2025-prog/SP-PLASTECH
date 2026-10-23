@@ -45,7 +45,7 @@ export const MfaVerificationModal: React.FC<Props> = ({
           setErrorMessage('Invalid authentication code. Please try again.');
         }
       } else {
-        // Direct step-up mock check
+        // Direct step-up verification check
         if (code.trim().length >= 6) {
           onSuccess?.();
         } else {

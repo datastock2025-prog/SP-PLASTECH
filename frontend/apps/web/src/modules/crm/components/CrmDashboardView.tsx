@@ -41,15 +41,7 @@ import {
   LineChart,
   Line,
 } from 'recharts';
-import {
-  mockLeads,
-  mockOpportunities,
-  mockAccounts,
-  mockQuotations,
-  mockSampleRequests,
-  mockCustomerComplaints,
-  mockActivities,
-} from '@/src/data/mockCrmData';
+import { useCrm } from '../api/useCrm';
 
 interface CrmDashboardViewProps {
   onNavigate: (view: string, params?: any) => void;
@@ -59,22 +51,26 @@ interface CrmDashboardViewProps {
 const COLORS = ['#0F8B8D', '#E8622C', '#6366F1', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6'];
 
 export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({ onNavigate, showToast }) => {
+  const { leads: leadsList = [], opportunities: opportunitiesList = [], accounts: accountsList = [], activities: activitiesList = [] } = useCrm();
+  const quotationsList: any[] = [];
+  const sampleRequestsList: any[] = [];
+  const customerComplaintsList: any[] = [];
   const [quickActionOpen, setQuickActionOpen] = useState(false);
   const [selectedTimeRange, setSelectedTimeRange] = useState('This Month (Sep 2026)');
 
   // Calculations
-  const totalLeads = mockLeads.length;
-  const newLeadsToday = mockLeads.filter(l => l.status === 'New').length;
-  const qualifiedLeads = mockLeads.filter(l => l.status === 'Qualified').length;
-  const openOpps = mockOpportunities.filter(o => o.status === 'Open');
+  const totalLeads = leadsList.length;
+  const newLeadsToday = leadsList.filter(l => l.status === 'New').length;
+  const qualifiedLeads = leadsList.filter(l => l.status === 'Qualified').length;
+  const openOpps = opportunitiesList.filter(o => o.status === 'Open');
   const pipelineValue = openOpps.reduce((acc, curr) => acc + curr.expectedValue, 0);
-  const quotationsSent = mockQuotations.length;
-  const wonOpps = mockOpportunities.filter(o => o.status === 'Won').length;
-  const lostOpps = mockOpportunities.filter(o => o.status === 'Lost').length;
-  const openComplaints = mockCustomerComplaints.filter(c => c.status !== 'Closed').length;
-  const overdueFollowUps = mockActivities.filter(a => a.status === 'Pending' && a.dueDate <= '2026-09-01').length;
-  const samplesPending = mockSampleRequests.filter(s => s.status !== 'Sample Approved' && s.status !== 'Closed').length;
-  const topCustomerRevenue = mockAccounts.reduce((acc, curr) => acc + curr.totalRevenueYtd, 0);
+  const quotationsSent = quotationsList.length;
+  const wonOpps = opportunitiesList.filter(o => o.status === 'Won').length;
+  const lostOpps = opportunitiesList.filter(o => o.status === 'Lost').length;
+  const openComplaints = customerComplaintsList.filter(c => c.status !== 'Closed').length;
+  const overdueFollowUps = activitiesList.filter(a => a.status === 'Pending' && a.dueDate <= '2026-09-01').length;
+  const samplesPending = sampleRequestsList.filter(s => s.status !== 'Sample Approved' && s.status !== 'Closed').length;
+  const topCustomerRevenue = accountsList.reduce((acc, curr) => acc + curr.totalRevenueYtd, 0);
 
   // Chart data
   const pipelineStageData = [
@@ -358,7 +354,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({ onNavigate, 
             <span className="text-[11px] font-medium">Active Accounts</span>
             <Building2 className="w-3.5 h-3.5 text-teal-600" />
           </div>
-          <div className="text-lg font-bold text-slate-900">{mockAccounts.length}</div>
+          <div className="text-lg font-bold text-slate-900">{accountsList.length}</div>
           <div className="text-[10px] text-slate-500 mt-0.5">Key OEMs: 4</div>
         </div>
 
@@ -497,7 +493,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({ onNavigate, 
           </div>
 
           <div className="space-y-3">
-            {mockOpportunities.slice(0, 3).map((opp) => (
+            {opportunitiesList.slice(0, 3).map((opp) => (
               <div
                 key={opp.id}
                 onClick={() => onNavigate('crmOpportunityDetail', { oppId: opp.id })}
@@ -538,7 +534,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({ onNavigate, 
           </div>
 
           <div className="space-y-3">
-            {mockSampleRequests.map((smp) => (
+            {sampleRequestsList.map((smp) => (
               <div
                 key={smp.id}
                 onClick={() => onNavigate('crmSampleRequest')}
@@ -578,7 +574,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({ onNavigate, 
           </div>
 
           <div className="space-y-3">
-            {mockCustomerComplaints.map((cmp) => (
+            {customerComplaintsList.map((cmp) => (
               <div
                 key={cmp.id}
                 onClick={() => onNavigate('crmComplaintManagement')}
@@ -600,7 +596,7 @@ export const CrmDashboardView: React.FC<CrmDashboardViewProps> = ({ onNavigate, 
               </div>
             ))}
 
-            {mockActivities.slice(0, 1).map((act) => (
+            {activitiesList.slice(0, 1).map((act) => (
               <div
                 key={act.id}
                 onClick={() => onNavigate('crmActivityManagement')}

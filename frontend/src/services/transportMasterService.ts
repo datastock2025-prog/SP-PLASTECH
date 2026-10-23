@@ -1,4 +1,5 @@
 import { adminEventBus } from './adminService';
+import { memoryStorage } from '../shared/memoryStore';
 
 export interface TransporterRecord {
   id: string;
@@ -128,7 +129,7 @@ export const INITIAL_TRANSPORTERS: TransporterRecord[] = [
 
 function loadStoredTransporters(): TransporterRecord[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = memoryStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -136,7 +137,7 @@ function loadStoredTransporters(): TransporterRecord[] {
       }
     }
   } catch (err) {
-    console.warn('Could not read transporters from localStorage', err);
+    console.warn('Could not read transporters from memoryStorage', err);
   }
   saveStoredTransporters(INITIAL_TRANSPORTERS);
   return INITIAL_TRANSPORTERS;
@@ -144,9 +145,9 @@ function loadStoredTransporters(): TransporterRecord[] {
 
 function saveStoredTransporters(data: TransporterRecord[]) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    memoryStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch (err) {
-    console.warn('Could not save transporters to localStorage', err);
+    console.warn('Could not save transporters to memoryStorage', err);
   }
 }
 

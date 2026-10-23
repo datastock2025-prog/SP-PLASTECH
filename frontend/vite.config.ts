@@ -16,7 +16,52 @@ export default defineConfig(() => {
       dedupe: ['react', 'react-dom'],
     },
     build: {
-      cssMinify: false,
+      cssMinify: true,
+      minify: 'esbuild',
+      chunkSizeWarningLimit: 900,
+      rollupOptions: {
+        output: {
+          entryFileNames: 'assets/app-[hash].js',
+          chunkFileNames: 'assets/[name]-[hash].js',
+          manualChunks(id) {
+            const normalizedId = id.replace(/\\/g, '/');
+            if (normalizedId.includes('/node_modules/')) {
+              if (
+                normalizedId.includes('/node_modules/react/') ||
+                normalizedId.includes('/node_modules/react-dom/') ||
+                normalizedId.includes('/node_modules/react-router/') ||
+                normalizedId.includes('/node_modules/react-router-dom/')
+              ) {
+                return 'vendor-react';
+              }
+              if (normalizedId.includes('/node_modules/@tanstack/')) {
+                return 'vendor-query';
+              }
+              if (normalizedId.includes('/node_modules/lucide-react/')) {
+                return 'vendor-icons';
+              }
+              if (
+                normalizedId.includes('/node_modules/chart.js/') ||
+                normalizedId.includes('/node_modules/react-chartjs-2/') ||
+                normalizedId.includes('/node_modules/recharts/')
+              ) {
+                return 'vendor-charts';
+              }
+              if (normalizedId.includes('/node_modules/xlsx/')) {
+                return 'vendor-xlsx';
+              }
+              if (
+                normalizedId.includes('/node_modules/zod/') ||
+                normalizedId.includes('/node_modules/date-fns/') ||
+                normalizedId.includes('/node_modules/clsx/') ||
+                normalizedId.includes('/node_modules/tailwind-merge/')
+              ) {
+                return 'vendor-utils';
+              }
+            }
+          },
+        },
+      },
     },
     server: {
       host: '0.0.0.0',

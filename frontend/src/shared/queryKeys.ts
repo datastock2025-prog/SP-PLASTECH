@@ -25,6 +25,7 @@ export const queryKeys = {
     all: ['sales'] as const,
     orders: (filter?: any) => [...queryKeys.sales.all, 'orders', { filter }] as const,
     orderDetail: (id: string) => [...queryKeys.sales.all, 'order', id] as const,
+    summary: () => [...queryKeys.sales.all, 'summary'] as const,
     quotations: (filter?: any) => [...queryKeys.sales.all, 'quotations', { filter }] as const,
     customers: () => [...queryKeys.sales.all, 'customers'] as const,
     customerDetail: (id: string) => [...queryKeys.sales.all, 'customer', id] as const,
@@ -80,6 +81,7 @@ export const queryKeys = {
     all: ['procurement'] as const,
     purchaseOrders: (filter?: any) => [...queryKeys.procurement.all, 'pos', { filter }] as const,
     purchaseOrderDetail: (id: string) => [...queryKeys.procurement.all, 'po', id] as const,
+    summary: () => [...queryKeys.procurement.all, 'summary'] as const,
     suppliers: () => [...queryKeys.procurement.all, 'suppliers'] as const,
     supplierDetail: (id: string) => [...queryKeys.procurement.all, 'supplier', id] as const,
     requisitions: () => [...queryKeys.procurement.all, 'prs'] as const,
@@ -111,6 +113,10 @@ export const queryKeys = {
     workOrders: () => [...queryKeys.mep.all, 'workOrders'] as const,
     molds: () => [...queryKeys.mep.all, 'molds'] as const,
     maintenanceSchedules: () => [...queryKeys.mep.all, 'schedules'] as const,
+    alarms: () => [...queryKeys.mep.all, 'alarms'] as const,
+    energy: () => [...queryKeys.mep.all, 'energy'] as const,
+    utilities: () => [...queryKeys.mep.all, 'utilities'] as const,
+    cleanrooms: () => [...queryKeys.mep.all, 'cleanrooms'] as const,
   },
 
   // 12. Finance & General Ledger

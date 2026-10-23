@@ -2,11 +2,11 @@
 export * from './types';
 
 // Authentication & Session
+export * from './auth/PasswordPolicy';
+export * from './auth/AuthProvider';
 export * from './auth/SecureTokenStorage';
 export * from './auth/SessionManager';
 export * from './auth/MfaService';
-export * from './auth/PasswordPolicy';
-export * from './auth/AuthProvider';
 
 // RBAC & Multi-Tenancy
 export * from './rbac/RequirePermission';

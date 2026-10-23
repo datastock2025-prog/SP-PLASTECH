@@ -84,7 +84,9 @@ export const AdminDomainRbacControl: React.FC<AdminDomainRbacControlProps> = ({
   };
 
   const handleSave = () => {
-    localStorage.setItem('sp_domain_rbac_matrix', JSON.stringify(permissions));
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('sp_domain_rbac_matrix', JSON.stringify(permissions));
+    }
     onPermissionsUpdated?.(permissions);
     showToast('Domain RBAC permissions updated & applied successfully!');
     onClose();

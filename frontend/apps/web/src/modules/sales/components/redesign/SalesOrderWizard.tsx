@@ -33,7 +33,7 @@ import {
   MonthlyPlanOrder,
 } from '@/src/types/salesOrderDeliveryTypes';
 import { Customer, ItemMaster } from '@/src/types';
-import { LIVE_CUSTOMERS_CATALOG, CustomerMasterRecord } from '@/src/data/liveCustomersCatalog';
+import type { CustomerMasterRecord } from '@/src/services/customerMasterService';
 import { adminService, adminEventBus } from '@/src/services/adminService';
 import { transportMasterService, TransporterRecord } from '@/src/services/transportMasterService';
 import { itemService } from '@/src/services/itemService';

@@ -23,7 +23,7 @@ export const DEFAULT_GRN_SETTINGS: GrnToleranceSettings = {
   numberingPrefix: 'GRN-PLANT01-2026',
 };
 
-// Clean real data arrays (no fake seed dummy records)
+// Clean real data arrays (no fake dummy records)
 export const INITIAL_CONFIRMED_PO_QUEUE: ConfirmedPoQueueItem[] = [];
 
 export const INITIAL_EXTENDED_GRNS: GoodsReceiptNoteExt[] = [];

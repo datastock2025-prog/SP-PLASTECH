@@ -1,7 +1,8 @@
 import { createMongoAbility, type MongoAbility, type RawRuleOf } from '@casl/ability';
+import { type ErpAction, type ErpSubjectCode } from './contracts/permissions.js';
 
-export type Action = 'manage' | 'create' | 'read' | 'update' | 'delete' | 'reset-password' | 'lock';
-export type Subject = 'User' | 'Role' | 'Plant' | 'Preference' | 'AuditLog' | 'all' | (string & {});
+export type Action = ErpAction;
+export type Subject = ErpSubjectCode | 'all' | (string & {});
 export type AppAbility = MongoAbility<[Action, Subject]>;
 export type StoredRule = RawRuleOf<AppAbility>;
 
@@ -24,7 +25,19 @@ export const SYSTEM_ROLES: { code: string; name: string; description: string; pe
       { action: 'read', subject: 'Role' },
       { action: 'manage', subject: 'Plant' },
       { action: 'read', subject: 'AuditLog' },
+      { action: 'read', subject: 'Dashboard' },
       { action: 'manage', subject: 'Preference', conditions: SELF },
+      { action: 'read', subject: 'Item' },
+      { action: 'read', subject: 'Supplier' },
+      { action: 'read', subject: 'Customer' },
+      { action: 'read', subject: 'Warehouse' },
+      { action: 'read', subject: 'Machine' },
+      { action: 'read', subject: 'BillOfMaterial' },
+      { action: 'read', subject: 'WorkOrder' },
+      { action: 'read', subject: 'SalesOrder' },
+      { action: 'read', subject: 'PurchaseOrder' },
+      { action: 'read', subject: 'SecurityPolicy' },
+      { action: 'manage', subject: 'Session', conditions: SELF },
     ],
   },
   {
@@ -33,7 +46,18 @@ export const SYSTEM_ROLES: { code: string; name: string; description: string; pe
     description: 'Can manage only their own profile and preferences',
     permissions: [
       { action: 'read', subject: 'Plant' },
+      { action: 'read', subject: 'Dashboard' },
       { action: 'manage', subject: 'Preference', conditions: SELF },
+      { action: 'manage', subject: 'Session', conditions: SELF },
+      { action: 'read', subject: 'Item' },
+      { action: 'read', subject: 'Supplier' },
+      { action: 'read', subject: 'Customer' },
+      { action: 'read', subject: 'Warehouse' },
+      { action: 'read', subject: 'Machine' },
+      { action: 'read', subject: 'BillOfMaterial' },
+      { action: 'read', subject: 'WorkOrder' },
+      { action: 'read', subject: 'SalesOrder' },
+      { action: 'read', subject: 'PurchaseOrder' },
     ],
   },
 ];

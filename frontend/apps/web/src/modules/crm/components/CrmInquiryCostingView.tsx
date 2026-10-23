@@ -14,7 +14,7 @@ import {
   ShieldCheck,
   CheckCircle2,
 } from 'lucide-react';
-import { mockAccounts } from '@/src/data/mockCrmData';
+import { useAccounts } from '../api/useCrm';
 
 interface CrmInquiryCostingViewProps {
   onNavigate: (view: string, params?: any) => void;
@@ -26,7 +26,8 @@ export const CrmInquiryCostingView: React.FC<CrmInquiryCostingViewProps> = ({
   showToast,
 }) => {
   // Costing Parameters
-  const [selectedAccountId, setSelectedAccountId] = useState(mockAccounts[0].id);
+  const { data: accountsList = [] } = useAccounts();
+  const [selectedAccountId, setSelectedAccountId] = useState(accountsList[0]?.id || '');
   const [partName, setPartName] = useState('Automotive Door Trim Clip (PA66-GF30)');
   const [partWeightGrams, setPartWeightGrams] = useState<number>(45);
   const [runnerWeightGrams, setRunnerWeightGrams] = useState<number>(10);
@@ -128,7 +129,7 @@ export const CrmInquiryCostingView: React.FC<CrmInquiryCostingViewProps> = ({
                   onChange={(e) => setSelectedAccountId(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
                 >
-                  {mockAccounts.map(acc => (
+                  {accountsList.map(acc => (
                     <option key={acc.id} value={acc.id}>{acc.accountName}</option>
                   ))}
                 </select>

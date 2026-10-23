@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/shared/queryKeys';
 import { broadcastLocalMutation } from '@/src/services/realtime/realtimeService';
-import { db } from '@/src/shared/db';
+import { api } from '@/src/lib/api-client';
 import {
   MepEquipment,
   MepAlarm,
@@ -10,30 +10,21 @@ import {
   MepWorkOrder,
   MepCleanroomZone,
 } from '../model/maintenanceSchemas';
-import {
-  INITIAL_MEP_EQUIPMENT,
-  INITIAL_MEP_ALARMS,
-  INITIAL_MEP_ENERGY_METERS,
-  INITIAL_MEP_UTILITY_READINGS,
-  INITIAL_MEP_WORK_ORDERS,
-  INITIAL_MEP_CLEANROOM_ZONES,
-} from '@/src/data/mepData';
-import { maintenanceApi } from './maintenanceApi';
 
 export function useMaintenanceWorkOrders() {
   return useQuery<MepWorkOrder[]>({
     queryKey: queryKeys.maintenance.workOrders(),
     queryFn: async () => {
       try {
-        const res = await db.findMany<MepWorkOrder>('maintenance_work_orders', {
-          orderBy: { column: 'due_date', ascending: true },
-          limit: 100,
+        const res = await api.get<any>('/maintenance-work-orders', {
+          params: { limit: 100, includeTotal: true },
         });
-        if (Array.isArray(res) && res.length > 0) return res;
+        const rows = res?.data?.data || res?.data;
+        if (Array.isArray(rows)) return rows;
       } catch (e) {
-        console.debug('[useMaintenanceWorkOrders] fallback note:', e);
+        console.debug('[useMaintenanceWorkOrders] REST query notice:', e);
       }
-      return INITIAL_MEP_WORK_ORDERS;
+      return [];
     },
     staleTime: 1000 * 30,
     refetchOnWindowFocus: false,
@@ -44,10 +35,16 @@ export function useSaveMaintenanceWorkOrder() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (wo: MepWorkOrder) => {
-      try {
-        await db.upsert('maintenance_work_orders', wo, 'id');
-      } catch (e) {
-        console.debug('[useSaveMaintenanceWorkOrder] note:', e);
+      if (wo.id) {
+        try {
+          const res = await api.patch<any>(`/maintenance-work-orders/${encodeURIComponent(wo.id)}`, wo);
+          if (res?.data) return res.data.data || res.data;
+        } catch {}
+      } else {
+        try {
+          const res = await api.post<any>('/maintenance-work-orders', wo);
+          if (res?.data) return res.data.data || res.data;
+        } catch {}
       }
       return wo;
     },
@@ -64,15 +61,15 @@ export function useEquipmentAssets() {
     queryKey: queryKeys.maintenance.equipment(),
     queryFn: async () => {
       try {
-        const res = await db.findMany<MepEquipment>('equipment_assets', {
-          orderBy: { column: 'id', ascending: true },
-          limit: 100,
+        const res = await api.get<any>('/machines', {
+          params: { limit: 100, includeTotal: true },
         });
-        if (Array.isArray(res) && res.length > 0) return res;
+        const rows = res?.data?.data || res?.data;
+        if (Array.isArray(rows)) return rows;
       } catch (e) {
-        console.debug('[useEquipmentAssets] fallback note:', e);
+        console.debug('[useEquipmentAssets] REST query notice:', e);
       }
-      return INITIAL_MEP_EQUIPMENT;
+      return [];
     },
     staleTime: 1000 * 30,
     refetchOnWindowFocus: false,
@@ -82,32 +79,55 @@ export function useEquipmentAssets() {
 // Backward-compatible hook aliases for legacy useMep callers
 export const useMepWorkOrders = useMaintenanceWorkOrders;
 export const useSaveMepWorkOrder = useSaveMaintenanceWorkOrder;
+export const useMepEquipment = useEquipmentAssets;
+
+export function useMepAlarms() {
+  return useQuery<MepAlarm[]>({
+    queryKey: queryKeys.mep.alarms(),
+    queryFn: async () => [],
+    staleTime: 1000 * 30,
+  });
+}
+
+export function useMepEnergyMeters() {
+  return useQuery<MepEnergyReading[]>({
+    queryKey: queryKeys.mep.energy(),
+    queryFn: async () => [],
+    staleTime: 1000 * 30,
+  });
+}
+
+export function useMepUtilityReadings() {
+  return useQuery<MepUtilityReading[]>({
+    queryKey: queryKeys.mep.utilities(),
+    queryFn: async () => [],
+    staleTime: 1000 * 30,
+  });
+}
+
+export function useMepCleanroomZones() {
+  return useQuery<MepCleanroomZone[]>({
+    queryKey: queryKeys.mep.cleanrooms(),
+    queryFn: async () => [],
+    staleTime: 1000 * 30,
+  });
+}
 
 export function useMolds() {
   return useQuery({
-    queryKey: queryKeys.maintenance.molds(),
-    queryFn: async () => {
-      try {
-        const res = await db.findMany('mold_tools');
-        if (Array.isArray(res) && res.length > 0) return res;
-      } catch {}
-      return [];
-    },
-    staleTime: 1000 * 60 * 5,
+    queryKey: queryKeys.mep.molds(),
+    queryFn: async () => [],
+    staleTime: 1000 * 60,
   });
 }
 
 export function useMaintenance() {
-  const { data: workOrders = [], isLoading: isLoadingWo } = useMaintenanceWorkOrders();
+  const { data: workOrders = [], isLoading: isLoadingWO } = useMaintenanceWorkOrders();
   const { data: equipment = [], isLoading: isLoadingEq } = useEquipmentAssets();
 
   return {
     workOrders,
     equipment,
-    alarms: INITIAL_MEP_ALARMS,
-    energyMeters: INITIAL_MEP_ENERGY_METERS,
-    utilityReadings: INITIAL_MEP_UTILITY_READINGS,
-    cleanroomZones: INITIAL_MEP_CLEANROOM_ZONES,
-    isLoading: isLoadingWo || isLoadingEq,
+    isLoading: isLoadingWO || isLoadingEq,
   };
 }

@@ -19,7 +19,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { Quotation, QuotationStatus } from '../model/crmSchemas';
-import { mockQuotations, mockAccounts, mockOpportunities } from '@/src/data/mockCrmData';
+import { useAccounts, useOpportunities } from '../api/useCrm';
 
 interface CrmQuotationManagementViewProps {
   onNavigate: (view: string, params?: any) => void;
@@ -34,7 +34,9 @@ export const CrmQuotationManagementView: React.FC<CrmQuotationManagementViewProp
   initialAccountId,
   createFromOpp,
 }) => {
-  const [quotations, setQuotations] = useState<Quotation[]>(mockQuotations);
+  const { data: accountsList = [] } = useAccounts();
+  const { data: opportunitiesList = [] } = useOpportunities();
+  const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [selectedQuote, setSelectedQuote] = useState<Quotation | null>(quotations[0]);
@@ -43,10 +45,10 @@ export const CrmQuotationManagementView: React.FC<CrmQuotationManagementViewProp
   const [newQuoteForm, setNewQuoteForm] = useState<Partial<Quotation>>({
     quotationNumber: `QUO-2026-0${quotations.length + 89}`,
     revisionNumber: 0,
-    accountId: initialAccountId || mockAccounts[0].id,
-    accountName: mockAccounts[0].accountName,
-    opportunityId: createFromOpp || mockOpportunities[0].id,
-    opportunityName: mockOpportunities[0].opportunityName,
+    accountId: initialAccountId || (accountsList[0]?.id || ''),
+    accountName: (accountsList[0]?.accountName || ''),
+    opportunityId: createFromOpp || (opportunitiesList[0]?.id || ''),
+    opportunityName: (opportunitiesList[0]?.opportunityName || ''),
     salesperson: 'Rajesh Sharma',
     quotationDate: '2026-09-01',
     validUntil: '2026-09-30',
@@ -107,12 +109,12 @@ export const CrmQuotationManagementView: React.FC<CrmQuotationManagementViewProp
 
   const handleCreateQuotation = (e: React.FormEvent) => {
     e.preventDefault();
-    const matchedAccount = mockAccounts.find(a => a.id === newQuoteForm.accountId);
+    const matchedAccount = accountsList.find(a => a.id === newQuoteForm.accountId);
     const created: Quotation = {
       id: `QUO-0${quotations.length + 1}`,
       quotationNumber: newQuoteForm.quotationNumber || `QUO-2026-099`,
       revisionNumber: 0,
-      accountId: newQuoteForm.accountId || mockAccounts[0].id,
+      accountId: newQuoteForm.accountId || (accountsList[0]?.id || ''),
       accountName: matchedAccount ? matchedAccount.accountName : 'Customer Account',
       opportunityId: newQuoteForm.opportunityId,
       opportunityName: newQuoteForm.opportunityName,
@@ -379,12 +381,12 @@ export const CrmQuotationManagementView: React.FC<CrmQuotationManagementViewProp
                   <select
                     value={newQuoteForm.accountId}
                     onChange={(e) => {
-                      const acc = mockAccounts.find(a => a.id === e.target.value);
+                      const acc = accountsList.find(a => a.id === e.target.value);
                       setNewQuoteForm({ ...newQuoteForm, accountId: e.target.value, accountName: acc?.accountName });
                     }}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
                   >
-                    {mockAccounts.map(acc => (
+                    {accountsList.map(acc => (
                       <option key={acc.id} value={acc.id}>{acc.accountName}</option>
                     ))}
                   </select>

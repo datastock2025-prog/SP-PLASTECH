@@ -12,7 +12,6 @@ import {
   FileSpreadsheet,
   Download,
 } from 'lucide-react';
-import { mockFreightCarriers } from '@/src/data/mockScmData';
 import { FreightCarrier } from '@/src/types/scm';
 
 interface ScmFreightTransportViewProps {
@@ -21,7 +20,7 @@ interface ScmFreightTransportViewProps {
 }
 
 export const ScmFreightTransportView: React.FC<ScmFreightTransportViewProps> = ({ onNavigate, showToast }) => {
-  const [carriers, setCarriers] = useState<FreightCarrier[]>(mockFreightCarriers);
+  const [carriers, setCarriers] = useState<FreightCarrier[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredCarriers = carriers.filter((c) =>

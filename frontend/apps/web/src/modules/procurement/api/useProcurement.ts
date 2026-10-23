@@ -2,87 +2,168 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/shared/queryKeys';
 import { broadcastLocalMutation } from '@/src/services/realtime/realtimeService';
 import { supplierService } from '@/src/services/procurement/supplierService';
-import { db } from '@/src/shared/db';
+import { api } from '@/src/lib/api-client';
 import { PurchaseOrder } from '@/src/types';
-import { initialPurchaseOrders } from '@/src/data/initialData';
 import { mapDbRowToPurchaseOrder } from '@/src/shared/utils/dtoMappers';
+import { procurementApi, type ProcurementSummaryDto } from './procurementApi';
 
+export { type ProcurementSummaryDto };
+
+// 1. Purchase Orders Query (TanStack Query SSOT)
 export function usePurchaseOrders(_filter?: any) {
   return useQuery<PurchaseOrder[]>({
     queryKey: queryKeys.procurement.purchaseOrders(_filter),
     queryFn: async () => {
       try {
-        const data = await db.findMany<any>('purchase_orders', {
-          orderBy: { column: 'created_at', ascending: false },
-          limit: 100,
+        const res = await api.get<any>('/purchase-orders', {
+          params: { limit: 100, sortBy: 'created_at', sortOrder: 'desc', includeTotal: true },
         });
-
-        if (Array.isArray(data) && data.length > 0) {
-          return data.map((row: any) => mapDbRowToPurchaseOrder(row));
+        const rows = res?.data?.data || res?.data;
+        if (Array.isArray(rows)) {
+          return rows.map((row: any) => mapDbRowToPurchaseOrder(row));
         }
       } catch (e) {
-        console.debug('[usePurchaseOrders] error:', e);
+        console.debug('[usePurchaseOrders] REST query notice:', e);
       }
-      return initialPurchaseOrders;
+      return [];
     },
     staleTime: 1000 * 30,
     refetchOnWindowFocus: false,
   });
 }
 
+// 2. Procurement Summary / KPI Query (Atomic Single-Round-Trip)
+export function useProcurementSummary() {
+  return useQuery<ProcurementSummaryDto>({
+    queryKey: queryKeys.procurement.summary(),
+    queryFn: async () => {
+      return await procurementApi.getProcurementSummary();
+    },
+    staleTime: 1000 * 60,
+    refetchOnWindowFocus: false,
+  });
+}
+
+// 3. Save Purchase Order Mutation
 export function useSavePurchaseOrder() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (po: PurchaseOrder) => {
-      try {
-        await db.upsert('purchase_orders', {
-          id: po.id,
-          supplier_id: (po as any).supplierId || (po as any).supplier,
-          status: (po as any).status,
-          updated_at: new Date().toISOString(),
-        });
-      } catch (e) {
-        console.debug('[useSavePurchaseOrder] db upsert notice:', e);
+      const payload: Record<string, any> = {
+        id: po.id,
+        po_number: (po as any).poNumber || (po as any).po_number || po.id,
+        supplier_id: (po as any).supplierId || (po as any).supplier_id || (po as any).supplier,
+        status: (po as any).status || 'open',
+        total_amount: String((po as any).totalAmount || (po as any).total_amount || 0),
+        order_date: (po as any).orderDate || (po as any).order_date || new Date().toISOString().split('T')[0],
+        expected_delivery_date: (po as any).expectedDate || (po as any).expected_delivery_date,
+        items: po.lines || [],
+      };
+
+      if (po.id) {
+        try {
+          const res = await api.patch<any>(`/purchase-orders/${encodeURIComponent(po.id)}`, payload);
+          const row = res?.data?.data || res?.data;
+          if (row) return mapDbRowToPurchaseOrder(row);
+        } catch {
+          try {
+            const res = await api.post<any>('/purchase-orders', payload);
+            const row = res?.data?.data || res?.data;
+            if (row) return mapDbRowToPurchaseOrder(row);
+          } catch {}
+        }
+      } else {
+        try {
+          const res = await api.post<any>('/purchase-orders', payload);
+          const row = res?.data?.data || res?.data;
+          if (row) return mapDbRowToPurchaseOrder(row);
+        } catch {}
       }
       return po;
     },
     onSuccess: (savedPO) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.procurement.purchaseOrders() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.procurement.summary() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
       broadcastLocalMutation('PURCHASE_ORDERS', 'UPDATE', savedPO);
     },
   });
 }
 
+// 4. Suppliers Query
 export function useSuppliers() {
   return useQuery<any[]>({
     queryKey: queryKeys.procurement.suppliers(),
     queryFn: async () => {
       return await supplierService.getSuppliers();
     },
+    staleTime: 1000 * 60,
   });
 }
 
+// 5. Supplier Price Lists Query
 export function useSupplierPriceLists() {
   return useQuery<any[]>({
     queryKey: queryKeys.procurement.priceLists(),
     queryFn: async () => {
       try {
-        const data = await db.findMany<any>('supplier_price_lists');
-        return Array.isArray(data) ? data : [];
-      } catch {
-        return [];
-      }
+        const res = await api.get<any>('/supplier-price-lists', { params: { limit: 100 } });
+        const rows = res?.data?.data || res?.data;
+        if (Array.isArray(rows)) return rows;
+      } catch {}
+      return [];
     },
+    staleTime: 1000 * 60,
   });
 }
 
+// 6. Purchase Requisitions Query
+export function usePurchaseRequisitions() {
+  return useQuery<any[]>({
+    queryKey: ['procurement', 'purchase-requisitions'],
+    queryFn: async () => {
+      try {
+        const res = await api.get<any>('/purchase-requisitions', {
+          params: { limit: 100, sortBy: 'created_at', sortOrder: 'desc', includeTotal: true },
+        });
+        const rows = res?.data?.data || res?.data;
+        if (Array.isArray(rows)) return rows;
+      } catch {}
+      return [];
+    },
+    staleTime: 1000 * 30,
+    refetchOnWindowFocus: false,
+  });
+}
+
+// 7. Goods Receipt Notes Query
+export function useGoodsReceiptNotes() {
+  return useQuery<any[]>({
+    queryKey: ['procurement', 'goods-receipt-notes'],
+    queryFn: async () => {
+      try {
+        const res = await api.get<any>('/goods-receipt-notes', {
+          params: { limit: 100, sortBy: 'created_at', sortOrder: 'desc', includeTotal: true },
+        });
+        const rows = res?.data?.data || res?.data;
+        if (Array.isArray(rows)) return rows;
+      } catch {}
+      return [];
+    },
+    staleTime: 1000 * 30,
+    refetchOnWindowFocus: false,
+  });
+}
+
+// 8. Consolidated Procurement Hook
 export function useProcurement() {
-  const { data: purchaseOrders = [], isLoading } = usePurchaseOrders();
-  const { data: suppliers = [] } = useSuppliers();
+  const { data: purchaseOrders = [], isLoading: isLoadingPOs } = usePurchaseOrders();
+  const { data: suppliers = [], isLoading: isLoadingSuppliers } = useSuppliers();
+  const { data: summary, isLoading: isLoadingSummary } = useProcurementSummary();
   return {
     purchaseOrders,
     suppliers,
-    isLoading,
+    summary,
+    isLoading: isLoadingPOs || isLoadingSuppliers || isLoadingSummary,
   };
 }

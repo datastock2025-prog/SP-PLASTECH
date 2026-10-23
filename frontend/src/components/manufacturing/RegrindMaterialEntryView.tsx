@@ -1222,7 +1222,7 @@ export const RegrindMaterialEntryView: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* Barcode Mock */}
+              {/* Barcode Preview */}
               <div className="pt-2 text-center">
                 <div className="h-10 bg-slate-800 rounded flex items-center justify-center text-white tracking-[0.3em] font-black text-sm">
                   ||||| {lastSavedEntry.bagTagId} |||||

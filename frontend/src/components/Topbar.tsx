@@ -256,10 +256,10 @@ export const Topbar: React.FC<TopbarProps> = ({
   
   // Theme & Display Density State
   const [activeTheme, setActiveTheme] = useState<'light' | 'dark' | 'system' | 'high_contrast'>(() => {
-    return (localStorage.getItem('sp_theme') as any) || 'light';
+    return (typeof window !== 'undefined' ? (sessionStorage.getItem('sp_theme') as any) : null) || 'light';
   });
   const [activeDensity, setActiveDensity] = useState<'compact' | 'standard' | 'comfortable'>(() => {
-    return (localStorage.getItem('sp_density') as any) || 'standard';
+    return (typeof window !== 'undefined' ? (sessionStorage.getItem('sp_density') as any) : null) || 'standard';
   });
 
   // Real-Time Backend API & Database Connection Status
@@ -284,7 +284,7 @@ export const Topbar: React.FC<TopbarProps> = ({
 
   const [pinnedActionIds, setPinnedActionIds] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem('sp_pinned_actions');
+      const saved = typeof window !== 'undefined' ? sessionStorage.getItem('sp_pinned_actions') : null;
       return saved ? JSON.parse(saved) : ['QA-001', 'QA-002', 'QA-004', 'QA-007', 'QA-008'];
     } catch {
       return ['QA-001', 'QA-002', 'QA-004', 'QA-007', 'QA-008'];
@@ -316,7 +316,9 @@ export const Topbar: React.FC<TopbarProps> = ({
         root.setAttribute('data-theme', 'light');
       }
     }
-    localStorage.setItem('sp_theme', activeTheme);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('sp_theme', activeTheme);
+    }
   }, [activeTheme]);
 
   useEffect(() => {
@@ -334,7 +336,9 @@ export const Topbar: React.FC<TopbarProps> = ({
     const root = document.documentElement;
     root.classList.remove('density-compact', 'density-standard', 'density-comfortable');
     root.classList.add(`density-${activeDensity}`);
-    localStorage.setItem('sp_density', activeDensity);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('sp_density', activeDensity);
+    }
   }, [activeDensity]);
 
   // Close dropdowns on click outside
@@ -399,7 +403,14 @@ export const Topbar: React.FC<TopbarProps> = ({
     id: '', code: 'â€”', name: 'No plant assigned', location: '', type: 'Plant', userRole: '',
   };
   const currentEntity: PlantEntity = plantScope.isAll
-    ? { id: 'ALL', code: 'ALL', name: `All my plants (${entities.length})`, location: entities.map((e) => e.code).join(', '), type: 'Plant', userRole: '' }
+    ? {
+        id: 'ALL',
+        code: 'ALL',
+        name: `All Plants (${entities.length})`,
+        location: entities.length <= 3 ? entities.map((e) => e.code).join(', ') : `${entities.length} Facilities Combined`,
+        type: 'Plant',
+        userRole: '',
+      }
     : singleEntity;
 
   // Plant Switch Handler
@@ -422,7 +433,9 @@ export const Topbar: React.FC<TopbarProps> = ({
     setPinnedActionIds((prev) => {
       const updated = prev.includes(actionId) ? prev.filter((id) => id !== actionId) : [...prev, actionId];
       try {
-        localStorage.setItem('sp_pinned_actions', JSON.stringify(updated));
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('sp_pinned_actions', JSON.stringify(updated));
+        }
       } catch {}
       showToast(prev.includes(actionId) ? 'Removed from favorites' : 'Pinned to favorites');
       return updated;
@@ -597,17 +610,27 @@ export const Topbar: React.FC<TopbarProps> = ({
                   <div
                     onClick={handleSelectAllPlants}
                     data-testid="plant-scope-all"
-                    className={`p-2 rounded-xl cursor-pointer flex items-center justify-between gap-2 ${
-                      plantScope.isAll ? 'bg-teal-50 border border-teal-200 font-semibold' : 'hover:bg-slate-50'
+                    className={`p-2.5 rounded-xl cursor-pointer flex items-center justify-between gap-2.5 transition-all ${
+                      plantScope.isAll ? 'bg-teal-50/90 border border-teal-200 font-semibold shadow-2xs' : 'hover:bg-slate-50 border border-transparent'
                     }`}
                   >
-                    <div>
-                      <div className="text-xs font-bold text-slate-900">All my plants</div>
-                      <div className="text-[11px] text-slate-500">
-                        Combined data for {entities.map((e) => e.code).join(', ')}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-teal-100/70 text-[#0F8B8D] shrink-0">
+                          <Layers className="h-3.5 w-3.5" />
+                        </div>
+                        <span className="text-xs font-bold text-slate-900">All My Plants</span>
+                        <span className="text-[10px] font-bold bg-teal-100 text-teal-800 px-1.5 py-0.2 rounded-full">
+                          {entities.length} Plants
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-1 pl-8 truncate">
+                        {entities.length <= 4
+                          ? `Combined: ${entities.map((e) => e.code).join(', ')}`
+                          : `Aggregated cross-facility operational data (${entities.length} facilities)`}
                       </div>
                     </div>
-                    {plantScope.isAll && <CheckCircle2 className="w-4 h-4 text-[#0F8B8D]" />}
+                    {plantScope.isAll && <CheckCircle2 className="w-4 h-4 text-[#0F8B8D] shrink-0" />}
                   </div>
                 )}
                 {entities.filter((e) =>
@@ -626,7 +649,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                           : 'hover:bg-slate-50 text-slate-700'
                       }`}
                     >
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
                             {entity.code}

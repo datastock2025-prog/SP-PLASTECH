@@ -39,8 +39,6 @@ import { AuditLogEntry } from '@/src/types/admin';
 import { masterDataGovernanceService, MasterDataChangeRecord } from '@/src/services/masterDataGovernanceService';
 import { adminEventBus } from '@/src/services/adminService';
 
-const SYSTEM_AUDIT_LOGS_KEY = 'reboot_erp_system_audit_logs';
-
 function mapGovernanceRecordToAuditLog(rec: MasterDataChangeRecord): AuditLogEntry {
   const diffEntries = rec.diff
     ? Object.entries(rec.diff).map(([k, v]) => ({
@@ -78,19 +76,6 @@ function mapGovernanceRecordToAuditLog(rec: MasterDataChangeRecord): AuditLogEnt
 
 function loadLiveAuditLogs(): AuditLogEntry[] {
   const result: AuditLogEntry[] = [];
-
-  // 1. Load from system audit logs storage
-  try {
-    const rawSys = typeof localStorage !== 'undefined' ? localStorage.getItem(SYSTEM_AUDIT_LOGS_KEY) : null;
-    if (rawSys) {
-      const parsed = JSON.parse(rawSys);
-      if (Array.isArray(parsed)) {
-        result.push(...parsed);
-      }
-    }
-  } catch (e) {
-    console.warn('Failed to parse system audit logs', e);
-  }
 
   // 2. Load from master data governance audit history
   try {

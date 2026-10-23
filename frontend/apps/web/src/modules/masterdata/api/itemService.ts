@@ -1,10 +1,8 @@
 import { ItemMaster } from '@/src/types';
-import { db } from '@/src/shared/db';
-import { itemEndpoints, ITEM_LEAN_SELECT_COLUMNS } from '@/src/lib/api-client';
+import { api } from '@/src/lib/api-client';
 import { adminEventBus } from '@/src/services/adminService';
 import { broadcastLocalMutation } from '@/src/services/realtime/realtimeService';
 import { masterDataGovernanceService } from './masterDataGovernanceService';
-import { mapDbRowToItemMaster } from '@/src/shared/utils/dtoMappers';
 
 // Stale dummy codes to filter out
 const DUMMY_CODES = new Set([
@@ -17,8 +15,8 @@ const DUMMY_CODES = new Set([
 ]);
 
 /**
- * ItemService — Clean Enterprise Gateway Facade
- * Connects directly to vendor-agnostic db adapter and itemEndpoints.
+ * ItemService — Clean 2-Layer Enterprise Gateway Facade
+ * Connects directly to REST API (Zero DTO mappers, zero intermediate API files).
  * TanStack Query serves as the Single Source of Truth (SSOT) cache.
  */
 class ItemService {
@@ -30,40 +28,28 @@ class ItemService {
   }
 
   /**
-   * Rule 2: Fetch live item master records with bounded limit & selective columns
+   * Rule 2: Fetch live item master records with bounded limit
    */
   public async getItems(limit: number = 50): Promise<ItemMaster[]> {
-    const boundedLimit = Math.min(100, Math.max(1, limit));
     try {
-      const data = await db.findMany<any>('items', {
-        select: ITEM_LEAN_SELECT_COLUMNS,
-        orderBy: { column: 'created_at', ascending: false },
-        limit: boundedLimit,
-      });
-
-      if (Array.isArray(data) && data.length > 0) {
-        return data
-          .filter((row: any) => row && row.code && !DUMMY_CODES.has(row.code))
-          .map((row: any) => mapDbRowToItemMaster(row));
-      }
+      const res = await api.get<any>('/items', { params: { limit } });
+      const envelope = res?.data !== undefined ? res.data : res;
+      const items = Array.isArray(envelope?.data) ? envelope.data : Array.isArray(envelope) ? envelope : [];
+      return items.filter((item: any) => item && item.code && !DUMMY_CODES.has(item.code));
     } catch (e) {
-      console.debug('[ItemService] db getItems note:', e);
+      console.debug('[ItemService] REST getItems note:', e);
     }
     return [];
   }
 
   /**
-   * Fetch single item by code via DatabaseAdapter (db)
+   * Fetch single item by code directly via REST API
    */
   public async getItemByCode(code: string): Promise<ItemMaster | undefined> {
     if (!code) return undefined;
-    const cleanCode = code.trim();
-
     try {
-      const dto = await itemEndpoints.getItemByCode(cleanCode);
-      if (dto) {
-        return mapDbRowToItemMaster(dto);
-      }
+      const res = await api.get<any>(`/items/${encodeURIComponent(code.trim())}`);
+      return res?.data?.data ?? res?.data;
     } catch (e) {
       console.debug('[ItemService] getItemByCode note:', e);
     }
@@ -71,16 +57,21 @@ class ItemService {
   }
 
   /**
-   * Persist item record directly via itemEndpoints and DatabaseAdapter (db)
+   * Persist item record directly via REST API
    */
   public async saveItem(item: ItemMaster, actorName: string = 'Master Data Lead'): Promise<ItemMaster> {
     const isNew = !item.id && !item.createdOn;
 
-    // 1. Persist directly via Database Gateway with Zod validation
-    const savedDto = await itemEndpoints.saveItem(item as any);
-    const enrichedItem = mapDbRowToItemMaster(savedDto, item);
+    let enrichedItem: ItemMaster;
+    if (item.id) {
+      const res = await api.patch<any>(`/items/${encodeURIComponent(item.id)}`, item);
+      enrichedItem = res?.data?.data ?? res?.data;
+    } else {
+      const res = await api.post<any>('/items', item);
+      enrichedItem = res?.data?.data ?? res?.data;
+    }
 
-    // 2. Record Immutable Audit Ledger Entry
+    // Record Immutable Audit Ledger Entry
     masterDataGovernanceService.recordAudit({
       entityType: 'ITEM_MASTER',
       entityCode: enrichedItem.code,
@@ -93,7 +84,7 @@ class ItemService {
         : `Updated master specs for SKU ${enrichedItem.code} (${enrichedItem.name}).`,
     });
 
-    // 3. Reactive Events & WebSocket Sync Broadcast
+    // Reactive Events & WebSocket Sync Broadcast
     adminEventBus.emit('ITEM_SAVED', enrichedItem);
     broadcastLocalMutation('ITEMS', isNew ? 'INSERT' : 'UPDATE', enrichedItem);
     return enrichedItem;
@@ -107,18 +98,17 @@ class ItemService {
     reviewerName: string = 'Admin Lead',
     comment: string = 'Approved and released SKU to live shopfloor'
   ): Promise<ItemMaster> {
-    const updated: ItemMaster = {
+    const payload = {
       ...item,
       approval: 'approved',
       status: 'active',
       approvedBy: reviewerName,
+      comment,
+      version: item.version,
     };
-
-    try {
-      await itemEndpoints.saveItem(updated as any);
-    } catch (err) {
-      console.warn('[itemService.approveItem] Notice:', err);
-    }
+    const target = item.id || item.code;
+    const res = await api.patch<any>(`/items/${encodeURIComponent(target)}`, payload);
+    const updated = res?.data?.data ?? res?.data;
 
     masterDataGovernanceService.recordAudit({
       entityType: 'ITEM_MASTER',
@@ -149,17 +139,15 @@ class ItemService {
     reviewerName: string = 'Admin Lead',
     reason: string = 'Rejected in QA / Engineering gate review'
   ): Promise<ItemMaster> {
-    const updated: ItemMaster = {
+    const payload = {
       ...item,
       approval: 'rejected',
-      status: 'blocked',
+      rejectedReason: reason,
+      version: item.version,
     };
-
-    try {
-      await itemEndpoints.saveItem(updated as any);
-    } catch (err) {
-      console.warn('[itemService.rejectItem] Notice:', err);
-    }
+    const target = item.id || item.code;
+    const res = await api.patch<any>(`/items/${encodeURIComponent(target)}`, payload);
+    const updated = res?.data?.data ?? res?.data;
 
     masterDataGovernanceService.recordAudit({
       entityType: 'ITEM_MASTER',
@@ -185,9 +173,7 @@ class ItemService {
    * Delete item by code
    */
   public async deleteItem(code: string, actorName: string = 'Admin'): Promise<boolean> {
-    try {
-      await itemEndpoints.deleteItem(code);
-    } catch {}
+    await api.delete(`/items/${encodeURIComponent(code)}`);
 
     masterDataGovernanceService.recordAudit({
       entityType: 'ITEM_MASTER',

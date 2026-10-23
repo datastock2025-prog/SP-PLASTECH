@@ -11,7 +11,6 @@ import {
   DollarSign,
   Building,
 } from 'lucide-react';
-import { mockScmSettings } from '@/src/data/mockScmData';
 import { ScmSettingsConfig } from '@/src/types/scm';
 
 interface ScmSettingsViewProps {
@@ -20,7 +19,7 @@ interface ScmSettingsViewProps {
 }
 
 export const ScmSettingsView: React.FC<ScmSettingsViewProps> = ({ onNavigate, showToast }) => {
-  const [config, setConfig] = useState<ScmSettingsConfig>(mockScmSettings);
+  const [config, setConfig] = useState<ScmSettingsConfig>({ inventoryBufferDays: 15, defaultTransitLeadTimeDays: 3, autoGeneratePoThreshold: 20, notificationEmail: 'supplychain@spplastech.com', requireDualApprovalForRushOrders: true } as unknown as ScmSettingsConfig);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();

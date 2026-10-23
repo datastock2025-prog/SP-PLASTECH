@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Initial Application Shell",
+    "path": "frontend/dist/assets/app-*.js",
+    "limit": "800 KB",
+    "running": false
+  },
+  {
+    "name": "Vendor Runtime Chunks",
+    "path": "frontend/dist/assets/vendor-react-*.js",
+    "limit": "350 KB",
+    "running": false
+  }
+]

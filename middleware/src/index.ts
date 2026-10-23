@@ -1,8 +1,7 @@
 import { buildApp } from './app.js';
-import { identitySql } from './identitySql.js';
 import { configure } from './config.js';
 
-const app = buildApp(identitySql);
+const app = buildApp();
 
 // shortcut: pipe Cloudflare Workers env bindings into middleware config
 app.use('/api/*', async (c, next) => {

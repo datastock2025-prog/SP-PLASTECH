@@ -6,7 +6,7 @@ import { PlannedMachineJob, MachineMaster, ItemMaster } from '../../src/services
 
 describe('JIT Scheduling Characterization Tests', () => {
   it('preserves groupJobsIntoSchedules, planned hours, and shortage calculations', () => {
-    const mockJobs: PlannedMachineJob[] = [
+    const testJobs: PlannedMachineJob[] = [
       {
         id: 'JOB-01',
         planDate: '2026-10-01',
@@ -33,20 +33,20 @@ describe('JIT Scheduling Characterization Tests', () => {
       },
     ];
 
-    const mockMachines: MachineMaster[] = [
+    const testMachines: MachineMaster[] = [
       { id: 'IMM-250T-01', name: 'Engel 250T', tonnage: 250, plant: 'Plant 1' } as any,
       { id: 'IMM-250T-02', name: 'Toshiba 180T', tonnage: 180, plant: 'Plant 1' } as any,
     ];
 
-    const mockItems: ItemMaster[] = [
+    const testItems: ItemMaster[] = [
       { code: 'FG-001', name: 'Automotive Housing', stock: '500', avail: '500' } as any,
       { code: 'FG-002', name: 'Bezel Trim', stock: '200', avail: '200' } as any,
     ];
 
     const schedules = jitScheduleDataService.groupJobsIntoSchedules(
-      mockJobs,
-      mockMachines,
-      mockItems,
+      testJobs,
+      testMachines,
+      testItems,
       [],
       [],
       [],

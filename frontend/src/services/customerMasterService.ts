@@ -1,5 +1,30 @@
-import { CustomerMasterRecord, LIVE_CUSTOMERS_CATALOG } from '../data/liveCustomersCatalog';
+export interface CustomerMasterRecord {
+  id: string;
+  code: string;
+  name: string;
+  shortName?: string;
+  address?: string;
+  destination?: string;
+  state?: string;
+  gstin?: string;
+  paymentTerms?: string;
+  tradeTerms?: string;
+  contactPerson?: string;
+  mobile?: string;
+  email?: string;
+  status: 'active' | 'inactive';
+  customerType?: 'OEM' | 'Tier 1' | 'Tier 2' | 'Direct Distributor' | 'Packaging / Industrial';
+  tier?: 'Tier 1' | 'Tier 2' | 'Tier 3';
+  creditLimit?: number;
+  creditDays?: number;
+  currentBalance?: number;
+  overdueAmount?: number;
+  riskRating?: 'AAA' | 'AA' | 'A' | 'BBB' | 'High Risk';
+  segment?: string;
+  createdOn?: string;
+}
 import { adminEventBus } from './adminService';
+import { memoryStorage } from '../shared/memoryStore';
 
 const STORAGE_KEY = 'reboot_erp_customer_master_catalog';
 
@@ -232,7 +257,7 @@ const DEFAULT_ENRICHMENTS: Record<string, Partial<EnrichedCustomerRecord>> = {
 
 function loadStoredCustomers(): EnrichedCustomerRecord[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = memoryStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -240,60 +265,17 @@ function loadStoredCustomers(): EnrichedCustomerRecord[] {
       }
     }
   } catch (err) {
-    console.warn('Could not read customer master catalog from localStorage', err);
+    console.warn('Could not read customer master catalog from memoryStorage', err);
   }
 
-  // Initialize from LIVE_CUSTOMERS_CATALOG with enrichments
-  const initial: EnrichedCustomerRecord[] = LIVE_CUSTOMERS_CATALOG.map((c) => {
-    const enrichmentKey =
-      c.code === '12398'
-        ? '12398'
-        : c.name.toLowerCase().includes('bajaj')
-        ? 'BAJAJ'
-        : c.name.toLowerCase().includes('marico')
-        ? 'MARICO'
-        : '';
-    const enrichment = enrichmentKey ? DEFAULT_ENRICHMENTS[enrichmentKey] : {};
-    return {
-      ...c,
-      ...enrichment,
-      poNumber: enrichment.poNumber || `PO-${c.code}-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-      poDate: enrichment.poDate || new Date().toISOString().slice(0, 10),
-      poVersions: enrichment.poVersions || [
-        {
-          version: 'v1.0 (Initial)',
-          poNumber: enrichment.poNumber || `PO-${c.code}-2026-01`,
-          poDate: new Date().toISOString().slice(0, 10),
-          changeReason: 'Initial Account Setup & Contract Creation',
-          changedBy: 'Admin / Commercial Team',
-          changedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
-          notes: 'Standard customer onboarding purchase order.',
-        },
-      ],
-      packagingType: enrichment.packagingType || 'Corrugated Box with VCI Liner',
-      packagingInstructions:
-        enrichment.packagingInstructions ||
-        'Standard master carton packaging with polybag liner and barcode identification.',
-      priceList: enrichment.priceList || 'Standard Domestic List',
-      preferredTransporter: enrichment.preferredTransporter || 'VRL Logistics Ltd',
-      transporterGstin: enrichment.transporterGstin || '29AABCV1234F1Z1',
-      transportMode: enrichment.transportMode || 'Road',
-      incoterms: enrichment.incoterms || 'DAP - Delivered At Place',
-      dispatchPoint: enrichment.dispatchPoint || 'Plant 1 Gate #2',
-      deliveryTerms: enrichment.deliveryTerms || 'Immediate JIT Delivery within 48 Hours',
-      shippingAddress: enrichment.shippingAddress || c.address || `${c.destination || 'Industrial Estate'}, ${c.state}`,
-    };
-  });
-
-  saveStoredCustomers(initial);
-  return initial;
+  return [];
 }
 
 function saveStoredCustomers(customers: EnrichedCustomerRecord[]) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(customers));
+    memoryStorage.setItem(STORAGE_KEY, JSON.stringify(customers));
   } catch (err) {
-    console.warn('Could not save customer master catalog to localStorage', err);
+    console.warn('Could not save customer master catalog to memoryStorage', err);
   }
 }
 

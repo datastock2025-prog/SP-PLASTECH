@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/shared/queryKeys';
 import { broadcastLocalMutation } from '@/src/services/realtime/realtimeService';
-import { db } from '@/src/shared/db';
+import { api } from '@/src/lib/api-client';
 import { NonConformanceReport, CapaReport, CertificateOfAnalysis, InspectionPlan } from '@/src/types';
 
 export function useNcrs(_filter?: any) {
@@ -9,13 +9,13 @@ export function useNcrs(_filter?: any) {
     queryKey: queryKeys.quality.ncrs(_filter),
     queryFn: async () => {
       try {
-        const res = await db.findMany<NonConformanceReport>('quality_ncrs', {
-          orderBy: { column: 'created_at', ascending: false },
-          limit: 100,
+        const res = await api.get<any>('/qc-inspections', {
+          params: { limit: 100, sortBy: 'created_at', sortOrder: 'desc', includeTotal: true },
         });
-        if (Array.isArray(res) && res.length > 0) return res;
+        const rows = res?.data?.data || res?.data;
+        if (Array.isArray(rows) && rows.length > 0) return rows;
       } catch (e) {
-        console.debug('[useNcrs] query note:', e);
+        console.debug('[useNcrs] REST query notice:', e);
       }
       return [];
     },
@@ -28,10 +28,16 @@ export function useSaveNcr() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (ncr: NonConformanceReport) => {
-      try {
-        await db.upsert('quality_ncrs', ncr, 'id');
-      } catch (e) {
-        console.debug('[useSaveNcr] notice:', e);
+      if (ncr.id) {
+        try {
+          const res = await api.patch<any>(`/qc-inspections/${encodeURIComponent(ncr.id)}`, ncr);
+          if (res?.data) return res.data.data || res.data;
+        } catch {}
+      } else {
+        try {
+          const res = await api.post<any>('/qc-inspections', ncr);
+          if (res?.data) return res.data.data || res.data;
+        } catch {}
       }
       return ncr;
     },
@@ -48,14 +54,10 @@ export function useCapas(_filter?: any) {
     queryKey: queryKeys.quality.capas(_filter),
     queryFn: async () => {
       try {
-        const res = await db.findMany<CapaReport>('quality_capas', {
-          orderBy: { column: 'created_at', ascending: false },
-          limit: 100,
-        });
-        if (Array.isArray(res) && res.length > 0) return res;
-      } catch (e) {
-        console.debug('[useCapas] query note:', e);
-      }
+        const res = await api.get<any>('/qc-capas', { params: { limit: 100 } });
+        const rows = res?.data?.data || res?.data;
+        if (Array.isArray(rows)) return rows;
+      } catch {}
       return [];
     },
     staleTime: 1000 * 30,
@@ -68,10 +70,9 @@ export function useSaveCapa() {
   return useMutation({
     mutationFn: async (capa: CapaReport) => {
       try {
-        await db.upsert('quality_capas', capa, 'id');
-      } catch (e) {
-        console.debug('[useSaveCapa] notice:', e);
-      }
+        const res = await api.post<any>('/qc-capas', capa);
+        if (res?.data) return res.data.data || res.data;
+      } catch {}
       return capa;
     },
     onSuccess: (savedCapa) => {
@@ -86,14 +87,10 @@ export function useCoas(_filter?: any) {
     queryKey: queryKeys.quality.coas(_filter),
     queryFn: async () => {
       try {
-        const res = await db.findMany<CertificateOfAnalysis>('quality_coas', {
-          orderBy: { column: 'created_at', ascending: false },
-          limit: 100,
-        });
-        if (Array.isArray(res) && res.length > 0) return res;
-      } catch (e) {
-        console.debug('[useCoas] query note:', e);
-      }
+        const res = await api.get<any>('/qc-coas', { params: { limit: 100 } });
+        const rows = res?.data?.data || res?.data;
+        if (Array.isArray(rows)) return rows;
+      } catch {}
       return [];
     },
     staleTime: 1000 * 30,
@@ -106,10 +103,9 @@ export function useSaveCoa() {
   return useMutation({
     mutationFn: async (coa: CertificateOfAnalysis) => {
       try {
-        await db.upsert('quality_coas', coa, 'id');
-      } catch (e) {
-        console.debug('[useSaveCoa] notice:', e);
-      }
+        const res = await api.post<any>('/qc-coas', coa);
+        if (res?.data) return res.data.data || res.data;
+      } catch {}
       return coa;
     },
     onSuccess: (savedCoa) => {
@@ -124,11 +120,11 @@ export function useInspectionPlans() {
     queryKey: queryKeys.quality.inspectionPlans(),
     queryFn: async () => {
       try {
-        const res = await db.findMany<InspectionPlan>('inspection_plans');
-        return Array.isArray(res) ? res : [];
-      } catch {
-        return [];
-      }
+        const res = await api.get<any>('/qc-inspection-plans', { params: { limit: 100 } });
+        const rows = res?.data?.data || res?.data;
+        if (Array.isArray(rows)) return rows;
+      } catch {}
+      return [];
     },
     staleTime: 1000 * 30,
     refetchOnWindowFocus: false,

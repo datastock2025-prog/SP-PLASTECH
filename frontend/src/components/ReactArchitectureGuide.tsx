@@ -99,7 +99,7 @@ export const ReactArchitectureGuide: React.FC = () => {
 │   │   ├── architecture/                # Technical specification & architecture docs
 │   │   └── index.ts                     # Master Domain Registry & Facade Barrel
 │   ├── types/                           # Strict TypeScript domain interfaces
-│   ├── data/                            # Initial seed fixtures & demo datasets
+│   ├── data/                            # Initial initial fixtures & demo datasets
 │   ├── App.tsx                          # Root application coordinator & state orchestrator
 │   ├── main.tsx                         # React 18/19 createRoot entry point
 │   └── index.css                        # Tailwind CSS global design tokens
@@ -975,15 +975,7 @@ export default defineConfig({
                 </div>
                 <pre className="text-[11px] leading-relaxed text-slate-300">
 {`// Centralized API Client (BFF Proxy)
-// Security directive: HttpOnly, Secure, SameSite=Strict cookies
-export const apiClient = axios.create({
-  baseURL: '/api', // Talk ONLY to the BFF
-  withCredentials: true, // Transmit secure cookies
-  headers: {
-    'Content-Type': 'application/json',
-    'X-Requested-With': 'XMLHttpRequest',
-  },
-});
+export const apiClient = createHttpClient('/api');
 
 // CRITICAL SECURITY MANDATE:
 // ❌ NEVER store JWTs in localStorage or sessionStorage

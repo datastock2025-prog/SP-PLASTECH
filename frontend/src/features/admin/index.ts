@@ -5,5 +5,4 @@
 
 export * from './types/adminSchemas';
 export * from './api/adminApi';
-export * from './hooks/useAdmin';
-export { AdminViews } from '../../components/AdminViews';
+export { AdminViews } from '../../../apps/web/src/modules/identity';

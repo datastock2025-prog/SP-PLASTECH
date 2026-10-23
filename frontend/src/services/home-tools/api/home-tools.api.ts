@@ -1,4 +1,4 @@
-import axios, { AxiosInstance } from 'axios';
+import { createHttpClient, type HttpClient } from '../../../shared/api/http';
 import {
   DashboardData,
   DashboardWidget,
@@ -10,48 +10,16 @@ import {
 } from './home-tools.types';
 
 import { getApiBaseUrl } from '../../../shared/config';
+import { getActiveTenantId as getTenantId } from '../../../shared/tenant';
 
 const API_BASE = getApiBaseUrl('/api');
 
 export class HomeToolsApi {
   private static instance: HomeToolsApi;
-  private api: AxiosInstance;
+  private api: HttpClient;
 
   private constructor() {
-    this.api = axios.create({
-      baseURL: API_BASE,
-      withCredentials: true,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    // Request interceptor: Attach tenant ID & CSRF headers
-    this.api.interceptors.request.use((config) => {
-      const tenantId = this.getActiveTenantId();
-      const csrfToken = this.getCsrfToken();
-      if (tenantId) config.headers['X-Tenant-ID'] = tenantId;
-      if (csrfToken) config.headers['X-CSRF-Token'] = csrfToken;
-      return config;
-    });
-
-    // Response interceptor: Silent 401 token refresh queue
-    this.api.interceptors.response.use(
-      (response) => response,
-      async (error) => {
-        const originalRequest = error.config;
-        if (error.response?.status === 401 && !originalRequest._retry) {
-          originalRequest._retry = true;
-          try {
-            await axios.post(`${API_BASE}/auth/refresh`, {}, { withCredentials: true });
-            return this.api(originalRequest);
-          } catch (refreshErr) {
-            console.warn('[HomeToolsApi] Session expired, redirecting to auth.');
-          }
-        }
-        return Promise.reject(error);
-      }
-    );
+    this.api = createHttpClient(API_BASE);
   }
 
   public static getInstance(): HomeToolsApi {
@@ -222,7 +190,7 @@ export class HomeToolsApi {
 
   // ==================== HELPERS ====================
   private getActiveTenantId(): string {
-    return localStorage.getItem('activeTenantId') || 'TENANT-ALPHA-IND';
+    return getTenantId();
   }
 
   private getCsrfToken(): string {

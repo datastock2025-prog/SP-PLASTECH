@@ -48,6 +48,7 @@ import { systemSettingsService } from '@/src/services/systemSettingsService';
 
 interface SalesOrderListProps {
   orders: PlasticSalesOrder[];
+  isLoading?: boolean;
   onSelectOrder: (orderId: string) => void;
   onCreateOrder: (orderType?: SalesOrderType) => void;
   onNavigate: (view: string, param?: any) => void;
@@ -59,6 +60,7 @@ type SortDirection = 'asc' | 'desc';
 
 export const SalesOrderList: React.FC<SalesOrderListProps> = ({
   orders,
+  isLoading = false,
   onSelectOrder,
   onCreateOrder,
   onNavigate,
@@ -754,7 +756,41 @@ export const SalesOrderList: React.FC<SalesOrderListProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 font-sans">
-            {paginatedOrders.length === 0 ? (
+            {isLoading ? (
+              Array.from({ length: 6 }).map((_, idx) => (
+                <tr key={`so-skeleton-${idx}`} className="animate-pulse">
+                  <td className="py-3 px-2 text-center">
+                    <div className="w-4 h-4 bg-slate-200 rounded mx-auto" />
+                  </td>
+                  <td className="py-3 px-2">
+                    <div className="h-4 w-28 bg-slate-200 rounded mb-1" />
+                    <div className="h-3 w-16 bg-slate-100 rounded" />
+                  </td>
+                  <td className="py-3 px-2">
+                    <div className="h-4 w-36 bg-slate-200 rounded mb-1" />
+                    <div className="h-3 w-20 bg-slate-100 rounded" />
+                  </td>
+                  <td className="py-3 px-2">
+                    <div className="h-4 w-20 bg-slate-100 rounded" />
+                  </td>
+                  <td className="py-3 px-2">
+                    <div className="h-4 w-24 bg-slate-200 rounded" />
+                  </td>
+                  <td className="py-3 px-2 text-right">
+                    <div className="h-4 w-16 bg-slate-200 rounded ml-auto" />
+                  </td>
+                  <td className="py-3 px-2 text-right">
+                    <div className="h-4 w-16 bg-slate-200 rounded ml-auto" />
+                  </td>
+                  <td className="py-3 px-2 text-center">
+                    <div className="h-5 w-20 bg-slate-200 rounded-full mx-auto" />
+                  </td>
+                  <td className="py-3 px-2 text-center">
+                    <div className="h-6 w-16 bg-slate-100 rounded mx-auto" />
+                  </td>
+                </tr>
+              ))
+            ) : paginatedOrders.length === 0 ? (
               <tr>
                 <td colSpan={9} className="py-14 text-center">
                   <div className="max-w-md mx-auto space-y-3">

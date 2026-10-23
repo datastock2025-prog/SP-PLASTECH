@@ -214,9 +214,9 @@ export interface LicenseSubscriptionDetails {
 }
 
 // -------------------------------------------------------------
-// Mock Data for User Groups (Screen 4)
+// Baseline Reference Data for User Groups (Screen 4)
 // -------------------------------------------------------------
-export const mockUserGroups: UserGroup[] = [
+export const userGroups: UserGroup[] = [
   {
     id: 'GRP-01',
     name: 'Tool Room & Mold Maintenance Gang',
@@ -290,9 +290,9 @@ export const mockUserGroups: UserGroup[] = [
 ];
 
 // -------------------------------------------------------------
-// Mock Data for Approval Workflows (Screen 5)
+// Baseline Reference Data for Approval Workflows (Screen 5)
 // -------------------------------------------------------------
-export const mockWorkflowConfigs: WorkflowRuleConfig[] = [
+export const workflowConfigs: WorkflowRuleConfig[] = [
   {
     id: 'WF-PO-POLYMER',
     name: 'Prime Polymer Resin Bulk Procurement (>₹5 Lakhs)',
@@ -415,9 +415,9 @@ export const mockWorkflowConfigs: WorkflowRuleConfig[] = [
 ];
 
 // -------------------------------------------------------------
-// Mock Data for Warehouse & Locations (Screen 8)
+// Baseline Reference Data for Warehouse & Locations (Screen 8)
 // -------------------------------------------------------------
-export const mockWarehouseLocations: WarehouseLocationConfig[] = [
+export const warehouseLocations: WarehouseLocationConfig[] = [
   {
     id: 'LOC-01',
     warehouseCode: 'WH-PUN-01',
@@ -556,11 +556,11 @@ export const mockWarehouseLocations: WarehouseLocationConfig[] = [
 ];
 
 // -------------------------------------------------------------
-// Mock Data for Machine / Work Centers (Screen 9)
+// Baseline Reference Data for Machine / Work Centers (Screen 9)
 // -------------------------------------------------------------
 // Real Injection Molding Fleet from PDF Specification (45 Presses)
 // -------------------------------------------------------------
-export const mockMachineWorkCenters: MachineWorkCenterConfig[] = [
+export const machineWorkCenters: MachineWorkCenterConfig[] = [
   // --- Pune Plant (PLANT-01): PLANJ-01 to PLANJ-23 ---
   {
     id: 'MC-PLANJ-01',
@@ -1512,9 +1512,9 @@ export const mockMachineWorkCenters: MachineWorkCenterConfig[] = [
 ];
 
 // -------------------------------------------------------------
-// Mock Data for Shifts & Working Calendar (Screen 10)
+// Baseline Reference Data for Shifts & Working Calendar (Screen 10)
 // -------------------------------------------------------------
-export const mockShifts: ShiftCalendarConfig[] = [
+export const shifts: ShiftCalendarConfig[] = [
   {
     id: 'SFT-01',
     shiftCode: 'SHIFT-A',
@@ -1573,7 +1573,7 @@ export const mockShifts: ShiftCalendarConfig[] = [
   },
 ];
 
-export const mockHolidays: HolidayOvertimeRule[] = [
+export const holidays: HolidayOvertimeRule[] = [
   {
     id: 'HOL-01',
     title: 'Ganesh Chaturthi (Plant Holiday)',
@@ -1615,7 +1615,7 @@ export const mockHolidays: HolidayOvertimeRule[] = [
 // -------------------------------------------------------------
 // Comprehensive Reason Codes with Plastic Manufacturing Examples (Screen 11)
 // -------------------------------------------------------------
-export const mockReasonCodes: ReasonCodeItem[] = [
+export const reasonCodes: ReasonCodeItem[] = [
   // --- Production: Rejection Reasons ---
   {
     id: 'RC-PRD-REJ-01',
@@ -2168,9 +2168,9 @@ export const mockReasonCodes: ReasonCodeItem[] = [
 ];
 
 // -------------------------------------------------------------
-// Mock Data for Master Data Management (Screen 13)
+// Baseline Reference Data for Master Data Management (Screen 13)
 // -------------------------------------------------------------
-export const mockMasterDataRecords: MasterDataRecord[] = [
+export const masterDataRecords: MasterDataRecord[] = [
   {
     id: 'MD-01',
     entityType: 'Polymer Resin Item',
@@ -2340,9 +2340,9 @@ export const mockMasterDataRecords: MasterDataRecord[] = [
 ];
 
 // -------------------------------------------------------------
-// Mock Data for Document Settings (Screen 16)
+// Baseline Reference Data for Document Settings (Screen 16)
 // -------------------------------------------------------------
-export const mockDocumentPolicies: DocumentSettingPolicy[] = [
+export const documentPolicies: DocumentSettingPolicy[] = [
   {
     id: 'DOC-POL-01',
     categoryName: 'Material Safety Data Sheets (MSDS / SDS)',
@@ -2398,9 +2398,9 @@ export const mockDocumentPolicies: DocumentSettingPolicy[] = [
 ];
 
 // -------------------------------------------------------------
-// Mock Data for Login & Security Audit (Screen 18)
+// Baseline Reference Data for Login & Security Audit (Screen 18)
 // -------------------------------------------------------------
-export const mockLoginAuditRecords: SecurityLoginAuditRecord[] = [
+export const loginAuditRecords: SecurityLoginAuditRecord[] = [
   {
     id: 'LOG-AUD-991',
     timestamp: '2026-09-05 08:42:10 AM',
@@ -2469,9 +2469,9 @@ export const mockLoginAuditRecords: SecurityLoginAuditRecord[] = [
 ];
 
 // -------------------------------------------------------------
-// Mock Data for Data Import / Export Center (Screen 21)
+// Baseline Reference Data for Data Import / Export Center (Screen 21)
 // -------------------------------------------------------------
-export const mockDataExchangeJobs: DataExchangeJob[] = [
+export const dataExchangeJobs: DataExchangeJob[] = [
   {
     id: 'JOB-EXP-801',
     jobName: 'Monthly GSTIN B2B Outward Invoice Ledger (GSTR-1)',
@@ -2534,9 +2534,9 @@ export const mockDataExchangeJobs: DataExchangeJob[] = [
 ];
 
 // -------------------------------------------------------------
-// Mock Data for Backup, Retention, & Data Privacy (Screen 22)
+// Baseline Reference Data for Backup, Retention, & Data Privacy (Screen 22)
 // -------------------------------------------------------------
-export const mockRetentionPolicies: DataRetentionPolicy[] = [
+export const retentionPolicies: DataRetentionPolicy[] = [
   {
     id: 'RET-01',
     dataDomain: 'GST Statutory Tax Invoices & Credit Notes',
@@ -2580,9 +2580,9 @@ export const mockRetentionPolicies: DataRetentionPolicy[] = [
 ];
 
 // -------------------------------------------------------------
-// Mock Data for License & Subscription (Screen 24)
+// Baseline Reference Data for License & Subscription (Screen 24)
 // -------------------------------------------------------------
-export const mockLicenseDetails: LicenseSubscriptionDetails = {
+export const licenseDetails: LicenseSubscriptionDetails = {
   planName: 'Reboot ERP Enterprise - Plastics & Injection Molding Edition',
   tier: 'Enterprise Plastics Suite',
   organization: 'Reboot Polymers & Precision Plastics Pvt. Ltd.',
@@ -2610,7 +2610,7 @@ export const mockLicenseDetails: LicenseSubscriptionDetails = {
 };
 
 // -------------------------------------------------------------
-// Mock Data for RBAC Simulator & Separation of Duties (SoD)
+// Baseline Reference Data for RBAC Simulator & Separation of Duties (SoD)
 // -------------------------------------------------------------
 import {
   SodConflictRule,
@@ -2621,7 +2621,7 @@ import {
   BreakGlassRequest,
 } from '../types/admin';
 
-export const mockSodRules: SodConflictRule[] = [
+export const sodRules: SodConflictRule[] = [
   {
     id: 'SOD-RULE-001',
     code: 'SOD_PURCHASE_CYCLE',
@@ -2676,7 +2676,7 @@ export const mockSodRules: SodConflictRule[] = [
   },
 ];
 
-export const mockSodViolations: SodViolation[] = [
+export const sodViolations: SodViolation[] = [
   {
     id: 'VIO-2026-001',
     ruleCode: 'SOD_PURCHASE_CYCLE',
@@ -2715,73 +2715,11 @@ export const mockSodViolations: SodViolation[] = [
   },
 ];
 
-export const mockSimulationScenarios: RoleSimulationScenario[] = [
-  {
-    id: 'SIM-01',
-    name: 'Junior Shift Operator releasing a Work Order',
-    description: 'Verify if a shop floor operator can bypass supervisory line authorization to release mold WO.',
-    roleIds: ['ROLE_OPERATOR'],
-    plantId: 'PLANT-01',
-    shift: 'Shift A (06:00 - 14:00)',
-    module: 'Manufacturing & MES',
-    resource: 'Work Order Release & Schedule Lock',
-    action: 'approve',
-    expectedVerdict: 'DENY',
-  },
-  {
-    id: 'SIM-02',
-    name: 'Plant Manager approving Raw Material PR > ₹5,00,000',
-    description: 'Check threshold cap escalation when PO value exceeds plant localized ceiling.',
-    roleIds: ['ROLE-PLANT-MANAGER'],
-    plantId: 'PLANT-01',
-    shift: 'General',
-    module: 'Procurement & Sourcing',
-    resource: 'Polymer Resin Bulk Purchase Order',
-    action: 'approve',
-    expectedVerdict: 'REQUIRES_DUAL_AUTH',
-  },
-  {
-    id: 'SIM-03',
-    name: 'QA Inspector signing off ISO/IATF Final Inspection COA',
-    description: 'Validate quality sign-off privileges against active lot inspection reports.',
-    roleIds: ['ROLE-QUALITY-DIRECTOR'],
-    plantId: 'PLANT-02',
-    shift: 'Shift B (14:00 - 22:00)',
-    module: 'Quality & Laboratory',
-    resource: 'Lot Release & Certificate of Analysis (COA)',
-    action: 'approve',
-    expectedVerdict: 'PERMIT',
-  },
-  {
-    id: 'SIM-04',
-    name: 'Finance Executive deleting posted General Ledger batch',
-    description: 'Verify strict immutable ledger policy against voucher deletion attempts.',
-    roleIds: ['ROLE-FIN-CONTROLLER'],
-    plantId: 'PLANT-01',
-    shift: 'General',
-    module: 'Finance & Accounting',
-    resource: 'Posted Journal Entry / Period Vouchers',
-    action: 'delete',
-    expectedVerdict: 'DENY',
-  },
-  {
-    id: 'SIM-05',
-    name: 'Super Admin modifying System Parameter from unwhitelisted IP',
-    description: 'Simulate privilege step-up and geofence challenge when connecting remotely.',
-    roleIds: ['ROLE-SUPER-ADMIN'],
-    plantId: 'HQ-CORP',
-    shift: 'General',
-    module: 'Admin & System Config',
-    resource: 'Global Configuration & Database Encryption Keys',
-    action: 'edit',
-    expectedVerdict: 'MFA_STEP_UP_REQUIRED',
-  },
-];
 
 // -------------------------------------------------------------
-// Mock Data for Multi-Context Scope Policies & Row-Level Security
+// Baseline Reference Data for Multi-Context Scope Policies & Row-Level Security
 // -------------------------------------------------------------
-export const mockMultiContextPolicies: MultiContextScopePolicy[] = [
+export const multiContextPolicies: MultiContextScopePolicy[] = [
   {
     id: 'CTX-P01',
     contextName: 'Plant 1 - Chennai Injection Molding Facility',
@@ -2840,7 +2778,7 @@ export const mockMultiContextPolicies: MultiContextScopePolicy[] = [
   },
 ];
 
-export const mockRowLevelSecurityRules: RowLevelSecurityRule[] = [
+export const rowLevelSecurityRules: RowLevelSecurityRule[] = [
   {
     id: 'RLS-001',
     tableName: 'mfg_work_orders',
@@ -2883,7 +2821,7 @@ export const mockRowLevelSecurityRules: RowLevelSecurityRule[] = [
   },
 ];
 
-export const mockBreakGlassRequests: BreakGlassRequest[] = [
+export const breakGlassRequests: BreakGlassRequest[] = [
   {
     id: 'BG-2026-881',
     ticketNumber: 'INC-2026-0907-01',
@@ -2928,25 +2866,16 @@ export interface ActiveSessionRecord {
   isBreakGlass?: boolean;
 }
 
-// Production Non-Mock Exports
-export const userGroups = mockUserGroups;
-export const workflowConfigs = mockWorkflowConfigs;
-export const warehouseLocations = mockWarehouseLocations;
-export const machineWorkCenters = mockMachineWorkCenters;
-export const shifts = mockShifts;
-export const holidays = mockHolidays;
-export const reasonCodes = mockReasonCodes;
-export const masterDataRecords = mockMasterDataRecords;
-export const documentPolicies = mockDocumentPolicies;
-export const loginAuditRecords = mockLoginAuditRecords;
-export const dataExchangeJobs = mockDataExchangeJobs;
-export const retentionPolicies = mockRetentionPolicies;
-export const licenseDetails = mockLicenseDetails;
-export const sodRules = mockSodRules;
-export const sodViolations = mockSodViolations;
-export const simulationScenarios = mockSimulationScenarios;
-export const multiContextPolicies = mockMultiContextPolicies;
-export const rowLevelSecurityRules = mockRowLevelSecurityRules;
-export const breakGlassRequests = mockBreakGlassRequests;
-
-
+// Backward-compatible aliases for services
+export const mockSodRules = sodRules;
+export const mockSodViolations = sodViolations;
+export const mockWarehouseLocations = warehouseLocations;
+export const mockMachineWorkCenters = machineWorkCenters;
+export const mockShifts = shifts;
+export const mockHolidays = holidays;
+export const mockReasonCodes = reasonCodes;
+export const mockLoginAuditRecords = loginAuditRecords;
+export const mockLicenseDetails = licenseDetails;
+export const mockRetentionPolicies = retentionPolicies;
+export const mockUserGroups = userGroups;
+export const mockMasterDataRecords = masterDataRecords;

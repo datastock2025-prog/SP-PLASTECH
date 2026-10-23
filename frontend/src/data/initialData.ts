@@ -571,26 +571,8 @@ export const INITIAL_PURCHASE_ORDERS: PurchaseOrder[] = [
   }
 ];
 
-import { LIVE_CUSTOMERS_CATALOG } from './liveCustomersCatalog';
 
-export const INITIAL_CUSTOMERS: Customer[] = LIVE_CUSTOMERS_CATALOG.map(c => ({
-  code: c.code,
-  name: c.name,
-  segment: c.segment,
-  creditLimit: c.creditLimit,
-  contact: c.contactPerson,
-  email: c.email,
-  phone: c.mobile,
-  status: c.status,
-  gstin: c.gstin,
-  billingAddress: c.address,
-  paymentTerms: c.paymentTerms,
-  accountManager: 'Ananya Rao',
-  riskRating: c.riskRating,
-  creditStatus: 'good_standing' as const,
-  creditUsed: c.currentBalance,
-  overdueAmount: c.overdueAmount,
-}));
+export const INITIAL_CUSTOMERS: Customer[] = [];
 
 
 export const INITIAL_SALES_ORDERS: SalesOrder[] = [

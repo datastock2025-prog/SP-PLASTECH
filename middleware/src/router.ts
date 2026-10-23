@@ -16,6 +16,7 @@ export interface Req {
 export interface Res {
   status(code: number): Res;
   json(body: unknown): void;
+  send(body: string | Buffer | Uint8Array): void;
   end(): void;
   setHeader(name: string, value: string): Res;
 }
@@ -89,6 +90,10 @@ export function createRouter(errorHandler: ErrorHandler) {
       json(b) {
         pendingHeaders.forEach((v, k) => c.header(k, v));
         response = c.json(b as any, ((res as any)._code ?? 200) as any);
+      },
+      send(b) {
+        pendingHeaders.forEach((v, k) => c.header(k, v));
+        response = new Response(b as any, { status: (res as any)._code ?? 200 });
       },
       end() {
         pendingHeaders.forEach((v, k) => c.header(k, v));

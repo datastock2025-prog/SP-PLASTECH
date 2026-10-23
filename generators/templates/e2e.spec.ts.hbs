@@ -10,7 +10,7 @@ test.describe('{{pascalCase name}} Module E2E Suite', () => {
     await expect(page.locator('h1')).toContainText('{{pascalCase name}}');
   });
 
-  test('EMPTY: shows honest empty state or records without mock data', async ({ page }) => {
+  test('EMPTY: shows honest empty state or records without dummy data', async ({ page }) => {
     const table = page.locator('table');
     await expect(table).toBeVisible();
   });

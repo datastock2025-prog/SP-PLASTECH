@@ -12,7 +12,6 @@ import {
   BarChart3,
   Download,
 } from 'lucide-react';
-import { mockSustainabilityMetrics } from '@/src/data/mockScmData';
 
 interface ScmSustainabilityViewProps {
   onNavigate: (view: string, param?: any) => void;
@@ -20,7 +19,7 @@ interface ScmSustainabilityViewProps {
 }
 
 export const ScmSustainabilityView: React.FC<ScmSustainabilityViewProps> = ({ onNavigate, showToast }) => {
-  const metrics = mockSustainabilityMetrics;
+  const metrics: any = { energyConsumptionKwh: 0, recycledMaterialUsagePct: 0, carbonFootprintTons: 0, scrapReductionPct: 0, waterRecyclingRatePct: 0, renewableEnergyPct: 0, esgScore: 0 };
 
   return (
     <div className="space-y-6 animate-fade-in text-slate-800">

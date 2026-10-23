@@ -41,6 +41,7 @@ export interface ItemMaster {
   status: ItemStatus;
   icon: string;
   desc?: string;
+  description?: string;
   itemGroup?: string;
   baseUOM: string;
   resinType?: string;

@@ -120,7 +120,7 @@ export const SalesViews: React.FC<SalesProps> = ({
   showToast,
 }) => {
   // TanStack Query SSOT (Rule 1 & Rule 3)
-  const { data: querySos } = useSalesOrders();
+  const { data: querySos, isLoading: isSosLoading } = useSalesOrders();
   const { data: queryQuotes } = useQuotations();
   const { data: queryRmas } = useSalesRmas();
   const { data: queryCustomers } = useCustomers();
@@ -132,6 +132,7 @@ export const SalesViews: React.FC<SalesProps> = ({
 
   // Redesigned Indian ERP Compliance Data State
   const [plasticSalesOrders, setPlasticSalesOrders] = useState<PlasticSalesOrder[]>(() => salesDataService.getSalesOrdersSync());
+  const [isPlasticOrdersLoading, setIsPlasticOrdersLoading] = useState<boolean>(() => salesDataService.getSalesOrdersSync().length === 0);
   const [monthlyPlans, setMonthlyPlans] = useState<MonthlyPlanOrder[]>(() => salesDataService.getMonthlyPlansSync());
   const [relationships, setRelationships] = useState<OrderRelationship[]>(() => salesDataService.getRelationshipsSync());
   const [deliveries, setDeliveries] = useState<DeliveryNoteChallan[]>(() => salesDataService.getDeliveriesSync());
@@ -149,11 +150,17 @@ export const SalesViews: React.FC<SalesProps> = ({
       Promise.all([
         salesDataService.getSalesOrders(),
         salesDataService.getMonthlyPlans(),
-      ]).then(([fetchedOrders, fetchedPlans]) => {
+        salesDataService.getDeliveries(),
+      ]).then(([fetchedOrders, fetchedPlans, fetchedDeliveries]) => {
         if (!isMounted) return;
         setPlasticSalesOrders(fetchedOrders || []);
         setMonthlyPlans(fetchedPlans || []);
-      }).catch((err) => console.warn('Live data sync background notice:', err));
+        setDeliveries(fetchedDeliveries || []);
+        setIsPlasticOrdersLoading(false);
+      }).catch((err) => {
+        console.warn('Live data sync background notice:', err);
+        if (isMounted) setIsPlasticOrdersLoading(false);
+      });
     };
 
     refreshData();
@@ -644,8 +651,8 @@ export const SalesViews: React.FC<SalesProps> = ({
   if (view === 'quoteList' || view === 'quotations') {
     return (
       <SalesQuotationListView
-        quotes={quotes}
-        customers={customers}
+        quotes={effectiveQuotes}
+        customers={effectiveCustomers}
         onNavigate={onNavigate}
         onCreateQuote={onCreateQuote}
         onUpdateQuote={onUpdateQuote}
@@ -852,6 +859,7 @@ export const SalesViews: React.FC<SalesProps> = ({
         {currentSub === 'list' && (
           <SalesOrderList
             orders={plasticSalesOrders}
+            isLoading={isPlasticOrdersLoading && plasticSalesOrders.length === 0}
             onSelectOrder={(orderId) => {
               setSelectedPlasticSoId(orderId);
               onNavigate('soDetail', { id: orderId });

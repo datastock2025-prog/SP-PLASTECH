@@ -634,7 +634,7 @@ src/
 │   ├── procurementData.ts                  # PR persistence helpers & initial data
 │   ├── engineeringData.ts                  # BOM master datasets & recipe lines
 │   ├── salesOrderDeliveryData.ts           # Monthly plan orders & delivery challans
-│   └── mockScmData.ts                      # Multi-plant supply chain data
+│   └── scmSeedData.ts                      # Multi-plant supply chain data
 ├── security/
 │   ├── auth/                               # In-memory storage, MFA, Session management
 │   ├── privacy/                            # PII Data masking & forensic watermarking

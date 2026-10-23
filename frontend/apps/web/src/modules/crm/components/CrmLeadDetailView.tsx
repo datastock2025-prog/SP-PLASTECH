@@ -24,7 +24,7 @@ import {
   FileCheck,
 } from 'lucide-react';
 import { Lead, Opportunity, Account, Contact } from '../model/crmSchemas';
-import { mockLeads, mockAccounts } from '@/src/data/mockCrmData';
+import { useLeads, useAccounts } from '../api/useCrm';
 
 interface CrmLeadDetailViewProps {
   leadId: string;
@@ -39,11 +39,13 @@ export const CrmLeadDetailView: React.FC<CrmLeadDetailViewProps> = ({
   showToast,
   initialConvert = false,
 }) => {
-  const lead = mockLeads.find(l => l.id === leadId) || mockLeads[0];
+  const { data: leadsList = [] } = useLeads();
+  const { data: accountsList = [] } = useAccounts();
+  const lead: Lead = (leadsList.find(l => l.id === leadId) || leadsList[0] || { id: leadId || 'LEAD-001', leadName: 'Inquiry', companyName: '', contactPerson: '', phone: '', email: '', status: 'New', priority: 'Medium', expectedValue: 0, expectedQuantity: 0, industry: 'Automotive', createdAt: '', nextFollowUpDate: '', requirements: {} as any }) as Lead;
   const [activeTab, setActiveTab] = useState<'overview' | 'contact' | 'requirement' | 'activities' | 'documents' | 'notes' | 'history'>('overview');
   const [showConvertModal, setShowConvertModal] = useState(initialConvert);
   const [convertTarget, setConvertTarget] = useState<'create_new' | 'link_existing'>('create_new');
-  const [selectedAccountId, setSelectedAccountId] = useState<string>(mockAccounts[0].id);
+  const [selectedAccountId, setSelectedAccountId] = useState<string>((accountsList[0]?.id || ''));
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
@@ -335,7 +337,7 @@ export const CrmLeadDetailView: React.FC<CrmLeadDetailViewProps> = ({
             </div>
             <div>
               <span className="text-slate-500 block">Address / Plant:</span>
-              <span className="font-bold text-slate-800">{lead.address || 'Industrial Area'}, {lead.city}, {lead.state}</span>
+              <span className="font-bold text-slate-800">{(lead as any).address || 'Industrial Area'}, {(lead as any).city || 'Pune'}, {(lead as any).state || 'MH'}</span>
             </div>
           </div>
         </div>
@@ -391,7 +393,7 @@ export const CrmLeadDetailView: React.FC<CrmLeadDetailViewProps> = ({
                 <div className="font-bold text-teal-900">Entities to be Created:</div>
                 <ul className="list-disc pl-4 space-y-1 text-teal-800">
                   <li><strong>Account:</strong> {lead.companyName} ({lead.industry})</li>
-                  <li><strong>Contact:</strong> {lead.contactPerson} ({lead.designation})</li>
+                  <li><strong>Contact:</strong> {lead.contactPerson} ({(lead as any).designation || 'Key Decision Maker'})</li>
                   <li><strong>Opportunity:</strong> {lead.leadName} (Expected: {formatCurrency(lead.expectedValue)})</li>
                 </ul>
               </div>
@@ -430,7 +432,7 @@ export const CrmLeadDetailView: React.FC<CrmLeadDetailViewProps> = ({
                     onChange={(e) => setSelectedAccountId(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
                   >
-                    {mockAccounts.map(acc => (
+                    {accountsList.map(acc => (
                       <option key={acc.id} value={acc.id}>{acc.accountName} ({acc.accountCode})</option>
                     ))}
                   </select>

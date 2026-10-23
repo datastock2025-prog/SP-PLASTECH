@@ -45,6 +45,8 @@ import { masterDataGovernanceService } from '../api/masterDataGovernanceService'
 import { itemService } from '../api/itemService';
 import { adminEventBus } from '@/src/services/adminService';
 import { MasterDataCombobox } from '@/src/components/common/MasterDataCombobox';
+import { r2StorageService } from '@/src/services/storage/r2StorageService';
+import { usePlants, useWarehouses, useCreateWarehouse, useCreateWarehouseBin, useSuppliers, useCreateSupplier } from '../api/useMasterData';
 
 interface ConversionRow {
   id: string;
@@ -74,6 +76,8 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [lastAutoSaveTime, setLastAutoSaveTime] = useState<string>('12:04');
 
+  const isApprovedLocked = editItem?.approval === 'approved';
+
   // Step 1: Item Type
   const [selectedType, setSelectedType] = useState<ItemType>(editItem?.type || 'Finished Good');
 
@@ -83,8 +87,24 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   const [itemName, setItemName] = useState<string>(editItem?.name || '');
   const [category, setCategory] = useState<string>(editItem?.cat || '');
   const [itemGroup, setItemGroup] = useState<string>(editItem?.itemGroup || '');
-  const [status, setStatus] = useState<string>(editItem?.approval === 'approved' ? 'Active' : 'Active');
+  const [status, setStatus] = useState<string>(editItem?.approval === 'approved' ? 'Active' : (editItem?.status || 'Draft'));
   const [plant, setPlant] = useState<string>(editItem?.plant || 'Plant 1 - Pimpri Auto-Hub');
+  const [plantScopeList, setPlantScopeList] = useState<string[]>(() => masterDataGovernanceService.getPlantScopes());
+  const { data: dbPlants = [] } = usePlants();
+  const dynamicPlants = React.useMemo(() => {
+    const list = [...plantScopeList];
+    if (Array.isArray(dbPlants)) {
+      dbPlants.forEach((p: any) => {
+        const pName = p.name || p.code || p.plant_name;
+        if (pName && !list.includes(pName)) list.push(pName);
+      });
+    }
+    return list;
+  }, [plantScopeList, dbPlants]);
+  const [processingMethodList, setProcessingMethodList] = useState<string[]>(() => masterDataGovernanceService.getProcessingMethods());
+  const [itemImageUrl, setItemImageUrl] = useState<string>((editItem as any)?.imageUrl || '');
+  const [technicalDocUrl, setTechnicalDocUrl] = useState<string>((editItem as any)?.technicalDocUrl || '');
+  const [isUploadingMedia, setIsUploadingMedia] = useState<boolean>(false);
   const [description, setDescription] = useState<string>(editItem?.desc || '');
   
   // Live Image State (Task 2)
@@ -97,7 +117,6 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   const [categoryList, setCategoryList] = useState<string[]>(() => masterDataGovernanceService.getCategories());
   const [itemGroupList, setItemGroupList] = useState<string[]>(() => masterDataGovernanceService.getItemGroups());
   const [uomList, setUomList] = useState<string[]>(() => masterDataGovernanceService.getUoms());
-  const [plantScopeList, setPlantScopeList] = useState<string[]>(() => masterDataGovernanceService.getPlantScopes());
   const [resinTypeList, setResinTypeList] = useState<string[]>(() => masterDataGovernanceService.getResinTypes());
   const [colorList, setColorList] = useState<string[]>(() => masterDataGovernanceService.getColors());
   const [complianceList, setComplianceList] = useState<string[]>(() => masterDataGovernanceService.getComplianceMandates());
@@ -129,7 +148,30 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   const codeDropdownRef = useRef<HTMLDivElement>(null);
 
   // Task 1: Supplier Governance & Autocomplete State
-  const [supplierList, setSupplierList] = useState(() => masterDataGovernanceService.getSuppliers());
+  const { data: dbSuppliers = [] } = useSuppliers();
+  const createSupplierMutation = useCreateSupplier();
+  const [localSuppliers, setLocalSuppliers] = useState(() => masterDataGovernanceService.getSuppliers());
+  const supplierList = React.useMemo(() => {
+    const list = [...localSuppliers];
+    if (Array.isArray(dbSuppliers)) {
+      dbSuppliers.forEach((s: any) => {
+        if (!list.some((existing) => existing.name === s.name || (s.code && existing.code === s.code))) {
+          list.push({
+            id: s.id || s.code || `SUP-${String(s.name || '').slice(0, 4)}`,
+            code: s.code || `SUP-${String(s.id || '').slice(0, 4)}`,
+            name: s.name,
+            category: s.category || s.type || 'Raw Material',
+            hsnCode: s.hsnCode || '39021000',
+            tariffCode: s.tariffCode || s.hsnCode || '39021000',
+            moq: s.moq || 1000,
+            leadTimeDays: s.leadTimeDays || 7,
+            paymentTerms: s.payment_terms || s.paymentTerms || 'Net 30 Days',
+          });
+        }
+      });
+    }
+    return list;
+  }, [localSuppliers, dbSuppliers]);
   const [showSupplierDropdown, setShowSupplierDropdown] = useState<boolean>(false);
   const supplierDropdownRef = useRef<HTMLDivElement>(null);
   const [isNewSupplierModalOpen, setIsNewSupplierModalOpen] = useState<boolean>(false);
@@ -145,7 +187,27 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   });
 
   // Task 3: Warehouse & Bin Governance State
-  const [warehouseList, setWarehouseList] = useState(() => masterDataGovernanceService.getWarehouses());
+  const { data: dbWarehouses = [] } = useWarehouses();
+  const createWarehouseMutation = useCreateWarehouse();
+  const createWarehouseBinMutation = useCreateWarehouseBin();
+
+  const [localWarehouses, setLocalWarehouses] = useState(() => masterDataGovernanceService.getWarehouses());
+  const warehouseList = React.useMemo(() => {
+    const list = [...localWarehouses];
+    if (Array.isArray(dbWarehouses)) {
+      dbWarehouses.forEach((w: any) => {
+        if (!list.some((existing) => existing.code === w.code)) {
+          list.push({
+            code: w.code,
+            name: w.name,
+            zone: w.location_type || 'Zone A',
+            plantScope: 'All Plants',
+          });
+        }
+      });
+    }
+    return list;
+  }, [localWarehouses, dbWarehouses]);
   const [binList, setBinList] = useState(() => masterDataGovernanceService.getBins());
   const [showBinDropdown, setShowBinDropdown] = useState<boolean>(false);
   const binDropdownRef = useRef<HTMLDivElement>(null);
@@ -169,8 +231,8 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   useEffect(() => {
     const unsub = adminEventBus.subscribe(() => {
       setMasterRecords(masterDataGovernanceService.getAllRecords());
-      setSupplierList(masterDataGovernanceService.getSuppliers());
-      setWarehouseList(masterDataGovernanceService.getWarehouses());
+      setLocalSuppliers(masterDataGovernanceService.getSuppliers());
+      setLocalWarehouses(masterDataGovernanceService.getWarehouses());
       setBinList(masterDataGovernanceService.getBins());
       setCategoryList(masterDataGovernanceService.getCategories());
       setItemGroupList(masterDataGovernanceService.getItemGroups());
@@ -181,6 +243,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       setComplianceList(masterDataGovernanceService.getComplianceMandates());
       setTestingLabList(masterDataGovernanceService.getTestingLabs());
       setPackingStandardList(masterDataGovernanceService.getPackingStandards());
+      setProcessingMethodList(masterDataGovernanceService.getProcessingMethods());
     });
     return unsub;
   }, []);
@@ -260,6 +323,17 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   // Real-time duplicate status for active inputs
   const duplicateCodeMatch = checkDuplicateCode(itemCode);
   const duplicateNameMatch = checkDuplicateName(itemName);
+
+  const checkDuplicateDescription = (descToCheck: string): { isDuplicate: boolean; item?: ItemMaster } => {
+    const clean = (descToCheck || '').trim().toLowerCase();
+    if (!clean || clean.length < 5) return { isDuplicate: false };
+    if (isEditing && clean === (editItem?.desc || '').trim().toLowerCase()) return { isDuplicate: false };
+    const matched = currentGridItems.find(
+      (i) => (i.desc || '').trim().toLowerCase() === clean && (!isEditing || (i.code || '').trim().toLowerCase() !== currentEditCode)
+    );
+    return { isDuplicate: !!matched, item: matched };
+  };
+  const duplicateDescriptionMatch = checkDuplicateDescription(description);
 
   // Filter master data records based on selected item type and search query
   // STRICT REQUIREMENT: Do NOT show items already waiting for approval or rejected in Item Master grid
@@ -487,13 +561,33 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
     setIsNewSupplierModalOpen(true);
   };
 
-  const handleSaveNewSupplier = (e: React.FormEvent) => {
+  const handleSaveNewSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSupplierForm.name.trim()) {
       showToast('Please enter supplier company name.');
       return;
     }
-    const saved = masterDataGovernanceService.saveSupplier(newSupplierForm);
+    const cleanName = newSupplierForm.name.trim();
+    const cleanCode = newSupplierForm.code.trim() || `SUP-${Date.now().toString().slice(-4)}`;
+
+    try {
+      await createSupplierMutation.mutateAsync({
+        code: cleanCode,
+        name: cleanName,
+        type: newSupplierForm.category || 'Raw Material',
+        category: newSupplierForm.category || 'Raw Material',
+        paymentTerms: newSupplierForm.paymentTerms || 'Net 30 Days',
+      });
+    } catch (err) {
+      console.warn('[CreateItemWizardModal] Database supplier persist warning:', err);
+    }
+
+    const saved = masterDataGovernanceService.saveSupplier({
+      ...newSupplierForm,
+      code: cleanCode,
+      name: cleanName,
+    });
+    setLocalSuppliers(masterDataGovernanceService.getSuppliers());
     setPreferredSupplier(saved.name);
     setHsnCode(saved.hsnCode);
     setPurchaseMoq(saved.moq);
@@ -514,28 +608,57 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
     setIsNewWarehouseModalOpen(true);
   };
 
-  const handleSaveNewWarehouse = (e: React.FormEvent) => {
+  const handleSaveNewWarehouse = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newWarehouseForm.code.trim() || !newWarehouseForm.name.trim()) {
       showToast('Please provide both Warehouse Code and Warehouse Name.');
       return;
     }
-    const saved = masterDataGovernanceService.saveWarehouse(newWarehouseForm);
+    const cleanCode = newWarehouseForm.code.trim().toUpperCase();
+    const cleanName = newWarehouseForm.name.trim();
+
+    try {
+      await createWarehouseMutation.mutateAsync({
+        code: cleanCode,
+        name: cleanName,
+        location_type: newWarehouseForm.zone || 'RAW_MATERIAL',
+      });
+    } catch (err) {
+      console.warn('[CreateItemWizardModal] Database warehouse persist warning:', err);
+    }
+
+    const saved = masterDataGovernanceService.saveWarehouse({
+      ...newWarehouseForm,
+      code: cleanCode,
+      name: cleanName,
+    });
+    setLocalWarehouses(masterDataGovernanceService.getWarehouses());
     setDefaultWarehouse(saved.code);
     setIsNewWarehouseModalOpen(false);
     showToast(`✓ Warehouse "${saved.code} - ${saved.name}" registered in Master Data & selected!`);
   };
 
-  const handleSaveNewBin = (codeToSave?: string) => {
+  const handleSaveNewBin = async (codeToSave?: string) => {
     const code = (codeToSave || defaultBin || '').trim().toUpperCase();
     if (!code) {
       showToast('Please enter a bin location code.');
       return;
     }
+
+    try {
+      await createWarehouseBinMutation.mutateAsync({
+        warehouse_id: defaultWarehouse,
+        bin_code: code,
+        zone: newBinForm.zone || 'Storage Rack/Aisle',
+      });
+    } catch (err) {
+      console.warn('[CreateItemWizardModal] Database bin persist warning:', err);
+    }
+
     const saved = masterDataGovernanceService.saveBin({
       code,
       warehouseCode: defaultWarehouse,
-      zone: 'Storage Rack/Aisle',
+      zone: newBinForm.zone || 'Storage Rack/Aisle',
     });
     setDefaultBin(saved.code);
     setShowBinDropdown(false);
@@ -581,12 +704,12 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   const [density, setDensity] = useState<string>(editItem?.density || '');
   const [additivePercentage, setAdditivePercentage] = useState<string>('');
   const [masterbatchDosage, setMasterbatchDosage] = useState<string>(editItem?.masterbatchDosage || '');
-  const [carrierResin, setCarrierResin] = useState<string>(editItem?.carrierResin || 'Universal PE/PP Carrier');
-  const [heatStability, setHeatStability] = useState<string>(editItem?.heatStability || '280°C');
-  const [boxDimensions, setBoxDimensions] = useState<string>(editItem?.boxDimensions || '600 x 400 x 350 mm');
-  const [unitsPerPack, setUnitsPerPack] = useState<number | string>(editItem?.unitsPerPack || 250);
-  const [machineFitment, setMachineFitment] = useState<string>(editItem?.machineCompat || 'All Injection Machines');
-  const [spareClass, setSpareClass] = useState<string>('Critical Tooling Spare');
+  const [carrierResin, setCarrierResin] = useState<string>(editItem?.carrierResin || '');
+  const [heatStability, setHeatStability] = useState<string>(editItem?.heatStability || '');
+  const [boxDimensions, setBoxDimensions] = useState<string>(editItem?.boxDimensions || '');
+  const [unitsPerPack, setUnitsPerPack] = useState<number | string>(editItem?.unitsPerPack ?? '');
+  const [machineFitment, setMachineFitment] = useState<string>(editItem?.machineCompat || '');
+  const [spareClass, setSpareClass] = useState<string>((editItem as any)?.spareClass || '');
   const [regrindAllowance, setRegrindAllowance] = useState<string>(editItem?.regrind || '');
   const [moistureSensitive, setMoistureSensitive] = useState<boolean>(editItem?.moistureSensitive ?? false);
   const [processingMethod, setProcessingMethod] = useState<string>('Injection Molding');
@@ -680,7 +803,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   // Step 6: Quality Settings
   const [iqcMandatory, setIqcMandatory] = useState<boolean>(editItem?.qc ?? false);
   const [coaRequired, setCoaRequired] = useState<boolean>(false);
-  const [samplingPlan, setSamplingPlan] = useState<string>('ISO 2859-1 Level II Normal');
+  const [samplingPlan, setSamplingPlan] = useState<string>((editItem as any)?.samplingPlan || '');
   const [approvedLab, setApprovedLab] = useState<string>('');
   const [qualityTestParams, setQualityTestParams] = useState<string[]>([]);
 
@@ -696,7 +819,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
 
   // Step 8: Sales
   const [standardSalesPrice, setStandardSalesPrice] = useState<number>(0);
-  const [priceTier, setPriceTier] = useState<string>('Tier 1 OEM Standard');
+  const [priceTier, setPriceTier] = useState<string>((editItem as any)?.priceTier || '');
   const [salesMoq, setSalesMoq] = useState<number>(0);
   const [packagingStandard, setPackagingStandard] = useState<string>('');
 
@@ -846,7 +969,9 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       };
 
       try {
-        localStorage.setItem('reboot_erp_item_draft_auto', JSON.stringify(draftPayload));
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('reboot_erp_item_draft_auto', JSON.stringify(draftPayload));
+        }
       } catch (err) {
         console.warn('Auto-save write error', err);
       }
@@ -988,7 +1113,9 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
 
   const handleDiscardDraft = () => {
     try {
-      localStorage.removeItem('item_wizard_draft');
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('item_wizard_draft');
+      }
     } catch (_) {}
     setExistingDraftFound(null);
     showToast('Draft discarded.');
@@ -1016,12 +1143,12 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
     const isFgItem = selectedType === 'Finished Good' || selectedType === 'Semi-Finished Good';
 
     const draftItem: ItemMaster = {
-      code: itemCode.trim().toUpperCase(),
-      name: itemName.trim() || 'Untitled Draft Item',
+      code: isApprovedLocked && editItem ? editItem.code : itemCode.trim().toUpperCase(),
+      name: isApprovedLocked && editItem ? editItem.name : (itemName.trim() || 'Untitled Draft Item'),
       type: selectedType,
       cat: category,
       itemGroup: itemGroup,
-      plant: plant || 'Plant 1 - Pimpri Auto-Hub',
+      plant: plant || editItem?.plant || '',
       stock: `0 ${baseUOM}`,
       avail: `0 ${baseUOM}`,
       wh: defaultWarehouse,
@@ -1115,21 +1242,21 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
     const isFgItem = selectedType === 'Finished Good' || selectedType === 'Semi-Finished Good';
 
     const finalItem: ItemMaster = {
-      code: itemCode.trim().toUpperCase(),
-      name: itemName.trim(),
+      code: isApprovedLocked && editItem ? editItem.code : itemCode.trim().toUpperCase(),
+      name: isApprovedLocked && editItem ? editItem.name : itemName.trim(),
       type: selectedType,
       cat: category,
       itemGroup: itemGroup,
-      plant: plant || 'Plant 1 - Pimpri Auto-Hub',
+      plant: plant || editItem?.plant || '',
       stock: editItem?.stock || `0 ${baseUOM}`,
       avail: editItem?.avail || `0 ${baseUOM}`,
       wh: defaultWarehouse,
       lot: lotControlled,
       qc: iqcMandatory,
-      status: 'active',
+      status: isApprovedDirectly ? 'active' : (editItem?.status === 'active' ? 'active' : 'inactive'),
       icon: isFgItem ? '▣' : selectedType === 'Masterbatch' || selectedType === 'Colorant' ? '●' : selectedType === 'Spare Part' ? '🔧' : '◇',
       baseUOM,
-      approval: isApprovedDirectly ? 'approved' : 'pending',
+      approval: isApprovedDirectly ? 'approved' : (editItem?.approval || 'pending'),
       createdOn: editItem?.createdOn || 'Today',
       standardCycleTime: isFgItem ? (Number(cycleTime) || 0) : 0,
       cycleTime: isFgItem ? (Number(cycleTime) || 0) : 0,
@@ -1406,20 +1533,11 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         Item identification and classification. Entering an existing Master Code will auto-fill category, name, and item group.
                       </p>
                     </div>
-                    {syncedMasterRecord ? (
+                    {syncedMasterRecord && (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
                         <Zap className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
                         Admin Master Synced
                       </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenNewMasterModal()}
-                        className="text-xs text-[#0F8B8D] hover:text-[#0c7274] font-semibold flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-teal-200 bg-teal-50/60 hover:bg-teal-50 transition-colors cursor-pointer"
-                      >
-                        <Database className="w-3.5 h-3.5" />
-                        + New Master Data Record
-                      </button>
                     )}
                   </div>
 
@@ -1457,50 +1575,53 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     </div>
                   )}
 
+                  {isApprovedLocked && (
+                    <div className="mb-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
+                      <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span><strong>Approved Item Governance:</strong> Item Code, Name, and Description are permanently locked because this SKU is approved in catalog governance.</span>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                     {/* Item Code + Auto-generate toggle + Combobox */}
                     <div className="relative" ref={codeDropdownRef}>
                       <div className="flex items-center justify-between mb-1">
                         <label className="font-semibold text-slate-700 flex items-center gap-1">
                           Item code *
+                          {isApprovedLocked && <span className="ml-1 text-[10px] text-amber-600 font-normal">(Locked)</span>}
                           <HelpCircle className="w-3 h-3 text-slate-400" />
                         </label>
-                        <div className="flex items-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenNewMasterModal(itemCode)}
-                            className="text-[11px] text-[#0F8B8D] hover:text-[#0c7274] font-medium flex items-center gap-1 cursor-pointer"
-                          >
-                            <Plus className="w-3 h-3" />
-                            + New Master Code
-                          </button>
-                        </div>
                       </div>
 
                       <div className="relative">
                         <input
                           type="text"
                           required
+                          disabled={isApprovedLocked}
                           value={itemCode}
                           onChange={(e) => handleItemCodeChange(e.target.value)}
-                          onFocus={() => setShowCodeDropdown(true)}
+                          onFocus={() => !isApprovedLocked && setShowCodeDropdown(true)}
                           className={`w-full pl-3 pr-8 py-2 rounded-lg border font-mono text-xs transition-colors ${
-                            (itemCodeError && !itemCode.trim()) || duplicateCodeMatch.isDuplicate
+                            isApprovedLocked
+                              ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed font-bold'
+                              : (itemCodeError && !itemCode.trim()) || duplicateCodeMatch.isDuplicate
                               ? 'border-rose-500 bg-rose-50/40 text-rose-950 font-bold ring-2 ring-rose-200 focus:ring-rose-400'
                               : syncedMasterRecord
                               ? 'border-emerald-400 bg-emerald-50/30 text-emerald-950 font-bold focus:ring-1 focus:ring-emerald-500'
                               : 'border-slate-300 focus:border-[#0F8B8D] focus:ring-1 focus:ring-[#0F8B8D]'
                           }`}
-                          placeholder="e.g. FG-BMP-NEXON-F or type to search catalog..."
+                          placeholder={isApprovedLocked ? itemCode : "e.g. FG-BMP-NEXON-F or type to search catalog..."}
                         />
-                        <button
-                          type="button"
-                          onClick={() => setShowCodeDropdown(!showCodeDropdown)}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                          title="Lookup Master Data"
-                        >
-                          <ChevronDown className="w-4 h-4" />
-                        </button>
+                        {!isApprovedLocked && (
+                          <button
+                            type="button"
+                            onClick={() => setShowCodeDropdown(!showCodeDropdown)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                            title="Lookup Master Data"
+                          >
+                            <ChevronDown className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
 
                       {itemCodeError && !itemCode.trim() && (
@@ -1610,28 +1731,12 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                                       Search All Types
                                     </button>
                                   )}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenNewMasterModal(itemCode)}
-                                    className="px-3 py-1.5 rounded-lg bg-[#0F8B8D] hover:bg-[#0c7274] text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
-                                  >
-                                    <Plus className="w-3.5 h-3.5" />
-                                    + Register in Master Data
-                                  </button>
                                 </div>
                               </div>
                             )}
                           </div>
 
-                          <div className="p-2 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenNewMasterModal(itemCode)}
-                              className="text-xs text-[#0F8B8D] hover:text-[#0c7274] font-semibold flex items-center gap-1 px-2 py-1 rounded hover:bg-teal-50/50 cursor-pointer"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                              + New Master Data Record
-                            </button>
+                          <div className="p-2 bg-slate-50 border-t border-slate-100 flex items-center justify-end">
                             <button
                               type="button"
                               onClick={() => setShowCodeDropdown(false)}
@@ -1647,7 +1752,10 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     {/* Item Name */}
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="block font-semibold text-slate-700">Item name *</label>
+                        <label className="block font-semibold text-slate-700">
+                          Item name *
+                          {isApprovedLocked && <span className="ml-1 text-[10px] text-amber-600 font-normal">(Locked)</span>}
+                        </label>
                         {syncedMasterRecord && (
                           <span className="text-[10px] text-emerald-700 font-medium">✓ Auto-filled</span>
                         )}
@@ -1655,10 +1763,13 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                       <input
                         type="text"
                         required
+                        disabled={isApprovedLocked}
                         value={itemName}
                         onChange={(e) => setItemName(e.target.value)}
                         className={`w-full px-3 py-2 rounded-lg border text-xs focus:ring-1 focus:ring-[#0066CC] ${
-                          duplicateNameMatch.isDuplicate
+                          isApprovedLocked
+                            ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed font-medium'
+                            : duplicateNameMatch.isDuplicate
                             ? 'border-rose-500 bg-rose-50/40 text-rose-950 font-bold ring-2 ring-rose-200'
                             : syncedMasterRecord
                             ? 'border-emerald-300 bg-emerald-50/10'
@@ -1723,21 +1834,6 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                       />
                     </div>
 
-                    {/* Status */}
-                    <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Status</label>
-                      <select
-                        value={status}
-                        onChange={(e) => setStatus(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
-                      >
-                        <option value="Pending Approval">Pending Approval</option>
-                        <option value="Active">Active</option>
-                        <option value="Draft">Draft</option>
-                        <option value="Quarantine Hold">Quarantine Hold</option>
-                        <option value="Obsolete">Obsolete</option>
-                      </select>
-                    </div>
 
                     {/* Plant / Unit (belongs to plant) */}
                     <div>
@@ -1745,27 +1841,34 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         <Factory className="w-3.5 h-3.5 text-[#0F8B8D]" />
                         Plant / Unit *
                       </label>
-                      <select
+                      <MasterDataCombobox
                         value={plant}
-                        onChange={(e) => setPlant(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white font-medium focus:ring-1 focus:ring-[#0F8B8D]"
-                      >
-                        <option value="Plant 1 - Pimpri Auto-Hub">Plant 1 - Pimpri Auto-Hub</option>
-                        <option value="Plant 2 - Chakan Complex">Plant 2 - Chakan Complex</option>
-                        <option value="Plant 3 - Sanand Mega Plant">Plant 3 - Sanand Mega Plant</option>
-                        <option value="Plant 4 - Pantnagar Facility">Plant 4 - Pantnagar Facility</option>
-                        <option value="All Plants (Global)">All Plants (Global)</option>
-                      </select>
+                        onChange={(val) => setPlant(val)}
+                        options={dynamicPlants}
+                        placeholder="Select or type Plant..."
+                        entityLabel="Plant / Unit"
+                        onSaveCustomOption={(newVal) => {
+                          const updated = masterDataGovernanceService.savePlantScope(newVal);
+                          setPlantScopeList(updated);
+                          showToast(`✓ Plant "${newVal}" registered!`);
+                        }}
+                      />
                     </div>
 
                     {/* Description */}
                     <div className="md:col-span-2">
-                      <label className="block font-semibold text-slate-700 mb-1">Description</label>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Description
+                        {isApprovedLocked && <span className="ml-1 text-[10px] text-amber-600 font-normal">(Locked)</span>}
+                      </label>
                       <textarea
                         rows={2}
+                        disabled={isApprovedLocked}
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                        className={`w-full px-3 py-2 rounded-lg border text-xs ${
+                          isApprovedLocked ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed' : 'border-slate-300'
+                        }`}
                         placeholder="Grade, application and processing notes"
                       />
                     </div>
@@ -2129,7 +2232,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                               </span>
                             </div>
                             <div className="font-mono text-[11px] text-slate-600">
-                              Shade: <strong className="text-slate-800">{color || 'Natural / Custom'}</strong> &bull; Carrier: <strong className="text-slate-800">{carrierResin}</strong> &bull; Heat Limit: {heatStability}
+                              Shade: <strong className="text-slate-800">{color || 'Natural / Custom'}</strong> &bull; Carrier: <strong className="text-slate-800">{carrierResin || '—'}</strong> &bull; Heat Limit: {heatStability ? `${heatStability}°C` : '—'}
                             </div>
                           </div>
                           <div className="shrink-0 text-right font-mono text-[11px] text-slate-500">
@@ -2221,15 +2324,15 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                                 Container Matrix:
                               </span>
                               <span className="font-mono text-xs font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                                {boxDimensions || '600 x 400 x 350 mm'}
+                                {boxDimensions || '—'}
                               </span>
                               <span className="text-slate-400">&bull;</span>
                               <span className="text-slate-700 font-semibold text-[11px]">
-                                Capacity: <strong className="font-mono text-amber-900">{unitsPerPack} pcs / pack</strong>
+                                Capacity: <strong className="font-mono text-amber-900">{unitsPerPack ? `${unitsPerPack} pcs / pack` : '—'}</strong>
                               </span>
                             </div>
                             <div className="font-mono text-[11px] text-slate-600">
-                              Standard: <strong className="text-slate-800">{packagingStandard || 'Corrugated 5-Ply'}</strong> &bull; HSN: {hsnCode || '48191010'}
+                              Standard: <strong className="text-slate-800">{packagingStandard || '—'}</strong> &bull; HSN: {hsnCode || '—'}
                             </div>
                           </div>
                           <div className="shrink-0 text-right font-mono text-[11px] text-slate-500">

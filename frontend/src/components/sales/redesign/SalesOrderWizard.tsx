@@ -33,7 +33,7 @@ import {
   MonthlyPlanOrder,
 } from '../../../types/salesOrderDeliveryTypes';
 import { Customer, ItemMaster } from '../../../types';
-import { LIVE_CUSTOMERS_CATALOG, CustomerMasterRecord } from '../../../data/liveCustomersCatalog';
+import type { CustomerMasterRecord } from '../../../services/customerMasterService';
 import { adminService, adminEventBus } from '../../../services/adminService';
 import { transportMasterService, TransporterRecord } from '../../../services/transportMasterService';
 import { itemService } from '../../../services/itemService';
@@ -229,7 +229,7 @@ export const SalesOrderWizard: React.FC<SalesOrderWizardProps> = ({
     initialOrder?.orderType || defaultOrderType || 'Monthly Plan Order'
   );
 
-  const initialCustRecord = customerCatalog[0] || LIVE_CUSTOMERS_CATALOG[0];
+  const initialCustRecord = customerCatalog[0] || null;
   const initialPoInfo = getLatestCustomerPo(
     initialOrder?.customer || initialCustRecord?.name || 'Tata Motors Passenger Vehicles Ltd',
     initialCustRecord?.code || '12398'

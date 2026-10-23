@@ -4,7 +4,7 @@
 // ============================================================================
 
 export { ProcurementViews } from '../../../apps/web/src/modules/procurement';
-export { DOCUMENT_LIVE_SUPPLIERS_CATALOG } from '../../data/liveSuppliersCatalog';
+export const DOCUMENT_LIVE_SUPPLIERS_CATALOG = [];
 export { supplierService } from '../../services/procurement/supplierService';
 export {
   INITIAL_PROCUREMENT_SUPPLIERS,

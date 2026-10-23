@@ -14,62 +14,44 @@ import { ROLE_DEFAULT_VIEW } from './data/roleDefaultViews';
 import { workspaceRbacService, normalizeRoleKey } from './services/workspaceRbacService';
 import { itemService } from './services/itemService';
 import { adminEventBus } from './services/adminService';
-import { db } from './shared/db';
 import { initializeRealtime } from './services/realtime/realtimeService';
+import { api } from './lib/api-client';
+import { legacyDbShim as db } from './shared/compat/testShim';
+import { useDashboardKpis } from './hooks/useDashboard';
+import { initVersionCheck } from './shared/utils/versionCheck';
 import { SessionTimeoutModal, MfaVerificationModal, CookieConsentModal } from './security';
 import { UserProfilePreferencesView } from './components/profile/UserProfilePreferencesView';
 import { ModuleLoadingFallback } from './components/common/ModuleLoadingFallback';
 
 // Core Workspace Shell Views (Immediate Initial Paint)
+import { LoginScreen } from './modules/auth';
 import {
-  LoginScreen,
   HomeView,
   WorkspaceTasksView,
   WorkspaceApprovalsView,
   WorkspaceNotificationsView,
   WorkspaceSavedViewsView,
   WorkspaceRecentRecordsView,
-} from './modules';
+} from './modules/workspace';
 
 // Domain Feature Modules (Code-Splitted via React.lazy for Granular Module Chunking & Ultra-Low Initial Bundle Size)
-const MasterDataViews = React.lazy(() => import('./modules/masterdata').then((m) => ({ default: m.MasterDataViews })));
-const EngineeringViews = React.lazy(() => import('./modules/engineering').then((m) => ({ default: m.EngineeringViews })));
-const ManufacturingViews = React.lazy(() => import('./modules/manufacturing').then((m) => ({ default: m.ManufacturingViews })));
-const ProcurementViews = React.lazy(() => import('./modules/procurement').then((m) => ({ default: m.ProcurementViews })));
-const WarehouseViews = React.lazy(() => import('./modules/warehouse').then((m) => ({ default: m.WarehouseViews })));
-const SalesViews = React.lazy(() => import('./modules/sales').then((m) => ({ default: m.SalesViews })));
-const FinanceViews = React.lazy(() => import('./modules/finance').then((m) => ({ default: m.FinanceViews })));
-const QualityViews = React.lazy(() => import('./modules/quality').then((m) => ({ default: m.QualityViews })));
-const MepViews = React.lazy(() => import('./modules/mep').then((m) => ({ default: m.MepViews })));
-const HrViews = React.lazy(() => import('./modules/hr').then((m) => ({ default: m.HrViews })));
-const ScmViews = React.lazy(() => import('./modules/scm').then((m) => ({ default: m.ScmViews })));
-const CrmViews = React.lazy(() => import('./modules/crm').then((m) => ({ default: m.CrmViews })));
+const masterDataPromise = import('../apps/web/src/modules/masterdata');
+const MasterDataViews = React.lazy(() => masterDataPromise.then((m) => ({ default: m.MasterDataViews })));
+const EngineeringViews = React.lazy(() => import('../apps/web/src/modules/engineering').then((m) => ({ default: m.EngineeringViews })));
+const ManufacturingViews = React.lazy(() => import('../apps/web/src/modules/manufacturing').then((m) => ({ default: m.ManufacturingViews })));
+const ProcurementViews = React.lazy(() => import('../apps/web/src/modules/procurement').then((m) => ({ default: m.ProcurementViews })));
+const WarehouseViews = React.lazy(() => import('../apps/web/src/modules/warehouse').then((m) => ({ default: m.WarehouseViews })));
+const SalesViews = React.lazy(() => import('../apps/web/src/modules/sales').then((m) => ({ default: m.SalesViews })));
+const FinanceViews = React.lazy(() => import('../apps/web/src/modules/finance').then((m) => ({ default: m.FinanceViews })));
+const QualityViews = React.lazy(() => import('../apps/web/src/modules/quality').then((m) => ({ default: m.QualityViews })));
+const MepViews = React.lazy(() => import('../apps/web/src/modules/maintenance').then((m) => ({ default: m.MaintenanceViews })));
+const HrViews = React.lazy(() => import('../apps/web/src/modules/hr').then((m) => ({ default: m.HrViews })));
+const ScmViews = React.lazy(() => import('../apps/web/src/modules/planning').then((m) => ({ default: m.PlanningViews })));
+const CrmViews = React.lazy(() => import('../apps/web/src/modules/crm').then((m) => ({ default: m.CrmViews })));
 const AdminViews = React.lazy(() => import('./modules/admin').then((m) => ({ default: m.AdminViews })));
-const AnalyticsViews = React.lazy(() => import('./modules/analytics').then((m) => ({ default: m.AnalyticsViews })));
+const AnalyticsViews = React.lazy(() => import('../apps/web/src/modules/analytics').then((m) => ({ default: m.AnalyticsViews })));
 const ReactArchitectureGuide = React.lazy(() => import('./modules/architecture').then((m) => ({ default: m.ReactArchitectureGuide })));
 
-// Domain Seed Data & State Fixtures
-import {
-  initialItems,
-  initialBoms,
-  initialMachines,
-  initialWorkOrders,
-  initialPurchaseOrders,
-  initialSalesOrders,
-  initialAccounts,
-  initialJournalEntries,
-  initialNcrs,
-  initialCapas,
-  initialCoas,
-  initialCustomers,
-  initialQuotations,
-  initialCostCenters,
-  initialSubcontractOrders,
-  initialInspectionPlans,
-  initialStockTransactions,
-  INITIAL_RMAS,
-} from './data/initialData';
-import { INITIAL_BOMS } from './modules/engineering';
 import { useMe, useLogout, useSelectContext } from './features/identity/useIdentity';
 import { mapMeToAuthUser } from './features/identity/mapMe';
 
@@ -280,60 +262,131 @@ export const App: React.FC = () => {
   const selectContextMutation = useSelectContext();
   const me = meQuery.data ?? null;
   const currentUser = useMemo<AuthUser | null>(
-    () => (me && !me.mustChangePassword && me.activePlantId ? mapMeToAuthUser(me) : null),
+    () => (me && !me.mustChangePassword ? mapMeToAuthUser(me) : null),
     [me],
   );
   const setCurrentUser = (_u: AuthUser | null) => {
     // Identity fields are owned by the server; profile edits go through the identity API and refresh /me.
   };
 
-  // Task 3: Current active navigation view & parameters persisted across browser refresh
+const CANONICAL_PATH_TO_VIEW_MAP: Record<string, string> = {
+  '/': 'home',
+  '/home': 'home',
+  '/masterdata/items': 'itemList',
+  '/masterdata/boms': 'bomList',
+  '/masterdata/machines': 'machineList',
+  '/sales/orders': 'soList',
+  '/sales/dashboard': 'salesDash',
+  '/warehouse/stock': 'stockList',
+  '/warehouse/grn': 'grnList',
+  '/quality/dashboard': 'qualityDash',
+  '/quality/ncrs': 'ncrList',
+  '/admin/dashboard': 'adminDash',
+  '/procurement/dashboard': 'procurementDash',
+  '/manufacturing/dashboard': 'mfgDash',
+};
+
+const VIEW_ALIAS_MAP: Record<string, string> = {
+  items: 'itemList',
+  item: 'itemList',
+  itemlist: 'itemList',
+  boms: 'bomList',
+  bom: 'bomList',
+  bomlist: 'bomList',
+  orders: 'soList',
+  salesorders: 'soList',
+  solist: 'soList',
+  stock: 'stockList',
+  inventory: 'stockList',
+  stocklist: 'stockList',
+  machines: 'machineList',
+  machinelist: 'machineList',
+  ncrs: 'ncrList',
+  ncrlist: 'ncrList',
+  capas: 'capaList',
+  capalist: 'capaList',
+};
+
+function resolveViewFromLocation(pathname: string, search: string): string {
+  const urlParams = new URLSearchParams(search);
+  const v = urlParams.get('view');
+  if (v && v.trim()) {
+    const raw = v.trim();
+    return VIEW_ALIAS_MAP[raw.toLowerCase()] || raw;
+  }
+  const cleanPath = pathname.replace(/\/+$/, '') || '/';
+  if (CANONICAL_PATH_TO_VIEW_MAP[cleanPath]) {
+    return CANONICAL_PATH_TO_VIEW_MAP[cleanPath];
+  }
+  const stripped = cleanPath.replace(/^\//, '');
+  if (stripped) {
+    return VIEW_ALIAS_MAP[stripped.toLowerCase()] || stripped;
+  }
+  return 'home';
+}
+
+  // Navigation Single Source of Truth: Driven by history.state and normalized to root '/'
   const [currentView, setCurrentView] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem('reboot_active_view');
-      if (saved && saved.trim()) return saved;
-    } catch {}
+    if (typeof window !== 'undefined') {
+      if (window.history.state?.view) {
+        return window.history.state.view;
+      }
+      return resolveViewFromLocation(window.location.pathname, window.location.search);
+    }
     return 'home';
   });
 
   const [viewParams, setViewParams] = useState<any>(() => {
-    try {
-      const saved = localStorage.getItem('reboot_view_params');
-      if (saved) return JSON.parse(saved);
-    } catch {}
+    if (typeof window !== 'undefined') {
+      if (window.history.state?.params) {
+        return window.history.state.params;
+      }
+      const urlParams = new URLSearchParams(window.location.search);
+      const params: Record<string, string> = {};
+      for (const [k, v] of urlParams.entries()) {
+        if (k !== 'view') params[k] = v;
+      }
+      return params;
+    }
     return {};
   });
 
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Task 3: Navigation History Stack ("Go to Previously Opened Screen" / Back / Forward)
-  const [navHistory, setNavHistory] = useState<NavHistoryEntry[]>(() => {
-    try {
-      const saved = sessionStorage.getItem('reboot_nav_history');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+  // Native Browser History Synchronization (Back / Forward button support)
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      if (typeof window === 'undefined') return;
+      const v = e.state?.view || resolveViewFromLocation(window.location.pathname, window.location.search);
+      const params: Record<string, any> = e.state?.params || {};
+      setCurrentView(v);
+      setViewParams(params);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Enforce origin URL (no trailing slash) in address bar on initial load or cold-boot from deep link
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const origin = window.location.origin;
+      if (window.location.pathname !== '/' || window.location.search !== '') {
+        window.history.replaceState({ view: currentView, params: viewParams }, '', origin);
+      } else if (!window.history.state || !window.history.state.view) {
+        window.history.replaceState({ view: currentView, params: viewParams }, '', origin);
       }
-    } catch {}
-    const initialView = localStorage.getItem('reboot_active_view') || 'home';
-    let initialParams = {};
-    try {
-      const rawP = localStorage.getItem('reboot_view_params');
-      if (rawP) initialParams = JSON.parse(rawP);
-    } catch {}
+    }
+  }, []);
+
+  // Navigation History Stack ("Go to Previously Opened Screen" in UI)
+  const [navHistory, setNavHistory] = useState<NavHistoryEntry[]>(() => {
+    const initialView = (typeof window !== 'undefined' ? (window.history.state?.view || new URLSearchParams(window.location.search).get('view')) : null) || 'home';
+    const initialParams: Record<string, any> = (typeof window !== 'undefined' && window.history.state?.params) ? window.history.state.params : {};
     return [{ view: initialView, params: initialParams, title: getScreenTitle(initialView, initialParams), timestamp: Date.now() }];
   });
 
-  const [historyIndex, setHistoryIndex] = useState<number>(() => {
-    try {
-      const saved = sessionStorage.getItem('reboot_history_index');
-      if (saved !== null) {
-        const idx = parseInt(saved, 10);
-        if (!isNaN(idx)) return idx;
-      }
-    } catch {}
-    return 0;
-  });
+  const [historyIndex, setHistoryIndex] = useState<number>(0);
 
   // Primary Business Entities State (Database-First Single Source of Truth)
   const [items, setItems] = useState<ItemMaster[]>([]);
@@ -357,27 +410,22 @@ export const App: React.FC = () => {
     if (typeof window !== 'undefined') {
       (window as any).__ERP_ITEM_SERVICE__ = itemService;
       (window as any).__ERP_EVENT_BUS__ = adminEventBus;
+      (window as any).__ERP_DB__ = db;
     }
 
-    // 0. Initialize realtime event listener
+    // 0. Initialize realtime event listener & cache buster version sync
     const cleanupRealtime = initializeRealtime();
-
-    // 1. Initial Domain State Hydration directly from Single Source of Truth
-    itemService.getItems().then((fetched) => {
-      if (Array.isArray(fetched) && fetched.length > 0) setItems(fetched);
+    let cleanupVersionCheck: (() => void) | undefined;
+    initVersionCheck().then((cleanup) => {
+      cleanupVersionCheck = cleanup;
     });
-    db.findMany<any>('work_orders', { orderBy: { column: 'created_at', ascending: false }, limit: 100 }).then((woList) => {
-      if (Array.isArray(woList) && woList.length > 0) {
-        const cleanList = woList.filter((w) => !['WO-1188', 'WO-1189', 'WO-1190', 'WO-1191', 'WO-1192', 'WO-1193'].includes(w.id));
-        setWorkOrders(cleanList);
-      }
-    }).catch(console.debug);
-    db.findMany<any>('purchase_orders', { orderBy: { column: 'created_at', ascending: false }, limit: 100 }).then((poList) => {
-      if (Array.isArray(poList) && poList.length > 0) setPurchaseOrders(poList);
-    }).catch(console.debug);
-    db.findMany<any>('sales_orders', { orderBy: { column: 'created_at', ascending: false }, limit: 100 }).then((soList) => {
-      if (Array.isArray(soList) && soList.length > 0) setSalesOrders(soList);
-    }).catch(console.debug);
+
+    const handleNewVersion = () => {
+      showToast('A new version of SP-PLASTECH ERP is available. Refresh to update.');
+    };
+    window.addEventListener('app:new-version-available', handleNewVersion);
+
+    // 1. Domain state hydration is managed on-demand by TanStack Query in each domain screen (Zero-Waterfall)
 
     // 2. Cross-Browser / Multi-Tab Synchronization Listeners (Triggered only on live mutation events)
     const unsubSaved = adminEventBus.on('ITEM_SAVED', (savedItem: ItemMaster) => {
@@ -485,6 +533,8 @@ export const App: React.FC = () => {
 
     return () => {
       cleanupRealtime?.();
+      cleanupVersionCheck?.();
+      window.removeEventListener('app:new-version-available', handleNewVersion);
       unsubSaved?.();
       unsubDeleted?.();
       unsubWoSynced?.();
@@ -675,7 +725,7 @@ export const App: React.FC = () => {
     logoutMutation.mutate();
   };
 
-  // Task 3: Navigation with history stack tracking & localStorage persistence
+  // Navigation with origin URL retention & browser history pushState
   const handleNavigate = (view: string, param?: any, isNavTraversing?: boolean) => {
     let p = param || {};
     if (typeof param === 'string') {
@@ -685,10 +735,14 @@ export const App: React.FC = () => {
     setViewParams(p);
     setIsMobileSidebarOpen(false);
 
-    try {
-      localStorage.setItem('reboot_active_view', view);
-      localStorage.setItem('reboot_view_params', JSON.stringify(p));
-    } catch {}
+    if (typeof window !== 'undefined') {
+      const origin = window.location.origin;
+      if (isNavTraversing) {
+        window.history.replaceState({ view, params: p }, '', origin);
+      } else {
+        window.history.pushState({ view, params: p }, '', origin);
+      }
+    }
 
     if (!isNavTraversing) {
       const title = getScreenTitle(view, p);
@@ -699,25 +753,14 @@ export const App: React.FC = () => {
         timestamp: Date.now(),
       };
 
-      setNavHistory((prev) => {
-        const nextStack = [...prev.slice(0, historyIndex + 1), newEntry].slice(-25); // retain last 25 screens
-        try {
-          sessionStorage.setItem('reboot_nav_history', JSON.stringify(nextStack));
-          sessionStorage.setItem('reboot_history_index', String(nextStack.length - 1));
-        } catch {}
-        return nextStack;
-      });
-
-      setHistoryIndex((prev) => {
-        const nextIdx = Math.min(prev + 1, 24);
-        return nextIdx;
-      });
+      setNavHistory((prev) => [...prev.slice(0, historyIndex + 1), newEntry].slice(-25));
+      setHistoryIndex((prev) => Math.min(prev + 1, 24));
     }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Task 3: "Go to Previously Opened Screen" History Helpers
+  // "Go to Previously Opened Screen" History Helpers
   const canGoBack = historyIndex > 0;
   const canGoForward = historyIndex < navHistory.length - 1;
 
@@ -727,9 +770,6 @@ export const App: React.FC = () => {
       const target = navHistory[targetIdx];
       if (target) {
         setHistoryIndex(targetIdx);
-        try {
-          sessionStorage.setItem('reboot_history_index', String(targetIdx));
-        } catch {}
         handleNavigate(target.view, target.params, true);
         showToast(`Navigated back to: ${target.title}`);
       }
@@ -742,9 +782,6 @@ export const App: React.FC = () => {
       const target = navHistory[targetIdx];
       if (target) {
         setHistoryIndex(targetIdx);
-        try {
-          sessionStorage.setItem('reboot_history_index', String(targetIdx));
-        } catch {}
         handleNavigate(target.view, target.params, true);
         showToast(`Navigated forward to: ${target.title}`);
       }
@@ -756,9 +793,6 @@ export const App: React.FC = () => {
       const target = navHistory[idx];
       if (target) {
         setHistoryIndex(idx);
-        try {
-          sessionStorage.setItem('reboot_history_index', String(idx));
-        } catch {}
         handleNavigate(target.view, target.params, true);
         showToast(`Switched to screen: ${target.title}`);
       }
@@ -1069,7 +1103,7 @@ export const App: React.FC = () => {
     'bomImport',
     'routingList',
   ].includes(currentView);
-  const isMasterData = ['itemList', 'itemDetail', 'machineList'].includes(currentView);
+  const isMasterData = ['itemList', 'itemDetail', 'machineList', 'items'].includes(currentView);
   const isManufacturing = [
     'mfgDash',
     'machineSchedule',
@@ -1354,19 +1388,19 @@ export const App: React.FC = () => {
     [items]
   );
 
-  const activeWOCount = workOrders.filter((w) => !['completed', 'cancelled'].includes(w.status)).length;
-  const lowStockCount = items.filter((i) => i.status === 'low').length;
+  const { data: dashboardKpis } = useDashboardKpis();
+  const activeWOCount = dashboardKpis?.activeWorkOrders ?? workOrders.filter((w) => !['completed', 'cancelled'].includes(w.status)).length;
+  const lowStockCount = dashboardKpis?.lowStockItemsCount ?? items.filter((i) => i.status === 'low').length;
   const openPOCount = purchaseOrders.filter((p) => p.status !== 'received').length;
 
-  if (meQuery.isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-sm text-slate-500">
-        Verifying session…
-      </div>
-    );
-  }
-
   if (!currentUser) {
+    if (meQuery.isLoading || meQuery.isPending) {
+      return (
+        <div className="flex flex-col h-screen w-full max-w-full overflow-hidden bg-[var(--paper)]">
+          <ModuleLoadingFallback moduleName="init" />
+        </div>
+      );
+    }
     return (
       <AuthLayout>
         <LoginScreen />
@@ -1591,7 +1625,7 @@ export const App: React.FC = () => {
               items={approvedItems}
               machines={machines}
               boms={boms}
-              stockTxns={initialStockTransactions}
+              stockTxns={[]}
               currentUser={currentUser}
               selectedId={viewParams.id}
               onNavigate={handleNavigate}
@@ -1649,8 +1683,8 @@ export const App: React.FC = () => {
               view={currentView}
               items={approvedItems}
               pos={purchaseOrders}
-              subcontracts={initialSubcontractOrders}
-              stockTxns={initialStockTransactions}
+              subcontracts={[]}
+              stockTxns={[]}
               selectedId={viewParams.id}
               onNavigate={handleNavigate}
               onUpdateItem={(updated) => {
@@ -1725,7 +1759,7 @@ export const App: React.FC = () => {
               view={currentView}
               accounts={accounts}
               journalEntries={journalEntries}
-              costCenters={initialCostCenters}
+              costCenters={[]}
               invoices={[]}
               customers={customers}
               purchaseOrders={purchaseOrders}
@@ -1753,7 +1787,7 @@ export const App: React.FC = () => {
           {isQuality && (
             <QualityViews
               view={currentView}
-              inspectionPlans={initialInspectionPlans}
+              inspectionPlans={[]}
               ncrs={ncrs}
               capas={capas}
               coas={coas}

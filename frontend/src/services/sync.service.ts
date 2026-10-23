@@ -1,4 +1,4 @@
-import { db } from '../shared/db';
+import { api } from '../lib/api-client';
 
 export interface OutboxItem<T = any> {
   id: string;
@@ -21,7 +21,7 @@ export class OfflineSyncService {
     this.initDb();
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => {
-        console.log('[SyncService] Network restored. Flushing outbox to Supabase Cloud...');
+        console.log('[SyncService] Network restored. Flushing outbox...');
         this.flushOutbox();
       });
     }
@@ -98,7 +98,7 @@ export class OfflineSyncService {
   }
 
   /**
-   * Flush all pending outbox items directly to Supabase Cloud DB
+   * Flush all pending outbox items directly to REST API
    */
   async flushOutbox(): Promise<{ synced: number; failed: number }> {
     if (this.isSyncing) return { synced: 0, failed: 0 };
@@ -113,16 +113,19 @@ export class OfflineSyncService {
       try {
         if (item.method === 'DELETE') {
           const recordId = (item.payload as any)?.id || item.id;
-          await db.delete(item.table, recordId, 'id');
+          await api.delete(`/${item.table}/${encodeURIComponent(recordId)}`);
+        } else if (item.method === 'POST') {
+          await api.post(`/${item.table}`, item.payload);
         } else {
-          await db.upsert(item.table, item.payload, 'id');
+          const recordId = (item.payload as any)?.id || item.id;
+          await api.patch(`/${item.table}/${encodeURIComponent(recordId)}`, item.payload);
         }
 
         await this.removeOutboxItem(item.id);
         synced++;
       } catch (err: any) {
         item.retryCount++;
-        item.lastError = err.message || 'Supabase sync error';
+        item.lastError = err.message || 'REST API sync error';
         await this.updateOutboxItem(item);
         failed++;
       }

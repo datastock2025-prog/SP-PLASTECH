@@ -52,41 +52,15 @@ import {
   useAdminRoles,
 } from '@/src/hooks/useAdmin';
 
-const CONTEXTS_STORAGE_KEY = 'reboot_erp_multi_context_policies_v2';
-const RLS_STORAGE_KEY = 'reboot_erp_rls_rules_v2';
-const BREAK_GLASS_STORAGE_KEY = 'reboot_erp_break_glass_v2';
-const GUARDRAILS_STORAGE_KEY = 'reboot_erp_guardrail_settings_v2';
-
 function loadStoredContexts(): MultiContextScopePolicy[] {
-  try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(CONTEXTS_STORAGE_KEY) : null;
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch (e) {}
   return [...multiContextPolicies];
 }
 
 function loadStoredRls(): RowLevelSecurityRule[] {
-  try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(RLS_STORAGE_KEY) : null;
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch (e) {}
   return [...rowLevelSecurityRules];
 }
 
 function loadStoredBreakGlass(): BreakGlassRequest[] {
-  try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(BREAK_GLASS_STORAGE_KEY) : null;
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch (e) {}
   return [...breakGlassRequests];
 }
 
@@ -180,9 +154,6 @@ export const AdminRbacSecurityMultiContextView: React.FC<AdminRbacSecurityMultiC
   const handleToggleGeofence = (contextId: string) => {
     const updated = contexts.map((c) => (c.id === contextId ? { ...c, enforceGeofence: !c.enforceGeofence } : c));
     setContexts(updated);
-    try {
-      localStorage.setItem(CONTEXTS_STORAGE_KEY, JSON.stringify(updated));
-    } catch {}
 
     const target = updated.find((c) => c.id === contextId);
     if (target) {
@@ -203,9 +174,6 @@ export const AdminRbacSecurityMultiContextView: React.FC<AdminRbacSecurityMultiC
   const handleToggleMfa = (contextId: string) => {
     const updated = contexts.map((c) => (c.id === contextId ? { ...c, mfaRequired: !c.mfaRequired } : c));
     setContexts(updated);
-    try {
-      localStorage.setItem(CONTEXTS_STORAGE_KEY, JSON.stringify(updated));
-    } catch {}
 
     const target = updated.find((c) => c.id === contextId);
     if (target) {
@@ -249,9 +217,6 @@ export const AdminRbacSecurityMultiContextView: React.FC<AdminRbacSecurityMultiC
 
     const updated = [req, ...breakGlassList];
     setBreakGlassList(updated);
-    try {
-      localStorage.setItem(BREAK_GLASS_STORAGE_KEY, JSON.stringify(updated));
-    } catch {}
 
     masterDataGovernanceService.recordAudit({
       entityType: 'BREAK_GLASS_POLICY',
@@ -279,9 +244,6 @@ export const AdminRbacSecurityMultiContextView: React.FC<AdminRbacSecurityMultiC
   const handleRevokeBreakGlass = (id: string) => {
     const updated = breakGlassList.map((b) => (b.id === id ? { ...b, status: 'Revoked' as const } : b));
     setBreakGlassList(updated);
-    try {
-      localStorage.setItem(BREAK_GLASS_STORAGE_KEY, JSON.stringify(updated));
-    } catch {}
 
     const target = updated.find((b) => b.id === id);
     if (target) {
@@ -319,9 +281,6 @@ export const AdminRbacSecurityMultiContextView: React.FC<AdminRbacSecurityMultiC
 
     const updated = [...rlsRules, newRule];
     setRlsRules(updated);
-    try {
-      localStorage.setItem(RLS_STORAGE_KEY, JSON.stringify(updated));
-    } catch {}
 
     masterDataGovernanceService.recordAudit({
       entityType: 'RLS_RULE',
@@ -347,9 +306,6 @@ export const AdminRbacSecurityMultiContextView: React.FC<AdminRbacSecurityMultiC
   const handleToggleRlsRule = (id: string) => {
     const updated = rlsRules.map((r) => (r.id === id ? { ...r, isActive: !r.isActive } : r));
     setRlsRules(updated);
-    try {
-      localStorage.setItem(RLS_STORAGE_KEY, JSON.stringify(updated));
-    } catch {}
 
     const target = updated.find((r) => r.id === id);
     if (target) {

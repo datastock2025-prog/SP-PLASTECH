@@ -1,22 +1,25 @@
-import { db } from '@/src/shared/db';
+import { api } from '@/src/lib/api-client';
 import {
   HrEmployee,
   HrAttendanceRecord,
   HrDepartment,
 } from '../model/hrSchemas';
 import {
-  INITIAL_HR_EMPLOYEES,
-  INITIAL_HR_ATTENDANCE,
   INITIAL_HR_DEPARTMENTS,
 } from '@/src/data/hrData';
 
 export const hrApi = {
   getEmployees: async (): Promise<HrEmployee[]> => {
     try {
-      const data = await db.findMany<HrEmployee>('employees');
-      if (Array.isArray(data) && data.length > 0) return data;
-    } catch {}
-    return INITIAL_HR_EMPLOYEES;
+      const res = await api.get<any>('/employees', {
+        params: { limit: 100, sortBy: 'created_at', sortOrder: 'desc', includeTotal: true },
+      });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows) && rows.length > 0) return rows;
+    } catch (e) {
+      console.debug('[hrApi.getEmployees] REST notice:', e);
+    }
+    return [];
   },
 
   createEmployee: async (emp: Partial<HrEmployee>): Promise<HrEmployee> => {
@@ -59,25 +62,42 @@ export const hrApi = {
         compOff: 0,
       },
     };
+
     try {
-      await db.upsert('employees', newEmp, 'id');
-    } catch {}
+      const res = await api.post<any>('/employees', newEmp);
+      const row = res?.data?.data || res?.data;
+      if (row && typeof row === 'object') return row;
+    } catch (e) {
+      console.debug('[hrApi.createEmployee] REST notice:', e);
+    }
+
     return newEmp;
   },
 
   updateEmployee: async (emp: HrEmployee): Promise<HrEmployee> => {
-    try {
-      await db.upsert('employees', emp, 'id');
-    } catch {}
+    if (emp.id) {
+      try {
+        const res = await api.patch<any>(`/employees/${encodeURIComponent(emp.id)}`, emp);
+        const row = res?.data?.data || res?.data;
+        if (row && typeof row === 'object') return row;
+      } catch (e) {
+        console.debug('[hrApi.updateEmployee] REST notice:', e);
+      }
+    }
     return emp;
   },
 
-  getAttendance: async (_date?: string): Promise<HrAttendanceRecord[]> => {
+  getAttendance: async (): Promise<HrAttendanceRecord[]> => {
     try {
-      const data = await db.findMany<HrAttendanceRecord>('attendance_records');
-      if (Array.isArray(data) && data.length > 0) return data;
-    } catch {}
-    return INITIAL_HR_ATTENDANCE;
+      const res = await api.get<any>('/attendance-records', {
+        params: { limit: 100, sortBy: 'date', sortOrder: 'desc', includeTotal: true },
+      });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows) && rows.length > 0) return rows;
+    } catch (e) {
+      console.debug('[hrApi.getAttendance] REST notice:', e);
+    }
+    return [];
   },
 
   getDepartments: async (): Promise<HrDepartment[]> => {

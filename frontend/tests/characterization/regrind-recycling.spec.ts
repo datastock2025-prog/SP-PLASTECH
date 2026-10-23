@@ -7,7 +7,7 @@ import { WorkOrder, ItemMaster } from '../../src/types';
 
 describe('Regrind Material Recycling Characterization Tests', () => {
   it('preserves scrap aggregation, runner, lumps, and pending RG calculations', () => {
-    const mockWorkOrders: WorkOrder[] = [
+    const testWorkOrders: WorkOrder[] = [
       {
         id: 'WO-2026-TEST1',
         item: 'FG-AUTO-012',
@@ -26,7 +26,7 @@ describe('Regrind Material Recycling Characterization Tests', () => {
       } as any,
     ];
 
-    const mockItems: ItemMaster[] = [
+    const testItems: ItemMaster[] = [
       {
         code: 'FG-AUTO-012',
         name: 'ABS Dashboard Trim Bezel',
@@ -37,7 +37,7 @@ describe('Regrind Material Recycling Characterization Tests', () => {
       } as any,
     ];
 
-    const scrapSummary = regrindMaterialService.calculateWoScrapConsolidated(mockWorkOrders, mockItems, []);
+    const scrapSummary = regrindMaterialService.calculateWoScrapConsolidated(testWorkOrders, testItems, []);
 
     const snapshot = {
       scrapSummary,

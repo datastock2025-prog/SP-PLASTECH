@@ -12,7 +12,6 @@ import {
   RefreshCw,
   Clock,
 } from 'lucide-react';
-import { mockReplenishmentItems } from '@/src/data/mockScmData';
 import { ReplenishmentItem } from '@/src/types/scm';
 import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { usePagination } from '@/src/hooks/usePagination';
@@ -23,7 +22,7 @@ interface ScmReplenishmentViewProps {
 }
 
 export const ScmReplenishmentView: React.FC<ScmReplenishmentViewProps> = ({ onNavigate, showToast }) => {
-  const [items, setItems] = useState<ReplenishmentItem[]>(mockReplenishmentItems);
+  const [items, setItems] = useState<ReplenishmentItem[]>([]);
   const [ruleFilter, setRuleFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
 

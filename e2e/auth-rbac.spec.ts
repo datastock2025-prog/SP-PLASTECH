@@ -2,6 +2,8 @@ import { test, expect } from '@playwright/test';
 import { E2E_ADMIN_PASSWORD, E2E_ADMIN_USER } from './global-setup';
 
 test.describe('Authentication & Authorization E2E Suite', () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
   test.beforeEach(async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#login-username', { timeout: 10000 });

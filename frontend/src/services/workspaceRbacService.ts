@@ -1,3 +1,4 @@
+import { memoryStorage } from '../shared/memoryStore';
 import { NAVIGATION_GROUPS } from '../data/sidebarNavigationData';
 import {
   QuarantinedScreenRecord,
@@ -274,11 +275,11 @@ class WorkspaceRbacService {
   private listeners: Array<() => void> = [];
 
   constructor() {
-    // Try restoring from localStorage if available
+    // Try restoring from memoryStorage if available
     let savedState: any = null;
     try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (typeof window !== 'undefined' && memoryStorage) {
+        const raw = memoryStorage.getItem(STORAGE_KEY);
         if (raw) savedState = JSON.parse(raw);
       }
     } catch {
@@ -330,8 +331,8 @@ class WorkspaceRbacService {
 
   private persist() {
     try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        window.localStorage.setItem(
+      if (typeof window !== 'undefined' && memoryStorage) {
+        memoryStorage.setItem(
           STORAGE_KEY,
           JSON.stringify({
             workspaceMatrix: this.workspaceMatrix,

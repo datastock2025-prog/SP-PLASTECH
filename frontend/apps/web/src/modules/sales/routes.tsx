@@ -1,9 +1,8 @@
 import React from 'react';
 import type { RouteObject } from 'react-router-dom';
 
-export const SalesViews = React.lazy(() =>
-  import('./screens/SalesViews').then((m) => ({ default: m.SalesViews }))
-);
+import { SalesViews } from './screens/SalesViews';
+export { SalesViews };
 
 export const salesRoutes: RouteObject[] = [
   {

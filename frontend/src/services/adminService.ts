@@ -1,4 +1,55 @@
-import { db } from '../shared/db';
+import { memoryStorage } from '../shared/memoryStore';
+import { api } from '../lib/api-client';
+
+// Pure REST domain bridge replacing deprecated db adapter
+const db = {
+  findMany: async <T = any>(table: string, _opts?: any): Promise<T[]> => {
+    try {
+      const res = await api.get<any>(`/${table.replace(/_/g, '-')}`, { params: { limit: 100 } });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows)) return rows;
+    } catch {}
+    return [];
+  },
+  findOne: async <T = any>(table: string, id: string): Promise<T | null> => {
+    try {
+      const res = await api.get<any>(`/${table.replace(/_/g, '-')}/${encodeURIComponent(id)}`);
+      return res?.data?.data || res?.data || null;
+    } catch {}
+    return null;
+  },
+  upsert: async <T = any>(table: string, item: any, key: string = 'id'): Promise<T> => {
+    const id = item[key] || item.id;
+    if (id) {
+      try {
+        const res = await api.patch<any>(`/${table.replace(/_/g, '-')}/${encodeURIComponent(id)}`, item);
+        const row = res?.data?.data || res?.data;
+        if (row) return row;
+      } catch {}
+    }
+    try {
+      const res = await api.post<any>(`/${table.replace(/_/g, '-')}`, item);
+      const row = res?.data?.data || res?.data;
+      if (row) return row;
+    } catch {}
+    return item;
+  },
+  update: async <T = any>(table: string, id: string, updates: any, _key?: string): Promise<T> => {
+    try {
+      const res = await api.patch<any>(`/${table.replace(/_/g, '-')}/${encodeURIComponent(id)}`, updates);
+      const row = res?.data?.data || res?.data;
+      if (row) return row;
+    } catch {}
+    return updates;
+  },
+  delete: async (table: string, id: string, _key?: string): Promise<boolean> => {
+    try {
+      await api.delete(`/${table.replace(/_/g, '-')}/${encodeURIComponent(id)}`);
+      return true;
+    } catch {}
+    return false;
+  },
+};
 import {
   AdminUser,
   AdminRole,
@@ -58,56 +109,8 @@ import {
 } from '../data/adminExtendedData';
 
 
-// Event emitter for cross-module reactive synchronization
-type AdminEventListener = (event: string, payload?: any) => void;
-class AdminEventBus {
-  private listeners: AdminEventListener[] = [];
-  private eventHandlers: Map<string, Set<(payload?: any) => void>> = new Map();
-
-  subscribe(listener: AdminEventListener) {
-    this.listeners.push(listener);
-    return () => {
-      this.listeners = this.listeners.filter((l) => l !== listener);
-    };
-  }
-
-  on(event: string, callback: (payload?: any) => void) {
-    if (!this.eventHandlers.has(event)) {
-      this.eventHandlers.set(event, new Set());
-    }
-    this.eventHandlers.get(event)!.add(callback);
-    return () => {
-      this.eventHandlers.get(event)?.delete(callback);
-    };
-  }
-
-  off(event: string, callback: (payload?: any) => void) {
-    this.eventHandlers.get(event)?.delete(callback);
-  }
-
-  emit(event: string, payload?: any) {
-    this.listeners.forEach((l) => {
-      try {
-        l(event, payload);
-      } catch (err) {
-        console.error('Error in admin event listener', err);
-      }
-    });
-
-    const handlers = this.eventHandlers.get(event);
-    if (handlers) {
-      handlers.forEach((cb) => {
-        try {
-          cb(payload);
-        } catch (err) {
-          console.error(`Error in admin event handler for ${event}`, err);
-        }
-      });
-    }
-  }
-}
-
-export const adminEventBus = new AdminEventBus();
+import { AdminEventBus, adminEventBus, type AdminEventListener } from './adminEventBus';
+export { AdminEventBus, adminEventBus, type AdminEventListener };
 
 import { SupabaseDataService } from './dataService';
 import { masterDataGovernanceService } from './masterDataGovernanceService';
@@ -117,7 +120,7 @@ const LIVE_SESSIONS_KEY = 'reboot_erp_active_sessions_v2';
 
 function getInitialLiveUsers(): AdminUser[] {
   try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(LIVE_USERS_KEY) : null;
+    const raw = memoryStorage.getItem(LIVE_USERS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -129,7 +132,7 @@ function getInitialLiveUsers(): AdminUser[] {
       }
     }
   } catch (e) {
-    console.warn('Failed to parse live users from localStorage', e);
+    console.warn('Failed to parse live users from storage cache', e);
   }
   return [...adminUsers];
 }
@@ -263,7 +266,7 @@ export const adminService = {
         const users = dbUsers.map(mapDbUserToAdminUser);
         cachedUsers = users;
         try {
-          localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(users));
+          memoryStorage.setItem(LIVE_USERS_KEY, JSON.stringify(users));
         } catch {}
         return users;
       }
@@ -336,7 +339,7 @@ export const adminService = {
         };
         cachedUsers = [created, ...cachedUsers.filter((u) => u.id !== created.id)];
         try {
-          localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+          memoryStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
         } catch {}
         adminEventBus.emit('USER_CREATED', created);
         return created;
@@ -374,7 +377,7 @@ export const adminService = {
 
     cachedUsers = [fallbackUser, ...cachedUsers.filter((u) => u.id !== fallbackUser.id)];
     try {
-      localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+      memoryStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
     } catch {}
     adminEventBus.emit('USER_CREATED', fallbackUser);
     return fallbackUser;
@@ -417,7 +420,7 @@ export const adminService = {
         };
         cachedUsers = cachedUsers.map((u) => (u.id === userId ? updated : u));
         try {
-          localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+          memoryStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
         } catch {}
         adminEventBus.emit('USER_UPDATED', updated);
         return updated;
@@ -438,7 +441,7 @@ export const adminService = {
     );
     const updated = cachedUsers.find((u) => u.id === userId)!;
     try {
-      localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+      memoryStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
     } catch {}
     adminEventBus.emit('USER_UPDATED', updated);
     return updated;
@@ -453,7 +456,7 @@ export const adminService = {
 
     cachedUsers = cachedUsers.filter((u) => u.id !== userId);
     try {
-      localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+      memoryStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
     } catch {}
     adminEventBus.emit('USER_DELETED', { id: userId });
     return { success: true, message: `User ${userId} successfully removed.` };
@@ -478,7 +481,7 @@ export const adminService = {
     ];
 
     try {
-      localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+      memoryStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
       await db.update('users', userId, { updated_at: new Date().toISOString() }, 'id');
     } catch {}
     adminEventBus.emit('USER_UPDATED', target);
@@ -498,7 +501,7 @@ export const adminService = {
         target.tempOtp.isUsed = true;
         target.status = 'Active';
         try {
-          localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+          memoryStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
           await db.update('users', userId, { status: 'Active' }, 'id');
         } catch {}
         adminEventBus.emit('USER_UPDATED', target);
@@ -535,7 +538,7 @@ export const adminService = {
         },
       ];
       try {
-        localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+        memoryStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
         await db.update('users', userId, {
           role_id: rbacData.roleId,
           plant_ids: rbacData.plantIds,
@@ -568,7 +571,7 @@ export const adminService = {
       },
     ];
     try {
-      localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+      memoryStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
       await db.update('users', userId, { updated_at: new Date().toISOString() }, 'id');
     } catch {}
     adminEventBus.emit('USER_UPDATED', target);
@@ -595,7 +598,7 @@ export const adminService = {
     target.changeHistory = [...(target.changeHistory || []), historyEntry];
 
     try {
-      localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+      memoryStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
       await SupabaseDataService.upsertUser({
         id: target.id,
         username: target.username,
@@ -666,7 +669,7 @@ export const adminService = {
     target.changeHistory = [...(target.changeHistory || []), historyEntry];
 
     try {
-      localStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
+      memoryStorage.setItem(LIVE_USERS_KEY, JSON.stringify(cachedUsers));
     } catch {}
     adminEventBus.emit('USER_UPDATED', target);
 
@@ -943,7 +946,7 @@ export const adminService = {
   // ============================================================================
   getActiveSessions(): ActiveSessionRecord[] {
     try {
-      const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(LIVE_SESSIONS_KEY) : null;
+      const raw = memoryStorage.getItem(LIVE_SESSIONS_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -1017,7 +1020,7 @@ export const adminService = {
     ];
 
     try {
-      localStorage.setItem(LIVE_SESSIONS_KEY, JSON.stringify(dynamicSessions));
+      memoryStorage.setItem(LIVE_SESSIONS_KEY, JSON.stringify(dynamicSessions));
     } catch {}
 
     return dynamicSessions;
@@ -1029,7 +1032,7 @@ export const adminService = {
     const updated = current.filter((s) => s.id !== sessionId);
 
     try {
-      localStorage.setItem(LIVE_SESSIONS_KEY, JSON.stringify(updated));
+      memoryStorage.setItem(LIVE_SESSIONS_KEY, JSON.stringify(updated));
     } catch {}
 
     if (target) {
@@ -1057,7 +1060,7 @@ export const adminService = {
       loginTime: s.loginTime || now,
     }));
     try {
-      localStorage.setItem(LIVE_SESSIONS_KEY, JSON.stringify(refreshed));
+      memoryStorage.setItem(LIVE_SESSIONS_KEY, JSON.stringify(refreshed));
     } catch {}
     adminEventBus.emit('SESSIONS_REFRESHED', refreshed);
     return refreshed;
@@ -1071,7 +1074,7 @@ export const adminService = {
       const data = await db.findMany<SodConflictRule>('sod_rules');
       if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_sod_rules') : null;
+    const raw = memoryStorage.getItem('reboot_admin_sod_rules');
     if (raw) {
       try { return JSON.parse(raw); } catch {}
     }
@@ -1083,7 +1086,7 @@ export const adminService = {
       const data = await db.findMany<SodViolation>('sod_violations');
       if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_sod_violations') : null;
+    const raw = memoryStorage.getItem('reboot_admin_sod_violations');
     if (raw) {
       try { return JSON.parse(raw); } catch {}
     }
@@ -1098,7 +1101,7 @@ export const adminService = {
       const data = await db.findMany<WarehouseLocationConfig>('warehouses');
       if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_warehouses') : null;
+    const raw = memoryStorage.getItem('reboot_admin_warehouses');
     if (raw) {
       try { return JSON.parse(raw); } catch {}
     }
@@ -1120,7 +1123,7 @@ export const adminService = {
       ? existing.map((w) => (w.id === wh.id ? { ...w, ...wh } as WarehouseLocationConfig : w))
       : [{ ...wh, id: `WH-LOC-${Date.now()}` } as WarehouseLocationConfig, ...existing];
     try {
-      localStorage.setItem('reboot_admin_warehouses', JSON.stringify(updated));
+      memoryStorage.setItem('reboot_admin_warehouses', JSON.stringify(updated));
     } catch {}
     adminEventBus.emit('WAREHOUSE_UPDATED', updated);
     return updated.find((w) => w.id === wh.id) || updated[0];
@@ -1136,7 +1139,7 @@ export const adminService = {
         return plantId ? data.filter((m) => m.plantId === plantId) : data;
       }
     } catch {}
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_machines') : null;
+    const raw = memoryStorage.getItem('reboot_admin_machines');
     let list: MachineWorkCenterConfig[] = [...mockMachineWorkCenters];
     if (raw) {
       try { list = JSON.parse(raw); } catch {}
@@ -1162,7 +1165,7 @@ export const adminService = {
       ? existing.map((m) => (m.id === machine.id ? { ...m, ...machine } as MachineWorkCenterConfig : m))
       : [{ ...machine, id: `MC-${Date.now().toString().slice(-4)}` } as MachineWorkCenterConfig, ...existing];
     try {
-      localStorage.setItem('reboot_admin_machines', JSON.stringify(updated));
+      memoryStorage.setItem('reboot_admin_machines', JSON.stringify(updated));
     } catch {}
     adminEventBus.emit('MACHINE_UPDATED', updated);
     return updated.find((m) => m.id === machine.id) || updated[0];
@@ -1178,7 +1181,7 @@ export const adminService = {
         return plantId ? data.filter((s) => s.appliesToPlants?.includes(plantId) || s.appliesToPlants?.includes('All Plants')) : data;
       }
     } catch {}
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_shifts') : null;
+    const raw = memoryStorage.getItem('reboot_admin_shifts');
     let list: ShiftCalendarConfig[] = [...mockShifts];
     if (raw) {
       try { list = JSON.parse(raw); } catch {}
@@ -1196,7 +1199,7 @@ export const adminService = {
         return plantId ? data.filter((h) => h.affectedPlants?.includes(plantId) || h.affectedPlants?.includes('All Plants')) : data;
       }
     } catch {}
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_holidays') : null;
+    const raw = memoryStorage.getItem('reboot_admin_holidays');
     let list: HolidayOvertimeRule[] = [...mockHolidays];
     if (raw) {
       try { list = JSON.parse(raw); } catch {}
@@ -1222,7 +1225,7 @@ export const adminService = {
       ? existing.map((s) => (s.id === shift.id ? { ...s, ...shift } as ShiftCalendarConfig : s))
       : [{ ...shift, id: `SFT-${Date.now().toString().slice(-4)}` } as ShiftCalendarConfig, ...existing];
     try {
-      localStorage.setItem('reboot_admin_shifts', JSON.stringify(updated));
+      memoryStorage.setItem('reboot_admin_shifts', JSON.stringify(updated));
     } catch {}
     return updated.find((s) => s.id === shift.id) || updated[0];
   },
@@ -1242,7 +1245,7 @@ export const adminService = {
       ? existing.map((h) => (h.id === holiday.id ? { ...h, ...holiday } as HolidayOvertimeRule : h))
       : [{ ...holiday, id: `HOL-${Date.now().toString().slice(-4)}` } as HolidayOvertimeRule, ...existing];
     try {
-      localStorage.setItem('reboot_admin_holidays', JSON.stringify(updated));
+      memoryStorage.setItem('reboot_admin_holidays', JSON.stringify(updated));
     } catch {}
     return updated.find((h) => h.id === holiday.id) || updated[0];
   },
@@ -1259,7 +1262,7 @@ export const adminService = {
           : data;
       }
     } catch {}
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_reason_codes') : null;
+    const raw = memoryStorage.getItem('reboot_admin_reason_codes');
     let list: ReasonCodeItem[] = [...mockReasonCodes];
     if (raw) {
       try { list = JSON.parse(raw); } catch {}
@@ -1285,7 +1288,7 @@ export const adminService = {
       ? existing.map((r) => (r.id === code.id ? { ...r, ...code } as ReasonCodeItem : r))
       : [{ ...code, id: `RC-${Date.now().toString().slice(-4)}` } as ReasonCodeItem, ...existing];
     try {
-      localStorage.setItem('reboot_admin_reason_codes', JSON.stringify(updated));
+      memoryStorage.setItem('reboot_admin_reason_codes', JSON.stringify(updated));
     } catch {}
     return updated.find((r) => r.id === code.id) || updated[0];
   },
@@ -1297,7 +1300,7 @@ export const adminService = {
     const existing = await this.getReasonCodes();
     const filtered = existing.filter((r) => r.id !== codeId);
     try {
-      localStorage.setItem('reboot_admin_reason_codes', JSON.stringify(filtered));
+      memoryStorage.setItem('reboot_admin_reason_codes', JSON.stringify(filtered));
     } catch {}
     return true;
   },
@@ -1310,7 +1313,7 @@ export const adminService = {
       const data = await db.findMany<CompanyProfile>('company_profile');
       if (Array.isArray(data) && data.length > 0) return data[0];
     } catch {}
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_company_profile') : null;
+    const raw = memoryStorage.getItem('reboot_admin_company_profile');
     if (raw) {
       try { return JSON.parse(raw); } catch {}
     }
@@ -1324,7 +1327,7 @@ export const adminService = {
     const existing = await this.getCompanyProfile();
     const updated = { ...existing, ...profile };
     try {
-      localStorage.setItem('reboot_admin_company_profile', JSON.stringify(updated));
+      memoryStorage.setItem('reboot_admin_company_profile', JSON.stringify(updated));
     } catch {}
     adminEventBus.emit('COMPANY_PROFILE_UPDATED', updated);
     return updated;
@@ -1407,7 +1410,7 @@ export const adminService = {
       const data = await db.findMany<SecurityPolicySettings>('security_policy');
       if (Array.isArray(data) && data.length > 0) return data[0];
     } catch {}
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_security_policy') : null;
+    const raw = memoryStorage.getItem('reboot_admin_security_policy');
     if (raw) {
       try { return JSON.parse(raw); } catch {}
     }
@@ -1421,7 +1424,7 @@ export const adminService = {
     const existing = await this.getSecurityPolicy();
     const updated = { ...existing, ...policy };
     try {
-      localStorage.setItem('reboot_admin_security_policy', JSON.stringify(updated));
+      memoryStorage.setItem('reboot_admin_security_policy', JSON.stringify(updated));
     } catch {}
     adminEventBus.emit('SECURITY_POLICY_UPDATED', updated);
     return updated;
@@ -1435,7 +1438,7 @@ export const adminService = {
       const data = await db.findMany<AuditLogEntry>('audit_logs', filter ? { where: filter } : undefined);
       if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_audit_logs') : null;
+    const raw = memoryStorage.getItem('reboot_admin_audit_logs');
     if (raw) {
       try { return JSON.parse(raw); } catch {}
     }
@@ -1447,7 +1450,7 @@ export const adminService = {
       const data = await db.findMany<SecurityLoginAuditRecord>('login_audit_records', params ? { where: params } : undefined);
       if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_login_audit') : null;
+    const raw = memoryStorage.getItem('reboot_admin_login_audit');
     if (raw) {
       try { return JSON.parse(raw); } catch {}
     }
@@ -1462,7 +1465,7 @@ export const adminService = {
       const data = await db.findMany<IntegrationConnector>('integrations');
       if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_integrations') : null;
+    const raw = memoryStorage.getItem('reboot_admin_integrations');
     if (raw) {
       try { return JSON.parse(raw); } catch {}
     }
@@ -1484,7 +1487,7 @@ export const adminService = {
       ? existing.map((c) => (c.id === connector.id ? { ...c, ...connector } as IntegrationConnector : c))
       : [{ ...connector, id: `INT-${Date.now().toString().slice(-4)}` } as IntegrationConnector, ...existing];
     try {
-      localStorage.setItem('reboot_admin_integrations', JSON.stringify(updated));
+      memoryStorage.setItem('reboot_admin_integrations', JSON.stringify(updated));
     } catch {}
     return updated.find((c) => c.id === connector.id) || updated[0];
   },
@@ -1497,7 +1500,7 @@ export const adminService = {
       const data = await db.findMany<DataRetentionPolicy>('data_retention_policies');
       if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_backup_retention') : null;
+    const raw = memoryStorage.getItem('reboot_admin_backup_retention');
     if (raw) {
       try { return JSON.parse(raw); } catch {}
     }
@@ -1513,7 +1516,7 @@ export const adminService = {
     const existing = await this.getBackupRetentionPolicy();
     const updated = existing.map((p) => (p.id === policy.id ? { ...p, ...policy } : p));
     try {
-      localStorage.setItem('reboot_admin_backup_retention', JSON.stringify(updated));
+      memoryStorage.setItem('reboot_admin_backup_retention', JSON.stringify(updated));
     } catch {}
     return (updated.find((p) => p.id === policy.id) || updated[0]) as DataRetentionPolicy;
   },
@@ -1545,7 +1548,7 @@ export const adminService = {
       const data = await db.findMany<any>('quick_actions');
       if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_quick_actions') : null;
+    const raw = memoryStorage.getItem('reboot_admin_quick_actions');
     if (raw) {
       try { return JSON.parse(raw); } catch {}
     }
@@ -1557,7 +1560,7 @@ export const adminService = {
       await db.upsert('quick_actions', { actions }, 'id');
     } catch {}
     try {
-      localStorage.setItem('reboot_admin_quick_actions', JSON.stringify(actions));
+      memoryStorage.setItem('reboot_admin_quick_actions', JSON.stringify(actions));
     } catch {}
     return actions;
   },
@@ -1570,7 +1573,7 @@ export const adminService = {
       const data = await db.findMany<MultiContextScopePolicy>('multi_context_policies');
       if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_multi_context') : null;
+    const raw = memoryStorage.getItem('reboot_admin_multi_context');
     if (raw) {
       try { return JSON.parse(raw); } catch {}
     }
@@ -1586,7 +1589,7 @@ export const adminService = {
     const existing = await this.getMultiContextPolicies();
     const updated = existing.map((p) => (p.id === policy.id ? { ...p, ...policy } as MultiContextScopePolicy : p));
     try {
-      localStorage.setItem('reboot_admin_multi_context', JSON.stringify(updated));
+      memoryStorage.setItem('reboot_admin_multi_context', JSON.stringify(updated));
     } catch {}
     return updated.find((p) => p.id === policy.id) || updated[0];
   },
@@ -1599,7 +1602,7 @@ export const adminService = {
       const data = await db.findMany<UserGroup>('user_groups');
       if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_user_groups') : null;
+    const raw = memoryStorage.getItem('reboot_admin_user_groups');
     if (raw) {
       try { return JSON.parse(raw); } catch {}
     }
@@ -1621,7 +1624,7 @@ export const adminService = {
       ? existing.map((g) => (g.id === group.id ? { ...g, ...group } as UserGroup : g))
       : [{ ...group, id: `GRP-${Date.now().toString().slice(-4)}` } as UserGroup, ...existing];
     try {
-      localStorage.setItem('reboot_admin_user_groups', JSON.stringify(updated));
+      memoryStorage.setItem('reboot_admin_user_groups', JSON.stringify(updated));
     } catch {}
     return updated.find((g) => g.id === group.id) || updated[0];
   },
@@ -1649,7 +1652,7 @@ export const adminService = {
       const data = await db.findMany<NotificationTemplate>('notification_templates');
       if (Array.isArray(data) && data.length > 0) return data;
     } catch {}
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_admin_notification_templates') : null;
+    const raw = memoryStorage.getItem('reboot_admin_notification_templates');
     if (raw) {
       try { return JSON.parse(raw); } catch {}
     }
@@ -1671,7 +1674,7 @@ export const adminService = {
       ? existing.map((t) => (t.id === tmpl.id ? { ...t, ...tmpl } as NotificationTemplate : t))
       : [{ ...tmpl, id: `NT-${Date.now().toString().slice(-4)}` } as NotificationTemplate, ...existing];
     try {
-      localStorage.setItem('reboot_admin_notification_templates', JSON.stringify(updated));
+      memoryStorage.setItem('reboot_admin_notification_templates', JSON.stringify(updated));
     } catch {}
     return updated.find((t) => t.id === tmpl.id) || updated[0];
   },

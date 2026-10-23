@@ -16,7 +16,6 @@ import {
   ArrowUpDown,
   FileSpreadsheet,
 } from 'lucide-react';
-import { mockDemandPlan } from '@/src/data/mockScmData';
 import { DemandPlanItem } from '@/src/types/scm';
 import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { usePagination } from '@/src/hooks/usePagination';
@@ -27,7 +26,7 @@ interface ScmDemandPlanningViewProps {
 }
 
 export const ScmDemandPlanningView: React.FC<ScmDemandPlanningViewProps> = ({ onNavigate, showToast }) => {
-  const [plans, setPlans] = useState<DemandPlanItem[]>(mockDemandPlan);
+  const [plans, setPlans] = useState<DemandPlanItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [customerGroupFilter, setCustomerGroupFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');

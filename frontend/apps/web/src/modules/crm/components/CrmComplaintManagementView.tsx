@@ -20,7 +20,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { Complaint, ComplaintSeverity, ComplaintStatus } from '../model/crmSchemas';
-import { mockComplaints, mockAccounts } from '@/src/data/mockCrmData';
+import { useAccounts } from '../api/useCrm';
 
 interface CrmComplaintManagementViewProps {
   onNavigate: (view: string, params?: any) => void;
@@ -33,7 +33,9 @@ export const CrmComplaintManagementView: React.FC<CrmComplaintManagementViewProp
   showToast,
   initialAccountId,
 }) => {
-  const [complaints, setComplaints] = useState<Complaint[]>(mockComplaints);
+  const { data: accountsList = [] } = useAccounts();
+  const complaintsList: Complaint[] = [];
+  const [complaints, setComplaints] = useState<Complaint[]>(complaintsList);
   const [searchQuery, setSearchQuery] = useState('');
   const [severityFilter, setSeverityFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -42,8 +44,8 @@ export const CrmComplaintManagementView: React.FC<CrmComplaintManagementViewProp
 
   const [newComplaint, setNewComplaint] = useState<Partial<Complaint>>({
     complaintNumber: `CMP-2026-0${complaints.length + 84}`,
-    accountId: initialAccountId || mockAccounts[0].id,
-    accountName: mockAccounts[0].accountName,
+    accountId: initialAccountId || (accountsList[0]?.id || ''),
+    accountName: (accountsList[0]?.accountName || ''),
     complaintCategory: 'Polymer Degradation / Black Specks',
     severity: 'Major',
     status: 'Open',
@@ -97,11 +99,11 @@ export const CrmComplaintManagementView: React.FC<CrmComplaintManagementViewProp
 
   const handleLogComplaint = (e: React.FormEvent) => {
     e.preventDefault();
-    const matchedAccount = mockAccounts.find(a => a.id === newComplaint.accountId);
+    const matchedAccount = accountsList.find(a => a.id === newComplaint.accountId);
     const created: Complaint = {
       id: `CMP-0${complaints.length + 1}`,
       complaintNumber: newComplaint.complaintNumber || `CMP-2026-099`,
-      accountId: newComplaint.accountId || mockAccounts[0].id,
+      accountId: newComplaint.accountId || (accountsList[0]?.id || ''),
       accountName: matchedAccount ? matchedAccount.accountName : 'Customer Account',
       complaintCategory: newComplaint.complaintCategory || 'Flash / Dimensional Variation',
       severity: newComplaint.severity as ComplaintSeverity || 'Major',
@@ -329,12 +331,12 @@ export const CrmComplaintManagementView: React.FC<CrmComplaintManagementViewProp
                   <select
                     value={newComplaint.accountId}
                     onChange={(e) => {
-                      const acc = mockAccounts.find(a => a.id === e.target.value);
+                      const acc = accountsList.find(a => a.id === e.target.value);
                       setNewComplaint({ ...newComplaint, accountId: e.target.value, accountName: acc?.accountName });
                     }}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
                   >
-                    {mockAccounts.map(acc => (
+                    {accountsList.map(acc => (
                       <option key={acc.id} value={acc.id}>{acc.accountName}</option>
                     ))}
                   </select>

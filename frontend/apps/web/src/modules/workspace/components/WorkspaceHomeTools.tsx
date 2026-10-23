@@ -152,7 +152,7 @@ export const WorkspaceApprovalsView: React.FC<WorkspaceToolProps> = ({ onNavigat
   const [reworkReason, setReworkReason] = useState('');
   const [history, setHistory] = useState<any[]>(() => {
     try {
-      const raw = localStorage.getItem('reboot_erp_approvals_history');
+      const raw = (typeof window !== 'undefined' ? sessionStorage.getItem('reboot_erp_approvals_history') : null);
       if (raw) return JSON.parse(raw);
     } catch {}
     return [];
@@ -344,7 +344,7 @@ export const WorkspaceApprovalsView: React.FC<WorkspaceToolProps> = ({ onNavigat
     const nextHistory = [historyEntry, ...history];
     setHistory(nextHistory);
     try {
-      localStorage.setItem('reboot_erp_approvals_history', JSON.stringify(nextHistory.slice(0, 50)));
+      sessionStorage.setItem('reboot_erp_approvals_history', JSON.stringify(nextHistory.slice(0, 50)));
     } catch {}
 
     setSelectedIds((prev) => prev.filter((selId) => selId !== id));
@@ -402,7 +402,7 @@ export const WorkspaceApprovalsView: React.FC<WorkspaceToolProps> = ({ onNavigat
     ];
     setHistory(nextHistory);
     try {
-      localStorage.setItem('reboot_erp_approvals_history', JSON.stringify(nextHistory.slice(0, 50)));
+      sessionStorage.setItem('reboot_erp_approvals_history', JSON.stringify(nextHistory.slice(0, 50)));
     } catch {}
 
     setSelectedIds((prev) => prev.filter((selId) => selId !== item.id));
@@ -1017,7 +1017,7 @@ export const WorkspaceRecentRecordsView: React.FC<WorkspaceToolProps> = ({ onNav
   const handleClear = () => {
     setRecords([]);
     try {
-      localStorage.removeItem('reboot_recent_records');
+      sessionStorage.removeItem('reboot_recent_records');
     } catch (e) {
       console.error(e);
     }

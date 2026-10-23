@@ -117,7 +117,7 @@ export const INITIAL_WAREHOUSE_LOCATIONS: WarehouseLocation[] = [
   },
 ];
 
-// Clean live inventory data (No fake mock items)
+// Clean live inventory data (No fake placeholder items)
 export const INITIAL_INVENTORY_STOCK: InventoryStockItem[] = [];
 
 export const INITIAL_PUTAWAY_TASKS: PutawayTask[] = [];

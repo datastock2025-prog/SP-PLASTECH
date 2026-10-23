@@ -6,4 +6,4 @@
 export * from './types/scmSchemas';
 export * from './api/scmApi';
 export * from './hooks/useScm';
-export { ScmViews } from '../../components/scm/ScmViews';
+export { ScmViews } from '../../../apps/web/src/modules/planning';

@@ -29,26 +29,7 @@ import {
   CheckCircle2,
   AlertTriangle,
 } from 'lucide-react';
-import {
-  Account,
-  Contact,
-  Opportunity,
-  Quotation,
-  SalesOrder,
-  Complaint,
-  SampleRequest,
-  CustomerDocument,
-} from '../model/crmSchemas';
-import {
-  mockAccounts,
-  mockContacts,
-  mockOpportunities,
-  mockQuotations,
-  mockSalesOrders,
-  mockComplaints,
-  mockSampleRequests,
-  mockCustomerDocuments,
-} from '@/src/data/mockCrmData';
+import { useCrm } from '../api/useCrm';
 
 interface CrmCustomer360ViewProps {
   accountId?: string;
@@ -61,7 +42,13 @@ export const CrmCustomer360View: React.FC<CrmCustomer360ViewProps> = ({
   onNavigate,
   showToast,
 }) => {
-  const account = mockAccounts.find(a => a.id === accountId) || mockAccounts[0];
+  const { accounts: accountsList = [], contacts: contactsList = [], opportunities: opportunitiesList = [] } = useCrm();
+  const quotationsList: any[] = [];
+  const salesOrdersList: any[] = [];
+  const complaintsList: any[] = [];
+  const sampleRequestsList: any[] = [];
+  const customerDocumentsList: any[] = [];
+  const account: any = accountsList.find(a => a.id === accountId) || accountsList[0] || { id: '', accountName: 'No Account Selected', accountCode: 'NONE', city: '', state: '', totalRevenueYtd: 0, creditLimit: 0, creditOutstanding: 0, creditAvailable: 0, creditStatus: 'Good Standing', accountManager: '', gstNumber: '', paymentTerms: 'Net 30' };
 
   const [activeTab, setActiveTab] = useState<
     | 'overview'
@@ -76,13 +63,13 @@ export const CrmCustomer360View: React.FC<CrmCustomer360ViewProps> = ({
     | 'activities'
   >('overview');
 
-  const contacts = mockContacts.filter(c => c.accountId === account.id);
-  const opportunities = mockOpportunities.filter(o => o.accountId === account.id);
-  const quotations = mockQuotations.filter(q => q.accountId === account.id);
-  const orders = mockSalesOrders.filter(o => o.accountId === account.id);
-  const complaints = mockComplaints.filter(c => c.accountId === account.id);
-  const samples = mockSampleRequests.filter(s => s.accountId === account.id);
-  const documents = mockCustomerDocuments.filter(d => d.accountId === account.id);
+  const contacts = contactsList.filter(c => c.accountId === account.id);
+  const opportunities = opportunitiesList.filter(o => o.accountId === account.id);
+  const quotations = quotationsList.filter(q => q.accountId === account.id);
+  const orders = salesOrdersList.filter(o => o.accountId === account.id);
+  const complaints = complaintsList.filter(c => c.accountId === account.id);
+  const samples = sampleRequestsList.filter(s => s.accountId === account.id);
+  const documents = customerDocumentsList.filter(d => d.accountId === account.id);
 
   const tabs = [
     { id: 'overview', label: 'Overview' },

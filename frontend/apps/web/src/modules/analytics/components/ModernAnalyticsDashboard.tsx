@@ -46,7 +46,7 @@ export const ModernAnalyticsDashboard: React.FC<ModernAnalyticsDashboardProps> =
   const [showRbacModal, setShowRbacModal] = useState(false);
 
   // User Domain RBAC State
-  const activeRole = localStorage.getItem('userRole') || 'ADMIN';
+  const activeRole = typeof window !== 'undefined' ? (sessionStorage.getItem('userRole') || 'ADMIN') : 'ADMIN';
   const [allowedDomains, setAllowedDomains] = useState<Record<string, boolean>>({
     FINANCIAL: true,
     PRODUCTION: true,
@@ -73,7 +73,7 @@ export const ModernAnalyticsDashboard: React.FC<ModernAnalyticsDashboardProps> =
 
     // Load RBAC matrix if stored
     try {
-      const saved = localStorage.getItem('sp_domain_rbac_matrix');
+      const saved = typeof window !== 'undefined' ? sessionStorage.getItem('sp_domain_rbac_matrix') : null;
       if (saved) {
         const matrix: DomainPermissionConfig[] = JSON.parse(saved);
         const userPerm = matrix.find((m) => m.role === activeRole) || matrix[0];

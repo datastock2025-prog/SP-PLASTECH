@@ -7,9 +7,9 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
     const capturedApiRequests: { url: string; method: string; postData?: string }[] = [];
     const testItems = new Map<string, Record<string, unknown>>();
     
-    // Monitor all Supabase REST API requests
+    // Monitor all REST API requests
     page.on('request', (req) => {
-      if (req.url().includes('/rest/v1/') || req.url().includes('supabase.co/rest/')) {
+      if (req.url().includes('/rest/v1/') || req.url().includes('supabase.co/rest/') || req.url().includes('/api/v1/items')) {
         capturedApiRequests.push({
           url: req.url(),
           method: req.method(),
@@ -18,16 +18,16 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
       }
     });
 
-    await page.route('**/rest/v1/items*', async (route) => {
+    await page.route(/(rest|api)\/v1\/items/, async (route) => {
       const request = route.request();
       const requestUrl = new URL(request.url());
 
       const matchingItems = () => {
         const codeFilter = requestUrl.searchParams.get('code');
-        const exactCode = codeFilter?.startsWith('eq.') ? codeFilter.slice(3) : null;
-        const searchFilter = requestUrl.searchParams.get('or') || '';
+        const exactCode = codeFilter?.startsWith('eq.') ? codeFilter.slice(3) : codeFilter;
+        const searchFilter = requestUrl.searchParams.get('or') || requestUrl.searchParams.get('q') || requestUrl.searchParams.get('search') || '';
         const searchMatch = searchFilter.match(/code\.ilike\.%([^%]+)%/i);
-        const search = searchMatch?.[1]?.toLowerCase();
+        const search = (searchMatch?.[1] || searchFilter).toLowerCase();
 
         return [...testItems.values()].filter((item) => {
           if (exactCode && item.code !== exactCode) return false;
@@ -36,6 +36,15 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
             .some((value) => String(value || '').toLowerCase().includes(search));
         });
       };
+
+      if (requestUrl.pathname.endsWith('/count')) {
+        const total = matchingItems().length;
+        await route.fulfill({
+          status: 200,
+          json: { data: { count: total }, count: total },
+        });
+        return;
+      }
 
       if (request.method() === 'HEAD') {
         const total = matchingItems().length;
@@ -62,27 +71,57 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
           updated_at: new Date().toISOString(),
         };
         testItems.set(code, savedItem);
-        await route.fulfill({ status: 201, json: [savedItem] });
+        const isApi = requestUrl.pathname.includes('/api/');
+        await route.fulfill({ status: 201, json: isApi ? { data: savedItem } : [savedItem] });
         return;
       }
 
       if (request.method() === 'GET') {
+        const segments = requestUrl.pathname.split('/').filter(Boolean);
+        const lastSegment = segments[segments.length - 1];
+        const isSingle = lastSegment !== 'items' && lastSegment !== 'count';
+        if (isSingle) {
+          const item = testItems.get(lastSegment) || [...testItems.values()].find((i) => i.code === lastSegment);
+          if (item) {
+            await route.fulfill({ status: 200, json: { data: item } });
+          } else {
+            await route.fulfill({ status: 404, json: { error: { code: 'NOT_FOUND', message: 'Item not found' } } });
+          }
+          return;
+        }
+
         const rows = matchingItems();
-        const offset = Number(requestUrl.searchParams.get('offset') || 0);
         const limit = Number(requestUrl.searchParams.get('limit') || 25);
+        let offset = 0;
+        if (requestUrl.searchParams.has('offset')) {
+          offset = Number(requestUrl.searchParams.get('offset') || 0);
+        } else if (requestUrl.searchParams.has('page')) {
+          offset = (Number(requestUrl.searchParams.get('page')) - 1) * limit;
+        }
         const pageRows = rows.slice(offset, offset + limit);
-        await route.fulfill({
-          status: 200,
-          headers: { 'content-range': `${offset}-${offset + pageRows.length - 1}/${rows.length}` },
-          json: pageRows,
-        });
+        const isApi = requestUrl.pathname.includes('/api/');
+        if (isApi) {
+          await route.fulfill({
+            status: 200,
+            json: { data: pageRows, meta: { total: rows.length, limit } },
+          });
+        } else {
+          await route.fulfill({
+            status: 200,
+            headers: { 'content-range': `${offset}-${offset + pageRows.length - 1}/${rows.length}` },
+            json: pageRows,
+          });
+        }
         return;
       }
 
       if (request.method() === 'DELETE') {
         const codeFilter = requestUrl.searchParams.get('code');
-        const code = codeFilter?.startsWith('eq.') ? codeFilter.slice(3) : null;
-        if (code) testItems.delete(code);
+        const exactCode = codeFilter?.startsWith('eq.') ? codeFilter.slice(3) : codeFilter;
+        const segments = requestUrl.pathname.split('/').filter(Boolean);
+        const lastSegment = segments[segments.length - 1];
+        const targetCode = exactCode || (lastSegment !== 'items' ? lastSegment : null);
+        if (targetCode) testItems.delete(targetCode);
         await route.fulfill({ status: 204, body: '' });
         return;
       }
@@ -121,18 +160,18 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
     capturedApiRequests.length = 0; // Reset request logger
 
     const createResult = await page.evaluate(async (payload) => {
-      const service = (window as any).__ERP_ITEM_SERVICE__ || (await import('../src/services/itemService')).itemService;
+      const service = (window as any).__ERP_ITEM_SERVICE__;
       return await service.saveItem(payload as any, 'Playwright Test Runner');
     }, initialItemPayload);
 
-    const itemCreateRequests = capturedApiRequests.filter((r) => r.url.includes('/rest/v1/items') && r.method === 'POST');
+    const itemCreateRequests = capturedApiRequests.filter((r) => (r.url.includes('/rest/v1/items') || r.url.includes('/api/v1/items')) && r.method === 'POST');
     console.log('[CREATE - ITEMS API CALLS COUNT]:', itemCreateRequests.length);
     itemCreateRequests.forEach((r, i) => console.log(`  Call #${i + 1}: ${r.method} ${r.url}`));
 
     // Assert single API call for creation
     expect(itemCreateRequests.length).toBe(1);
     expect(itemCreateRequests[0].method).toBe('POST');
-    expect(itemCreateRequests[0].url).toContain('/rest/v1/items');
+    expect(itemCreateRequests[0].url).toMatch(/\/(rest|api)\/v1\/items/);
 
     // =========================================================================
     // 2. READ OPERATION
@@ -151,10 +190,9 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
 
     // Read through the isolated REST fixture using the application's db adapter.
     const dbReadResult = await page.evaluate(async (code) => {
-      // @ts-ignore
-      const mod = await import('../frontend/src/shared/db');
+      const db = (window as any).__ERP_DB__;
       try {
-        const data = await mod.db.findOne('items', code);
+        const data = await db.findOne('items', code);
         return { data, error: null };
       } catch (err: any) {
         return { data: null, error: err.message };
@@ -192,7 +230,7 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
     };
 
     const updateResult = await page.evaluate(async (payload) => {
-      const service = (window as any).__ERP_ITEM_SERVICE__ || (await import('../src/services/itemService')).itemService;
+      const service = (window as any).__ERP_ITEM_SERVICE__;
       return await service.saveItem(payload as any, 'Playwright Test Runner');
     }, updatedItemPayload);
 
@@ -202,7 +240,7 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
       updatedCost: updateResult.cost,
       updatedSellingPrice: updateResult.sellingPrice,
     });
-    const itemUpdateRequests = capturedApiRequests.filter((r) => r.url.includes('/rest/v1/items') && r.method === 'POST');
+    const itemUpdateRequests = capturedApiRequests.filter((r) => (r.url.includes('/rest/v1/items') || r.url.includes('/api/v1/items')) && r.method === 'POST');
     console.log('[UPDATE - ITEMS API CALLS COUNT]:', itemUpdateRequests.length);
     itemUpdateRequests.forEach((r, i) => console.log(`  Call #${i + 1}: ${r.method} ${r.url}`));
 
@@ -212,10 +250,9 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
 
     // Read updated values through the isolated REST fixture.
     const dbPostUpdateResult = await page.evaluate(async (code) => {
-      // @ts-ignore
-      const mod = await import('../frontend/src/shared/db');
+      const db = (window as any).__ERP_DB__;
       try {
-        return await mod.db.findOne('items', code);
+        return await db.findOne('items', code);
       } catch {
         return null;
       }
@@ -240,26 +277,25 @@ test.describe('Item Master Catalog — Full CRUD Lifecycle Suite (Create, Read, 
     capturedApiRequests.length = 0;
 
     const deleteResult = await page.evaluate(async (code) => {
-      const service = (window as any).__ERP_ITEM_SERVICE__ || (await import('../src/services/itemService')).itemService;
+      const service = (window as any).__ERP_ITEM_SERVICE__;
       return await service.deleteItem(code, 'Playwright Test Runner');
     }, testItemCode);
 
     console.log('[DELETE - SERVICE RESULT]: Success =', deleteResult);
-    const itemDeleteRequests = capturedApiRequests.filter((r) => r.url.includes('/rest/v1/items') && r.method === 'DELETE');
+    const itemDeleteRequests = capturedApiRequests.filter((r) => (r.url.includes('/rest/v1/items') || r.url.includes('/api/v1/items')) && r.method === 'DELETE');
     console.log('[DELETE - ITEMS API CALLS COUNT]:', itemDeleteRequests.length);
     itemDeleteRequests.forEach((r, i) => console.log(`  Call #${i + 1}: ${r.method} ${r.url}`));
 
     // Assert single API call for delete
     expect(itemDeleteRequests.length).toBe(1);
     expect(itemDeleteRequests[0].method).toBe('DELETE');
-    expect(itemDeleteRequests[0].url).toContain(`/rest/v1/items?code=eq.${testItemCode}`);
+    expect(itemDeleteRequests[0].url).toMatch(new RegExp(`/(rest|api)/v1/items.*${testItemCode}`));
 
     // Verify deletion through the isolated REST fixture.
     const dbPostDeleteResult = await page.evaluate(async (code) => {
-      // @ts-ignore
-      const mod = await import('../frontend/src/shared/db');
+      const db = (window as any).__ERP_DB__;
       try {
-        const item = await mod.db.findOne('items', code);
+        const item = await db.findOne('items', code);
         return { foundInDb: !!item };
       } catch {
         return { foundInDb: false };

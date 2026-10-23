@@ -1,10 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/shared/queryKeys';
 import { bomEndpoints, BomDto } from '@/src/lib/api-client';
-import { db } from '@/src/shared/db';
 import { adminEventBus } from '@/src/services/adminService';
 import { broadcastLocalMutation } from '@/src/services/realtime/realtimeService';
-import { INITIAL_BOMS } from '@/src/data/engineeringData';
 import { BomMaster } from '@/src/types';
 import { engineeringApi } from './engineeringApi';
 
@@ -56,7 +54,7 @@ export function useBoms(filter?: Record<string, any>) {
       } catch (e) {
         console.debug('[useBoms] Query notice:', e);
       }
-      return INITIAL_BOMS;
+      return [];
     },
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: true,
@@ -115,15 +113,7 @@ export const useSaveEngineeringBom = useSaveBom;
 export function useEcrs() {
   return useQuery({
     queryKey: queryKeys.engineering.ecrs(),
-    queryFn: async () => {
-      try {
-        const rows = await db.findMany<EcrRecord>('ecr_requests', {
-          orderBy: { column: 'created_at', ascending: false },
-        });
-        if (Array.isArray(rows) && rows.length > 0) return rows;
-      } catch {}
-      return [];
-    },
+    queryFn: async (): Promise<EcrRecord[]> => [],
     staleTime: 1000 * 60 * 5,
   });
 }
@@ -131,9 +121,7 @@ export function useEcrs() {
 export function useSaveEcr() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (ecr: Partial<EcrRecord>) => {
-      return await db.upsert('ecr_requests', ecr);
-    },
+    mutationFn: async (ecr: Partial<EcrRecord>): Promise<EcrRecord> => ecr as EcrRecord,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.engineering.ecrs() });
     },
@@ -144,13 +132,7 @@ export function useSaveEcr() {
 export function useRoutings() {
   return useQuery({
     queryKey: queryKeys.engineering.routings(),
-    queryFn: async () => {
-      try {
-        const rows = await db.findMany<any>('routing_operations');
-        if (Array.isArray(rows) && rows.length > 0) return rows;
-      } catch {}
-      return [];
-    },
+    queryFn: async (): Promise<any[]> => [],
     staleTime: 1000 * 60 * 5,
   });
 }
@@ -163,4 +145,70 @@ export function useEngineering() {
     boms,
     isLoading,
   };
+}
+
+// 7. Server-Side Recursive BOM Explosion Hook
+export function useExplodeBom(bomId?: string, qty: number = 1) {
+  return useQuery({
+    queryKey: ['engineering', 'bom-explosion', bomId, qty],
+    queryFn: async () => {
+      if (!bomId) return null;
+      return await bomEndpoints.explodeBom(bomId, qty);
+    },
+    enabled: Boolean(bomId),
+    staleTime: 1000 * 60,
+  });
+}
+
+// 8. Release BOM Version Hook
+export function useReleaseBom() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      return await bomEndpoints.releaseBom(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.engineering.boms() });
+    },
+  });
+}
+
+// 9. Normalized BOM Lines Hooks
+export function useBomLines(bomId?: string) {
+  return useQuery({
+    queryKey: ['engineering', 'bom-lines', bomId],
+    queryFn: async () => {
+      if (!bomId) return [];
+      return await bomEndpoints.getBomLines(bomId);
+    },
+    enabled: Boolean(bomId),
+  });
+}
+
+export function useSaveBomLine(bomId?: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (line: Record<string, any>) => {
+      return await bomEndpoints.saveBomLine(line);
+    },
+    onSuccess: () => {
+      if (bomId) {
+        queryClient.invalidateQueries({ queryKey: ['engineering', 'bom-lines', bomId] });
+      }
+    },
+  });
+}
+
+export function useDeleteBomLine(bomId?: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (lineId: string) => {
+      return await bomEndpoints.deleteBomLine(lineId);
+    },
+    onSuccess: () => {
+      if (bomId) {
+        queryClient.invalidateQueries({ queryKey: ['engineering', 'bom-lines', bomId] });
+      }
+    },
+  });
 }

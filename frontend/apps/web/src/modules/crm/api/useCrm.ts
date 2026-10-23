@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/shared/queryKeys';
 import { broadcastLocalMutation } from '@/src/services/realtime/realtimeService';
-import { db } from '@/src/shared/db';
 import {
   Lead,
   Opportunity,
@@ -9,29 +8,13 @@ import {
   Contact,
   Activity,
 } from '../model/crmSchemas';
-import {
-  mockLeads,
-  mockOpportunities,
-  mockAccounts,
-  mockContacts,
-  mockActivities,
-} from '@/src/data/mockCrmData';
 import { crmApi } from './crmApi';
 
 export function useLeads() {
   return useQuery<Lead[]>({
     queryKey: queryKeys.crm.leads(),
     queryFn: async () => {
-      try {
-        const res = await db.findMany<Lead>('crm_leads', {
-          orderBy: { column: 'created_date', ascending: false },
-          limit: 100,
-        });
-        if (Array.isArray(res) && res.length > 0) return res;
-      } catch (e) {
-        console.debug('[useLeads] fallback note:', e);
-      }
-      return mockLeads;
+      return await crmApi.getLeads();
     },
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
@@ -42,12 +25,10 @@ export function useSaveLead() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (lead: Lead) => {
-      try {
-        await db.upsert('crm_leads', lead, 'id');
-      } catch (e) {
-        console.debug('[useSaveLead] note:', e);
+      if (lead.id) {
+        return await crmApi.updateLead(lead);
       }
-      return lead;
+      return await crmApi.createLead(lead);
     },
     onSuccess: (savedLead) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.crm.leads() });
@@ -60,16 +41,7 @@ export function useOpportunities() {
   return useQuery<Opportunity[]>({
     queryKey: queryKeys.crm.opportunities(),
     queryFn: async () => {
-      try {
-        const res = await db.findMany<Opportunity>('opportunity_pipeline', {
-          orderBy: { column: 'expected_close_date', ascending: true },
-          limit: 100,
-        });
-        if (Array.isArray(res) && res.length > 0) return res;
-      } catch (e) {
-        console.debug('[useOpportunities] fallback note:', e);
-      }
-      return mockOpportunities;
+      return await crmApi.getOpportunities();
     },
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
@@ -80,12 +52,10 @@ export function useSaveOpportunity() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (opp: Opportunity) => {
-      try {
-        await db.upsert('opportunity_pipeline', opp, 'id');
-      } catch (e) {
-        console.debug('[useSaveOpportunity] note:', e);
+      if (opp.id) {
+        return await crmApi.updateOpportunity(opp);
       }
-      return opp;
+      return await crmApi.createOpportunity(opp);
     },
     onSuccess: (savedOpp) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.crm.opportunities() });
@@ -94,16 +64,52 @@ export function useSaveOpportunity() {
   });
 }
 
+export function useAccounts() {
+  return useQuery<Account[]>({
+    queryKey: queryKeys.crm.accounts(),
+    queryFn: async () => {
+      return await crmApi.getAccounts();
+    },
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useContacts() {
+  return useQuery<Contact[]>({
+    queryKey: queryKeys.crm.contacts(),
+    queryFn: async () => {
+      return await crmApi.getContacts();
+    },
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useActivities() {
+  return useQuery<Activity[]>({
+    queryKey: queryKeys.crm.activities(),
+    queryFn: async () => {
+      return await crmApi.getActivities();
+    },
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+  });
+}
+
 export function useCrm() {
   const { data: leads = [], isLoading: isLoadingLeads } = useLeads();
   const { data: opportunities = [], isLoading: isLoadingOpps } = useOpportunities();
+  const { data: accounts = [], isLoading: isLoadingAccs } = useAccounts();
+  const { data: contacts = [], isLoading: isLoadingContacts } = useContacts();
+  const { data: activities = [], isLoading: isLoadingActs } = useActivities();
 
   return {
     leads,
     opportunities,
-    accounts: mockAccounts,
-    contacts: mockContacts,
-    activities: mockActivities,
-    isLoading: isLoadingLeads || isLoadingOpps,
+    accounts,
+    contacts,
+    activities,
+    isLoading: isLoadingLeads || isLoadingOpps || isLoadingAccs || isLoadingContacts || isLoadingActs,
   };
 }

@@ -19,7 +19,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { SampleRequest, SampleApprovalStatus } from '../model/crmSchemas';
-import { mockSampleRequests, mockAccounts } from '@/src/data/mockCrmData';
+import { useAccounts } from '../api/useCrm';
 
 interface CrmSampleRequestViewProps {
   onNavigate: (view: string, params?: any) => void;
@@ -34,7 +34,8 @@ export const CrmSampleRequestView: React.FC<CrmSampleRequestViewProps> = ({
   initialAccountId,
   createFromOpp,
 }) => {
-  const [samples, setSamples] = useState<SampleRequest[]>(mockSampleRequests);
+  const { data: accountsList = [] } = useAccounts();
+  const [samples, setSamples] = useState<SampleRequest[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [approvalFilter, setApprovalFilter] = useState('All');
   const [selectedSample, setSelectedSample] = useState<SampleRequest | null>(samples[0]);
@@ -42,8 +43,8 @@ export const CrmSampleRequestView: React.FC<CrmSampleRequestViewProps> = ({
 
   const [newSample, setNewSample] = useState<Partial<SampleRequest>>({
     sampleNumber: `SMP-2026-0${samples.length + 90}`,
-    accountId: initialAccountId || mockAccounts[0].id,
-    accountName: mockAccounts[0].accountName,
+    accountId: initialAccountId || (accountsList[0]?.id || ''),
+    accountName: (accountsList[0]?.accountName || ''),
     sampleType: 'Molded Test Plaque',
     itemDescription: 'Flame Retardant PP V0 Black Compounded Plaque',
     polymerGrade: 'PP-FR-V0-3000',
@@ -87,11 +88,11 @@ export const CrmSampleRequestView: React.FC<CrmSampleRequestViewProps> = ({
 
   const handleCreateSample = (e: React.FormEvent) => {
     e.preventDefault();
-    const matchedAccount = mockAccounts.find(a => a.id === newSample.accountId);
+    const matchedAccount = accountsList.find(a => a.id === newSample.accountId);
     const created: SampleRequest = {
       id: `SMP-0${samples.length + 1}`,
       sampleNumber: newSample.sampleNumber || `SMP-2026-099`,
-      accountId: newSample.accountId || mockAccounts[0].id,
+      accountId: newSample.accountId || (accountsList[0]?.id || ''),
       accountName: matchedAccount ? matchedAccount.accountName : 'Customer Account',
       opportunityId: createFromOpp,
       sampleType: newSample.sampleType as any || 'Molded Test Plaque',
@@ -319,12 +320,12 @@ export const CrmSampleRequestView: React.FC<CrmSampleRequestViewProps> = ({
                   <select
                     value={newSample.accountId}
                     onChange={(e) => {
-                      const acc = mockAccounts.find(a => a.id === e.target.value);
+                      const acc = accountsList.find(a => a.id === e.target.value);
                       setNewSample({ ...newSample, accountId: e.target.value, accountName: acc?.accountName });
                     }}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
                   >
-                    {mockAccounts.map(acc => (
+                    {accountsList.map(acc => (
                       <option key={acc.id} value={acc.id}>{acc.accountName}</option>
                     ))}
                   </select>

@@ -905,14 +905,14 @@ export function generateUniqueScheduleNumber(
     return existingJobForDate.scheduleNumber;
   }
 
-  // 2. Gather all schedule numbers from memory & localStorage
+  // 2. Gather all schedule numbers from memory & session
   const allScheduleNumbers: string[] = [];
   existingJobs.forEach((j) => {
     if (j.scheduleNumber) allScheduleNumbers.push(j.scheduleNumber);
   });
 
   try {
-    const saved = localStorage.getItem('sp_jit_production_jobs');
+    const saved = typeof window !== 'undefined' ? sessionStorage.getItem('sp_jit_production_jobs') : null;
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed)) {

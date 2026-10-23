@@ -66,7 +66,6 @@ export class SecurityErrorBoundary extends Component<Props, State> {
 
   private handleResetAndRecover = () => {
     try {
-      localStorage.removeItem('reboot_erp_item_draft_auto');
       sessionStorage.clear();
     } catch {
       // ignore

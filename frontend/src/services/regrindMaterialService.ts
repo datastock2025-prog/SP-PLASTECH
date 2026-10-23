@@ -1,4 +1,5 @@
 import { adminEventBus } from './adminService';
+import { memoryStorage } from '../shared/memoryStore';
 import { WorkOrder, ItemMaster, BomMaster } from '../types';
 
 export interface RegrindMaterialEntry {
@@ -189,7 +190,7 @@ class RegrindMaterialService {
 
   private loadEntries(): RegrindMaterialEntry[] {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY_ENTRIES);
+      const raw = memoryStorage.getItem(STORAGE_KEY_ENTRIES);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -197,7 +198,7 @@ class RegrindMaterialService {
         }
       }
     } catch (e) {
-      console.warn('Could not read RG entries from localStorage', e);
+      console.warn('Could not read RG entries from memoryStorage', e);
     }
     this.saveEntries(INITIAL_RG_ENTRIES);
     return INITIAL_RG_ENTRIES;
@@ -205,7 +206,7 @@ class RegrindMaterialService {
 
   private saveEntries(data: RegrindMaterialEntry[]) {
     try {
-      localStorage.setItem(STORAGE_KEY_ENTRIES, JSON.stringify(data));
+      memoryStorage.setItem(STORAGE_KEY_ENTRIES, JSON.stringify(data));
     } catch (e) {
       console.warn('Could not persist RG entries', e);
     }

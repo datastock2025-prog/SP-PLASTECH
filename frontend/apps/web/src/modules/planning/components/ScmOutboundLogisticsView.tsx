@@ -13,7 +13,6 @@ import {
   Plus,
   Send,
 } from 'lucide-react';
-import { mockOutboundDeliveries } from '@/src/data/mockScmData';
 import { OutboundDelivery } from '@/src/types/scm';
 import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { usePagination } from '@/src/hooks/usePagination';
@@ -24,10 +23,10 @@ interface ScmOutboundLogisticsViewProps {
 }
 
 export const ScmOutboundLogisticsView: React.FC<ScmOutboundLogisticsViewProps> = ({ onNavigate, showToast }) => {
-  const [deliveries, setDeliveries] = useState<OutboundDelivery[]>(mockOutboundDeliveries);
+  const [deliveries, setDeliveries] = useState<OutboundDelivery[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [selectedDelivery, setSelectedDelivery] = useState<OutboundDelivery | null>(mockOutboundDeliveries[0]);
+  const [selectedDelivery, setSelectedDelivery] = useState<OutboundDelivery | null>(null);
 
   const handleConfirmPod = (deliveryId: string) => {
     setDeliveries((prev) =>

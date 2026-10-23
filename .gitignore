@@ -43,5 +43,6 @@ middleware/.dev-secret
 .wr-empty/
 test-results/
 playwright-report/
-.continue/
+.claude/
+agent/
 

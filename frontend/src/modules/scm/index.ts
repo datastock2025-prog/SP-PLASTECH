@@ -35,33 +35,6 @@ export {
   ScmRbacView,
 } from '../../../apps/web/src/modules/planning';
 
-export {
-  mockScmKPIs,
-  mockSupplyChainFlowNodes,
-  mockScmExceptions,
-  mockDemandPlan,
-  mockSalesForecasts,
-  mockSopScenarios,
-  mockScmInventory,
-  mockMrpSuggestions,
-  mockReplenishmentItems,
-  mockSupplierCollaboration,
-  mockInboundShipments,
-  mockOutboundDeliveries,
-  mockCarriers,
-  mockSupplierRiskProfiles,
-  mockOrderToDeliveryTimelines,
-  mockESGMetrics,
-  mockFreightCarriers,
-  mockSupplierRisks,
-  mockSustainabilityMetrics,
-  mockInventoryAging,
-  mockOrderTimelines,
-  mockTraceabilityRecords,
-  mockScmRbac,
-  mockScmReports,
-  mockScmSettings,
-} from '../../data/mockScmData';
 
 export type {
   SCMKPI,

@@ -13,7 +13,6 @@ import {
   Printer,
   Share2,
 } from 'lucide-react';
-import { mockScmReports } from '@/src/data/mockScmData';
 import { SCMReportTemplate } from '@/src/types/scm';
 
 interface ScmReportsViewProps {
@@ -22,7 +21,7 @@ interface ScmReportsViewProps {
 }
 
 export const ScmReportsView: React.FC<ScmReportsViewProps> = ({ onNavigate, showToast }) => {
-  const [reports, setReports] = useState<SCMReportTemplate[]>(mockScmReports);
+  const [reports, setReports] = useState<SCMReportTemplate[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
 

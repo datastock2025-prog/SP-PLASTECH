@@ -40,7 +40,6 @@ export {
 // Domain Data & Types
 export { INITIAL_MOLDS } from '../../data/manufacturingData';
 export type { MoldMaster } from '../../data/manufacturingData';
-export { initialWorkOrders, initialMachines } from '../../data/initialData';
 export type {
   WorkOrder,
   MachineMaster,

@@ -1,65 +1,68 @@
-import { db } from '@/src/shared/db';
+import { api } from '@/src/lib/api-client';
 import { WorkOrder, MachineMaster } from '@/src/types';
-import { initialWorkOrders, initialMachines } from '@/src/data/initialData';
 import { CreateWorkOrderFormValues, WorkOrderLogFormValues } from '../model/manufacturingSchemas';
 
 export const manufacturingApi = {
   getWorkOrders: async (): Promise<WorkOrder[]> => {
     try {
-      const data = await db.findMany<WorkOrder>('work_orders');
-      if (Array.isArray(data) && data.length > 0) return data;
-    } catch {}
-    return initialWorkOrders;
+      const res = await api.get<any>('/work-orders', {
+        params: { limit: 100, sortBy: 'created_at', sortOrder: 'desc', includeTotal: true },
+      });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows)) return rows;
+    } catch (e) {
+      console.debug('[manufacturingApi.getWorkOrders] REST query notice:', e);
+    }
+    return [];
   },
 
   createWorkOrder: async (data: CreateWorkOrderFormValues): Promise<WorkOrder> => {
-    const newWO: WorkOrder = {
-      id: `WO-${Date.now().toString().slice(-4)}`,
-      item: data.itemCode,
-      bomId: data.bomId || null,
-      machine: data.machineId,
-      day: new Date().toISOString().split('T')[0],
-      qty: data.qty,
-      uom: 'PCS',
-      completed: 0,
-      scrap: 0,
+    const payload = {
+      code: `WO-${Date.now().toString().slice(-4)}`,
+      item_code: data.itemCode,
+      machine_id: data.machineId,
+      target_qty: data.qty,
       status: 'planned',
-      priority: data.priority === 'urgent' ? 'High' : (data.priority.charAt(0).toUpperCase() + data.priority.slice(1).toLowerCase()) as any,
-      dueDate: data.dueDate,
-      operator: 'Floor Lead',
-      downtimeMin: 0,
-      outputLogs: [],
-      downtimeLogs: [],
-      checklist: [],
-      history: [{ event: 'Created Work Order', time: 'Just now' }],
+      priority: data.priority === 'urgent' ? 'High' : (data.priority.charAt(0).toUpperCase() + data.priority.slice(1).toLowerCase()),
+      due_date: data.dueDate,
     };
 
     try {
-      await db.upsert('work_orders', newWO, 'id');
-    } catch {}
+      const res = await api.post<any>('/work-orders', payload);
+      const row = res?.data?.data || res?.data;
+      if (row && typeof row === 'object') return row as WorkOrder;
+    } catch (e) {
+      console.debug('[manufacturingApi.createWorkOrder] REST notice:', e);
+    }
 
-    return newWO;
+    return payload as unknown as WorkOrder;
   },
 
   getMachines: async (): Promise<MachineMaster[]> => {
     try {
-      const data = await db.findMany<MachineMaster>('machines');
-      if (Array.isArray(data) && data.length > 0) return data;
-    } catch {}
-    return initialMachines;
+      const res = await api.get<any>('/machines', { params: { limit: 100, includeTotal: true } });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows)) return rows;
+    } catch (e) {
+      console.debug('[manufacturingApi.getMachines] REST query notice:', e);
+    }
+    return [];
   },
 
   logProduction: async (log: WorkOrderLogFormValues): Promise<void> => {
+    const payload = {
+      work_order_id: log.workOrderId,
+      machine_id: log.machineId,
+      good_qty: log.goodQty,
+      rejected_qty: log.scrapQty,
+      operator_id: log.operator,
+      shift_id: log.shift,
+    };
+
     try {
-      await db.upsert('daily_production_entries', {
-        work_order_id: log.workOrderId,
-        good_qty: log.goodQty,
-        scrap_qty: log.scrapQty,
-        operator: log.operator,
-        shift: log.shift,
-        machine_id: log.machineId,
-        entry_date: new Date().toISOString(),
-      });
-    } catch {}
+      await api.post<any>('/production-entries', payload);
+    } catch (e) {
+      console.debug('[manufacturingApi.logProduction] REST notice:', e);
+    }
   },
 };

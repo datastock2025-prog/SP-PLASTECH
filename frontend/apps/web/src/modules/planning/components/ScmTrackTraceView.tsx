@@ -14,7 +14,6 @@ import {
   ShieldAlert,
   Building,
 } from 'lucide-react';
-import { mockTraceabilityRecords } from '@/src/data/mockScmData';
 import { TraceabilityRecord } from '@/src/types/scm';
 
 interface ScmTrackTraceViewProps {
@@ -24,12 +23,12 @@ interface ScmTrackTraceViewProps {
 
 export const ScmTrackTraceView: React.FC<ScmTrackTraceViewProps> = ({ onNavigate, showToast }) => {
   const [searchQuery, setSearchQuery] = useState('LOT-2026-08-PP990');
-  const [selectedRecord, setSelectedRecord] = useState<TraceabilityRecord | null>(mockTraceabilityRecords[0]);
+  const [selectedRecord, setSelectedRecord] = useState<TraceabilityRecord | null>(null);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const query = searchQuery.toLowerCase();
-    const found = mockTraceabilityRecords.find(
+    const found = ([].find as any)(
       (r) =>
         r.referenceId?.toLowerCase().includes(query) ||
         r.lotNumber?.toLowerCase().includes(query) ||

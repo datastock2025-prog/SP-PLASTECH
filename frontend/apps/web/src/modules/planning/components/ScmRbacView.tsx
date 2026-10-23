@@ -10,7 +10,6 @@ import {
   Key,
   Users,
 } from 'lucide-react';
-import { mockScmRbac } from '@/src/data/mockScmData';
 import { ScmRolePermission } from '@/src/types/scm';
 import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { usePagination } from '@/src/hooks/usePagination';
@@ -21,10 +20,10 @@ interface ScmRbacViewProps {
 }
 
 export const ScmRbacView: React.FC<ScmRbacViewProps> = ({ onNavigate, showToast }) => {
-  const [roles, setRoles] = useState<ScmRolePermission[]>(mockScmRbac);
-  const [selectedRole, setSelectedRole] = useState<ScmRolePermission>(mockScmRbac[0]);
+  const [roles, setRoles] = useState<ScmRolePermission[]>([]);
+  const [selectedRole, setSelectedRole] = useState<ScmRolePermission | null>(null);
 
-  const { paginatedData: paginatedModules, paginationProps } = usePagination(selectedRole.modules, {
+  const { paginatedData: paginatedModules, paginationProps } = usePagination(selectedRole?.modules, {
     initialPageSize: 10,
     pageSizeOptions: [10, 25, 50],
   });
@@ -32,7 +31,7 @@ export const ScmRbacView: React.FC<ScmRbacViewProps> = ({ onNavigate, showToast 
   const handleTogglePermission = (moduleName: string, permKey: 'view' | 'edit' | 'approve' | 'export') => {
     setRoles((prev) =>
       prev.map((r) => {
-        if (r.roleId === selectedRole.roleId) {
+        if (r.roleId === selectedRole?.roleId) {
           const updatedModules = r.modules.map((m) => {
             if (m.moduleName === moduleName) {
               return {
@@ -95,7 +94,7 @@ export const ScmRbacView: React.FC<ScmRbacViewProps> = ({ onNavigate, showToast 
                 key={r.roleId}
                 onClick={() => setSelectedRole(r)}
                 className={`p-3 rounded-xl border transition cursor-pointer flex items-center justify-between ${
-                  selectedRole.roleId === r.roleId
+                  selectedRole?.roleId === r.roleId
                     ? 'border-[#0F8B8D] bg-[#0F8B8D]/5 font-bold text-slate-900'
                     : 'border-slate-200 hover:border-slate-300 text-slate-700'
                 }`}
@@ -118,11 +117,11 @@ export const ScmRbacView: React.FC<ScmRbacViewProps> = ({ onNavigate, showToast 
                 Active Role Matrix
               </span>
               <h2 className="text-base font-bold font-['Space_Grotesk'] text-[#14213D] mt-0.5">
-                {selectedRole.roleName}
+                {selectedRole?.roleName}
               </h2>
             </div>
             <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-mono font-bold">
-              {selectedRole.roleId}
+              {selectedRole?.roleId}
             </span>
           </div>
 

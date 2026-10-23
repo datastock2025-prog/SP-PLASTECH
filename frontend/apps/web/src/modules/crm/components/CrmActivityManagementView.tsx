@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Calendar,
   Clock,
@@ -19,7 +19,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Activity, ActivityType, ActivityStatus } from '../model/crmSchemas';
-import { mockActivities, mockAccounts, mockLeads } from '@/src/data/mockCrmData';
+import { useActivities, useAccounts } from '../api/useCrm';
 
 interface CrmActivityManagementViewProps {
   onNavigate: (view: string, params?: any) => void;
@@ -30,7 +30,12 @@ export const CrmActivityManagementView: React.FC<CrmActivityManagementViewProps>
   onNavigate,
   showToast,
 }) => {
-  const [activities, setActivities] = useState<Activity[]>(mockActivities);
+  const { data: serverActivities = [] } = useActivities();
+  const { data: accountsList = [] } = useAccounts();
+  const [activities, setActivities] = useState<Activity[]>([]);
+  useEffect(() => {
+    if (serverActivities.length > 0) setActivities(serverActivities);
+  }, [serverActivities]);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -40,8 +45,8 @@ export const CrmActivityManagementView: React.FC<CrmActivityManagementViewProps>
     type: 'Customer Plant Visit',
     subject: '',
     description: '',
-    accountId: mockAccounts[0].id,
-    accountName: mockAccounts[0].accountName,
+    accountId: (accountsList[0]?.id || ''),
+    accountName: (accountsList[0]?.accountName || ''),
     contactPerson: 'Vikram Malhotra',
     assignedTo: 'Rajesh Sharma',
     scheduledDate: '2026-09-06',
@@ -305,12 +310,12 @@ export const CrmActivityManagementView: React.FC<CrmActivityManagementViewProps>
                   <select
                     value={newActivity.accountId}
                     onChange={(e) => {
-                      const acc = mockAccounts.find(a => a.id === e.target.value);
+                      const acc = accountsList.find(a => a.id === e.target.value);
                       setNewActivity({ ...newActivity, accountId: e.target.value, accountName: acc?.accountName });
                     }}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
                   >
-                    {mockAccounts.map(acc => (
+                    {accountsList.map(acc => (
                       <option key={acc.id} value={acc.id}>{acc.accountName}</option>
                     ))}
                   </select>

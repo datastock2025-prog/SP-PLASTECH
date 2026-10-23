@@ -49,29 +49,11 @@ import { masterDataGovernanceService } from '@/src/services/masterDataGovernance
 import { useAuthContext } from '@/src/shared/components/RequireAuth';
 import { useAdminWorkflows, useSaveAdminWorkflow } from '@/src/hooks/useAdmin';
 
-const WORKFLOW_RULES_STORAGE_KEY = 'reboot_erp_workflow_rules_v2';
-const DELEGATIONS_STORAGE_KEY = 'reboot_erp_delegations_v2';
-const BREAK_GLASS_LOGS_STORAGE_KEY = 'reboot_erp_break_glass_logs_v2';
-
 function loadStoredWorkflows(): WorkflowRuleConfig[] {
-  try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(WORKFLOW_RULES_STORAGE_KEY) : null;
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch (e) {}
   return [...workflowConfigs];
 }
 
 function loadStoredDelegations(): ApprovalDelegation[] {
-  try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(DELEGATIONS_STORAGE_KEY) : null;
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch (e) {}
   return [
     {
       id: 'DEL-001',
@@ -89,13 +71,6 @@ function loadStoredDelegations(): ApprovalDelegation[] {
 }
 
 function loadStoredBreakGlassLogs(): BreakGlassLog[] {
-  try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(BREAK_GLASS_LOGS_STORAGE_KEY) : null;
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch (e) {}
   return [];
 }
 
@@ -230,9 +205,6 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
       return w;
     });
     setWorkflows(updated);
-    try {
-      localStorage.setItem(WORKFLOW_RULES_STORAGE_KEY, JSON.stringify(updated));
-    } catch {}
 
     const target = updated.find((w) => w.id === id);
     if (target) {
@@ -303,9 +275,6 @@ export const AdminApprovalWorkflowConfigView: React.FC<AdminApprovalWorkflowConf
 
     const updated = [newWorkflow, ...workflows];
     setWorkflows(updated);
-    try {
-      localStorage.setItem(WORKFLOW_RULES_STORAGE_KEY, JSON.stringify(updated));
-    } catch {}
 
     masterDataGovernanceService.recordAudit({
       entityType: 'WORKFLOW_CONFIG',

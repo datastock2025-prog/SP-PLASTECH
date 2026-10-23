@@ -921,35 +921,13 @@ export const systemParameters: SystemParameter[] = [
   },
 ];
 
-// Production Aliases for backwards compatibility with legacy naming
-export const mockSystemHealth = systemHealth;
-export const mockAdminUsers = adminUsers;
-export const mockAdminRoles = adminRoles;
-export const mockCompanyProfile = companyProfile;
-export const mockNumberingSequences = numberingSequences;
-export const mockApprovalWorkflows = approvalWorkflows;
-export const mockSecurityPolicy = securityPolicy;
-export const mockAuditLogs = auditLogs;
-export const mockIntegrations = integrations;
-export const mockBackupRecords = backupRecords;
-export const mockNotificationTemplates = notificationTemplates;
-export const mockSystemParameters = systemParameters;
+
+let storedWorkflows = [...approvalWorkflows];
 
 export const loadStoredApprovalWorkflows = (): ApprovalWorkflow[] => {
-  try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('reboot_erp_approval_workflows_v2') : null;
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch {}
-  return approvalWorkflows;
+  return storedWorkflows;
 };
 
 export const saveStoredApprovalWorkflows = (wfs: ApprovalWorkflow[]): void => {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('reboot_erp_approval_workflows_v2', JSON.stringify(wfs));
-    }
-  } catch {}
+  storedWorkflows = [...wfs];
 };

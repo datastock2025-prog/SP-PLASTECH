@@ -207,17 +207,17 @@ export const DailyProductionGridInner: React.FC<ProductionGridProps> = ({
   // Target Work Order for Material & Store Reconciliation (+pck +bop +con, BOM version) (Tasks 2 & 4)
   const [materialReconcileWO, setMaterialReconcileWO] = useState<WorkOrder | null>(null);
 
-  // High-Volume Lightweight Edits Buffer (Persisted in localStorage so drafts are never lost on refresh)
+  // High-Volume Lightweight Edits Buffer (Persisted in session storage so drafts are never lost on refresh)
   const [editedRowsMap, setEditedRowsMap] = useState<Record<string, Partial<WorkOrder>>>(() => {
     try {
-      const saved = localStorage.getItem('reboot_daily_prod_drafts');
+      const saved = (typeof window !== 'undefined' ? sessionStorage.getItem('reboot_daily_prod_drafts') : null);
       if (saved) return JSON.parse(saved);
     } catch {}
     return {};
   });
   const [dirtyRowIds, setDirtyRowIds] = useState<Set<string>>(() => {
     try {
-      const saved = localStorage.getItem('reboot_daily_prod_dirty');
+      const saved = (typeof window !== 'undefined' ? sessionStorage.getItem('reboot_daily_prod_dirty') : null);
       if (saved) {
         const arr = JSON.parse(saved);
         if (Array.isArray(arr)) return new Set(arr);
@@ -228,11 +228,11 @@ export const DailyProductionGridInner: React.FC<ProductionGridProps> = ({
   const [manualRows, setManualRows] = useState<WorkOrder[]>([]);
   const [expandedRowIds, setExpandedRowIds] = useState<string[]>([]);
 
-  // Auto-sync draft changes to localStorage so refreshing never loses entered good qty/notes
+  // Auto-sync draft changes to session storage so refreshing never loses entered good qty/notes
   useEffect(() => {
     try {
-      localStorage.setItem('reboot_daily_prod_drafts', JSON.stringify(editedRowsMap));
-      localStorage.setItem('reboot_daily_prod_dirty', JSON.stringify(Array.from(dirtyRowIds)));
+      sessionStorage.setItem('reboot_daily_prod_drafts', JSON.stringify(editedRowsMap));
+      sessionStorage.setItem('reboot_daily_prod_dirty', JSON.stringify(Array.from(dirtyRowIds)));
     } catch {}
   }, [editedRowsMap, dirtyRowIds]);
 
@@ -613,8 +613,8 @@ export const DailyProductionGridInner: React.FC<ProductionGridProps> = ({
     setEditedRowsMap({});
     setDirtyRowIds(new Set());
     try {
-      localStorage.removeItem('reboot_daily_prod_drafts');
-      localStorage.removeItem('reboot_daily_prod_dirty');
+      sessionStorage.removeItem('reboot_daily_prod_drafts');
+      sessionStorage.removeItem('reboot_daily_prod_dirty');
     } catch {}
     showToast('Discarded all unsaved local changes.');
   };

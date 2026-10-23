@@ -5,6 +5,12 @@ export const PlantSchema = z.object({
   code: z.string(),
   name: z.string(),
   location: z.string().nullable(),
+  gstin: z.string().nullable().optional(),
+  contactPerson: z.string().nullable().optional(),
+  contactPhone: z.string().nullable().optional(),
+  contactEmail: z.string().nullable().optional(),
+  address: z.string().nullable().optional(),
+  isDefault: z.boolean().optional(),
   isActive: z.boolean(),
   version: z.number(),
 });
@@ -115,3 +121,70 @@ export interface CreateUserInput {
 }
 
 export type UpdateUserInput = Partial<Omit<CreateUserInput, 'username' | 'email'>> & { version: number };
+
+export const CompanySettingsSchema = z.object({
+  id: z.string(),
+  companyName: z.string(),
+  legalName: z.string().nullable().optional(),
+  cin: z.string().nullable().optional(),
+  pan: z.string().nullable().optional(),
+  gstin: z.string().nullable().optional(),
+  currency: z.string().optional(),
+  fiscalYearStart: z.string().optional(),
+  logoUrl: z.string().nullable().optional(),
+  registeredAddress: z.string().nullable().optional(),
+  version: z.number(),
+});
+export type CompanySettings = z.infer<typeof CompanySettingsSchema>;
+
+export const WarehouseBinSchema = z.object({
+  id: z.string(),
+  warehouseId: z.string(),
+  binCode: z.string(),
+  zone: z.string().nullable().optional(),
+  aisle: z.string().nullable().optional(),
+  rack: z.string().nullable().optional(),
+  shelf: z.string().nullable().optional(),
+  capacityKg: z.coerce.number(),
+  isBlocked: z.boolean(),
+  createdAt: z.coerce.string().optional(),
+});
+export type WarehouseBin = z.infer<typeof WarehouseBinSchema>;
+
+export const ShiftSchema = z.object({
+  id: z.string(),
+  plantId: z.string().nullable().optional(),
+  code: z.string(),
+  name: z.string(),
+  startTime: z.string(),
+  endTime: z.string(),
+  durationMinutes: z.number(),
+  crossesMidnight: z.boolean(),
+  isActive: z.boolean(),
+});
+export type Shift = z.infer<typeof ShiftSchema>;
+
+export const TransporterSchema = z.object({
+  id: z.string(),
+  code: z.string(),
+  name: z.string(),
+  contactPerson: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  gstin: z.string().nullable().optional(),
+  pan: z.string().nullable().optional(),
+  isActive: z.boolean(),
+});
+export type Transporter = z.infer<typeof TransporterSchema>;
+
+export const NumberingSeriesSchema = z.object({
+  id: z.string(),
+  seriesCode: z.string(),
+  docType: z.string(),
+  prefix: z.string(),
+  suffix: z.string().nullable().optional(),
+  nextNumber: z.number(),
+  paddingLength: z.number(),
+  isActive: z.boolean(),
+});
+export type NumberingSeries = z.infer<typeof NumberingSeriesSchema>;

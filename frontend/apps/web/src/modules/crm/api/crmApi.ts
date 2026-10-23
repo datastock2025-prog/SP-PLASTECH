@@ -1,4 +1,4 @@
-import { db } from '@/src/shared/db';
+import { api } from '@/src/lib/api-client';
 import {
   Lead,
   Opportunity,
@@ -6,21 +6,15 @@ import {
   Contact,
   Activity,
 } from '../model/crmSchemas';
-import {
-  mockLeads,
-  mockOpportunities,
-  mockAccounts,
-  mockContacts,
-  mockActivities,
-} from '@/src/data/mockCrmData';
 
 export const crmApi = {
   getLeads: async (): Promise<Lead[]> => {
     try {
-      const data = await db.findMany<Lead>('crm_leads');
-      if (Array.isArray(data) && data.length > 0) return data;
+      const res = await api.get<any>('/crm-leads', { params: { limit: 100 } });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows)) return rows;
     } catch {}
-    return mockLeads;
+    return [];
   },
 
   createLead: async (lead: Partial<Lead>): Promise<Lead> => {
@@ -59,24 +53,31 @@ export const crmApi = {
       },
     };
     try {
-      await db.upsert('crm_leads', newLead, 'id');
+      const res = await api.post<any>('/crm-leads', newLead);
+      const row = res?.data?.data || res?.data;
+      if (row && typeof row === 'object') return row;
     } catch {}
     return newLead;
   },
 
   updateLead: async (lead: Lead): Promise<Lead> => {
-    try {
-      await db.upsert('crm_leads', lead, 'id');
-    } catch {}
+    if (lead.id) {
+      try {
+        const res = await api.patch<any>(`/crm-leads/${encodeURIComponent(lead.id)}`, lead);
+        const row = res?.data?.data || res?.data;
+        if (row && typeof row === 'object') return row;
+      } catch {}
+    }
     return lead;
   },
 
   getOpportunities: async (): Promise<Opportunity[]> => {
     try {
-      const data = await db.findMany<Opportunity>('opportunity_pipeline');
-      if (Array.isArray(data) && data.length > 0) return data;
+      const res = await api.get<any>('/crm-opportunities', { params: { limit: 100 } });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows)) return rows;
     } catch {}
-    return mockOpportunities;
+    return [];
   },
 
   createOpportunity: async (opp: Partial<Opportunity>): Promise<Opportunity> => {
@@ -104,27 +105,48 @@ export const crmApi = {
       createdAt: opp.createdAt || new Date().toISOString().split('T')[0],
     };
     try {
-      await db.upsert('opportunity_pipeline', newOpp, 'id');
+      const res = await api.post<any>('/crm-opportunities', newOpp);
+      const row = res?.data?.data || res?.data;
+      if (row && typeof row === 'object') return row;
     } catch {}
     return newOpp;
   },
 
   updateOpportunity: async (opp: Opportunity): Promise<Opportunity> => {
-    try {
-      await db.upsert('opportunity_pipeline', opp, 'id');
-    } catch {}
+    if (opp.id) {
+      try {
+        const res = await api.patch<any>(`/crm-opportunities/${encodeURIComponent(opp.id)}`, opp);
+        const row = res?.data?.data || res?.data;
+        if (row && typeof row === 'object') return row;
+      } catch {}
+    }
     return opp;
   },
 
   getAccounts: async (): Promise<Account[]> => {
-    return mockAccounts;
+    try {
+      const res = await api.get<any>('/crm-accounts', { params: { limit: 100 } });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows)) return rows;
+    } catch {}
+    return [];
   },
 
   getContacts: async (): Promise<Contact[]> => {
-    return mockContacts;
+    try {
+      const res = await api.get<any>('/crm-contacts', { params: { limit: 100 } });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows)) return rows;
+    } catch {}
+    return [];
   },
 
   getActivities: async (): Promise<Activity[]> => {
-    return mockActivities;
+    try {
+      const res = await api.get<any>('/crm-activities', { params: { limit: 100 } });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows)) return rows;
+    } catch {}
+    return [];
   },
 };

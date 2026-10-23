@@ -61,7 +61,8 @@ export class GdprService {
    */
   public static getConsent(): CookieConsent | null {
     try {
-      const stored = localStorage.getItem(COOKIE_CONSENT_KEY);
+      if (typeof window === 'undefined') return null;
+      const stored = sessionStorage.getItem(COOKIE_CONSENT_KEY);
       if (!stored) return null;
       return JSON.parse(stored);
     } catch {
@@ -78,7 +79,9 @@ export class GdprService {
       timestamp: new Date().toISOString(),
     };
 
-    localStorage.setItem(COOKIE_CONSENT_KEY, JSON.stringify(fullConsent));
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(COOKIE_CONSENT_KEY, JSON.stringify(fullConsent));
+    }
     SecurityEventLogger.log('COOKIE_CONSENT_UPDATED', { consent: fullConsent });
     return fullConsent;
   }

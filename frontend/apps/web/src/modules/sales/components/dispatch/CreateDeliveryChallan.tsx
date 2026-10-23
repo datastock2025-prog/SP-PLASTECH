@@ -675,7 +675,7 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
           const errDetail = `NIC Statutory Verification [${nicRes.errorCodes || 'EWB-ERR'}]: ${nicRes.errorDesc || 'Validation Error'}`;
           setNicLiveError(errDetail);
           showToast(errDetail);
-          if (nicEwbService.getEnvironment() !== 'MOCK') {
+          if (nicEwbService.getEnvironment() !== 'SIMULATOR') {
             setIsGeneratingAllInOne(false);
             return;
           }

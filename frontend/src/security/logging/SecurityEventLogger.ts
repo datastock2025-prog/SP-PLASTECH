@@ -1,5 +1,5 @@
 import { SecurityEvent } from '../types';
-import { db } from '../../shared/db';
+import { api } from '../../lib/api-client';
 
 type SecurityEventListener = (event: SecurityEvent) => void;
 
@@ -84,7 +84,7 @@ class SecurityEventLoggerClass {
     if (this.inMemoryLogs.length === 0) return;
     try {
       const logsToSend = [...this.inMemoryLogs];
-      await db.upsert('security_audit_logs', logsToSend, 'id');
+      await api.post('/security-audit-logs', logsToSend);
     } catch {
       // Ignore background flush failures
     }

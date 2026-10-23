@@ -14,7 +14,6 @@ import {
   ArrowRight,
   ExternalLink,
 } from 'lucide-react';
-import { mockInboundShipments } from '@/src/data/mockScmData';
 import { InboundShipment } from '@/src/types/scm';
 import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { usePagination } from '@/src/hooks/usePagination';
@@ -25,8 +24,8 @@ interface ScmInboundLogisticsViewProps {
 }
 
 export const ScmInboundLogisticsView: React.FC<ScmInboundLogisticsViewProps> = ({ onNavigate, showToast }) => {
-  const [shipments, setShipments] = useState<InboundShipment[]>(mockInboundShipments);
-  const [selectedShipment, setSelectedShipment] = useState<InboundShipment>(mockInboundShipments[0]);
+  const [shipments, setShipments] = useState<InboundShipment[]>([]);
+  const [selectedShipment, setSelectedShipment] = useState<InboundShipment | null>(null);
 
   const { paginatedData: paginatedShipments, paginationProps } = usePagination(shipments, {
     initialPageSize: 10,
@@ -94,7 +93,7 @@ export const ScmInboundLogisticsView: React.FC<ScmInboundLogisticsViewProps> = (
                     key={s.shipmentId}
                     onClick={() => setSelectedShipment(s)}
                     className={`hover:bg-slate-50/80 transition cursor-pointer ${
-                      selectedShipment.shipmentId === s.shipmentId ? 'bg-cyan-50/40 font-semibold' : ''
+                      selectedShipment?.shipmentId === s.shipmentId ? 'bg-cyan-50/40 font-semibold' : ''
                     }`}
                   >
                     <td className="p-3 font-mono font-bold text-slate-900">{s.shipmentId}</td>
@@ -162,15 +161,15 @@ export const ScmInboundLogisticsView: React.FC<ScmInboundLogisticsViewProps> = (
               10-Milestone Chain of Custody
             </span>
             <h3 className="font-bold text-base text-[#14213D] font-['Space_Grotesk'] mt-0.5">
-              {selectedShipment.shipmentId}
+              {selectedShipment?.shipmentId}
             </h3>
             <p className="text-xs text-slate-500">
-              Container: <strong className="font-mono text-slate-800">{selectedShipment.containerNumber}</strong>
+              Container: <strong className="font-mono text-slate-800">{selectedShipment?.containerNumber}</strong>
             </p>
           </div>
 
           <div className="space-y-3 relative before:absolute before:left-3.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-            {selectedShipment.milestones.map((ms, index) => (
+            {selectedShipment?.milestones.map((ms, index) => (
               <div key={index} className="flex items-start gap-3 relative z-10 text-xs">
                 <div
                   className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 ${
@@ -204,11 +203,11 @@ export const ScmInboundLogisticsView: React.FC<ScmInboundLogisticsViewProps> = (
           <div className="pt-3 border-t border-slate-100 text-xs text-slate-600 space-y-1">
             <div className="flex justify-between">
               <span>Documentation Status:</span>
-              <strong className="text-slate-800">{selectedShipment.documentsStatus}</strong>
+              <strong className="text-slate-800">{selectedShipment?.documentsStatus}</strong>
             </div>
             <div className="flex justify-between">
               <span>Container Temp Control:</span>
-              <strong className="text-emerald-700">{selectedShipment.temperatureControlStatus}</strong>
+              <strong className="text-emerald-700">{selectedShipment?.temperatureControlStatus}</strong>
             </div>
           </div>
         </div>

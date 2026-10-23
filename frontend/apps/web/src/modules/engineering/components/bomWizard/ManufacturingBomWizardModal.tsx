@@ -224,10 +224,10 @@ export const ManufacturingBomWizardModal: React.FC<ManufacturingBomWizardModalPr
   };
 
   const [state, setState] = useState<ManufacturingBomWizardState>(() => {
-    // Check localStorage for saved draft
+    // Check sessionStorage for saved draft
     if (parentItem?.code) {
       try {
-        const saved = localStorage.getItem(`reboot_mfg_bom_draft_${parentItem.code}`);
+        const saved = (typeof window !== 'undefined' ? sessionStorage.getItem(`reboot_mfg_bom_draft_${parentItem.code}`) : null);
         if (saved) {
           const parsed = JSON.parse(saved);
           return { ...buildInitialState(parentItem), ...parsed };
@@ -272,7 +272,7 @@ export const ManufacturingBomWizardModal: React.FC<ManufacturingBomWizardModalPr
     if (!state.parentItem?.code) return;
     const timer = setInterval(() => {
       try {
-        localStorage.setItem(`reboot_mfg_bom_draft_${state.parentItem.code}`, JSON.stringify(state));
+        sessionStorage.setItem(`reboot_mfg_bom_draft_${state.parentItem.code}`, JSON.stringify(state));
         setSaveStatus('draft_saved');
       } catch (e) {
         // silent fail
@@ -350,7 +350,7 @@ export const ManufacturingBomWizardModal: React.FC<ManufacturingBomWizardModalPr
   const handleSaveDraft = () => {
     setSaveStatus('saving');
     try {
-      localStorage.setItem(`reboot_mfg_bom_draft_${parentItem.code}`, JSON.stringify(state));
+      sessionStorage.setItem(`reboot_mfg_bom_draft_${parentItem.code}`, JSON.stringify(state));
       setTimeout(() => {
         setSaveStatus('draft_saved');
         showToast(`Draft BOM for ${parentItem.code} saved to local workspace`);
@@ -428,7 +428,7 @@ export const ManufacturingBomWizardModal: React.FC<ManufacturingBomWizardModalPr
 
     // Clean up local draft
     try {
-      localStorage.removeItem(`reboot_mfg_bom_draft_${parentItem.code}`);
+      sessionStorage.removeItem(`reboot_mfg_bom_draft_${parentItem.code}`);
     } catch (e) {}
 
     onSaveBom(newBom, submitForApproval);

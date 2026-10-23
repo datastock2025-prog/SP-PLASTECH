@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Search,
   ArrowUpDown,
@@ -15,6 +16,8 @@ import {
   Edit2,
   Trash2,
 } from 'lucide-react';
+import { EmptyState } from './EmptyState';
+import { QueryErrorState } from './QueryErrorState';
 
 export interface ColumnDef<T> {
   id?: string;
@@ -30,6 +33,9 @@ export interface EntityTableProps<T> {
   data: T[];
   columns: ColumnDef<T>[];
   isLoading?: boolean;
+  isError?: boolean;
+  error?: unknown;
+  onRetry?: () => void;
   totalCount?: number;
   page?: number;
   pageSize?: number;
@@ -58,12 +64,142 @@ export interface EntityTableProps<T> {
   onEdit?: (row: T) => void;
   onDelete?: (row: T) => void;
   stickyHeader?: boolean;
+  virtualized?: boolean;
+  virtualRowHeight?: number;
+  scrollMaxHeight?: string | number;
 }
+
+interface TableRowProps<T> {
+  row: T;
+  rIdx: number;
+  rowKey: string | number;
+  isSelected: boolean;
+  columns: ColumnDef<T>[];
+  hasRowActions: boolean;
+  onSelectRow?: (id: string | number, selected: boolean) => void;
+  onRowClick?: (row: T) => void;
+  onView?: (row: T) => void;
+  onEdit?: (row: T) => void;
+  onDelete?: (row: T) => void;
+}
+
+function areTableRowPropsEqual<T extends Record<string, any>>(
+  prev: TableRowProps<T>,
+  next: TableRowProps<T>
+): boolean {
+  if (prev.isSelected !== next.isSelected) return false;
+  if (prev.rowKey !== next.rowKey) return false;
+  if (prev.rIdx !== next.rIdx) return false;
+  if (prev.columns !== next.columns) return false;
+  if (prev.hasRowActions !== next.hasRowActions) return false;
+  return prev.row === next.row;
+}
+
+const TableRow = React.memo(
+  function TableRow<T extends Record<string, any>>({
+    row,
+    rIdx,
+    rowKey,
+    isSelected,
+    columns,
+    hasRowActions,
+    onSelectRow,
+    onRowClick,
+    onView,
+    onEdit,
+    onDelete,
+  }: TableRowProps<T>) {
+    return (
+      <tr
+        key={rowKey}
+        onClick={() => onRowClick && onRowClick(row)}
+        className={`group hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-colors ${
+          onRowClick ? 'cursor-pointer' : ''
+        } ${isSelected ? 'bg-indigo-50/60 dark:bg-indigo-950/30' : ''}`}
+      >
+        {onSelectRow && (
+          <td
+            className="px-4 py-3 text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={(e) => onSelectRow(rowKey, e.target.checked)}
+              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
+            />
+          </td>
+        )}
+
+        {columns.map((col, cIdx) => {
+          const colId = col.id || String(col.accessorKey || cIdx);
+          const val = col.accessorKey ? row[col.accessorKey] : undefined;
+
+          return (
+            <td
+              key={colId}
+              className={`px-4 py-3 text-slate-700 dark:text-slate-300 ${
+                col.align === 'center'
+                  ? 'text-center'
+                  : col.align === 'right'
+                  ? 'text-right'
+                  : 'text-left'
+              }`}
+            >
+              {col.cell ? col.cell(row, rIdx) : String(val ?? '—')}
+            </td>
+          );
+        })}
+
+        {hasRowActions && (
+          <td
+            className="px-4 py-3 text-right"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-end gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+              {onView && (
+                <button
+                  title="View details"
+                  onClick={() => onView(row)}
+                  className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                </button>
+              )}
+              {onEdit && (
+                <button
+                  title="Edit item"
+                  onClick={() => onEdit(row)}
+                  className="p-1 rounded hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 transition-colors"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  title="Delete record"
+                  onClick={() => onDelete(row)}
+                  className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/50 text-red-500 hover:text-red-700 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </td>
+        )}
+      </tr>
+    );
+  },
+  areTableRowPropsEqual
+) as <T extends Record<string, any>>(props: TableRowProps<T>) => React.ReactElement;
 
 export function EntityTable<T extends Record<string, any>>({
   data = [],
   columns,
   isLoading = false,
+  isError = false,
+  error,
+  onRetry,
   totalCount,
   page = 1,
   pageSize = 25,
@@ -92,10 +228,37 @@ export function EntityTable<T extends Record<string, any>>({
   onEdit,
   onDelete,
   stickyHeader = true,
+  virtualized = false,
+  virtualRowHeight = 44,
+  scrollMaxHeight,
 }: EntityTableProps<T>) {
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const [internalSortBy, setInternalSortBy] = useState<string | null>(null);
   const [internalSortDir, setInternalSortDir] = useState<'asc' | 'desc'>('asc');
   const [internalSearch, setInternalSearch] = useState<string>('');
+  const [localSearch, setLocalSearch] = useState<string>(searchValue ?? '');
+
+  // Keep localSearch in sync if parent changes searchValue externally
+  React.useEffect(() => {
+    if (searchValue !== undefined && searchValue !== localSearch) {
+      setLocalSearch(searchValue);
+    }
+  }, [searchValue]);
+
+  // Debounce search emissions by 300ms to eliminate connection thrashing and premature cancellations
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      if (onSearchChange) {
+        if (localSearch !== (searchValue ?? '')) {
+          onSearchChange(localSearch);
+        }
+      } else {
+        setInternalSearch(localSearch);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [localSearch, onSearchChange, searchValue]);
 
   const effectiveSearch = searchValue !== undefined ? searchValue : internalSearch;
   const effectiveSortBy = controlledSortBy !== undefined ? controlledSortBy : internalSortBy;
@@ -115,12 +278,7 @@ export function EntityTable<T extends Record<string, any>>({
   };
 
   const handleSearchInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    if (onSearchChange) {
-      onSearchChange(val);
-    } else {
-      setInternalSearch(val);
-    }
+    setLocalSearch(e.target.value);
   };
 
   // Client-side filtering & sorting if not server-controlled
@@ -187,6 +345,16 @@ export function EntityTable<T extends Record<string, any>>({
 
   const hasRowActions = onView || onEdit || onDelete;
 
+  const isVirtualized = Boolean(virtualized && displayRows.length > 0);
+
+  const rowVirtualizer = useVirtualizer({
+    count: displayRows.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => virtualRowHeight,
+    overscan: 5,
+    enabled: isVirtualized,
+  });
+
   return (
     <div className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs overflow-hidden flex flex-col transition-all duration-200">
       {/* Header & Controls Toolbar */}
@@ -214,14 +382,15 @@ export function EntityTable<T extends Record<string, any>>({
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
-                  value={effectiveSearch}
+                  value={localSearch}
                   onChange={handleSearchInput}
                   placeholder={searchPlaceholder}
                   className="w-full pl-9 pr-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                 />
-                {effectiveSearch && (
+                {localSearch && (
                   <button
                     onClick={() => {
+                      setLocalSearch('');
                       if (onSearchChange) onSearchChange('');
                       else setInternalSearch('');
                     }}
@@ -240,7 +409,11 @@ export function EntityTable<T extends Record<string, any>>({
       )}
 
       {/* Table Container */}
-      <div className="flex-1 overflow-x-auto relative">
+      <div
+        ref={scrollContainerRef}
+        className={`flex-1 overflow-x-auto relative ${isVirtualized ? 'overflow-y-auto' : ''}`}
+        style={isVirtualized && scrollMaxHeight ? { maxHeight: scrollMaxHeight } : undefined}
+      >
         <table className="w-full text-left border-collapse text-xs">
           <thead className={`bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 font-medium border-b border-slate-200 dark:border-slate-800 ${stickyHeader ? 'sticky top-0 z-10' : ''}`}>
             <tr>
@@ -301,7 +474,17 @@ export function EntityTable<T extends Record<string, any>>({
           </thead>
 
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 bg-white dark:bg-slate-900">
-            {isLoading ? (
+            {isError ? (
+              // In-Place Query Error State with Retry
+              <tr>
+                <td
+                  colSpan={columns.length + (onSelectRow ? 1 : 0) + (hasRowActions ? 1 : 0)}
+                  className="py-8 px-4"
+                >
+                  <QueryErrorState error={error} onRetry={onRetry} />
+                </td>
+              </tr>
+            ) : isLoading ? (
               // Shimmer Loading Skeleton
               Array.from({ length: Math.min(pageSize, 6) }).map((_, rIdx) => (
                 <tr key={`skeleton-${rIdx}`} className="animate-pulse">
@@ -330,115 +513,82 @@ export function EntityTable<T extends Record<string, any>>({
               <tr>
                 <td
                   colSpan={columns.length + (onSelectRow ? 1 : 0) + (hasRowActions ? 1 : 0)}
-                  className="py-12 px-4 text-center"
+                  className="py-8 px-4"
                 >
-                  <div className="flex flex-col items-center justify-center max-w-sm mx-auto">
-                    <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-400 mb-3">
-                      <Database className="w-6 h-6" />
-                    </div>
-                    <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1">
-                      {emptyMessage}
-                    </h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 text-center">
-                      {emptySubtext}
-                    </p>
-                    {emptyAction && (
-                      <button
-                        onClick={emptyAction.onClick}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition-colors"
-                      >
-                        {emptyAction.icon}
-                        {emptyAction.label}
-                      </button>
-                    )}
-                  </div>
+                  <EmptyState
+                    title={emptyMessage}
+                    description={emptySubtext}
+                    action={emptyAction}
+                  />
                 </td>
               </tr>
+            ) : isVirtualized ? (
+              <>
+                {rowVirtualizer.getVirtualItems().length > 0 && rowVirtualizer.getVirtualItems()[0].start > 0 && (
+                  <tr>
+                    <td
+                      colSpan={columns.length + (onSelectRow ? 1 : 0) + (hasRowActions ? 1 : 0)}
+                      style={{ height: `${rowVirtualizer.getVirtualItems()[0].start}px`, padding: 0, border: 'none' }}
+                    />
+                  </tr>
+                )}
+                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const row = displayRows[virtualRow.index];
+                  const rowKey = keyExtractor(row, virtualRow.index);
+                  const isSelected = selectedSet.has(rowKey);
+
+                  return (
+                    <TableRow
+                      key={rowKey}
+                      row={row}
+                      rIdx={virtualRow.index}
+                      rowKey={rowKey}
+                      isSelected={isSelected}
+                      columns={columns}
+                      hasRowActions={Boolean(hasRowActions)}
+                      onSelectRow={onSelectRow}
+                      onRowClick={onRowClick}
+                      onView={onView}
+                      onEdit={onEdit}
+                      onDelete={onDelete}
+                    />
+                  );
+                })}
+                {rowVirtualizer.getVirtualItems().length > 0 && (
+                  (() => {
+                    const vItems = rowVirtualizer.getVirtualItems();
+                    const paddingBottom = rowVirtualizer.getTotalSize() - vItems[vItems.length - 1].end;
+                    return paddingBottom > 0 ? (
+                      <tr>
+                        <td
+                          colSpan={columns.length + (onSelectRow ? 1 : 0) + (hasRowActions ? 1 : 0)}
+                          style={{ height: `${paddingBottom}px`, padding: 0, border: 'none' }}
+                        />
+                      </tr>
+                    ) : null;
+                  })()
+                )}
+              </>
             ) : (
-              // Data Rows
               displayRows.map((row, rIdx) => {
                 const rowKey = keyExtractor(row, rIdx);
                 const isSelected = selectedSet.has(rowKey);
 
                 return (
-                  <tr
+                  <TableRow
                     key={rowKey}
-                    onClick={() => onRowClick && onRowClick(row)}
-                    className={`group hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-colors ${
-                      onRowClick ? 'cursor-pointer' : ''
-                    } ${isSelected ? 'bg-indigo-50/60 dark:bg-indigo-950/30' : ''}`}
-                  >
-                    {onSelectRow && (
-                      <td
-                        className="px-4 py-3 text-center"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={(e) => onSelectRow(rowKey, e.target.checked)}
-                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
-                        />
-                      </td>
-                    )}
-
-                    {columns.map((col, cIdx) => {
-                      const colId = col.id || String(col.accessorKey || cIdx);
-                      const val = col.accessorKey ? row[col.accessorKey] : undefined;
-
-                      return (
-                        <td
-                          key={colId}
-                          className={`px-4 py-3 text-slate-700 dark:text-slate-300 ${
-                            col.align === 'center'
-                              ? 'text-center'
-                              : col.align === 'right'
-                              ? 'text-right'
-                              : 'text-left'
-                          }`}
-                        >
-                          {col.cell ? col.cell(row, rIdx) : String(val ?? '—')}
-                        </td>
-                      );
-                    })}
-
-                    {hasRowActions && (
-                      <td
-                        className="px-4 py-3 text-right"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="flex items-center justify-end gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                          {onView && (
-                            <button
-                              title="View details"
-                              onClick={() => onView(row)}
-                              className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          {onEdit && (
-                            <button
-                              title="Edit item"
-                              onClick={() => onEdit(row)}
-                              className="p-1 rounded hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 transition-colors"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          {onDelete && (
-                            <button
-                              title="Delete record"
-                              onClick={() => onDelete(row)}
-                              className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/50 text-red-500 hover:text-red-700 transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    )}
-                  </tr>
+                    row={row}
+                    rIdx={rIdx}
+                    rowKey={rowKey}
+                    isSelected={isSelected}
+                    columns={columns}
+                    hasRowActions={Boolean(hasRowActions)}
+                    onSelectRow={onSelectRow}
+                    onRowClick={onRowClick}
+                    onView={onView}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                  />
                 );
               })
             )}

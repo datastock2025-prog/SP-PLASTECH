@@ -675,7 +675,7 @@ export const ScmMrpView: React.FC<ScmMrpViewProps> = ({
       ],
     };
 
-    // Save into global procurement dataset + localStorage
+    // Save into global procurement dataset + storage
     addPurchaseRequisition(newPurchaseRequisition);
     setDispatchedPrIds((prev) => [prNumber, ...prev]);
     setIsPrModalOpen(false);

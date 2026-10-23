@@ -4,7 +4,5 @@
 // ============================================================================
 
 export * from './types/masterDataSchemas';
-export * from './api/masterDataApi';
 export * from './hooks/useMasterData';
-export { MasterDataViews } from '../../components/MasterDataViews';
-export { CreateItemWizardModal } from '../../components/masterdata/CreateItemWizardModal';
+export { MasterDataViews, CreateItemWizardModal } from '../../../apps/web/src/modules/masterdata';

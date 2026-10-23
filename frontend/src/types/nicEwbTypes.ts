@@ -3,7 +3,7 @@
 // Indian GST Tax Compliance Standard Definitions
 // ============================================================================
 
-export type NicEnvironment = 'MOCK' | 'SANDBOX' | 'PRODUCTION';
+export type NicEnvironment = 'SIMULATOR' | 'SANDBOX' | 'PRODUCTION';
 
 export interface NicCredentials {
   gstin: string;

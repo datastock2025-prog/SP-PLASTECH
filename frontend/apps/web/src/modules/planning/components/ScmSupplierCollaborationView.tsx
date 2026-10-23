@@ -13,7 +13,6 @@ import {
   Award,
   Clock,
 } from 'lucide-react';
-import { mockSupplierCollaboration } from '@/src/data/mockScmData';
 import { SupplierCollaborationPO } from '@/src/types/scm';
 import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { usePagination } from '@/src/hooks/usePagination';
@@ -24,7 +23,7 @@ interface ScmSupplierCollaborationViewProps {
 }
 
 export const ScmSupplierCollaborationView: React.FC<ScmSupplierCollaborationViewProps> = ({ onNavigate, showToast }) => {
-  const [pos, setPos] = useState<SupplierCollaborationPO[]>(mockSupplierCollaboration);
+  const [pos, setPos] = useState<SupplierCollaborationPO[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAsnModalOpen, setIsAsnModalOpen] = useState(false);
   const [selectedPo, setSelectedPo] = useState<SupplierCollaborationPO | null>(null);

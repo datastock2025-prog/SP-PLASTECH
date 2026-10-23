@@ -481,7 +481,7 @@ export const PurchaseRequisitionFormView: React.FC<Props> = ({
       ],
     };
 
-    // Store in global helper and localStorage
+    // Store in global helper and in-memory cache
     addPurchaseRequisition(newPr);
     onSavePR(newPr);
     adminEventBus.emit('PR_SAVED', newPr);

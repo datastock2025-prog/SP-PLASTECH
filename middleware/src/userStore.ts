@@ -61,6 +61,11 @@ export async function insertUser(c: PoolClient, input: NewUserInput): Promise<st
     await c.query(`INSERT INTO plant_user (plant_id, user_id, tenant_id) VALUES ($1,$2,$3)`, [plantId, id, input.tenantId]);
   }
   await c.query(`INSERT INTO user_preferences (user_id, tenant_id) VALUES ($1,$2)`, [id, input.tenantId]);
+  await c.query(
+    `INSERT INTO user_password_history (tenant_id, user_id, password_hash, created_at)
+     VALUES ($1, $2, $3, now())`,
+    [input.tenantId, id, passwordHash]
+  );
   return id;
 }
 

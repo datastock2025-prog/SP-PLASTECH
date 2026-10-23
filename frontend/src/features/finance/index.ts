@@ -5,4 +5,4 @@
 
 export * from './types/financeSchemas';
 export * from './hooks/useFinance';
-export { FinanceViews } from '../../components/FinanceViews';
+export { FinanceViews } from '../../../apps/web/src/modules/finance';

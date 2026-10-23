@@ -299,7 +299,7 @@ export const SALES_CUSTOMERS: Customer[] = [
 // ----------------------------------------------------
 // SALES BLANKET CONTRACTS & RATE AGREEMENTS
 // ----------------------------------------------------
-export const SALES_CONTRACTS_SEED: SalesContract[] = [
+export const SALES_CONTRACTS: SalesContract[] = [
   {
     id: 'CNT-2026-01',
     customer: 'Apex Automotive Components',
@@ -602,7 +602,7 @@ export const SALES_QUOTATIONS: SalesQuotation[] = [
 // ----------------------------------------------------
 // EXTENDED SALES ORDERS WITH FULL INTEGRATION
 // ----------------------------------------------------
-export const SALES_ORDERS_SEED: SalesOrder[] = [
+export const SALES_ORDERS: SalesOrder[] = [
   {
     id: 'SO-501',
     customer: 'CUST-001',

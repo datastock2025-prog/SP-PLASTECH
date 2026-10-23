@@ -83,6 +83,18 @@ import {
   PinOff,
 } from 'lucide-react';
 import { AuthUser } from '../types';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../shared/queryKeys';
+import { api } from '../lib/api-client';
+import {
+  mapDbRowToItemMaster,
+  mapDbRowToBom,
+  mapDbRowToWorkOrder,
+  mapDbRowToPurchaseOrder,
+  mapDbRowToSalesOrder,
+  mapDbRowToCustomer,
+  mapDbRowToMachine,
+} from '../shared/utils/dtoMappers';
 import {
   NAVIGATION_GROUPS,
   NavGroupDef,
@@ -228,8 +240,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Favorites / Pinned Views State
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
-      if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
-        const stored = localStorage.getItem('reboot_pinned_screens');
+      if (typeof window !== 'undefined') {
+        const stored = sessionStorage.getItem('reboot_pinned_screens');
         if (stored) return JSON.parse(stored);
       }
     } catch (e) {
@@ -242,8 +254,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Recent Records State
   const [recentRecords, setRecentRecords] = useState<RecentRecordItem[]>(() => {
     try {
-      if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
-        const stored = localStorage.getItem('reboot_recent_records');
+      if (typeof window !== 'undefined') {
+        const stored = sessionStorage.getItem('reboot_recent_records');
         if (stored) return JSON.parse(stored);
       }
     } catch (e) {
@@ -315,7 +327,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       const exists = prev.includes(view);
       const updated = exists ? prev.filter((v) => v !== view) : [...prev, view];
       try {
-        localStorage.setItem('reboot_pinned_screens', JSON.stringify(updated));
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('reboot_pinned_screens', JSON.stringify(updated));
+        }
       } catch (err) {
         console.error(err);
       }
@@ -329,7 +343,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     e.stopPropagation();
     setRecentRecords([]);
     try {
-      localStorage.removeItem('reboot_recent_records');
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('reboot_recent_records');
+      }
     } catch (err) {
       console.error(err);
     }
@@ -341,6 +357,136 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onNavigate(view, param);
     setFlyoutGroup(null);
     onCloseMobile();
+  };
+
+  const queryClient = useQueryClient();
+
+  // Ponytail: Prefetch key module queries on hover with 5-minute stale-time
+  const prefetchView = (view: string) => {
+    try {
+      switch (view) {
+        case 'itemList':
+        case 'itemMaster':
+          queryClient.prefetchQuery({
+            queryKey: queryKeys.masterData.items({ limit: 50 }),
+            queryFn: async () => {
+              const res = await api.get<any>('/items', { params: { limit: 50 } });
+              const envelope = res?.data !== undefined ? res.data : res;
+              return Array.isArray(envelope?.data) ? envelope.data : Array.isArray(envelope) ? envelope : [];
+            },
+            staleTime: 1000 * 60 * 5,
+          });
+          break;
+        case 'bomList':
+        case 'bomMaster':
+          queryClient.prefetchQuery({
+            queryKey: queryKeys.engineering.boms(),
+            queryFn: async () => {
+              const res = await api.get<any>('/bill-of-materials', { params: { limit: 50 } });
+              const rows = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+              return rows.map((r: any) => mapDbRowToBom(r));
+            },
+            staleTime: 1000 * 60 * 5,
+          });
+          break;
+        case 'customerList':
+        case 'customers':
+          queryClient.prefetchQuery({
+            queryKey: queryKeys.sales.customers(),
+            queryFn: async () => {
+              const res = await api.get<any>('/customers', { params: { limit: 50 } });
+              const rows = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+              return rows.map((r: any) => mapDbRowToCustomer(r));
+            },
+            staleTime: 1000 * 60 * 5,
+          });
+          break;
+        case 'salesOrderList':
+        case 'salesOrders':
+          queryClient.prefetchQuery({
+            queryKey: queryKeys.sales.orders(),
+            queryFn: async () => {
+              const res = await api.get<any>('/sales-orders', { params: { limit: 50 } });
+              const rows = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+              return rows.map((r: any) => mapDbRowToSalesOrder(r));
+            },
+            staleTime: 1000 * 60 * 5,
+          });
+          break;
+        case 'poList':
+        case 'purchaseOrders':
+          queryClient.prefetchQuery({
+            queryKey: queryKeys.procurement.purchaseOrders(),
+            queryFn: async () => {
+              const res = await api.get<any>('/purchase-orders', { params: { limit: 50 } });
+              const rows = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+              return rows.map((r: any) => mapDbRowToPurchaseOrder(r));
+            },
+            staleTime: 1000 * 60 * 5,
+          });
+          break;
+        case 'supplierList':
+        case 'suppliers':
+          queryClient.prefetchQuery({
+            queryKey: queryKeys.procurement.suppliers(),
+            queryFn: async () => {
+              const res = await api.get<any>('/suppliers', { params: { limit: 50 } });
+              return Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+            },
+            staleTime: 1000 * 60 * 5,
+          });
+          break;
+        case 'woList':
+        case 'workOrders':
+          queryClient.prefetchQuery({
+            queryKey: queryKeys.manufacturing.workOrders(),
+            queryFn: async () => {
+              const res = await api.get<any>('/work-orders', { params: { limit: 50 } });
+              const rows = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+              return rows.map((r: any) => mapDbRowToWorkOrder(r));
+            },
+            staleTime: 1000 * 60 * 5,
+          });
+          break;
+        case 'machines':
+        case 'mouldMaster':
+          queryClient.prefetchQuery({
+            queryKey: queryKeys.masterData.machines(),
+            queryFn: async () => {
+              const res = await api.get<any>('/machines', { params: { limit: 50 } });
+              const rows = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+              return rows.map((r: any) => mapDbRowToMachine(r));
+            },
+            staleTime: 1000 * 60 * 5,
+          });
+          break;
+        case 'adminUsers':
+        case 'users':
+          queryClient.prefetchQuery({
+            queryKey: queryKeys.admin.users(),
+            queryFn: async () => {
+              const res = await api.get<any>('/users', { params: { limit: 50 } });
+              return Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+            },
+            staleTime: 1000 * 60 * 5,
+          });
+          break;
+        case 'auditLogs':
+          queryClient.prefetchQuery({
+            queryKey: queryKeys.admin.auditLogs(),
+            queryFn: async () => {
+              const res = await api.get<any>('/audit-logs', { params: { limit: 50 } });
+              return Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+            },
+            staleTime: 1000 * 60 * 5,
+          });
+          break;
+        default:
+          break;
+      }
+    } catch {
+      // Quietly swallow prefetch errors so hover stays smooth
+    }
   };
 
   // Filter items based on search input and role visibility (Sidebar RBAC)
@@ -550,6 +696,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <div
                         key={`fav-${item.id}`}
                         onClick={() => handleNav(item.view, item.params)}
+                        onMouseEnter={() => prefetchView(item.view)}
                         title={isCollapsed ? `${item.label} (Pinned)` : undefined}
                         className={`group relative flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
                           active
@@ -651,6 +798,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <div
                           key={item.id}
                           onClick={() => handleNav(item.view, item.params)}
+                          onMouseEnter={() => prefetchView(item.view)}
                           className={`group relative flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
                             active
                               ? 'bg-[#E8622C]/20 text-white font-semibold shadow-2xs'
@@ -734,6 +882,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <div
                       key={rec.id}
                       onClick={() => handleNav(rec.view, rec.params)}
+                      onMouseEnter={() => prefetchView(rec.view)}
                       className="px-2 py-1.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] text-xs cursor-pointer transition-colors"
                     >
                       <div className="flex items-center justify-between text-[10px]">
@@ -817,6 +966,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div
                   key={`flyout-${item.id}`}
                   onClick={() => handleNav(item.view, item.params)}
+                  onMouseEnter={() => prefetchView(item.view)}
                   className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors ${
                     active
                       ? 'bg-[#E8622C] text-white font-semibold'

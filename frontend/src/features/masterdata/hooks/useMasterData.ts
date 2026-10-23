@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { masterDataApi } from '../api/masterDataApi';
+import { api } from '@/src/lib/api-client';
 import { ItemMaster } from '../../../types';
 import { CreateItemFormValues } from '../types/masterDataSchemas';
 import { useUiStore } from '../../../shared/stores/uiStore';
@@ -12,12 +12,19 @@ export function useMasterData() {
 
   const { data: items = [], isLoading } = useQuery<ItemMaster[]>({
     queryKey: ITEMS_QUERY_KEY,
-    queryFn: () => masterDataApi.getItems(),
+    queryFn: async () => {
+      const res = await api.get<any>('/items');
+      const envelope = res?.data !== undefined ? res.data : res;
+      return Array.isArray(envelope?.data) ? envelope.data : Array.isArray(envelope) ? envelope : [];
+    },
   });
 
   const createItemMutation = useMutation({
-    mutationFn: (data: CreateItemFormValues) => masterDataApi.createItem(data),
-    onSuccess: (newItem) => {
+    mutationFn: async (data: CreateItemFormValues) => {
+      const res = await api.post<any>('/items', data);
+      return res?.data?.data ?? res?.data;
+    },
+    onSuccess: (newItem: ItemMaster) => {
       queryClient.setQueryData<ItemMaster[]>(ITEMS_QUERY_KEY, (old = []) => [newItem, ...old]);
       showToast(`SKU ${newItem.code} created successfully`);
     },

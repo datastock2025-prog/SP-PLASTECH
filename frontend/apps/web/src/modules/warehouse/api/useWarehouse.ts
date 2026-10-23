@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/shared/queryKeys';
 import { apiClient } from '@/src/services/api';
-import { db } from '@/src/shared/db';
+import { api } from '@/src/lib/api-client';
 import {
   InventoryStockItem,
   InventoryStockLot,
@@ -43,7 +43,7 @@ let inMemoryLedger: StockMovementLedgerEntry[] = [...INITIAL_STOCK_MOVEMENT_LEDG
 export function isUserAdmin(user?: any): boolean {
   if (!user) {
     try {
-      const session = localStorage.getItem('reboot_auth_session') || localStorage.getItem('reboot_current_user');
+      const session = typeof window !== 'undefined' ? (sessionStorage.getItem('reboot_auth_session') || sessionStorage.getItem('reboot_current_user')) : null;
       if (session) {
         const u = JSON.parse(session);
         if (u && (u.roleType === 'admin' || (u.role && u.role.toLowerCase().includes('admin')) || u.role === 'Super Administrator')) {
@@ -198,7 +198,7 @@ export function postPutawayTasksToWarehouse(tasks: GrnPutawayTask[], user?: any)
       existing.totalOnHand = (existing.totalOnHand || 0) + qty;
       existing.availableToPromise = (existing.availableToPromise || 0) + qty;
       existing.lots = [newLot, ...(existing.lots || [])];
-      db.upsert('warehouse_stock', existing).catch(console.warn);
+      api.post('/warehouse-stock', existing).catch(() => {});
     } else {
       const newItem: InventoryStockItem = {
         id: `STK-${(task as any).itemCode || (task as any).sku || Date.now()}`,
@@ -228,7 +228,7 @@ export function postPutawayTasksToWarehouse(tasks: GrnPutawayTask[], user?: any)
         lastMovementDate: now.split('T')[0],
       };
       inMemoryStock.unshift(newItem);
-      db.upsert('warehouse_stock', newItem).catch(console.warn);
+      api.post('/warehouse-stock', newItem).catch(() => {});
     }
 
     const ledgerEntry: StockMovementLedgerEntry = {
@@ -254,7 +254,7 @@ export function postPutawayTasksToWarehouse(tasks: GrnPutawayTask[], user?: any)
       runningBalance: qty,
     };
     inMemoryLedger.unshift(ledgerEntry);
-    db.upsert('stock_movement_ledger', ledgerEntry).catch(console.warn);
+    api.post('/stock-movement-ledger', ledgerEntry).catch(() => {});
   }
   return true;
 }
@@ -273,7 +273,7 @@ export function recordOutwardDispatchInventoryMovement(challan: any, customer?: 
     if (stock) {
       stock.totalOnHand = Math.max(0, (stock.totalOnHand || 0) - qty);
       stock.availableToPromise = Math.max(0, (stock.availableToPromise || 0) - qty);
-      db.upsert('warehouse_stock', stock).catch(console.warn);
+      api.post('/warehouse-stock', stock).catch(() => {});
     }
 
     const ledgerEntry: StockMovementLedgerEntry = {
@@ -299,7 +299,7 @@ export function recordOutwardDispatchInventoryMovement(challan: any, customer?: 
       runningBalance: stock ? stock.totalOnHand : 0,
     };
     inMemoryLedger.unshift(ledgerEntry);
-    db.upsert('stock_movement_ledger', ledgerEntry).catch(console.warn);
+    api.post('/stock-movement-ledger', ledgerEntry).catch(() => {});
   }
   return true;
 }
@@ -331,7 +331,7 @@ export function recordProductionShiftInventoryMovement(params: {
   if (stock) {
     stock.totalOnHand = (stock.totalOnHand || 0) + effectiveGood;
     stock.availableToPromise = (stock.availableToPromise || 0) + effectiveGood;
-    db.upsert('warehouse_stock', stock).catch(console.warn);
+    api.post('/warehouse-stock', stock).catch(() => {});
   }
 
   const ledgerEntry: StockMovementLedgerEntry = {
@@ -357,7 +357,7 @@ export function recordProductionShiftInventoryMovement(params: {
     runningBalance: stock ? stock.totalOnHand : effectiveGood,
   };
   inMemoryLedger.unshift(ledgerEntry);
-  db.upsert('stock_movement_ledger', ledgerEntry).catch(console.warn);
+  api.post('/stock-movement-ledger', ledgerEntry).catch(() => {});
   return true;
 }
 
@@ -370,15 +370,15 @@ export function useWarehouseStock() {
     queryKey: queryKeys.warehouse.stock(),
     queryFn: async () => {
       try {
-        const data = await db.findMany<InventoryStockItem>('warehouse_stock');
-        if (data && data.length > 0) {
-          inMemoryStock = data;
-          return data;
-        }
+        const res = await api.get<any>('/warehouse-stock', {
+          params: { limit: 100, includeTotal: true },
+        });
+        const rows = res?.data?.data || res?.data;
+        if (Array.isArray(rows)) return rows;
       } catch (e) {
-        console.debug('[useWarehouseStock] db fetch notice:', e);
+        console.debug('[useWarehouseStock] REST query notice:', e);
       }
-      return inMemoryStock;
+      return [];
     },
     staleTime: 1000 * 30,
   });
@@ -389,18 +389,15 @@ export function useWarehouseMovementLedger() {
     queryKey: queryKeys.warehouse.stockLedger(),
     queryFn: async () => {
       try {
-        const data = await db.findMany<StockMovementLedgerEntry>('stock_movement_ledger', {
-          orderBy: { column: 'timestamp', ascending: false },
-          limit: 100,
+        const res = await api.get<any>('/stock-movement-ledger', {
+          params: { limit: 100, sortBy: 'timestamp', sortOrder: 'desc', includeTotal: true },
         });
-        if (data && data.length > 0) {
-          inMemoryLedger = data;
-          return data;
-        }
+        const rows = res?.data?.data || res?.data;
+        if (Array.isArray(rows)) return rows;
       } catch (e) {
-        console.debug('[useWarehouseMovementLedger] notice:', e);
+        console.debug('[useWarehouseMovementLedger] REST query notice:', e);
       }
-      return inMemoryLedger;
+      return [];
     },
     staleTime: 1000 * 30,
   });
@@ -410,10 +407,17 @@ export function useSaveWarehouseStock() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (item: InventoryStockItem) => {
-      await db.upsert('warehouse_stock', item, 'id');
-      const idx = inMemoryStock.findIndex((s) => s.id === item.id);
-      if (idx >= 0) inMemoryStock[idx] = item;
-      else inMemoryStock.unshift(item);
+      if (item.id) {
+        try {
+          const res = await api.patch<any>(`/warehouse-stock/${encodeURIComponent(item.id)}`, item);
+          if (res?.data) return res.data.data || res.data;
+        } catch {}
+      } else {
+        try {
+          const res = await api.post<any>('/warehouse-stock', item);
+          if (res?.data) return res.data.data || res.data;
+        } catch {}
+      }
       return item;
     },
     onSuccess: (saved) => {
@@ -428,10 +432,13 @@ export function useStockLedger(filter?: Record<string, any>) {
     queryKey: queryKeys.warehouse.stockLedger(filter),
     queryFn: async () => {
       try {
-        const data = await db.findMany<InventoryStockItem>('warehouse_stock');
-        if (data && data.length > 0) return data;
+        const res = await api.get<any>('/warehouse-stock', {
+          params: { ...(filter || {}), limit: 100, includeTotal: true },
+        });
+        const rows = res?.data?.data || res?.data;
+        if (Array.isArray(rows)) return rows;
       } catch {}
-      return inMemoryStock;
+      return [];
     },
     staleTime: 1000 * 60 * 2,
   });

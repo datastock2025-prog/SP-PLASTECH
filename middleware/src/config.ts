@@ -1,3 +1,5 @@
+import { createEnv } from '@t3-oss/env-core';
+import { z } from 'zod';
 import dotenv from 'dotenv';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,36 +15,62 @@ if (typeof process !== 'undefined') {
   }
 }
 
-// Runtime-agnostic configuration. On Node the values come from process.env at
+// T3 Env Schema for strict enterprise environment validation
+export const env = createEnv({
+  server: {
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    APP_ENV: z.string().optional(),
+    PORT: z.coerce.number().default(4000),
+    AUTH_PORT: z.coerce.number().optional(),
+    BETTER_AUTH_SECRET: z.string().default(''),
+    BETTER_AUTH_URL: z.string().optional(),
+    AUTH_TRUSTED_ORIGINS: z.string().default('http://localhost:3000,http://127.0.0.1:3000'),
+    DATABASE_URL: z.string().optional(),
+    AUTH_DATABASE_URL: z.string().optional(),
+    SUPABASE_DATABASE_URL: z.string().optional(),
+    EMBEDDED_PG_PORT: z.coerce.number().default(54329),
+    TENANT_CODE: z.string().default('SP-PLASTECH'),
+    TENANT_NAME: z.string().default('SP-PLASTECH Polymer Solutions'),
+    SETUP_TOKEN: z.string().default(''),
+    BOOTSTRAP_ADMIN_EMAIL: z.string().default(''),
+    BOOTSTRAP_ADMIN_USERNAME: z.string().default('admin'),
+    BOOTSTRAP_ADMIN_PASSWORD: z.string().default(''),
+    BOOTSTRAP_ADMIN_NAME: z.string().default('System Administrator'),
+  },
+  runtimeEnv: typeof process !== 'undefined' ? process.env : {},
+});
+
+// Runtime-agnostic configuration. On Node the values come from process.env / T3 env at
 // start-up; on Cloudflare Workers `configure(env)` is called with the bindings.
-const read = (env: Record<string, any>) => {
-  const port = Number(env.PORT ?? env.AUTH_PORT ?? 4000);
+const read = (rawEnv: Record<string, any>) => {
+  const merged = { ...env, ...rawEnv };
+  const port = Number(merged.PORT ?? merged.AUTH_PORT ?? 4000);
   return {
-    isProd: env.NODE_ENV === 'production' || env.APP_ENV === 'production',
+    isProd: merged.NODE_ENV === 'production' || merged.APP_ENV === 'production',
     port,
-    secret: String(env.BETTER_AUTH_SECRET ?? ''),
-    baseURL: String(env.BETTER_AUTH_URL ?? `http://localhost:${port}`),
-    trustedOrigins: String(env.AUTH_TRUSTED_ORIGINS ?? 'http://localhost:3000,http://127.0.0.1:3000')
+    secret: String(merged.BETTER_AUTH_SECRET ?? ''),
+    baseURL: String(merged.BETTER_AUTH_URL ?? `http://localhost:${port}`),
+    trustedOrigins: String(merged.AUTH_TRUSTED_ORIGINS ?? 'http://localhost:3000,http://127.0.0.1:3000')
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean),
-    databaseUrl: String(env.AUTH_DATABASE_URL ?? env.DATABASE_URL ?? ''),
-    embeddedPgPort: Number(env.EMBEDDED_PG_PORT ?? 54329),
-    tenantCode: String(env.TENANT_CODE ?? 'SP-PLASTECH'),
-    tenantName: String(env.TENANT_NAME ?? 'SP-PLASTECH Polymer Solutions'),
-    setupToken: String(env.SETUP_TOKEN ?? ''),
+    databaseUrl: String(rawEnv.HYPERDRIVE?.connectionString ?? merged.AUTH_DATABASE_URL ?? merged.DATABASE_URL ?? merged.SUPABASE_DATABASE_URL ?? ''),
+    embeddedPgPort: Number(merged.EMBEDDED_PG_PORT ?? 54329),
+    tenantCode: String(merged.TENANT_CODE ?? 'SP-PLASTECH'),
+    tenantName: String(merged.TENANT_NAME ?? 'SP-PLASTECH Polymer Solutions'),
+    setupToken: String(merged.SETUP_TOKEN ?? ''),
     bootstrapAdmin: {
-      email: String(env.BOOTSTRAP_ADMIN_EMAIL ?? ''),
-      username: String(env.BOOTSTRAP_ADMIN_USERNAME ?? 'admin'),
-      password: String(env.BOOTSTRAP_ADMIN_PASSWORD ?? ''),
-      name: String(env.BOOTSTRAP_ADMIN_NAME ?? 'System Administrator'),
+      email: String(merged.BOOTSTRAP_ADMIN_EMAIL ?? ''),
+      username: String(merged.BOOTSTRAP_ADMIN_USERNAME ?? 'admin'),
+      password: String(merged.BOOTSTRAP_ADMIN_PASSWORD ?? ''),
+      name: String(merged.BOOTSTRAP_ADMIN_NAME ?? 'System Administrator'),
     },
   };
 };
 
 export const config = { root: '', ...read(typeof process !== 'undefined' ? process.env : {}) };
 
-export function configure(env: Record<string, any>) {
-  Object.assign(config, read(env));
+export function configure(rawEnv: Record<string, any>) {
+  Object.assign(config, read(rawEnv));
   if (!config.secret) throw new Error('BETTER_AUTH_SECRET is required');
 }

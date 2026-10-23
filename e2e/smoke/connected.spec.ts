@@ -7,72 +7,66 @@ test.describe('Connected Smoke Test Suite (Web -> API -> Postgres)', () => {
     const testCode = `SMK-${Date.now().toString().slice(-6)}`;
     const testName = `Connected Smoke Test Part ${testCode}`;
 
-    // 1. Sign In
+    // 1. Sign In or use authenticated session
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('#login-username', { timeout: 15000 });
-    await page.fill('#login-username', E2E_ADMIN_USER);
-    await page.fill('#login-password', E2E_ADMIN_PASSWORD);
-    await page.click('button[type="submit"]');
+    const userField = page.locator('#login-username');
+    if (await userField.isVisible({ timeout: 4000 }).catch(() => false)) {
+      await page.fill('#login-username', E2E_ADMIN_USER);
+      await page.fill('#login-password', E2E_ADMIN_PASSWORD);
+      await page.click('button[type="submit"]');
+    }
 
     // Wait for the workspace header/shell to mount
     await expect(page.locator('header')).toBeVisible({ timeout: 20000 });
 
     // 2. Open Items
-    // Navigate to itemList view
-    await page.evaluate(() => {
-      localStorage.setItem('reboot_active_view', 'itemList');
-      window.dispatchEvent(new CustomEvent('reboot_navigate', { detail: { view: 'itemList' } }));
-    });
-    // Ensure Item Master view is active or click navigation
-    const itemCatalogHeading = page.locator('text=Item Master').first();
-    if (!await itemCatalogHeading.isVisible({ timeout: 3000 }).catch(() => false)) {
-      // Trigger navigation via sidebar / search if needed
-      await page.goto('/#itemList');
-    }
+    // Navigate to canonical masterdata items view
+    await page.goto('/masterdata/items', { waitUntil: 'domcontentloaded' });
+    const itemCatalogHeading = page.getByRole('heading', { name: /Item Master Catalog/i });
+    await expect(itemCatalogHeading).toBeVisible({ timeout: 25000 });
 
     // 3. Create an item
-    const createItemBtn = page.locator('button:has-text("Create Item")').first();
-    await expect(createItemBtn).toBeVisible({ timeout: 10000 });
+    const createItemBtn = page.getByRole('button', { name: 'Create Item' });
+    await expect(createItemBtn).toBeVisible({ timeout: 15000 });
     await createItemBtn.click();
 
-    // Fill Item details in Wizard
-    await page.waitForSelector('input#item-code-input, input[placeholder*="Item Code"], input[name="code"]', { timeout: 10000 })
-      .catch(() => null);
-
-    // If modal inputs exist, fill code and name
-    const codeInput = page.locator('input#item-code-input, input[placeholder*="Item Code"], input[name="code"]').first();
-    if (await codeInput.isVisible()) {
-      await codeInput.fill(testCode);
+    // Step 1: Select Type & Continue to Step 2
+    const continueBtn = page.getByRole('button', { name: 'Continue' });
+    if (await continueBtn.isVisible({ timeout: 6000 }).catch(() => false)) {
+      await continueBtn.click();
     }
 
-    const nameInput = page.locator('input#item-name-input, input[placeholder*="Item Name"], input[name="name"]').first();
-    if (await nameInput.isVisible()) {
-      await nameInput.fill(testName);
-    }
+    // Step 2: Fill Code & Name
+    const codeInput = page.getByPlaceholder(/FG-BMP-NEXON-F/i);
+    await expect(codeInput).toBeVisible({ timeout: 15000 });
+    await codeInput.fill(testCode);
 
-    // Save item
-    const saveBtn = page.locator('button:has-text("Save Item"), button:has-text("Create SKU"), button:has-text("Submit")').first();
-    if (await saveBtn.isVisible()) {
-      await saveBtn.click();
-    }
+    const nameInput = page.getByPlaceholder(/PP Natural Granules/i);
+    await expect(nameInput).toBeVisible({ timeout: 15000 });
+    await nameInput.fill(testName);
+
+    // Save as draft
+    const saveBtn = page.getByRole('button', { name: 'Save as draft' }).first();
+    await expect(saveBtn).toBeVisible({ timeout: 15000 });
+    await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/api/v1/items') && (r.status() === 200 || r.status() === 201), { timeout: 15000 }).catch(() => null),
+      saveBtn.click(),
+    ]);
 
     // 4. Reload page & verify persistence from Database
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    await expect(page.locator('header')).toBeVisible({ timeout: 20000 });
+    await page.goto('/masterdata/items', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: /Item Master Catalog/i })).toBeVisible({ timeout: 25000 });
+
+    // Search for the newly created item SKU
+    const searchInput = page.getByPlaceholder(/Instant search SKU/i);
+    await expect(searchInput).toBeVisible({ timeout: 15000 });
+    await searchInput.fill(testCode);
+    await page.waitForTimeout(500);
 
     // Verify created item persists
     const persistedItem = page.locator(`text=${testCode}`).first();
-    await expect(persistedItem).toBeVisible({ timeout: 15000 });
+    await expect(persistedItem).toBeVisible({ timeout: 20000 });
 
-    // 5. Sign Out
-    const userMenuButton = page.locator('header').locator('button').last();
-    await userMenuButton.click();
-
-    const signOutBtn = page.locator('button:has-text("Sign Out"), button:has-text("Lock Terminal")').first();
-    await expect(signOutBtn).toBeVisible({ timeout: 5000 });
-    await signOutBtn.click();
-
-    // Verify back to login
-    await expect(page.locator('#login-username')).toBeVisible({ timeout: 10000 });
+    // 5. Verification complete - retain active session for concurrent workers
   });
 });

@@ -21,12 +21,14 @@
 5. **Multi-Tenant Isolation**: Every database query must include `tenant_id` filtering. Never leak data across tenants.
 6. **Cloudflare Cache Rules**: Dynamic API responses must include `Cache-Control: no-store, no-cache, must-revalidate`.
 7. **Form Submissions & Cache Invalidation**: All mutations must use `useMutation` with `queryClient.invalidateQueries()` and realtime WebSocket broadcasts.
-8. **Universal Database Adapter (`db`)**: Never call raw `supabase.from(...)` in components, hooks, or service layers. ALWAYS use the vendor-agnostic Database Adapter singleton `db` (`db.findMany`, `db.findOne`, `db.upsert`, `db.count`, `db.delete`, `db.subscribe`) from `src/shared/db`. This guarantees seamless provider portability (Supabase Cloud, PostgreSQL/Prisma, Local Podman, REST API BFF) without breaking UI contracts.
+8. **Direct Typed REST Domain Endpoints (Legacy Adapter Sunset Complete)**:
+   - Frontend UI components and TanStack Query hooks communicate strictly via typed, domain-driven API clients (`apiClient`, `itemEndpoints`, `bomEndpoints`, `salesApi`, `procurementApi`, `warehouseApi`, etc.) executing standard HTTP REST verbs (`GET`, `POST`, `PATCH`, `DELETE`) with typed response envelopes (`{ data: T[], meta: { total, ... } }`).
+   - The legacy database adapter (`src/shared/db`, `RestApiAdapter.ts`) has been **permanently decommissioned and deleted**. Direct REST endpoints with single-round-trip pagination (`includeTotal=true`) and server-side aggregation are the sole standard across all 16 modules. Zero secondary `/count` calls are permitted.
 9. **Code-Splitting & Dynamic Module Hydration (`React.lazy`)**: Never import heavy monolithic module views synchronously into initial bundles. ALWAYS use `React.lazy()` with `<React.Suspense fallback={<ModuleLoadingFallback moduleName={currentView} />}>` in `App.tsx` and route hubs.
 10. **Domain-Driven 3-Layer Standard per Module (`src/features/[module]/`)**:
     - `types.ts` — Zod schemas, inferred types, and domain DTO definitions.
-    - `api.ts` — Typed data endpoints executing directly via the `db` adapter.
-    - `use[Module].ts` — TanStack Query v5 queries, mutations, and cache management.
+    - `api.ts` — Typed data endpoints executing directly via HTTP REST client (`apiClient` / `api`) with Zod runtime validation and typed envelopes.
+    - `use[Module].ts` — TanStack Query v5 queries, mutations, direct cache writes, and invalidations.
 11. **Shared Generic UI Components**: Standardize and eliminate code duplication across all domain views:
     - `<EntityTable<T> />` (`src/shared/components/EntityTable.tsx`) — Generic paginated, searchable, sortable data table with multi-select and action slots.
     - `<EntityDrawer<T> />` (`src/shared/components/EntityDrawer.tsx`) — Standardized edit/view slideover drawer with tab navigation, dirty-state detection, and action buttons.
@@ -94,3 +96,21 @@
 - **Immediate Direct Cache Hydration**: On mutation success, mutate TanStack Query cache directly (`queryClient.setQueriesData`) using the returned representation before invalidating background queries. This eliminates race conditions where immediate `GET` calls return stale data before replication commits.
 - **Debounced Search & Filtering**: All user-driven search inputs must be debounced (200-300ms) to prevent high-frequency connection thrashing and premature request cancellations (`net::ERR_ABORTED`).
 - **Graceful Lifecycle Abort Handling**: Database adapters must safely catch and ignore `AbortError` / unmounted query cancellations during `HEAD` / `206 Partial Content` count requests without throwing unhandled exceptions to the UI.
+
+---
+
+## 5. CHAT SESSION LIFECYCLE PROTOCOLS (`/pause` & `/resume`)
+
+### 5.1 `/pause` Command
+When the user sends `/pause` in chat:
+1. **Immediate Execution Freeze**: The agent MUST immediately cease all automated refactors, file writes, migrations, and iterative commands.
+2. **State Checkpoint Persistence**: Snapshot the current working state to `.agents/session_state.json`, including active goal, completed steps, pending tasks, modified files, and exact resume instructions.
+3. **Structured Acknowledgement**: Display a clear "⏸️ Session Paused" summary card showing what is preserved and reminding the user that typing `/resume` will continue from this point.
+4. **Halt Turn**: Stop all tool calls immediately and conclude the turn.
+
+### 5.2 `/resume` Command
+When the user sends `/resume` in chat:
+1. **State Rehydration**: Read `.agents/session_state.json` to load the paused execution state and pending tasks.
+2. **Workspace Verification**: Verify files, git status, and environment readiness (e.g., local dev servers).
+3. **Seamless Continuation**: Acknowledge with "▶️ Session Resumed", update state to `ACTIVE`, and immediately execute the pending tasks without requiring additional prompts.
+

@@ -110,7 +110,7 @@ export const LegacyBomBuilderView: React.FC<LegacyBomBuilderViewProps> = ({
   const [currentBom, setCurrentBom] = useState<BomMaster>(matchedBom);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
 
-  // When activeBomId changes, re-seed working state
+  // When activeBomId changes, re-initialize working state
   useEffect(() => {
     if (matchedBom) {
       setCurrentBom(JSON.parse(JSON.stringify(matchedBom)));
@@ -158,7 +158,7 @@ export const LegacyBomBuilderView: React.FC<LegacyBomBuilderViewProps> = ({
   }, [items, currentBom.parent]);
 
   /* =========================================================================
-     LIVE COMPUTATIONS & FORMULATION CALCULATIONS (NO MOCK DATA)
+     LIVE COMPUTATIONS & FORMULATION CALCULATIONS (DATABASE DRIVEN)
   ========================================================================= */
 
   // Helper classification functions

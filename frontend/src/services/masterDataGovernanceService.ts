@@ -1,11 +1,12 @@
 import { MasterDataRecord, masterDataRecords, mockMasterDataRecords } from '../data/adminExtendedData';
-import { adminEventBus } from './adminService';
+import { adminEventBus } from './adminEventBus.js';
+import { memoryStorage } from '../shared/memoryStore';
 
 const STORAGE_KEY = 'reboot_erp_master_data_governance';
 
 function loadMasterRecords(): MasterDataRecord[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = memoryStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -38,7 +39,7 @@ function loadMasterRecords(): MasterDataRecord[] {
       }
     }
   } catch (err) {
-    console.warn('Failed to load master data records from localStorage', err);
+    console.warn('Failed to load master data records from memoryStorage', err);
   }
 
   // Fallback to mock records with default itemGroup if missing
@@ -67,9 +68,9 @@ function loadMasterRecords(): MasterDataRecord[] {
 
 function saveMasterRecords(records: MasterDataRecord[]) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    memoryStorage.setItem(STORAGE_KEY, JSON.stringify(records));
   } catch (err) {
-    console.warn('Failed to save master data records to localStorage', err);
+    console.warn('Failed to save master data records to memoryStorage', err);
   }
 }
 
@@ -170,10 +171,10 @@ class MasterDataGovernanceService {
   }
 
   public resetToDefaults(): void {
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem('reboot_erp_master_suppliers');
-    localStorage.removeItem('reboot_erp_master_warehouses');
-    localStorage.removeItem('reboot_erp_master_bins');
+    memoryStorage.removeItem(STORAGE_KEY);
+    memoryStorage.removeItem('reboot_erp_master_suppliers');
+    memoryStorage.removeItem('reboot_erp_master_warehouses');
+    memoryStorage.removeItem('reboot_erp_master_bins');
     this.cache = loadMasterRecords();
     adminEventBus.emit('MASTER_RECORD_SAVED', null);
   }
@@ -191,7 +192,7 @@ class MasterDataGovernanceService {
       { id: 'SUP-006', code: 'SUP-MOLD-06', name: 'Godrej Precision Tooling & Dies', category: 'Molds & Tooling', hsnCode: '84807100', tariffCode: '8480.71.00', moq: 1, leadTimeDays: 45, paymentTerms: '30% Adv, 70% Net' },
     ];
     try {
-      const raw = localStorage.getItem('reboot_erp_master_suppliers');
+      const raw = memoryStorage.getItem('reboot_erp_master_suppliers');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -234,7 +235,7 @@ class MasterDataGovernanceService {
     }
 
     try {
-      localStorage.setItem('reboot_erp_master_suppliers', JSON.stringify(list));
+      memoryStorage.setItem('reboot_erp_master_suppliers', JSON.stringify(list));
     } catch (e) {
       console.warn('Failed to save master supplier', e);
     }
@@ -258,7 +259,7 @@ class MasterDataGovernanceService {
       { code: 'DEFLASH-STORE', name: 'Deflash & Flame Polishing Staging Bay', zone: 'Zone DF - Finishing Bay', plantScope: 'All Plants' },
     ];
     try {
-      const raw = localStorage.getItem('reboot_erp_master_warehouses');
+      const raw = memoryStorage.getItem('reboot_erp_master_warehouses');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -293,7 +294,7 @@ class MasterDataGovernanceService {
     }
 
     try {
-      localStorage.setItem('reboot_erp_master_warehouses', JSON.stringify(list));
+      memoryStorage.setItem('reboot_erp_master_warehouses', JSON.stringify(list));
     } catch (e) {
       console.warn('Failed to save master warehouse', e);
     }
@@ -328,7 +329,7 @@ class MasterDataGovernanceService {
       { code: 'QRN-LOT-99', warehouseCode: 'RM-WH-01', zone: 'Quarantine' },
     ];
     try {
-      const raw = localStorage.getItem('reboot_erp_master_bins');
+      const raw = memoryStorage.getItem('reboot_erp_master_bins');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -368,7 +369,7 @@ class MasterDataGovernanceService {
     }
 
     try {
-      localStorage.setItem('reboot_erp_master_bins', JSON.stringify(list));
+      memoryStorage.setItem('reboot_erp_master_bins', JSON.stringify(list));
     } catch (e) {
       console.warn('Failed to save master bin', e);
     }
@@ -396,7 +397,7 @@ class MasterDataGovernanceService {
       { id: 'VER-2.0', itemCode: '', version: '2.0', title: 'v2.0 (Major - Lightweighting & Regrind)', status: 'future' as const, effectiveFrom: '2027-01-01', changeReason: 'ECO-901 Wall thickness optimization' },
     ];
     try {
-      const raw = localStorage.getItem('reboot_erp_bom_versions');
+      const raw = memoryStorage.getItem('reboot_erp_bom_versions');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -445,7 +446,7 @@ class MasterDataGovernanceService {
     }
 
     try {
-      localStorage.setItem('reboot_erp_bom_versions', JSON.stringify(list));
+      memoryStorage.setItem('reboot_erp_bom_versions', JSON.stringify(list));
     } catch (e) {
       console.warn('Failed to save BOM version', e);
     }
@@ -465,7 +466,7 @@ class MasterDataGovernanceService {
       { id: 'PLANT-04', code: 'PLANT-04', name: 'Plant 4 — Precision Tooling & Mold Bay', location: 'Vapi, Gujarat', type: 'Tooling & R&D' },
     ];
     try {
-      const raw = localStorage.getItem('reboot_erp_master_plants');
+      const raw = memoryStorage.getItem('reboot_erp_master_plants');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -501,7 +502,7 @@ class MasterDataGovernanceService {
     }
 
     try {
-      localStorage.setItem('reboot_erp_master_plants', JSON.stringify(list));
+      memoryStorage.setItem('reboot_erp_master_plants', JSON.stringify(list));
     } catch (e) {
       console.warn('Failed to save master plant', e);
     }
@@ -523,7 +524,7 @@ class MasterDataGovernanceService {
       { id: 'OWN-06', name: 'R&D Product Development', department: 'R&D', role: 'New Product Introduction' },
     ];
     try {
-      const raw = localStorage.getItem('reboot_erp_master_owners');
+      const raw = memoryStorage.getItem('reboot_erp_master_owners');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -558,7 +559,7 @@ class MasterDataGovernanceService {
     }
 
     try {
-      localStorage.setItem('reboot_erp_master_owners', JSON.stringify(list));
+      memoryStorage.setItem('reboot_erp_master_owners', JSON.stringify(list));
     } catch (e) {
       console.warn('Failed to save master owner', e);
     }
@@ -581,7 +582,7 @@ class MasterDataGovernanceService {
       { id: 'OP-07', name: 'Corrugated Case Packout & Palletizing', type: 'Final Packaging', category: 'Final Packaging', defaultWorkCenter: 'WC-PACK-01', defaultSetupMin: 10, defaultCycleSec: 5 },
     ];
     try {
-      const raw = localStorage.getItem('reboot_erp_master_operations');
+      const raw = memoryStorage.getItem('reboot_erp_master_operations');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -619,7 +620,7 @@ class MasterDataGovernanceService {
     }
 
     try {
-      localStorage.setItem('reboot_erp_master_operations', JSON.stringify(list));
+      memoryStorage.setItem('reboot_erp_master_operations', JSON.stringify(list));
     } catch (e) {
       console.warn('Failed to save master operation', e);
     }
@@ -638,7 +639,7 @@ class MasterDataGovernanceService {
       { id: 'WC-PACK-01', code: 'WC-PACK-01', name: 'WC-PACK-01 - Automated Case Packing Line', bay: 'End-of-Line Packaging', plantId: 'PLANT-01', plant: 'PLANT-01', ratePerHour: 45 },
     ];
     try {
-      const raw = localStorage.getItem('reboot_erp_master_workcenters');
+      const raw = memoryStorage.getItem('reboot_erp_master_workcenters');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -677,7 +678,7 @@ class MasterDataGovernanceService {
     }
 
     try {
-      localStorage.setItem('reboot_erp_master_workcenters', JSON.stringify(list));
+      memoryStorage.setItem('reboot_erp_master_workcenters', JSON.stringify(list));
     } catch (e) {
       console.warn('Failed to save master workcenter', e);
     }
@@ -697,7 +698,7 @@ class MasterDataGovernanceService {
       { id: 'MCH-HAITIAN-650', code: 'IMM-650-06', name: 'IMM 650T - Line 6 (Haitian Mars Series)', brand: 'Haitian', tonnage: 650 },
     ];
     try {
-      const raw = localStorage.getItem('reboot_erp_master_machines');
+      const raw = memoryStorage.getItem('reboot_erp_master_machines');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -733,7 +734,7 @@ class MasterDataGovernanceService {
     }
 
     try {
-      localStorage.setItem('reboot_erp_master_machines', JSON.stringify(list));
+      memoryStorage.setItem('reboot_erp_master_machines', JSON.stringify(list));
     } catch (e) {
       console.warn('Failed to save master machine', e);
     }
@@ -751,7 +752,7 @@ class MasterDataGovernanceService {
       { id: 'MOLD-140', code: 'MOLD-INJ-140', name: 'MOLD-INJ-140 (1-Cavity Instrument Panel Housing)', cavities: 1, runnerType: 'Sequential Valve Gated' },
     ];
     try {
-      const raw = localStorage.getItem('reboot_erp_master_molds');
+      const raw = memoryStorage.getItem('reboot_erp_master_molds');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -787,7 +788,7 @@ class MasterDataGovernanceService {
     }
 
     try {
-      localStorage.setItem('reboot_erp_master_molds', JSON.stringify(list));
+      memoryStorage.setItem('reboot_erp_master_molds', JSON.stringify(list));
     } catch (e) {
       console.warn('Failed to save master mold', e);
     }
@@ -807,7 +808,7 @@ class MasterDataGovernanceService {
       { id: 'SCRAP-04', name: 'Degated Automotive PP Parting Runner Scrap', description: 'Impact-modified polyolefin runners with UV stabilizers', recoveryPct: 12 },
     ];
     try {
-      const raw = localStorage.getItem('reboot_erp_runner_scrap_categories');
+      const raw = memoryStorage.getItem('reboot_erp_runner_scrap_categories');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -842,7 +843,7 @@ class MasterDataGovernanceService {
     }
 
     try {
-      localStorage.setItem('reboot_erp_runner_scrap_categories', JSON.stringify(list));
+      memoryStorage.setItem('reboot_erp_runner_scrap_categories', JSON.stringify(list));
     } catch (e) {
       console.warn('Failed to save runner scrap category', e);
     }
@@ -859,7 +860,7 @@ class MasterDataGovernanceService {
       { id: 'PURGE-04', name: 'High-MFI Clear Purge Cake (Recycle Granulation)', description: 'Clear optical polymer purge for reprocessing', polymerType: 'Polycarbonate / PMMA' },
     ];
     try {
-      const raw = localStorage.getItem('reboot_erp_purge_lumps_categories');
+      const raw = memoryStorage.getItem('reboot_erp_purge_lumps_categories');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -894,7 +895,7 @@ class MasterDataGovernanceService {
     }
 
     try {
-      localStorage.setItem('reboot_erp_purge_lumps_categories', JSON.stringify(list));
+      memoryStorage.setItem('reboot_erp_purge_lumps_categories', JSON.stringify(list));
     } catch (e) {
       console.warn('Failed to save purge lumps category', e);
     }
@@ -997,7 +998,7 @@ class MasterDataGovernanceService {
     ];
 
     try {
-      const raw = localStorage.getItem('reboot_erp_master_reason_codes');
+      const raw = memoryStorage.getItem('reboot_erp_master_reason_codes');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -1059,7 +1060,7 @@ class MasterDataGovernanceService {
     }
 
     try {
-      localStorage.setItem('reboot_erp_master_reason_codes', JSON.stringify(list));
+      memoryStorage.setItem('reboot_erp_master_reason_codes', JSON.stringify(list));
     } catch (e) {
       console.warn('Failed to save adjustment reason code', e);
     }
@@ -1074,7 +1075,7 @@ class MasterDataGovernanceService {
     if (idx >= 0) {
       list[idx].isActive = isActive;
       try {
-        localStorage.setItem('reboot_erp_master_reason_codes', JSON.stringify(list));
+        memoryStorage.setItem('reboot_erp_master_reason_codes', JSON.stringify(list));
       } catch (e) {
         console.warn('Failed to save toggled reason code', e);
       }
@@ -1089,7 +1090,7 @@ class MasterDataGovernanceService {
   // ==========================================
   private getStoredList(key: string, defaults: string[]): string[] {
     try {
-      const raw = localStorage.getItem(key);
+      const raw = memoryStorage.getItem(key);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -1110,7 +1111,7 @@ class MasterDataGovernanceService {
     if (!list.some(x => x.toLowerCase() === clean.toLowerCase())) {
       list.unshift(clean);
       try {
-        localStorage.setItem(key, JSON.stringify(list));
+        memoryStorage.setItem(key, JSON.stringify(list));
       } catch (e) {
         console.warn(`Failed to save item to ${key}`, e);
       }
@@ -1391,7 +1392,7 @@ class MasterDataGovernanceService {
     };
 
     try {
-      const raw = localStorage.getItem('reboot_erp_master_governance_permissions');
+      const raw = memoryStorage.getItem('reboot_erp_master_governance_permissions');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === 'object') {
@@ -1410,7 +1411,7 @@ class MasterDataGovernanceService {
     const current = this.getGovernancePermissions();
     const updated = { ...current, ...perms };
     try {
-      localStorage.setItem('reboot_erp_master_governance_permissions', JSON.stringify(updated));
+      memoryStorage.setItem('reboot_erp_master_governance_permissions', JSON.stringify(updated));
     } catch (e) {
       console.warn('Failed to save governance permissions', e);
     }
@@ -1474,7 +1475,7 @@ class MasterDataGovernanceService {
   // ==========================================
   public getChangeRequests(status?: 'pending' | 'approved' | 'rejected'): MasterDataChangeRequest[] {
     try {
-      const raw = localStorage.getItem('reboot_erp_master_data_change_requests');
+      const raw = memoryStorage.getItem('reboot_erp_master_data_change_requests');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
@@ -1519,7 +1520,7 @@ class MasterDataGovernanceService {
 
     list.unshift(newRequest);
     try {
-      localStorage.setItem('reboot_erp_master_data_change_requests', JSON.stringify(list));
+      memoryStorage.setItem('reboot_erp_master_data_change_requests', JSON.stringify(list));
     } catch (e) {
       console.warn('Failed to save change request', e);
     }
@@ -1554,7 +1555,7 @@ class MasterDataGovernanceService {
     target.reviewComment = comment;
 
     try {
-      localStorage.setItem('reboot_erp_master_data_change_requests', JSON.stringify(list));
+      memoryStorage.setItem('reboot_erp_master_data_change_requests', JSON.stringify(list));
     } catch (e) {
       console.warn('Failed to save approved change request', e);
     }
@@ -1589,7 +1590,7 @@ class MasterDataGovernanceService {
     target.reviewComment = comment;
 
     try {
-      localStorage.setItem('reboot_erp_master_data_change_requests', JSON.stringify(list));
+      memoryStorage.setItem('reboot_erp_master_data_change_requests', JSON.stringify(list));
     } catch (e) {
       console.warn('Failed to save rejected change request', e);
     }
@@ -1613,7 +1614,7 @@ class MasterDataGovernanceService {
   // ==========================================
   public getAuditHistory(targetFilter?: { type?: string; code?: string }): MasterDataChangeRecord[] {
     try {
-      const raw = localStorage.getItem('reboot_erp_master_data_audit_records');
+      const raw = memoryStorage.getItem('reboot_erp_master_data_audit_records');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -1665,7 +1666,7 @@ class MasterDataGovernanceService {
 
     list.unshift(newRecord);
     try {
-      localStorage.setItem('reboot_erp_master_data_audit_records', JSON.stringify(list));
+      memoryStorage.setItem('reboot_erp_master_data_audit_records', JSON.stringify(list));
     } catch (e) {
       console.warn('Failed to save audit record', e);
     }

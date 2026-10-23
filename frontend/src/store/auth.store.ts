@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { getActiveTenantId, setActiveTenantId } from '../shared/tenant';
 
 export interface UserProfile {
   id: string;
@@ -11,7 +12,7 @@ export interface UserProfile {
 }
 
 export interface AuthState {
-  // In-memory access token (Never stored in localStorage to prevent XSS exfiltration)
+  // In-memory access token (Never stored in in-memory storage to prevent XSS exfiltration)
   accessToken: string | null;
   user: UserProfile | null;
   activeTenantId: string;
@@ -29,15 +30,13 @@ export interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   accessToken: null,
   user: null,
-  activeTenantId: typeof window !== 'undefined' ? localStorage.getItem('activeTenantId') || 'TENANT-ALPHA-IND' : 'TENANT-ALPHA-IND',
+  activeTenantId: getActiveTenantId(),
   isAuthenticated: false,
   isLoading: false,
 
   setAuth: (user, token, tenantId) => {
     const tid = tenantId || user.tenantId || 'TENANT-ALPHA-IND';
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('activeTenantId', tid);
-    }
+    setActiveTenantId(tid);
     set({
       user,
       accessToken: token,
@@ -52,9 +51,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   setTenantId: (tenantId: string) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('activeTenantId', tenantId);
-    }
+    setActiveTenantId(tenantId);
     set({ activeTenantId: tenantId });
   },
 

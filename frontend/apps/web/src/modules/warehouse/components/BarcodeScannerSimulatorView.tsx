@@ -28,10 +28,8 @@ export const BarcodeScannerSimulatorView: React.FC<Props> = ({
   onNavigate,
   showToast,
 }) => {
-  const [scannedCode, setScannedCode] = useState<string>('RM-PP-NAT-001');
-  const [matchedItem, setMatchedItem] = useState<InventoryStockItem | null>(
-    stockItems.find((i) => i.sku === 'RM-PP-NAT-001') || stockItems[0] || null
-  );
+  const [scannedCode, setScannedCode] = useState<string>(stockItems[0]?.sku || '');
+  const [matchedItem, setMatchedItem] = useState<InventoryStockItem | null>(stockItems[0] || null);
   const [isScanning, setIsScanning] = useState<boolean>(false);
 
   const handleScan = (code: string) => {
@@ -54,13 +52,21 @@ export const BarcodeScannerSimulatorView: React.FC<Props> = ({
     }, 400);
   };
 
-  const sampleBarcodes = [
-    { label: 'PP Homopolymer Granules', code: 'RM-PP-NAT-001', type: 'SKU' },
-    { label: 'HDPE Injection Grade', code: 'RM-HDPE-INJ-002', type: 'SKU' },
-    { label: 'Black Masterbatch 40%', code: 'MB-BLK-001', type: 'SKU' },
-    { label: 'Bulk Silo #1 Bin Tag', code: 'SILO-01-A', type: 'Bin Tag' },
-    { label: 'Polymer Lot #881', code: 'LOT-2026-PP-881', type: 'Lot Batch' },
-  ];
+  const sampleBarcodes = stockItems.length > 0
+    ? [
+        ...stockItems.slice(0, 3).map((item) => ({
+          label: item.name,
+          code: item.sku,
+          type: 'SKU' as const,
+        })),
+        ...(stockItems[0]?.primaryBin
+          ? [{ label: `Bin ${stockItems[0].primaryBin}`, code: stockItems[0].primaryBin, type: 'Bin Tag' as const }]
+          : []),
+        ...(stockItems[0]?.lots?.[0]?.lotNumber
+          ? [{ label: `Lot ${stockItems[0].lots[0].lotNumber}`, code: stockItems[0].lots[0].lotNumber, type: 'Lot Batch' as const }]
+          : []),
+      ]
+    : [];
 
   return (
     <div className="space-y-6 pb-12 max-w-4xl mx-auto">
@@ -130,21 +136,25 @@ export const BarcodeScannerSimulatorView: React.FC<Props> = ({
           </button>
         </div>
 
-        {/* Quick Sample Chips */}
+        {/* Quick Live Chips */}
         <div className="space-y-1.5">
-          <div className="text-[11px] text-slate-400 font-medium">Quick Test Barcodes:</div>
-          <div className="flex flex-wrap gap-2">
-            {sampleBarcodes.map((item) => (
-              <button
-                key={item.code}
-                onClick={() => handleScan(item.code)}
-                className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-[11px] text-slate-200 font-mono transition flex items-center gap-1.5"
-              >
-                <span>{item.code}</span>
-                <span className="text-[9px] px-1 bg-[#0F8B8D]/40 rounded text-teal-200">{item.type}</span>
-              </button>
-            ))}
-          </div>
+          <div className="text-[11px] text-slate-400 font-medium">Quick Live Barcodes:</div>
+          {sampleBarcodes.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {sampleBarcodes.map((item) => (
+                <button
+                  key={item.code}
+                  onClick={() => handleScan(item.code)}
+                  className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-[11px] text-slate-200 font-mono transition flex items-center gap-1.5"
+                >
+                  <span>{item.code}</span>
+                  <span className="text-[9px] px-1 bg-[#0F8B8D]/40 rounded text-teal-200">{item.type}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[11px] text-slate-400 italic">No warehouse stock items provisioned. Enter any custom code above.</p>
+          )}
         </div>
       </div>
 

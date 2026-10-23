@@ -43,14 +43,12 @@ import {
 import {
   AdminRole,
   ModulePermission,
-  RoleSimulationScenario,
   SimulationVerdict,
   SodConflictRule,
   SodViolation,
   AdminUser,
 } from '@/src/types/admin';
 import {
-  mockSimulationScenarios,
 } from '@/src/data/adminExtendedData';
 import { WorkspaceModuleRbacView } from './WorkspaceModuleRbacView';
 import { useWorkspaceRbac } from '@/src/hooks/useWorkspaceRbac';
@@ -581,19 +579,7 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
     }, 450);
   };
 
-  const handleApplyScenario = (scenario: RoleSimulationScenario) => {
-    setSimSubjectType('role');
-    if (scenario.roleIds[0]) {
-      setSimSelectedRoleId(scenario.roleIds[0]);
-    }
-    setSimSelectedPlant(scenario.plantId === 'PLANT-01' ? 'PLANT_CHE_01' : 'PLANT_PUN_02');
-    setSimSelectedShift(scenario.shift);
-    setSimModule(scenario.module);
-    setSimResource(scenario.resource);
-    setSimAction(scenario.action as keyof ModulePermission);
-    showToast(`Loaded test scenario: "${scenario.name}". Click "Run Simulation" to execute.`);
-  };
-
+  
   const handleToggleSandboxOverride = (moduleName: string, action: keyof ModulePermission) => {
     setSandboxOverrides((prev) => {
       const current = prev[moduleName] || {};
@@ -1482,42 +1468,26 @@ export const AdminRolesView: React.FC<AdminRolesViewProps> = ({
               </div>
             </div>
 
-            {/* Column 3: Pre-Configured Test Scenarios */}
+            {/* Column 3: Dynamic RBAC Simulator */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4 flex flex-col justify-between">
               <div>
                 <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
                   <Sparkles className="w-4 h-4 text-amber-500" />
-                  <h2 className="text-sm font-bold text-slate-900">Standard Test Scenarios</h2>
+                  <h2 className="text-sm font-bold text-slate-900">Dynamic RBAC Sandbox</h2>
                 </div>
                 <p className="text-xs text-slate-500 mt-1 mb-3">
-                  Click any benchmark scenario to immediately load and evaluate boundary test parameters.
+                  Select a live user or role from the active directory to simulate and inspect runtime authorization boundaries.
                 </p>
 
-                <div className="space-y-2">
-                  {mockSimulationScenarios.map((scen) => (
-                    <button
-                      key={scen.id}
-                      type="button"
-                      onClick={() => handleApplyScenario(scen)}
-                      className="w-full text-left p-2.5 rounded-lg border border-slate-200 hover:border-[#0F8B8D] hover:bg-teal-50/50 transition-all text-xs"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-slate-900">{scen.name}</span>
-                        <span
-                          className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold ${
-                            scen.expectedVerdict === 'PERMIT'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : scen.expectedVerdict === 'DENY'
-                              ? 'bg-rose-100 text-rose-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}
-                        >
-                          Exp: {scen.expectedVerdict}
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-1 line-clamp-2">{scen.description}</div>
-                    </button>
-                  ))}
+                <div className="space-y-3">
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1.5">
+                    <div className="font-semibold text-slate-800">Direct Database RBAC Evaluation</div>
+                    <p className="text-slate-600">Simulations evaluate directly against the active role permissions and SOD conflict policies configured in PostgreSQL.</p>
+                  </div>
+                  <div className="p-3 bg-teal-50/60 border border-teal-200/60 rounded-lg text-xs space-y-1.5">
+                    <div className="font-semibold text-teal-900">Live Policy Engine</div>
+                    <p className="text-teal-700">Pre-configured test scenarios are disabled. All authorization checks reflect real-time permissions.</p>
+                  </div>
                 </div>
               </div>
 

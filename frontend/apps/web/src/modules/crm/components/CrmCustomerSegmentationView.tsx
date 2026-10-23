@@ -15,7 +15,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { mockAccounts } from '@/src/data/mockCrmData';
+import { useAccounts } from '../api/useCrm';
 
 interface CrmCustomerSegmentationViewProps {
   onNavigate: (view: string, params?: any) => void;
@@ -33,13 +33,14 @@ export const CrmCustomerSegmentationView: React.FC<CrmCustomerSegmentationViewPr
   onNavigate,
   showToast,
 }) => {
+  const { data: accountsList = [] } = useAccounts();
   const [selectedTier, setSelectedTier] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Segment calculations
-  const tier1Count = mockAccounts.filter(a => a.segmentTier === 'Tier 1 - Strategic').length;
-  const tier2Count = mockAccounts.filter(a => a.segmentTier === 'Tier 2 - Growth').length;
-  const tier3Count = mockAccounts.filter(a => a.segmentTier === 'Tier 3 - Transactional').length;
+  const tier1Count = accountsList.filter(a => a.segmentTier === 'Tier 1 - Strategic').length;
+  const tier2Count = accountsList.filter(a => a.segmentTier === 'Tier 2 - Growth').length;
+  const tier3Count = accountsList.filter(a => a.segmentTier === 'Tier 3 - Transactional').length;
 
   const tierDistributionData = [
     { name: 'Tier 1 Strategic', value: tier1Count, color: '#0f766e' },
@@ -55,7 +56,7 @@ export const CrmCustomerSegmentationView: React.FC<CrmCustomerSegmentationViewPr
     { industry: 'Appliances', revenue: 0.8 },
   ];
 
-  const filteredAccounts = mockAccounts.filter(acc => {
+  const filteredAccounts = accountsList.filter(acc => {
     if (selectedTier !== 'All' && acc.segmentTier !== selectedTier) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();

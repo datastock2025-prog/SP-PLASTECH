@@ -23,7 +23,8 @@ import {
   User,
 } from 'lucide-react';
 import { Opportunity, OpportunityStage, ProductInterestType } from '../model/crmSchemas';
-import { mockOpportunities } from '@/src/data/mockCrmData';
+import { useOpportunities } from '../api/useCrm';
+import { useEffect } from 'react';
 
 interface CrmOpportunityPipelineViewProps {
   onNavigate: (view: string, params?: any) => void;
@@ -49,7 +50,11 @@ export const CrmOpportunityPipelineView: React.FC<CrmOpportunityPipelineViewProp
   showToast,
   initialFilter,
 }) => {
-  const [opportunities, setOpportunities] = useState<Opportunity[]>(mockOpportunities);
+  const { data: serverOpps = [] } = useOpportunities();
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  useEffect(() => {
+    if (serverOpps.length > 0) setOpportunities(serverOpps);
+  }, [serverOpps]);
   const [viewMode, setViewMode] = useState<'kanban' | 'list' | 'funnel' | 'calendar'>('kanban');
   const [searchQuery, setSearchQuery] = useState('');
   const [salespersonFilter, setSalespersonFilter] = useState('All');

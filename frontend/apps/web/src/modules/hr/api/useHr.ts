@@ -1,33 +1,30 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/shared/queryKeys';
 import { broadcastLocalMutation } from '@/src/services/realtime/realtimeService';
-import { db } from '@/src/shared/db';
+import { api } from '@/src/lib/api-client';
 import {
   HrEmployee,
   HrAttendanceRecord,
   HrDepartment,
 } from '../model/hrSchemas';
 import {
-  INITIAL_HR_EMPLOYEES,
-  INITIAL_HR_ATTENDANCE,
   INITIAL_HR_DEPARTMENTS,
 } from '@/src/data/hrData';
-import { hrApi } from './hrApi';
 
 export function useEmployees() {
   return useQuery<HrEmployee[]>({
     queryKey: queryKeys.hr.employees(),
     queryFn: async () => {
       try {
-        const res = await db.findMany<HrEmployee>('employees', {
-          orderBy: { column: 'employee_code', ascending: true },
-          limit: 100,
+        const res = await api.get<any>('/employees', {
+          params: { limit: 100, sortBy: 'created_at', sortOrder: 'desc', includeTotal: true },
         });
-        if (Array.isArray(res) && res.length > 0) return res;
+        const rows = res?.data?.data || res?.data;
+        if (Array.isArray(rows) && rows.length > 0) return rows;
       } catch (e) {
-        console.debug('[useEmployees] fallback note:', e);
+        console.debug('[useEmployees] REST query notice:', e);
       }
-      return INITIAL_HR_EMPLOYEES;
+      return [];
     },
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
@@ -38,10 +35,16 @@ export function useSaveEmployee() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (emp: HrEmployee) => {
-      try {
-        await db.upsert('employees', emp, 'id');
-      } catch (e) {
-        console.debug('[useSaveEmployee] note:', e);
+      if (emp.id) {
+        try {
+          const res = await api.patch<any>(`/employees/${encodeURIComponent(emp.id)}`, emp);
+          if (res?.data) return res.data.data || res.data;
+        } catch {}
+      } else {
+        try {
+          const res = await api.post<any>('/employees', emp);
+          if (res?.data) return res.data.data || res.data;
+        } catch {}
       }
       return emp;
     },
@@ -57,14 +60,15 @@ export function useAttendance(date?: string) {
     queryKey: queryKeys.hr.attendance(date),
     queryFn: async () => {
       try {
-        const res = await db.findMany<HrAttendanceRecord>('attendance_records', {
-          limit: 100,
+        const res = await api.get<any>('/attendance-records', {
+          params: { ...(date ? { 'where[date]': date } : {}), limit: 100, includeTotal: true },
         });
-        if (Array.isArray(res) && res.length > 0) return res;
+        const rows = res?.data?.data || res?.data;
+        if (Array.isArray(rows) && rows.length > 0) return rows;
       } catch (e) {
-        console.debug('[useAttendance] fallback note:', e);
+        console.debug('[useAttendance] REST query notice:', e);
       }
-      return INITIAL_HR_ATTENDANCE;
+      return [];
     },
     staleTime: 1000 * 30,
     refetchOnWindowFocus: false,
@@ -76,8 +80,9 @@ export function useShiftRosters() {
     queryKey: queryKeys.hr.shiftRosters(),
     queryFn: async () => {
       try {
-        const res = await db.findMany('shift_rosters', { limit: 100 });
-        if (Array.isArray(res) && res.length > 0) return res;
+        const res = await api.get<any>('/shift-rosters', { params: { limit: 100 } });
+        const rows = res?.data?.data || res?.data;
+        if (Array.isArray(rows)) return rows;
       } catch {}
       return [];
     },

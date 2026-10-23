@@ -1,36 +1,25 @@
 import React, { useState, useMemo, useCallback, memo } from 'react';
 import {
-  TrendingUp,
-  AlertTriangle,
-  Package,
-  Truck,
-  CheckCircle2,
-  Clock,
-  Building,
-  RefreshCw,
-  Search,
-  Filter,
-  ArrowRight,
-  ShieldAlert,
   Play,
-  FileText,
+  AlertTriangle,
+  RefreshCw,
+  ChevronRight,
+  ShieldAlert,
+  Sparkles,
+  Plus,
+  Clock,
   Activity,
   Layers,
-  Sparkles,
-  ExternalLink,
-  ChevronRight,
-  Plus,
+  Building,
+  Truck,
   Send,
-  Sliders,
 } from 'lucide-react';
-import {
-  mockScmKPIs,
-  mockSupplyChainFlowNodes,
-  mockScmExceptions,
-  mockMrpSuggestions,
-  mockInboundShipments,
-  mockOutboundDeliveries,
-} from '@/src/data/mockScmData';
+const scmKPIs: any[] = [];
+const supplyChainFlowNodes: any[] = [];
+const scmExceptions: any[] = [];
+const mrpSuggestions: any[] = [];
+const inboundShipments: any[] = [];
+const outboundDeliveries: any[] = [];
 import { SCMViewType, MrpSuggestion, ScmException } from '@/src/types/scm';
 import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { usePagination } from '@/src/hooks/usePagination';
@@ -89,13 +78,13 @@ export const ScmControlTowerView: React.FC<ScmControlTowerViewProps> = ({ onNavi
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [actionInput, setActionInput] = useState<string>('');
 
-  const { paginatedData: paginatedMrp, paginationProps: mrpPaginationProps } = usePagination(mockMrpSuggestions, {
+  const { paginatedData: paginatedMrp, paginationProps: mrpPaginationProps } = usePagination(mrpSuggestions, {
     initialPageSize: 5,
     pageSizeOptions: [5, 10, 20],
   });
 
   const activeExceptions = useMemo(() => {
-    return mockScmExceptions.filter((e) => e.status !== 'Closed');
+    return scmExceptions.filter((e) => e.status !== 'Closed');
   }, []);
 
   const handleConvertMrp = useCallback((mrp: MrpSuggestion) => {
@@ -167,7 +156,7 @@ export const ScmControlTowerView: React.FC<ScmControlTowerViewProps> = ({ onNavi
 
       {/* Top 8 Key Metrics Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-        {mockScmKPIs.slice(0, 8).map((kpi, idx) => (
+        {scmKPIs.slice(0, 8).map((kpi, idx) => (
           <div
             key={idx}
             className={`p-3.5 rounded-xl border transition-all ${
@@ -225,7 +214,7 @@ export const ScmControlTowerView: React.FC<ScmControlTowerViewProps> = ({ onNavi
 
         {/* Horizontal Pipeline Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 pt-1">
-          {mockSupplyChainFlowNodes.map((node, index) => {
+          {supplyChainFlowNodes.map((node, index) => {
             const isSel = selectedNode === node.id;
             return (
               <div
@@ -313,7 +302,7 @@ export const ScmControlTowerView: React.FC<ScmControlTowerViewProps> = ({ onNavi
             </div>
 
             <div className="space-y-3">
-              {mockScmExceptions.slice(0, 3).map((exc) => (
+              {scmExceptions.slice(0, 3).map((exc) => (
                 <div
                   key={exc.id}
                   className={`p-4 rounded-xl border transition-all ${
@@ -511,7 +500,7 @@ export const ScmControlTowerView: React.FC<ScmControlTowerViewProps> = ({ onNavi
             </div>
 
             <div className="space-y-2.5">
-              {mockInboundShipments.map((inb) => (
+              {inboundShipments.map((inb) => (
                 <div key={inb.shipmentId} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-900">{inb.shipmentId}</span>
@@ -551,7 +540,7 @@ export const ScmControlTowerView: React.FC<ScmControlTowerViewProps> = ({ onNavi
             </div>
 
             <div className="space-y-2.5">
-              {mockOutboundDeliveries.map((outb) => (
+              {outboundDeliveries.map((outb) => (
                 <div key={outb.deliveryNoteNumber} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-900">{outb.deliveryNoteNumber}</span>

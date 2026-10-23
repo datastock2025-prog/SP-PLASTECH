@@ -370,6 +370,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs">
                   <span className="text-[11px] font-medium text-slate-500">Preview as:</span>
                   <select
+                    aria-label="Preview as role"
                     value={rolePreviewOverride}
                     onChange={(e) => {
                       setRolePreviewOverride(e.target.value);

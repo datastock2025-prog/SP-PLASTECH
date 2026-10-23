@@ -13,7 +13,7 @@ services:
       POSTGRES_USER: erp
       POSTGRES_PASSWORD: ${DEV_DB_PASSWORD:-erp_local_only}   # local only; never reused anywhere else
       POSTGRES_DB: erp
-    ports: ["127.0.0.1:5432:5432"]
+    ports: ["5432:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U erp"], interval: 5s, retries: 10 }
 

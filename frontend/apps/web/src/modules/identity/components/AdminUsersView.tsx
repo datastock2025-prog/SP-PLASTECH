@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, Search, Plus, KeyRound, Lock, Unlock, Edit2, Trash2, History, Copy, Check, AlertTriangle } from 'lucide-react';
+import { Users, Search, Plus, KeyRound, Lock, Unlock, Edit2, Trash2, History, Copy, Check, AlertTriangle, ChevronDown, X, Eye, EyeOff, Sparkles } from 'lucide-react';
 import {
   useMe,
   useUsers,
@@ -22,6 +22,16 @@ interface AdminUsersViewProps {
 }
 
 const PAGE_SIZE = 20;
+
+function generateSecurePassword(): string {
+  const sets = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghijkmnopqrstuvwxyz', '23456789', '!@#$%^&*'];
+  const all = sets.join('');
+  const chars = sets.map((s) => s[Math.floor(Math.random() * s.length)]);
+  for (let i = 4; i < 14; i++) {
+    chars.push(all[Math.floor(Math.random() * all.length)]);
+  }
+  return chars.sort(() => Math.random() - 0.5).join('');
+}
 
 const toArr = (v: string | string[]) => (Array.isArray(v) ? v : [v]);
 function can(rules: AbilityRule[] | undefined, action: string, subject: string): boolean {
@@ -97,10 +107,27 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = () =
   const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null);
   const history = useUserHistory(historyUser?.id ?? null);
 
+  const [passwordModalUser, setPasswordModalUser] = useState<ManagedUser | null>(null);
+  const [customPassword, setCustomPassword] = useState('');
+  const [showCustomPassword, setShowCustomPassword] = useState(false);
+  const [mustChangePasswordOnLogin, setMustChangePasswordOnLogin] = useState(true);
+  const [passwordModalError, setPasswordModalError] = useState('');
+
+  const [plantDropdownOpen, setPlantDropdownOpen] = useState(false);
+  const [plantSearch, setPlantSearch] = useState('');
+
+  const filteredPlants = useMemo(() => {
+    if (!plantSearch.trim()) return plants;
+    const q = plantSearch.trim().toLowerCase();
+    return plants.filter((p) => p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q));
+  }, [plants, plantSearch]);
+
   const openCreate = () => {
     setEditing(null);
     setForm({ ...EMPTY_FORM, roleId: roles.find((r) => r.code === 'STANDARD_USER')?.id ?? roles[0]?.id ?? '' });
     setFormError('');
+    setPlantDropdownOpen(false);
+    setPlantSearch('');
     setFormOpen(true);
   };
 
@@ -118,6 +145,8 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = () =
       assignedShift: u.assignedShift ?? SHIFT_OPTIONS[0],
     });
     setFormError('');
+    setPlantDropdownOpen(false);
+    setPlantSearch('');
     setFormOpen(true);
   };
 
@@ -167,14 +196,54 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = () =
     }
   };
 
-  const onReset = (u: ManagedUser) =>
-    m.resetPassword.mutate(u.id, {
-      onSuccess: (pw) => {
-        setCopied(false);
-        setSecret({ title: 'Password reset', user: u.username ?? u.email, password: pw });
+  const openPasswordModal = (u: ManagedUser) => {
+    setPasswordModalUser(u);
+    setCustomPassword('');
+    setShowCustomPassword(false);
+    setMustChangePasswordOnLogin(true);
+    setPasswordModalError('');
+  };
+
+  const handleGeneratePassword = () => {
+    const pw = generateSecurePassword();
+    setCustomPassword(pw);
+    setShowCustomPassword(true);
+  };
+
+  const handleSavePassword = () => {
+    if (!passwordModalUser) return;
+    setPasswordModalError('');
+    const pw = customPassword.trim();
+    if (pw && pw.length < 8) {
+      setPasswordModalError('Password must be at least 8 characters long.');
+      return;
+    }
+    m.resetPassword.mutate(
+      {
+        id: passwordModalUser.id,
+        password: pw || undefined,
+        mustChangePassword: mustChangePasswordOnLogin,
       },
-      onError: (er) => showToast(errMsg(er)),
-    });
+      {
+        onSuccess: (savedPw) => {
+          const u = passwordModalUser;
+          setPasswordModalUser(null);
+          setCopied(false);
+          setSecret({
+            title: pw ? 'Password Updated Successfully' : 'Temporary Password Generated',
+            user: u.username ?? u.email,
+            password: savedPw,
+          });
+          showToast(`Password successfully updated for ${u.fullName}`);
+        },
+        onError: (er) => {
+          setPasswordModalError(errMsg(er));
+        },
+      }
+    );
+  };
+
+  const onReset = (u: ManagedUser) => openPasswordModal(u);
 
   const onLock = (u: ManagedUser) =>
     m.setLocked.mutate(
@@ -429,12 +498,28 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = () =
                           <Button
                             size="icon-sm"
                             variant="ghost"
-                            title="Reset Password"
-                            aria-label="Reset password"
-                            disabled={m.resetPassword.isPending}
-                            onClick={() => onReset(u)}
+                            title={
+                              u.id === me?.id
+                                ? 'Change your own password in Profile > Security'
+                                : 'Change / Reset User Password'
+                            }
+                            aria-label="Change or reset password"
+                            disabled={u.id === me?.id || m.resetPassword.isPending}
+                            onClick={() => {
+                              if (u.id === me?.id) {
+                                showToast('To change your own password, visit Profile > Security.');
+                                return;
+                              }
+                              openPasswordModal(u);
+                            }}
                           >
-                            <KeyRound className="h-3.5 w-3.5 text-slate-500 hover:text-slate-900" />
+                            <KeyRound
+                              className={`h-3.5 w-3.5 ${
+                                u.id === me?.id
+                                  ? 'text-slate-300 dark:text-slate-600'
+                                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-100'
+                              }`}
+                            />
                           </Button>
                         )}
                         {canUpdate && (
@@ -611,36 +696,140 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = () =
               </div>
             </div>
 
-            <fieldset className="rounded-xl border border-slate-200/90 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/50">
-              <legend className="px-1 text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                Plant Access <span className="text-rose-500">*</span>
-              </legend>
-              <div className="mt-1 flex flex-wrap gap-2">
-                {plants.map((p) => {
-                  const isChecked = form.plantIds.includes(p.id);
-                  return (
-                    <label
-                      key={p.id}
-                      className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium cursor-pointer transition-all ${
-                        isChecked
-                          ? 'border-indigo-300 bg-indigo-50/80 text-indigo-700 shadow-2xs dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300'
-                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
-                        checked={isChecked}
-                        onChange={() => togglePlant(p.id)}
-                      />
-                      <span>
-                        <strong className="font-semibold">{p.code}</strong> — {p.name}
-                      </span>
-                    </label>
-                  );
-                })}
+            {/* Searchable Multi-Plant Selection Dropdown */}
+            <div className="space-y-1.5 rounded-xl border border-slate-200/90 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/50">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                  Assigned Plant Access <span className="text-rose-500">*</span>
+                </label>
+                <span className="text-[11px] font-medium text-slate-500">
+                  {form.plantIds.length} of {plants.length} selected
+                </span>
               </div>
-            </fieldset>
+
+              {/* Selected plant badges chip container */}
+              {form.plantIds.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1.5 rounded-lg border border-slate-200/80 bg-white dark:border-slate-700 dark:bg-slate-800">
+                  {form.plantIds.map((pid) => {
+                    const p = plants.find((x) => x.id === pid);
+                    return (
+                      <span
+                        key={pid}
+                        className="inline-flex items-center gap-1 rounded-md bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 text-[11px] font-medium text-indigo-700 dark:bg-indigo-950/60 dark:border-indigo-800 dark:text-indigo-300"
+                      >
+                        <strong className="font-semibold">{p?.code ?? pid}</strong>
+                        {p?.name && <span className="truncate max-w-[120px] text-indigo-600/80 dark:text-indigo-300/80">({p.name})</span>}
+                        <button
+                          type="button"
+                          onClick={() => togglePlant(pid)}
+                          className="hover:bg-indigo-200/60 rounded p-0.5 ml-0.5 text-indigo-600 dark:hover:bg-indigo-800 transition-colors"
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Dropdown Popover Trigger */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setPlantDropdownOpen((prev) => !prev)}
+                  className={`w-full flex items-center justify-between h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 shadow-2xs font-medium hover:border-slate-300 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 ${
+                    form.plantIds.length === 0 ? 'border-amber-300 dark:border-amber-700' : ''
+                  }`}
+                >
+                  <span className="truncate">
+                    {form.plantIds.length === 0
+                      ? 'Select plants to assign...'
+                      : form.plantIds.length === plants.length
+                      ? `All Plants (${plants.length}) Selected`
+                      : `${form.plantIds.length} plant(s) selected`}
+                  </span>
+                  <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${plantDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Dropdown Menu */}
+                {plantDropdownOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setPlantDropdownOpen(false)}
+                    />
+                    <div className="absolute z-50 left-0 right-0 mt-1 rounded-xl border border-slate-200 bg-white p-2.5 shadow-xl dark:border-slate-800 dark:bg-slate-900">
+                      <div className="mb-2 flex items-center gap-1.5">
+                        <div className="relative flex-1">
+                          <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
+                          <Input
+                            placeholder="Filter plants by code or name..."
+                            value={plantSearch}
+                            onChange={(e) => setPlantSearch(e.target.value)}
+                            className="h-7 pl-8 text-xs"
+                            autoFocus
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-[11px]"
+                          onClick={() => {
+                            const allIds = plants.map((p) => p.id);
+                            setForm((f) => ({ ...f, plantIds: allIds }));
+                          }}
+                        >
+                          All
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-[11px]"
+                          onClick={() => setForm((f) => ({ ...f, plantIds: [] }))}
+                        >
+                          Clear
+                        </Button>
+                      </div>
+
+                      <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                        {filteredPlants.length === 0 ? (
+                          <div className="py-3 text-center text-xs text-slate-400">
+                            No plants found matching &ldquo;{plantSearch}&rdquo;
+                          </div>
+                        ) : (
+                          filteredPlants.map((p) => {
+                            const isChecked = form.plantIds.includes(p.id);
+                            return (
+                              <label
+                                key={p.id}
+                                className="flex items-center gap-2.5 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded cursor-pointer text-xs transition-colors"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => togglePlant(p.id)}
+                                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
+                                />
+                                <div className="flex-1 truncate">
+                                  <span className="font-semibold text-slate-800 dark:text-slate-200 mr-1.5">
+                                    {p.code}
+                                  </span>
+                                  <span className="text-slate-500 dark:text-slate-400">
+                                    {p.name}
+                                  </span>
+                                </div>
+                              </label>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
 
             {formError && (
               <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-xs font-medium text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
@@ -662,6 +851,121 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = () =
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Admin Change / Reset User Password Dialog */}
+      <Dialog open={!!passwordModalUser} onOpenChange={(o) => !o && setPasswordModalUser(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+              Manage User Password
+            </DialogTitle>
+            <DialogDescription>
+              Set a custom password or auto-generate a secure temporary password for{' '}
+              <b className="text-slate-900 dark:text-slate-100">{passwordModalUser?.fullName}</b> (
+              <span className="font-mono">{passwordModalUser?.username ?? passwordModalUser?.email}</span>).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2 text-xs">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="font-semibold text-slate-700 dark:text-slate-300">
+                  New Password
+                </label>
+                <button
+                  type="button"
+                  onClick={handleGeneratePassword}
+                  className="inline-flex items-center gap-1 font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 text-[11px]"
+                >
+                  <Sparkles className="h-3 w-3" /> Auto-Generate Secure
+                </button>
+              </div>
+              <div className="relative">
+                <Input
+                  type={showCustomPassword ? 'text' : 'password'}
+                  placeholder="Min 8 characters (or leave blank to auto-generate)"
+                  value={customPassword}
+                  onChange={(e) => setCustomPassword(e.target.value)}
+                  className="pr-16 font-mono text-xs"
+                />
+                <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    className="h-7 w-7 text-slate-400 hover:text-slate-700"
+                    onClick={() => setShowCustomPassword(!showCustomPassword)}
+                    title={showCustomPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showCustomPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </Button>
+                  {customPassword && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      className="h-7 w-7 text-slate-400 hover:text-slate-700"
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(customPassword);
+                        showToast('Password copied to clipboard');
+                      }}
+                      title="Copy to clipboard"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Minimum 8 characters. Leave blank to generate a random 16-character temporary password.
+              </p>
+            </div>
+
+            <label className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 text-xs font-medium text-slate-700 cursor-pointer dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300">
+              <input
+                type="checkbox"
+                checked={mustChangePasswordOnLogin}
+                onChange={(e) => setMustChangePasswordOnLogin(e.target.checked)}
+                className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
+              />
+              <div>
+                <span className="font-semibold block text-slate-800 dark:text-slate-200">
+                  Force password reset on next login
+                </span>
+                <span className="text-[11px] text-slate-500 block">
+                  User will be prompted to choose a new password when they sign in.
+                </span>
+              </div>
+            </label>
+
+            {passwordModalError && (
+              <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-xs font-medium text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span>{passwordModalError}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPasswordModalUser(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={m.resetPassword.isPending}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs font-medium"
+                onClick={handleSavePassword}
+              >
+                {m.resetPassword.isPending ? 'Updating...' : customPassword ? 'Set Custom Password' : 'Generate & Reset'}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

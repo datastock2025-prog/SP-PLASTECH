@@ -12,7 +12,6 @@ import {
   Sliders,
   DollarSign,
 } from 'lucide-react';
-import { mockSupplierRisks } from '@/src/data/mockScmData';
 import { SupplierRiskProfile } from '@/src/types/scm';
 
 interface ScmSupplierRiskViewProps {
@@ -21,8 +20,8 @@ interface ScmSupplierRiskViewProps {
 }
 
 export const ScmSupplierRiskView: React.FC<ScmSupplierRiskViewProps> = ({ onNavigate, showToast }) => {
-  const [profiles, setProfiles] = useState<SupplierRiskProfile[]>(mockSupplierRisks);
-  const [selectedProfile, setSelectedProfile] = useState<SupplierRiskProfile | null>(mockSupplierRisks[0]);
+  const [profiles, setProfiles] = useState<SupplierRiskProfile[]>([]);
+  const [selectedProfile, setSelectedProfile] = useState<SupplierRiskProfile | null>(null);
 
   const handleAddMitigation = (supplierId: string) => {
     showToast(`Logged Mitigation Action Plan for ${supplierId}`);

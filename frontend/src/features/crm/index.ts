@@ -6,4 +6,4 @@
 export * from './types/crmSchemas';
 export * from './api/crmApi';
 export * from './hooks/useCrm';
-export { CrmViews } from '../../components/CrmViews';
+export { CrmViews } from '../../../apps/web/src/modules/crm';

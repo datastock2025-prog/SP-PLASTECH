@@ -24,7 +24,7 @@ test.describe('UI Grid Alignment, Responsiveness & Text Overflow Suite', () => {
     catalog[0].entity_type = 'Finished Molded Component';
     catalog[1].approval = 'released';
 
-    await page.route('**/rest/v1/items*', async (route) => {
+    await page.route(/(rest|api)\/v1\/items/, async (route) => {
       const request = route.request();
       const requestUrl = new URL(request.url());
       if (request.method() === 'HEAD') {
@@ -39,15 +39,42 @@ test.describe('UI Grid Alignment, Responsiveness & Text Overflow Suite', () => {
         return;
       }
 
-      if (request.method() === 'GET') {
-        const start = Number(requestUrl.searchParams.get('offset') || 0);
-        const end = Number(requestUrl.searchParams.get('limit') || 25) + start - 1;
-        const rows = catalog.slice(start, end + 1);
+      if (requestUrl.pathname.endsWith('/count')) {
         await route.fulfill({
           status: 200,
-          headers: { 'content-range': `${start}-${start + rows.length - 1}/${catalog.length}` },
-          json: rows,
+          json: { data: { count: catalog.length }, count: catalog.length },
         });
+        return;
+      }
+
+      if (request.method() === 'GET') {
+        const isApi = requestUrl.pathname.includes('/api/');
+        const limit = Number(requestUrl.searchParams.get('limit') || 25);
+        let start = 0;
+        if (requestUrl.searchParams.has('offset')) {
+          start = Number(requestUrl.searchParams.get('offset') || 0);
+        } else if (requestUrl.searchParams.has('page')) {
+          start = (Number(requestUrl.searchParams.get('page')) - 1) * limit;
+        }
+        const pageNum = Math.floor(start / limit) + 1;
+        const end = start + limit - 1;
+        const rows = catalog.slice(start, end + 1);
+
+        if (isApi) {
+          await route.fulfill({
+            status: 200,
+            json: {
+              data: rows,
+              meta: { page: pageNum, limit, total: catalog.length, totalPages: Math.ceil(catalog.length / limit) },
+            },
+          });
+        } else {
+          await route.fulfill({
+            status: 200,
+            headers: { 'content-range': `${start}-${start + rows.length - 1}/${catalog.length}` },
+            json: rows,
+          });
+        }
         return;
       }
 

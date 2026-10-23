@@ -1,5 +1,6 @@
 import React, { createContext, useContext } from 'react';
 import { AuthUser } from '../../types';
+import { useCan } from '../providers/AbilityProvider';
 
 export type UserRole =
   | 'admin'
@@ -30,6 +31,10 @@ export interface RequireAuthProps {
    * If omitted, any authenticated user is permitted.
    */
   roles?: (UserRole | string)[];
+  /** Optional CASL action check */
+  action?: string;
+  /** Optional CASL subject check */
+  subject?: string;
   /**
    * Optional direct user reference.
    * If omitted, reads currentUser from AuthContext.
@@ -41,38 +46,37 @@ export interface RequireAuthProps {
   fallback?: React.ReactNode;
 }
 
-/**
- * Role-Based UI Guard (<RequireAuth roles={['admin', 'user']}>)
- *
- * Enforces role-based security directives across both views and granular UI controls
- * (such as approve buttons, configuration tabs, and deletion modals).
- *
- * - Reads authenticated user from AuthContext or optional currentUser prop.
- * - Compares user role against permitted roles with case-insensitivity.
- * - 'admin' super-users automatically pass all standard role checks.
- * - Generalized 'user' role permits all authenticated plant personnel.
- * - Never renders unauthorized elements into the DOM tree (zero DOM leakage).
- */
 export const RequireAuth: React.FC<RequireAuthProps> = ({
   roles,
+  action,
+  subject,
   currentUser: propUser,
   children,
   fallback = null,
 }) => {
   const context = useContext(AuthContext);
   const activeUser = propUser !== undefined ? propUser : context.currentUser;
+  const can = useCan();
 
   // 1. Unauthenticated check
   if (!activeUser) {
     return <>{fallback}</>;
   }
 
-  // 2. Open to all authenticated users if no specific roles required
+  // 2. CASL Ability check if action & subject are specified
+  if (action && subject) {
+    if (can(action, subject)) {
+      return <>{children}</>;
+    }
+    return <>{fallback}</>;
+  }
+
+  // 3. Open to all authenticated users if no specific roles required
   if (!roles || roles.length === 0) {
     return <>{children}</>;
   }
 
-  // 3. Normalize roles for comparison
+  // 4. Exact role comparison (no loose includes or director string matching)
   const rawRole = (activeUser.role || '').toLowerCase();
 
   const hasPermission = roles.some((targetRole) => {
@@ -82,17 +86,12 @@ export const RequireAuth: React.FC<RequireAuthProps> = ({
     if (rawRole === target) return true;
 
     // Super-user Admin privilege
-    if (rawRole === 'admin' || rawRole.includes('director') || rawRole === 'superadmin') {
+    if (rawRole === 'super_admin' || rawRole === 'admin') {
       return true;
     }
 
     // Generic 'user' requirement: satisfies any authenticated role
     if (target === 'user' && rawRole !== 'anonymous' && rawRole.length > 0) {
-      return true;
-    }
-
-    // Common ERP role keyword checks (e.g. 'quality' matches 'Quality Manager')
-    if (rawRole.includes(target)) {
       return true;
     }
 

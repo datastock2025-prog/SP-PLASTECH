@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useSearchCatalog } from '../../features/identity/useIdentity';
 import {
   Search,
   Command,
@@ -59,6 +60,8 @@ export const GlobalCommandPalette: React.FC<GlobalCommandPaletteProps> = ({
   const [activeScope, setActiveScope] = useState<string>('Global');
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const { data: dbSearchResults = [] } = useSearchCatalog(query);
 
   const searchScopes = [
     'Global',
@@ -153,6 +156,26 @@ export const GlobalCommandPalette: React.FC<GlobalCommandPaletteProps> = ({
     );
   });
 
+  const allFilteredResults = useMemo(() => {
+    if (!query.trim() || dbSearchResults.length === 0) return filteredResults;
+    const dbItems: CommandResultItem[] = dbSearchResults.map((r: any) => ({
+      id: r.entity_id,
+      code: r.code,
+      title: r.title,
+      subtitle: r.subtitle,
+      type: 'record' as const,
+      module: r.entity_type,
+      statusBadge: { text: r.entity_type, color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300' },
+      targetView:
+        r.entity_type === 'ITEM' ? 'itemList'
+        : r.entity_type === 'SUPPLIER' ? 'supplierMaster'
+        : r.entity_type === 'CUSTOMER' ? 'customerMaster'
+        : 'adminPlants',
+      targetParam: { id: r.entity_id, code: r.code },
+    }));
+    return [...dbItems, ...filteredResults];
+  }, [dbSearchResults, filteredResults, query]);
+
   // Reset selected index on query change
   useEffect(() => {
     setSelectedIndex(0);
@@ -171,14 +194,14 @@ export const GlobalCommandPalette: React.FC<GlobalCommandPaletteProps> = ({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex((prev) => (prev < filteredResults.length - 1 ? prev + 1 : 0));
+      setSelectedIndex((prev) => (prev < allFilteredResults.length - 1 ? prev + 1 : 0));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : filteredResults.length - 1));
+      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : allFilteredResults.length - 1));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (filteredResults[selectedIndex]) {
-        handleSelectItem(filteredResults[selectedIndex]);
+      if (allFilteredResults[selectedIndex]) {
+        handleSelectItem(allFilteredResults[selectedIndex]);
       }
     } else if (e.key === 'Escape') {
       onClose();
@@ -263,7 +286,7 @@ export const GlobalCommandPalette: React.FC<GlobalCommandPaletteProps> = ({
 
         {/* Search Results List */}
         <div className="flex-1 overflow-y-auto p-2 divide-y divide-slate-100 max-h-[50vh]">
-          {filteredResults.length === 0 ? (
+          {allFilteredResults.length === 0 ? (
             <div className="py-12 px-6 text-center text-slate-400">
               <Compass className="w-10 h-10 mx-auto mb-3 text-slate-300 stroke-[1.5]" />
               <div className="text-sm font-semibold text-slate-600">No matching records found</div>
@@ -272,7 +295,7 @@ export const GlobalCommandPalette: React.FC<GlobalCommandPaletteProps> = ({
               </div>
             </div>
           ) : (
-            filteredResults.map((item, index) => {
+            allFilteredResults.map((item, index) => {
               const isSelected = index === selectedIndex;
               return (
                 <div

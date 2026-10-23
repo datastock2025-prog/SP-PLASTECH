@@ -83,7 +83,7 @@ export const WarehouseViews: React.FC<WarehouseProps> = ({
 
   const effectivePos = (pos && pos.length > 0 ? pos : queryPos) || [];
 
-  // Warehouse local state managed with initial seed data and sync storage
+  // Warehouse local state managed with initial initial data and sync storage
   const [locations, setLocations] = useState<WarehouseLocation[]>(INITIAL_WAREHOUSE_LOCATIONS);
   const [stockItems, setStockItems] = useState<InventoryStockItem[]>(() => getWarehouseStock());
   const [putawayTasks, setPutawayTasks] = useState<PutawayTask[]>(INITIAL_PUTAWAY_TASKS);

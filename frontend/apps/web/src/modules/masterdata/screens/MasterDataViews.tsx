@@ -63,6 +63,7 @@ import {
   Factory,
 } from 'lucide-react';
 import { PaginationBar } from '@/src/components/common/PaginationBar';
+import { QueryErrorState } from '@/src/shared/components/QueryErrorState';
 import { CreateItemWizardModal } from '../components/CreateItemWizardModal';
 import { ItemGridImportModal } from '../components/ItemGridImportModal';
 import { ManufacturingBomWizardModal } from '@/src/components/engineering/bomWizard/ManufacturingBomWizardModal';
@@ -75,14 +76,16 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   usePaginatedItems,
   useItemCatalogStats,
+  useItemDetail,
   useSaveItem,
   useDeleteItem,
   useApproveItem,
   useRejectItem,
+  useSubmitForApproval,
+  useItemAuditHistory,
   useBulkImportItems,
 } from '../api/useMasterData';
 import { itemService } from '../api/itemService';
-import { itemEndpoints, ItemMasterDto } from '@/src/lib/api-client';
 import {
   masterDataGovernanceService,
   MasterDataChangeRecord,
@@ -128,8 +131,8 @@ export const renderRoutingBadge = (item: ItemMaster) => {
   const wh = (item.wh || '').toUpperCase();
   const dest = (item.destinationStore || '').toUpperCase();
 
-  // Priority 1: WIP routing (Check WIP first even if type is Finished Good)
-  if (r === 'WIP' || item.isWip || dest.includes('WIP') || wh.includes('WIP') || t === 'semi-finished good' || c === 'wip') {
+  // Priority 1: WIP routing (Check WIP first and default for Finished Goods unless explicitly DOL)
+  if (r === 'WIP' || item.isWip || dest.includes('WIP') || wh.includes('WIP') || t === 'semi-finished good' || c === 'wip' || (!r && (t === 'finished good' || c === 'fg'))) {
     return (
       <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-50 text-blue-700 border border-blue-300 shadow-2xs">
         WIP
@@ -155,8 +158,8 @@ export const renderRoutingBadge = (item: ItemMaster) => {
     );
   }
 
-  // Priority 4: DOL -> FG routing
-  if (r === 'DOL' || item.isDol || r === 'FG' || t === 'finished good' || c === 'fg') {
+  // Priority 4: DOL -> FG routing (Only when explicitly configured as DOL)
+  if (r === 'DOL' || item.isDol || r === 'FG') {
     return (
       <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-2xs">
         DOL &rarr; FG
@@ -235,6 +238,7 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
   const [form, setForm] = useState<ItemMaster>({ ...item });
   const [activeTab, setActiveTab] = useState<'specs' | 'basic' | 'docs'>('specs');
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const isApprovedLocked = item.approval === 'approved';
 
   const isFgItem = form.type === 'Finished Good' || form.type === 'Semi-Finished Good';
   const firstTabTitle = isFgItem
@@ -316,6 +320,7 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
 
     const updatedItem: ItemMaster = {
       ...form,
+      name: isApprovedLocked ? item.name : form.name,
       standardCycleTime: isFgItem ? cycle : 0,
       cycleTime: isFgItem ? cycle : 0,
       partWeightGrams: isFgItem ? partWt : undefined,
@@ -837,16 +842,25 @@ const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
 
           {activeTab === 'basic' && (
             <div className="space-y-4">
+              {isApprovedLocked && (
+                <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
+                  <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span><strong>Approved Item Governance:</strong> Item Name and Code are locked because this item is approved in catalog governance.</span>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Item Name *</label>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Item Name *
+                    {isApprovedLocked && <span className="ml-1 text-[10px] text-amber-600 font-normal">(Locked)</span>}
+                  </label>
                   <input
                     type="text"
                     required
-                    disabled={!isAdmin}
+                    disabled={!isAdmin || isApprovedLocked}
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    className="w-full py-1.5 px-3 border border-slate-300 rounded-lg text-xs disabled:bg-slate-100"
+                    className="w-full py-1.5 px-3 border border-slate-300 rounded-lg text-xs disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div>
@@ -1121,38 +1135,681 @@ export function normalizeItemMaster(i: any): ItemMaster {
     code: (i.code || i.item_code || '').trim(),
     name: (i.name || i.item_name || '').trim(),
     type: itemType,
-    cat: i.cat || i.category || (itemType === 'Finished Good' ? 'INJECTION MOLDING' : 'RESIN RAW MATERIAL'),
-    wh: i.wh || i.warehouse || (itemType === 'Finished Good' ? 'FG_WH_A' : 'RAW_STORE_1'),
-    plant: i.plant || 'Plant 1 - Pimpri Auto-Hub',
+    cat: i.cat || i.category || '',
+    wh: i.wh || i.warehouse || '',
+    plant: i.plant || '',
     stock: String(i.stock ?? i.on_hand_stock ?? '0'),
     avail: String(i.avail ?? i.available_stock ?? '0'),
     baseUOM: i.baseUOM || i.base_uom || 'PCS',
-    standardCycleTime: cycle > 0 ? cycle : (itemType === 'Finished Good' ? 30 : 0),
-    cycleTime: cycle > 0 ? cycle : (itemType === 'Finished Good' ? 30 : 0),
+    standardCycleTime: cycle > 0 ? cycle : 0,
+    cycleTime: cycle > 0 ? cycle : 0,
     cavityCount: cavities,
-    partWeightGrams: partWt,
-    runnerWeightGrams: runnerWt,
-    shotWeightGrams: shotWt,
-    netWeightGrams: partWt,
-    resinType: resin || (itemType === 'Finished Good' ? 'PP / PVC Polymer' : 'PP Homopolymer'),
-    polymerGrade: resin || (itemType === 'Finished Good' ? 'PP / PVC Polymer' : 'PP Homopolymer'),
-    mfi: i.mfi || i.melt_flow_index || (itemType === 'Raw Material' ? '12.5 g/10min' : ''),
-    density: i.density || i.specific_density || (itemType === 'Raw Material' ? '0.905 g/cm³' : ''),
-    safetyStock: String(i.safetyStock ?? i.safety_stock ?? (itemType === 'Raw Material' ? '2500' : '200')),
-    reorderLevel: String(i.reorderLevel ?? i.reorder_level ?? (itemType === 'Raw Material' ? '5000' : '500')),
-    leadTime: i.leadTime || i.lead_time || (itemType === 'Raw Material' ? '7 Days' : '3 Days'),
-    supplier: i.supplier || (itemType === 'Raw Material' ? 'Reliance Industries Ltd' : 'In-House Production'),
+    partWeightGrams: partWt > 0 ? partWt : undefined,
+    runnerWeightGrams: runnerWt > 0 ? runnerWt : undefined,
+    shotWeightGrams: shotWt > 0 ? shotWt : undefined,
+    netWeightGrams: partWt > 0 ? partWt : undefined,
+    resinType: resin || '',
+    polymerGrade: resin || i.polymerGrade || '',
+    mfi: i.mfi || i.melt_flow_index || '',
+    density: i.density || i.specific_density || '',
+    safetyStock: i.safetyStock ? String(i.safetyStock) : (i.safety_stock ? String(i.safety_stock) : ''),
+    reorderLevel: i.reorderLevel ? String(i.reorderLevel) : (i.reorder_level ? String(i.reorder_level) : ''),
+    leadTime: i.leadTime || i.lead_time || '',
+    supplier: i.supplier || '',
     standardCost: costVal,
     cost: costVal,
-    moldToolId: i.moldToolId || i.mold_tool_id || (itemType === 'Finished Good' ? `MOLD-${(i.code || '').replace(/\D/g, '').slice(-4) || '1001'}` : ''),
-    approval: (i.approval || i.approval_status || 'approved') as ApprovalStatus,
-    status: (i.status || 'active') as any,
+    moldToolId: i.moldToolId || i.mold_tool_id || '',
+    approval: (i.approval || i.approval_status || 'draft') as ApprovalStatus,
+    status: (i.status || (i.approval === 'approved' ? 'active' : 'inactive')) as any,
     lot: i.lot ?? true,
-    qc: i.qc ?? true,
+    qc: i.qc ?? false,
     icon: i.icon || (itemType === 'Finished Good' ? '📦' : itemType === 'Raw Material' ? '🧪' : '◇'),
-    createdOn: i.createdOn || i.created_at || '2026-09-25',
+    createdOn: i.createdOn || i.created_at || 'Today',
   };
 }
+
+interface EditPurchasingSpecsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  item: ItemMaster | null;
+  onSave: (updated: ItemMaster) => void | Promise<void>;
+  showToast: (msg: string) => void;
+}
+
+const EditPurchasingSpecsModal: React.FC<EditPurchasingSpecsModalProps> = ({
+  isOpen,
+  onClose,
+  item,
+  onSave,
+  showToast,
+}) => {
+  if (!isOpen || !item) return null;
+
+  const [supplier, setSupplier] = useState(item.supplier || '');
+  const [cost, setCost] = useState<number | string>(item.standardCost || item.cost || 0);
+  const [leadTime, setLeadTime] = useState(item.leadTime || '');
+  const [wh, setWh] = useState(item.wh || '');
+  const [reorderLevel, setReorderLevel] = useState(item.reorderLevel || '');
+  const [safetyStock, setSafetyStock] = useState(item.safetyStock || '');
+  const [hsnCode, setHsnCode] = useState(item.hsnCode || item.hsCode || '');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const updatedItem: ItemMaster = {
+        ...item,
+        supplier: supplier.trim(),
+        cost: Number(cost) || 0,
+        standardCost: Number(cost) || 0,
+        leadTime: leadTime.trim(),
+        wh: wh.trim(),
+        reorderLevel: String(reorderLevel || ''),
+        safetyStock: String(safetyStock || ''),
+        hsnCode: hsnCode.trim(),
+        hsCode: hsnCode.trim(),
+      };
+
+      await onSave(updatedItem);
+      masterDataGovernanceService.recordAudit({
+        entityType: 'ITEM_MASTER',
+        entityCode: item.code,
+        entityName: item.name,
+        action: 'UPDATE',
+        changedBy: 'Procurement Authority',
+        changeSummary: `Updated Purchasing Specs: Supplier (${supplier || '—'}), Rate (₹${cost}), Lead Time (${leadTime || '—'})`,
+        diff: {
+          supplier: { before: item.supplier, after: supplier },
+          cost: { before: item.cost, after: cost },
+          leadTime: { before: item.leadTime, after: leadTime },
+        },
+      });
+      showToast(`✓ Purchasing specifications updated for ${item.code}`);
+      onClose();
+    } catch (err: any) {
+      showToast(`⚠️ Failed to update purchasing specs: ${err?.message || 'Error'}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden flex flex-col">
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+          <div>
+            <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+              <Factory className="w-4 h-4 text-[#0F8B8D]" /> Edit Purchasing &amp; Supplier Specs
+            </h3>
+            <p className="text-[11px] text-slate-500 font-mono mt-0.5">{item.code} &mdash; {item.name}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 flex items-center justify-center cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
+          <div className="space-y-1">
+            <label htmlFor="purchasing-supplier-input" className="block font-semibold text-slate-700">Preferred Supplier / Vendor</label>
+            <input
+              id="purchasing-supplier-input"
+              type="text"
+              value={supplier}
+              onChange={(e) => setSupplier(e.target.value)}
+              placeholder="e.g. Supreme Petrochem or Reliance Industries"
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label htmlFor="purchasing-cost-input" className="block font-semibold text-slate-700">Standard Purchase Cost (₹)</label>
+              <input
+                id="purchasing-cost-input"
+                type="number"
+                step="0.01"
+                value={cost}
+                onChange={(e) => setCost(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono text-xs bg-white"
+              />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="purchasing-leadtime-input" className="block font-semibold text-slate-700">Procurement Lead Time</label>
+              <input
+                id="purchasing-leadtime-input"
+                type="text"
+                value={leadTime}
+                onChange={(e) => setLeadTime(e.target.value)}
+                placeholder="e.g. 7 Days or 2 Weeks"
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono text-xs bg-white"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <label htmlFor="purchasing-store-input" className="block font-semibold text-slate-700">Target Store</label>
+              <input
+                id="purchasing-store-input"
+                type="text"
+                value={wh}
+                onChange={(e) => setWh(e.target.value)}
+                placeholder="RM-WH-01"
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono text-xs bg-white"
+              />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="purchasing-rop-input" className="block font-semibold text-slate-700">Reorder Level (ROP)</label>
+              <input
+                id="purchasing-rop-input"
+                type="text"
+                value={reorderLevel}
+                onChange={(e) => setReorderLevel(e.target.value)}
+                placeholder="e.g. 5000"
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono text-xs bg-white"
+              />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="purchasing-safety-input" className="block font-semibold text-slate-700">Safety Buffer</label>
+              <input
+                id="purchasing-safety-input"
+                type="text"
+                value={safetyStock}
+                onChange={(e) => setSafetyStock(e.target.value)}
+                placeholder="e.g. 2000"
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono text-xs bg-white"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label htmlFor="purchasing-hsn-input" className="block font-semibold text-slate-700">HSN / Tariff Code</label>
+            <input
+              id="purchasing-hsn-input"
+              type="text"
+              value={hsnCode}
+              onChange={(e) => setHsnCode(e.target.value)}
+              placeholder="e.g. 39021000"
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono text-xs bg-white"
+            />
+          </div>
+
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-2 rounded-lg border border-slate-300 text-slate-700 text-xs font-medium hover:bg-slate-50 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-4 py-2 rounded-lg bg-[#0F8B8D] hover:bg-[#0c7274] text-white text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+            >
+              {isSubmitting ? 'Saving...' : 'Save Specifications'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+interface ItemAuditHistoryTabProps {
+  item: ItemMaster;
+  onOpenAuditVault: () => void;
+}
+
+const ItemAuditHistoryTab: React.FC<ItemAuditHistoryTabProps> = ({ item, onOpenAuditVault }) => {
+  const { data: dbLogs = [], isLoading } = useItemAuditHistory({ code: item.code });
+
+  return (
+    <div className="panel p-5 space-y-4">
+      <div className="flex items-center justify-between border-b border-[#E4E0D6] pb-3">
+        <div>
+          <h3 className="text-sm font-bold text-[#14213D] flex items-center gap-2">
+            <History className="w-4 h-4 text-[#0F8B8D]" /> Live Immutable Change Audit Logs (PostgreSQL)
+          </h3>
+          <p className="text-xs text-gray-500">
+            Realtime database ledger of modifications, specification updates, and approvals for {item.code}.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn btn-sm btn-ghost border cursor-pointer"
+          onClick={onOpenAuditVault}
+        >
+          Open Full Audit Vault
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="py-8 text-center text-xs text-gray-500 animate-pulse">
+          Loading PostgreSQL audit logs...
+        </div>
+      ) : dbLogs.length > 0 ? (
+        <div className="space-y-3">
+          {dbLogs.map((log: any) => {
+            const isApproved = log.action === 'APPROVE' || log.action === 'APPROVED';
+            const isRejected = log.action === 'REJECT' || log.action === 'REJECTED';
+            const isCreate = log.action === 'CREATE' || log.action === 'INSERT';
+
+            return (
+              <div key={log.id} className="timeline-item">
+                <div
+                  className="t-dot"
+                  style={{
+                    background: isApproved
+                      ? 'var(--success)'
+                      : isRejected
+                      ? 'var(--danger)'
+                      : isCreate
+                      ? '#0F8B8D'
+                      : 'var(--warning)',
+                  }}
+                />
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-xs text-[#14213D]">
+                      {log.action}: {log.changeSummary || log.notes || `Updated ${log.changed_fields?.join(', ') || item.code}`}
+                    </span>
+                    <span className="px-1.5 py-0.2 text-[9px] font-mono rounded bg-slate-100 border text-slate-600">
+                      {log.userRole || log.performed_by || 'admin'}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-gray-500">
+                    {new Date(log.performed_at || log.timestamp || Date.now()).toLocaleString()} &bull; By: {log.performed_by || log.changedBy || 'System User'}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="timeline-item">
+          <div className="t-dot" style={{ background: 'var(--success)' }} />
+          <div>
+            <div className="t-text font-bold text-xs text-[#14213D]">Catalog SKU Baseline Active &bull; {item.code}</div>
+            <div className="text-[11px] text-gray-500">
+              {item.createdOn || 'Initial catalog release'} &bull; {item.name} &bull; Plant: {item.plant || '—'}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+interface ItemApprovalTabProps {
+  item: ItemMaster;
+  currentUser?: AuthUser | null;
+  onApprove: (item: ItemMaster) => void;
+  onReject: (item: ItemMaster) => void;
+  onSubmitForApproval: (item: ItemMaster) => void;
+  canApproveItem: boolean;
+  isSuperAdmin: boolean;
+}
+
+const ItemApprovalTab: React.FC<ItemApprovalTabProps> = ({
+  item,
+  currentUser,
+  onApprove,
+  onReject,
+  onSubmitForApproval,
+  canApproveItem,
+  isSuperAdmin,
+}) => {
+  const isApproved = item.approval === 'approved';
+  const isPending = item.approval === 'pending' || item.approval === 'under_review';
+  const isRejected = item.approval === 'rejected';
+  const isDraft = !item.approval || item.approval === 'draft';
+  const canDecide = canApproveItem || isSuperAdmin;
+
+  const map: Record<string, { bg: string; text: string; label: string }> = {
+    draft: { bg: 'bg-slate-100 border-slate-300', text: 'text-slate-700', label: 'Draft' },
+    pending: { bg: 'bg-amber-100 border-amber-300', text: 'text-amber-800', label: 'Pending Approval' },
+    under_review: { bg: 'bg-amber-100 border-amber-300', text: 'text-amber-800', label: 'Under Review' },
+    approved: { bg: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-800', label: 'Approved & Released' },
+    released: { bg: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-800', label: 'Released' },
+    rejected: { bg: 'bg-rose-100 border-rose-300', text: 'text-rose-800', label: 'Rejected' },
+  };
+  const badge = map[item.approval || 'draft'] || map.draft;
+
+  return (
+    <div className="panel p-5 space-y-5">
+      <div className="flex items-center justify-between border-b border-[#E4E0D6] pb-3">
+        <div>
+          <h3 className="font-bold text-sm text-[#14213D]">Enterprise Governance &amp; Lifecycle Approval</h3>
+          <p className="text-xs text-gray-500">
+            Multi-stage quality and engineering authorization pipeline. SKU is locked against structural changes once approved.
+          </p>
+        </div>
+        <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${badge.bg} ${badge.text}`}>
+          {badge.label}
+        </span>
+      </div>
+
+      {isApproved && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs text-emerald-900">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              <strong>SKU Fully Approved &amp; Released:</strong> Available across live Work Orders, BOM recipes, Purchase Orders, and Sales Orders. Structural identifiers (Code, Name, Description) are permanently locked.
+            </span>
+          </div>
+          <span className="font-mono text-[10px] bg-white border border-emerald-300 text-emerald-800 px-2 py-0.5 rounded font-bold shrink-0">
+            IMMUTABLE
+          </span>
+        </div>
+      )}
+
+      {isPending && (
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-xs text-amber-900">
+          <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+          <span>
+            <strong>Awaiting QA &amp; Technical Authority Review:</strong> This SKU is quarantined from active manufacturing orders until an authorized manager approves it.
+          </span>
+        </div>
+      )}
+
+      {isDraft && (
+        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-2 text-xs text-slate-800">
+          <FileText className="w-4 h-4 text-slate-500 shrink-0" />
+          <span>
+            <strong>Draft Specification:</strong> This SKU is in draft stage. Complete all mandatory technical specifications, then submit for QA approval.
+          </span>
+        </div>
+      )}
+
+      {isRejected && (
+        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs text-rose-900">
+          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+          <span>
+            <strong>SKU Rejected:</strong> This item has been quarantined and rejected during technical review. Update necessary parameters and resubmit.
+          </span>
+        </div>
+      )}
+
+      {/* 3-Stage Visual Pipeline */}
+      <div className="space-y-4 pt-1">
+        <div className="timeline-item">
+          <div className="t-dot" style={{ background: 'var(--success)' }} />
+          <div>
+            <div className="t-text font-bold text-xs text-[#14213D]">
+              Stage 1: SKU Definition &amp; Mold Tooling Specs &mdash; Completed
+            </div>
+            <div className="t-time text-[11px] text-gray-500">
+              Registered by {currentUser?.name || 'Production Engineer'} &middot; {item.createdOn || 'Initial Creation'}
+            </div>
+          </div>
+        </div>
+
+        <div className="timeline-item">
+          <div
+            className="t-dot"
+            style={{
+              background: isApproved
+                ? 'var(--success)'
+                : isRejected
+                ? 'var(--danger)'
+                : isPending
+                ? 'var(--warning)'
+                : '#9CA3AF',
+            }}
+          />
+          <div>
+            <div className="t-text font-bold text-xs text-[#14213D]">
+              Stage 2: Technical &amp; Quality Review &mdash;{' '}
+              {isApproved
+                ? `Approved by ${item.approvedBy || 'Admin Authority'}`
+                : isRejected
+                ? 'Rejected during review'
+                : isPending
+                ? 'Pending Review'
+                : 'Awaiting Submission'}
+            </div>
+            <div className="t-time text-[11px] text-gray-500">
+              {isApproved
+                ? 'Technical specifications verified against PPAP and mold shrinkage standard.'
+                : isPending
+                ? 'QA and Master Data Authority review in progress.'
+                : 'Submit this SKU when initial parameters are populated.'}
+            </div>
+          </div>
+        </div>
+
+        <div className="timeline-item">
+          <div
+            className="t-dot"
+            style={{
+              background: isApproved ? 'var(--success)' : '#D1D5DB',
+            }}
+          />
+          <div>
+            <div className="t-text font-bold text-xs text-[#14213D]">
+              Stage 3: Catalog Release &amp; Shopfloor Allocation
+            </div>
+            <div className="t-time text-[11px] text-gray-500">
+              {isApproved
+                ? 'Operational & active across all production plants.'
+                : 'Inactive until Stage 2 sign-off.'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex items-center gap-2 pt-2 border-t border-[#E4E0D6]">
+        {isDraft && (
+          <button
+            type="button"
+            className="btn btn-sm btn-primary flex items-center gap-1.5 cursor-pointer"
+            onClick={() => onSubmitForApproval(item)}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" /> Submit for Technical &amp; QA Approval
+          </button>
+        )}
+
+        {isPending && canDecide && (
+          <>
+            <button
+              type="button"
+              className="btn btn-sm btn-primary bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 cursor-pointer"
+              onClick={() => onApprove(item)}
+            >
+              <Check className="w-3.5 h-3.5" /> Approve &amp; Release to Catalog
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost text-[#C4433A] border-[#C4433A]/30 hover:bg-[#FBE1DE] flex items-center gap-1.5 cursor-pointer"
+              onClick={() => onReject(item)}
+            >
+              <X className="w-3.5 h-3.5" /> Reject SKU
+            </button>
+          </>
+        )}
+
+        {isRejected && (
+          <button
+            type="button"
+            className="btn btn-sm btn-primary flex items-center gap-1.5 cursor-pointer"
+            onClick={() => onSubmitForApproval(item)}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" /> Resubmit for Approval
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+interface ItemMasterGridRowProps {
+  item: ItemMaster;
+  isSelected: boolean;
+  onToggleSelect: (code: string, checked: boolean) => void;
+  onNavigateDetail: (code: string) => void;
+  onOpenAudit: (item: ItemMaster) => void;
+  onQuickModify: (item: ItemMaster) => void;
+  onCloneItem: (item: ItemMaster) => void;
+  onOpenMfgBomWizard: (item: ItemMaster) => void;
+  onDeleteItem: (item: ItemMaster) => void;
+  renderStatusBadge: (status: string) => React.ReactNode;
+  renderApprovalBadge: (approval: ApprovalStatus, itm?: ItemMaster) => React.ReactNode;
+}
+
+const ItemMasterGridRow = React.memo<ItemMasterGridRowProps>(function ItemMasterGridRow({
+  item,
+  isSelected,
+  onToggleSelect,
+  onNavigateDetail,
+  onOpenAudit,
+  onQuickModify,
+  onCloneItem,
+  onOpenMfgBomWizard,
+  onDeleteItem,
+  renderStatusBadge,
+  renderApprovalBadge,
+}) {
+  const isFg = item.type === 'Finished Good' || item.type === 'Semi-Finished Good';
+  const cycle = Number(item.standardCycleTime ?? item.cycleTime ?? 0);
+  const cavities = Number(item.cavityCount ?? (item.moldToolId ? 1 : 0));
+  const partWt = Number(item.partWeightGrams ?? item.netWeightGrams ?? 0);
+  const runnerWt = Number(item.runnerWeightGrams ?? 0);
+  const shotWt = item.shotWeightGrams || (partWt > 0 ? Number((partWt + runnerWt).toFixed(2)) : 0);
+  const hourlyOutput = cycle > 0 && cavities > 0 ? Math.round((3600 / cycle) * cavities) : 0;
+  const stockData = getItemStockData(item);
+
+  return (
+    <tr
+      key={item.code}
+      className={`item-master-grid-row hover:bg-[#F0F6FF] transition-colors cursor-pointer group ${
+        isSelected ? 'bg-teal-50/40' : ''
+      }`}
+      onClick={() => onNavigateDetail(item.code)}
+      title="Click to view detailed item master info, tooling specs, BOM usage & documents"
+    >
+      <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={(e) => onToggleSelect(item.code, e.target.checked)}
+          className="rounded text-[#0F8B8D]"
+        />
+      </td>
+
+      <td className="p-3">
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono font-bold text-[#0F8B8D]">{item.code}</span>
+          <Edit2 className="w-3 h-3 opacity-0 group-hover:opacity-100 text-amber-600 transition-opacity" />
+        </div>
+      </td>
+
+      <td className="p-3">
+        <div className="font-bold text-[#14213D] flex items-center gap-1.5 group-hover:text-[#0F8B8D] transition-colors">
+          {item.icon && typeof item.icon === 'string' && item.icon.length <= 3 && (
+            <span className="text-sm">{item.icon}</span>
+          )}
+          <span>{item.name}</span>
+        </div>
+        <div className="text-[11px] text-[#6B7280] flex items-center gap-1.5 flex-wrap mt-0.5">
+          <span>{item.cat}</span>
+          {item.resinType && (
+            <span className="font-mono text-[10px] text-blue-700 bg-blue-50 px-1 rounded">
+              {item.resinType}
+            </span>
+          )}
+          {renderRoutingBadge(item)}
+        </div>
+      </td>
+
+      <td className="p-3">
+        <div className="flex items-center gap-1.5 font-semibold text-slate-700 text-xs">
+          <Factory className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          <span className="truncate max-w-[140px]">{item.plant || '—'}</span>
+        </div>
+      </td>
+
+      <td className="p-3 text-right font-semibold text-[#14213D] font-mono">
+        {stockData.onHand}
+      </td>
+      <td className="p-3 text-right font-mono font-semibold text-emerald-700">
+        {stockData.available}
+      </td>
+      <td className="p-3 font-mono text-xs text-[#6B7280]">{item.wh}</td>
+      <td className="p-3 text-center">{renderStatusBadge(item.status)}</td>
+      <td className="p-3 text-center">{renderApprovalBadge(item.approval, item)}</td>
+
+      <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
+        <div className="item-master-grid-actions flex items-center justify-end gap-1">
+          <button
+            className="p-1 text-[#6B7280] hover:text-[#0F8B8D] hover:bg-teal-50 rounded transition-colors"
+            title="View Item Change & Approval Ledger (When, Who Raised, Who Approved)"
+            onClick={() => onOpenAudit(item)}
+          >
+            <History className="w-3.5 h-3.5 text-[#0F8B8D]" />
+          </button>
+          <button
+            className="p-1 text-[#6B7280] hover:text-[#E8622C] hover:bg-orange-50 rounded transition-colors"
+            title="Quick Modify SKU & Tooling"
+            onClick={() => onQuickModify(item)}
+          >
+            <Edit2 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            className="p-1 text-[#6B7280] hover:text-[#0066CC] hover:bg-blue-50 rounded transition-colors"
+            title="Clone / Duplicate Item"
+            onClick={() => onCloneItem(item)}
+          >
+            <Copy className="w-3.5 h-3.5" />
+          </button>
+          <button
+            className="p-1 text-[#6B7280] hover:text-[#0F8B8D] hover:bg-teal-50 rounded transition-colors"
+            title="Create / View Manufacturing BOM"
+            onClick={() => onOpenMfgBomWizard(item)}
+          >
+            <Layers className="w-3.5 h-3.5" />
+          </button>
+          <button
+            className="p-1 text-[#6B7280] hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+            title="Delete SKU"
+            onClick={() => onDeleteItem(item)}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}, (prev, next) => {
+  if (prev.isSelected !== next.isSelected) return false;
+  if (prev.item === next.item) return true;
+  return (
+    prev.item.code === next.item.code &&
+    prev.item.name === next.item.name &&
+    prev.item.status === next.item.status &&
+    prev.item.approval === next.item.approval &&
+    prev.item.type === next.item.type &&
+    prev.item.cat === next.item.cat &&
+    prev.item.plant === next.item.plant &&
+    prev.item.wh === next.item.wh &&
+    prev.item.stock === next.item.stock &&
+    (prev.item as any).allocated === (next.item as any).allocated &&
+    prev.item.moldToolId === next.item.moldToolId &&
+    prev.item.cycleTime === next.item.cycleTime &&
+    prev.item.partWeightGrams === next.item.partWeightGrams &&
+    prev.item.runnerWeightGrams === next.item.runnerWeightGrams &&
+    prev.item.shotWeightGrams === next.item.shotWeightGrams &&
+    prev.item.cavityCount === next.item.cavityCount &&
+    prev.item.standardCycleTime === next.item.standardCycleTime &&
+    prev.item.netWeightGrams === next.item.netWeightGrams
+  );
+});
 
 export const MasterDataViews: React.FC<MasterDataProps> = ({
   view,
@@ -1221,27 +1878,50 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
     sortOrder: itemSortDirection,
   });
   const { data: itemCatalogStats, isLoading: isItemStatsLoading } = useItemCatalogStats();
-  const effectiveItemsList = useMemo(
-    () => (grid.data?.items || []).map((item) => normalizeItemMaster(item)),
-    [grid.data?.items]
-  );
-  const displayTotalCount = grid.data?.totalCount ?? 0;
-  const isInitialCatalogLoading = grid.isLoading;
+  const effectiveDetailCode =
+    view === 'itemDetail'
+      ? typeof selectedCode === 'object'
+        ? (selectedCode as any)?.code
+        : selectedCode
+      : undefined;
+  const { data: itemDetailData, isLoading: isItemDetailLoading } = useItemDetail(effectiveDetailCode);
+  const effectiveItemsList = useMemo(() => {
+    if (grid.data?.items && grid.data.items.length > 0) {
+      return grid.data.items.map((item) => normalizeItemMaster(item));
+    }
+    if ((grid.isLoading || grid.isPending) && items && items.length > 0) {
+      return items.map((item) => normalizeItemMaster(item));
+    }
+    return (grid.data?.items || []).map((item) => normalizeItemMaster(item));
+  }, [grid.data?.items, grid.isLoading, grid.isPending, items]);
+
+  const displayTotalCount = grid.data?.totalCount ?? (effectiveItemsList.length > 0 ? effectiveItemsList.length : items?.length || 0);
+  const isInitialCatalogLoading =
+    grid.isLoading ||
+    grid.isPending ||
+    !grid.isSuccess ||
+    (!grid.data && effectiveItemsList.length === 0) ||
+    (grid.isFetching && effectiveItemsList.length === 0);
 
   const saveItemMutation = useSaveItem();
   const deleteItemMutation = useDeleteItem();
   const approveItemMutation = useApproveItem();
   const rejectItemMutation = useRejectItem();
+  const submitForApprovalMutation = useSubmitForApproval();
   const bulkImportMutation = useBulkImportItems();
 
   // 10-Step Item Wizard State
   const [isItemWizardOpen, setIsItemWizardOpen] = useState<boolean>(false);
   const [wizardEditItem, setWizardEditItem] = useState<ItemMaster | null>(null);
 
+  // Dedicated Purchasing Specs Modal State
+  const [isPurchasingSpecsModalOpen, setIsPurchasingSpecsModalOpen] = useState<boolean>(false);
+  const [purchasingSpecsItem, setPurchasingSpecsItem] = useState<ItemMaster | null>(null);
+
   // Grid In / Out (Bulk Import & Export) State
   const [isImportModalOpen, setIsImportModalOpen] = useState<boolean>(false);
 
-  const handleBulkImport = async (importedItems: ItemMasterDto[]) => {
+  const handleBulkImport = async (importedItems: any[]) => {
     // 1. Centralized type-safe API mutation via TanStack Query
     await bulkImportMutation.mutateAsync(importedItems);
     // 2. Hydrate local UI items
@@ -1250,9 +1930,9 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
         code: dto.code,
         name: dto.name,
         type: (dto.type as any) || 'Finished Good',
-        cat: dto.category || dto.cat || 'INJECTION MOLDING',
-        wh: dto.wh || 'FG_WH_A',
-        plant: dto.plant || 'Plant 1 - Pimpri Auto-Hub',
+        cat: dto.category || dto.cat || '',
+        wh: dto.wh || '',
+        plant: dto.plant || '',
         stock: String(dto.stock || '0'),
         avail: String(dto.avail || '0'),
         lot: dto.lot ?? true,
@@ -1425,14 +2105,17 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
       items.find((i) => i.code === savedItem.code) ||
       (wizardEditItem?.code === savedItem.code ? wizardEditItem : undefined);
     const exists = !!prevItem;
-    const autoApprove = isSuperAdmin || canApproveItem;
     const isDraft = savedItem.approval === 'draft';
+    const isAlreadyApproved = prevItem?.approval === 'approved';
+    const finalApproval = isDraft ? 'draft' : (isAlreadyApproved ? 'approved' : (savedItem.approval || 'pending'));
+    const finalStatus = finalApproval === 'approved' ? 'active' : 'inactive';
+    const isApproved = finalApproval === 'approved';
 
     const itemToSave: ItemMaster = {
       ...savedItem,
-      approval: isDraft ? 'draft' : autoApprove ? 'approved' : ('pending' as const),
-      status: isDraft ? 'inactive' : 'active',
-      approvedBy: autoApprove ? (currentUser?.name || 'Admin Authority') : undefined,
+      approval: finalApproval,
+      status: finalStatus,
+      approvedBy: finalApproval === 'approved' ? (prevItem?.approvedBy || currentUser?.name) : undefined,
     };
 
     try {
@@ -1450,7 +2133,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
     }
 
     // Submit CRUD Change Request if non-admin or record audit trail
-    if (!autoApprove && !isDraft) {
+    if (!isApproved && !isDraft) {
       masterDataGovernanceService.submitChangeRequest({
         requestType: exists ? 'UPDATE' : 'CREATE',
         itemCode: savedItem.code,
@@ -1468,12 +2151,12 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
       entityType: 'ITEM_MASTER',
       entityCode: itemToSave.code,
       entityName: itemToSave.name,
-      action: autoApprove ? (exists ? 'UPDATE' : 'CREATE') : (exists ? 'UPDATE' : 'CREATE'),
+      action: exists ? 'UPDATE' : 'CREATE',
       changedBy: currentUser?.name || 'Admin Authority',
       raisedBy: currentUser?.name || 'Admin Authority',
-      approvedBy: autoApprove ? (currentUser?.name || 'Admin Authority') : undefined,
+      approvedBy: isApproved ? (currentUser?.name || 'Admin Authority') : undefined,
       userRole: currentUser?.role || 'admin',
-      changeSummary: autoApprove
+      changeSummary: isApproved
         ? `${isDraft ? 'Saved draft' : exists ? 'Updated' : 'Registered and approved'} SKU ${itemToSave.code} (${itemToSave.name}) in live operational catalog.`
         : `${exists ? 'Updated' : 'Registered'} SKU ${itemToSave.code} (${itemToSave.name}). Queued for approval gate before live release.`,
       diff: prevItem
@@ -1490,7 +2173,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
     showToast(
       isDraft
         ? `✓ Draft SKU ${savedItem.code} saved.`
-        : autoApprove
+        : isApproved
         ? `✓ SKU ${savedItem.code} saved & stored in live database!`
         : `✓ SKU ${savedItem.code} saved! Status set to Pending Approval for review.`
     );
@@ -1552,6 +2235,28 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
     showToast(`Rejected ${item.code}. Hidden from operational modules.`);
   };
 
+  const handleSubmitForApproval = (item: ItemMaster) => {
+    const updated: ItemMaster = { ...item, approval: 'pending', status: 'inactive' };
+    submitForApprovalMutation.mutate({
+      item: updated,
+      requestedBy: currentUser?.name || 'Production Engineer',
+      note: 'Submitted SKU for QA and Engineering approval',
+    });
+    onUpdateItem(updated);
+    masterDataGovernanceService.recordAudit({
+      entityType: 'ITEM_MASTER',
+      entityCode: item.code,
+      entityName: item.name,
+      action: 'UPDATE',
+      changedBy: currentUser?.name || 'Production Engineer',
+      raisedBy: currentUser?.name || 'Production Engineer',
+      userRole: currentUser?.role || 'engineer',
+      changeSummary: `Submitted ${item.code} (${item.name}) for technical review & approval.`,
+      diff: { approval: { before: item.approval, after: 'pending' } },
+    });
+    showToast(`✓ Submitted ${item.code} for technical & QA review.`);
+  };
+
   // Manufacturing BOM Wizard State
   const [isMfgBomWizardOpen, setIsMfgBomWizardOpen] = useState<boolean>(false);
   const [bomWizardParentItem, setBomWizardParentItem] = useState<ItemMaster | null>(null);
@@ -1601,7 +2306,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
         `"${i.code || ''}"`,
         `"${(i.name || '').replace(/"/g, '""')}"`,
         `"${i.type || ''}"`,
-        `"${i.plant || 'Plant 1 - Pimpri Auto-Hub'}"`,
+        `"${i.plant || ''}"`,
         `"${i.cat || ''}"`,
         `"${i.wh || ''}"`,
         `"${i.baseUOM || 'PCS'}"`,
@@ -1770,21 +2475,11 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <div className="font-mono text-[11px] uppercase tracking-wider text-[#0F8B8D] font-bold flex items-center gap-1.5">
-                <Boxes className="w-3.5 h-3.5" /> Master Data &bull; Enterprise Catalog (100k+ Items Scale)
+                <Boxes className="w-3.5 h-3.5" /> Master Data &bull; Items
               </div>
-              <h1 className="text-xl font-bold text-[#14213D] flex items-center gap-2">
-                Item Master Catalog
-                <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 font-mono font-semibold border border-blue-200">
-                  {isInitialCatalogLoading ? (
-                    <span className="animate-pulse">Loading SKUs...</span>
-                  ) : (
-                    `${displayTotalCount} Registered SKUs`
-                  )}
-                </span>
+              <h1 className="text-xl font-bold text-[#14213D] flex items-center gap-2 flex-wrap">
+                Item Master
               </h1>
-              <p className="text-xs text-[#6B7280]">
-                High-throughput polymer parts catalog with injection molding tooling specs, live shot calculations &amp; RBAC governance.
-              </p>
             </div>
             <div className="flex items-center gap-2">
               {/* Grid In (Bulk Import) Button */}
@@ -1935,93 +2630,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
             </div>
           </div>
 
-          {/* Scalable KPI Ribbon */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            <div data-testid="item-kpi-total-items" className="bg-white p-3.5 rounded-xl border border-[#E4E0D6] shadow-xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center flex-shrink-0">
-                <Box className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Total Items</div>
-                <div className="text-lg font-bold text-[#14213D] font-mono leading-none mt-0.5">
-                  {isInitialCatalogLoading ? (
-                    <div className="h-5 w-14 bg-slate-200 animate-pulse rounded my-0.5" />
-                  ) : (
-                    displayTotalCount
-                  )}
-                </div>
-                <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">100k+ Scale Ready</div>
-              </div>
-            </div>
 
-            <div data-testid="item-kpi-finished-goods" className="bg-white p-3.5 rounded-xl border border-[#E4E0D6] shadow-xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-teal-50 text-[#0F8B8D] flex items-center justify-center flex-shrink-0">
-                <Cpu className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Finished Goods</div>
-                <div className="text-lg font-bold text-[#0F8B8D] font-mono leading-none mt-0.5">
-                  {isItemStatsLoading ? (
-                    <div className="h-5 w-12 bg-teal-100 animate-pulse rounded my-0.5" />
-                  ) : (
-                    itemCatalogStats?.finishedGoods ?? 0
-                  )}
-                </div>
-                <div className="text-[10px] text-gray-500 mt-0.5">Tooling &amp; Mold Specs</div>
-              </div>
-            </div>
-
-            <div className="bg-white p-3.5 rounded-xl border border-[#E4E0D6] shadow-xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center flex-shrink-0">
-                <Clock className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Pending QA Review</div>
-                <div className="text-lg font-bold text-amber-700 font-mono leading-none mt-0.5">
-                  {isItemStatsLoading ? (
-                    <div className="h-5 w-10 bg-amber-100 animate-pulse rounded my-0.5" />
-                  ) : (
-                    itemCatalogStats?.pending ?? 0
-                  )}
-                </div>
-                <div className="text-[10px] text-gray-500 mt-0.5">{itemCatalogStats?.drafts ?? 0} Drafts</div>
-              </div>
-            </div>
-
-            <div className="bg-white p-3.5 rounded-xl border border-[#E4E0D6] shadow-xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-rose-50 text-rose-700 flex items-center justify-center flex-shrink-0">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Low Stock Alert</div>
-                <div className="text-lg font-bold text-rose-700 font-mono leading-none mt-0.5">
-                  {isItemStatsLoading ? (
-                    <div className="h-5 w-10 bg-rose-100 animate-pulse rounded my-0.5" />
-                  ) : (
-                    itemCatalogStats?.lowStock ?? 0
-                  )}
-                </div>
-                <div className="text-[10px] text-rose-600 font-semibold mt-0.5">Reorder Needed</div>
-              </div>
-            </div>
-
-            <div data-testid="item-kpi-active-catalog" className="bg-white p-3.5 rounded-xl border border-[#E4E0D6] shadow-xs flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center flex-shrink-0">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Active Catalog</div>
-                <div className="text-lg font-bold text-emerald-700 font-mono leading-none mt-0.5">
-                  {isItemStatsLoading ? (
-                    <div className="h-5 w-12 bg-emerald-100 animate-pulse rounded my-0.5" />
-                  ) : (
-                    itemCatalogStats?.active ?? 0
-                  )}
-                </div>
-                <div className="text-[10px] text-emerald-600 font-semibold mt-0.5">Production Released</div>
-              </div>
-            </div>
-          </div>
 
           {/* Filter Bar */}
           <div className="bg-white p-3 rounded-xl border border-[#E4E0D6] flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
@@ -2050,27 +2659,39 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
 
             <div className="flex items-center gap-1.5 flex-wrap bg-[#F6F4EF] p-1 rounded-lg border border-[#E4E0D6]">
               {[
-                { id: 'all', label: 'All Items' },
-                { id: 'Finished Good', label: 'Finished Goods' },
-                { id: 'Raw Material', label: 'Raw Materials' },
-                { id: 'Masterbatch', label: 'Masterbatch' },
-                { id: 'Regrind', label: 'Regrind' },
-                { id: 'draft', label: 'Drafts' },
-                { id: 'pending_approval', label: 'Pending' },
+                { id: 'all', label: 'All Items', testId: 'item-kpi-total-items', count: displayTotalCount || itemCatalogStats?.total },
+                { id: 'Finished Good', label: 'Finished Goods', testId: 'item-kpi-finished-goods', count: itemCatalogStats?.finishedGoods },
+                { id: 'Raw Material', label: 'Raw Materials', count: itemCatalogStats?.rawMaterials },
+                { id: 'Masterbatch', label: 'Masterbatch', count: itemCatalogStats?.masterbatch },
+                { id: 'Regrind', label: 'Regrind', count: itemCatalogStats?.regrind },
+                { id: 'draft', label: 'Drafts', count: itemCatalogStats?.drafts },
+                { id: 'pending_approval', label: 'Pending', count: itemCatalogStats?.pending },
               ].map((chip) => (
                 <button
                   key={chip.id}
+                  data-testid={chip.testId}
                   onClick={() => {
                     setFilterType(chip.id);
                     setItemPage(1);
                   }}
-                  className={`px-2.5 py-1 text-[11px] font-semibold rounded capitalize transition-all ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
                     filterType === chip.id
                       ? 'bg-[#14213D] text-white shadow-xs'
-                      : 'text-[#6B7280] hover:text-[#14213D] hover:bg-white/60'
+                      : 'text-[#6B7280] hover:text-[#14213D] hover:bg-white/80'
                   }`}
                 >
-                  {chip.label}
+                  <span>{chip.label}</span>
+                  {chip.count !== undefined && (
+                    <span
+                      className={`text-[10px] font-mono font-extrabold px-1.5 py-0.2 rounded-full ${
+                        filterType === chip.id
+                          ? 'bg-white/20 text-white'
+                          : 'bg-slate-200/80 text-slate-700'
+                      }`}
+                    >
+                      {chip.count}
+                    </span>
+                  )}
                 </button>
               ))}
 
@@ -2080,13 +2701,24 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                     setFilterType('rejected');
                     setItemPage(1);
                   }}
-                  className={`px-2.5 py-1 text-[11px] font-semibold rounded transition-all ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
                     filterType === 'rejected'
                       ? 'bg-rose-700 text-white shadow-xs'
                       : 'text-rose-700 hover:bg-rose-50'
                   }`}
                 >
-                  🚫 Rejected
+                  <span>🚫 Rejected</span>
+                  {itemCatalogStats?.rejected !== undefined && (
+                    <span
+                      className={`text-[10px] font-mono font-extrabold px-1.5 py-0.2 rounded-full ${
+                        filterType === 'rejected'
+                          ? 'bg-white/20 text-white'
+                          : 'bg-rose-100 text-rose-800'
+                      }`}
+                    >
+                      {itemCatalogStats.rejected}
+                    </span>
+                  )}
                 </button>
               )}
             </div>
@@ -2197,19 +2829,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                         <ArrowUpDown className="w-3 h-3 text-gray-400" />
                       </div>
                     </th>
-                    <th className="p-3 cursor-pointer hover:bg-amber-50/50" onClick={() => handleItemSort('type')}>
-                      <div className="flex items-center gap-1">
-                        Type
-                        <ArrowUpDown className="w-3 h-3 text-gray-400" />
-                      </div>
-                    </th>
-                    <th className="p-3">Tooling / Material Spec</th>
-                    <th className="p-3 cursor-pointer hover:bg-amber-50/50" onClick={() => handleItemSort('cycleTime')}>
-                      <div className="flex items-center gap-1">
-                        Process &amp; Attributes
-                        <ArrowUpDown className="w-3 h-3 text-gray-400" />
-                      </div>
-                    </th>
+                    
                     <th className="p-3 text-right cursor-pointer hover:bg-amber-50/50" onClick={() => handleItemSort('stock')}>
                       <div className="flex items-center justify-end gap-1">
                         On Hand
@@ -2229,7 +2849,13 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E4E0D6]">
-                  {isInitialCatalogLoading ? (
+                  {grid.isError ? (
+                    <tr>
+                      <td colSpan={10} className="p-8">
+                        <QueryErrorState error={grid.error} onRetry={() => grid.refetch()} />
+                      </td>
+                    </tr>
+                  ) : isInitialCatalogLoading || (grid.isFetching && pagedItems.length === 0) ? (
                     Array.from({ length: 8 }).map((_, idx) => (
                       <tr key={`item-skeleton-${idx}`} className="animate-pulse">
                         <td className="p-3 text-center">
@@ -2276,378 +2902,107 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                       </tr>
                     ))
                   ) : pagedItems.length > 0 ? (
-                    pagedItems.map((item) => {
-                      const isSelected = selectedItemCodes.includes(item.code);
-                      const isFg = item.type === 'Finished Good' || item.type === 'Semi-Finished Good';
-                      const cycle = Number(item.standardCycleTime ?? item.cycleTime ?? 0);
-                      const cavities = Number(item.cavityCount ?? (item.moldToolId ? 1 : 0));
-                      const partWt = Number(item.partWeightGrams ?? item.netWeightGrams ?? 0);
-                      const runnerWt = Number(item.runnerWeightGrams ?? 0);
-                      const shotWt = item.shotWeightGrams || (partWt > 0 ? Number((partWt + runnerWt).toFixed(2)) : 0);
-                      const hourlyOutput = cycle > 0 && cavities > 0 ? Math.round((3600 / cycle) * cavities) : 0;
-                      const stockData = getItemStockData(item);
-
-                      return (
-                        <tr
-                          key={item.code}
-                          className={`item-master-grid-row hover:bg-[#F0F6FF] transition-colors cursor-pointer group ${
-                            isSelected ? 'bg-teal-50/40' : ''
-                          }`}
-                          onClick={() => onNavigate('itemDetail', item.code)}
-                          title="Click to view detailed item master info, tooling specs, BOM usage & documents"
-                        >
-                          <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedItemCodes([...selectedItemCodes, item.code]);
-                                } else {
-                                  setSelectedItemCodes(selectedItemCodes.filter((c) => c !== item.code));
-                                }
-                              }}
-                              className="rounded text-[#0F8B8D]"
-                            />
-                          </td>
-
-                          <td className="p-3">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-mono font-bold text-[#0F8B8D]">{item.code}</span>
-                              <Edit2 className="w-3 h-3 opacity-0 group-hover:opacity-100 text-amber-600 transition-opacity" />
-                            </div>
-                          </td>
-
-                          <td className="p-3">
-                            <div className="font-bold text-[#14213D] flex items-center gap-1.5 group-hover:text-[#0F8B8D] transition-colors">
-                              {item.icon && typeof item.icon === 'string' && item.icon.length <= 3 && (
-                                <span className="text-sm">{item.icon}</span>
-                              )}
-                              <span>{item.name}</span>
-                            </div>
-                            <div className="text-[11px] text-[#6B7280] flex items-center gap-1.5 flex-wrap mt-0.5">
-                              <span>{item.cat}</span>
-                              {item.resinType && (
-                                <span className="font-mono text-[10px] text-blue-700 bg-blue-50 px-1 rounded">
-                                  {item.resinType}
-                                </span>
-                              )}
-                              {renderRoutingBadge(item)}
-                            </div>
-                          </td>
-
-                          <td className="p-3">
-                            <div className="flex items-center gap-1.5 font-semibold text-slate-700 text-xs">
-                              <Factory className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              <span className="truncate max-w-[140px]">{item.plant || 'Plant 1 - Pimpri Auto-Hub'}</span>
-                            </div>
-                          </td>
-
-                          <td className="p-3">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#F6F4EF] text-[#14213D] border border-[#E4E0D6]">
-                              {item.type}
-                            </span>
-                          </td>
-
-                          {/* Dynamic Col 5: Tooling / Material Spec */}
-                          <td className="p-3 font-mono text-[11px]">
-                            {isFg ? (
-                              item.moldToolId ? (
-                                <>
-                                  <div className="text-[#14213D] font-bold">{item.moldToolId}</div>
-                                  <div className="text-[10px] text-gray-500">{cavities > 0 ? `${cavities} Cavit${cavities === 1 ? 'y' : 'ies'}` : '—'}</div>
-                                </>
-                              ) : (
-                                <span className="text-gray-400 italic text-[11px]">No Tool Linked</span>
-                              )
-                            ) : (item.type === 'Raw Material' || item.type === 'Regrind') ? (
-                              (item.resinType || item.polymerGrade) ? (
-                                <>
-                                  <div className="text-emerald-900 font-bold">{item.resinType || item.polymerGrade}</div>
-                                  <div className="text-[10px] text-slate-500 truncate">{item.polymerGrade || item.cat || '—'}</div>
-                                </>
-                              ) : (
-                                <span className="text-gray-400 italic text-[11px]">No Resin Spec</span>
-                              )
-                            ) : (item.type === 'Masterbatch' || item.type === 'Colorant' || item.type === 'Additive') ? (
-                              item.color ? (
-                                <>
-                                  <div className="text-purple-900 font-bold truncate">{item.color}</div>
-                                  <div className="text-[10px] text-slate-500 truncate">{item.carrierResin || item.resinType || '—'}</div>
-                                </>
-                              ) : (
-                                <span className="text-gray-400 italic text-[11px]">No Color Spec</span>
-                              )
-                            ) : item.type === 'Packaging Material' ? (
-                              (item.packagingStandard || item.boxDimensions) ? (
-                                <>
-                                  <div className="text-amber-900 font-bold truncate">{item.packagingStandard || item.cat || '—'}</div>
-                                  <div className="text-[10px] text-slate-500">{item.boxDimensions || '—'}</div>
-                                </>
-                              ) : (
-                                <span className="text-gray-400 italic text-[11px]">No Pack Spec</span>
-                              )
-                            ) : (
-                              (item.machineCompat || item.moldToolId) ? (
-                                <>
-                                  <div className="text-slate-900 font-bold truncate">{item.machineCompat || '—'}</div>
-                                  <div className="text-[10px] text-slate-500">{item.moldToolId || '—'}</div>
-                                </>
-                              ) : (
-                                <span className="text-gray-400 italic text-[11px]">No Fitment Spec</span>
-                              )
-                            )}
-                          </td>
-
-                          {/* Dynamic Col 6: Process & Attributes */}
-                          <td className="p-3 font-mono text-[11px]">
-                            {isFg ? (
-                              (cycle > 0 || shotWt > 0) ? (
-                                <>
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    {cycle > 0 && <span className="font-bold text-amber-700">{cycle}s</span>}
-                                    {cycle > 0 && shotWt > 0 && <span className="text-gray-400">&bull;</span>}
-                                    {shotWt > 0 && <span className="text-gray-700">{shotWt}g Shot</span>}
-                                    {hourlyOutput > 0 && (
-                                      <>
-                                        <span className="text-gray-400">&bull;</span>
-                                        <span className="text-emerald-700 font-bold">{hourlyOutput} pcs/h</span>
-                                      </>
-                                    )}
-                                  </div>
-                                  <div className="mt-0.5">
-                                    <span className="inline-flex items-center text-[9px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
-                                      MOLD SPEC GATE
-                                    </span>
-                                  </div>
-                                </>
-                              ) : (
-                                <span className="text-gray-400 italic text-[11px]">No Process Data</span>
-                              )
-                            ) : (item.type === 'Raw Material' || item.type === 'Regrind') ? (
-                              (item.mfi || item.density || item.regrind) ? (
-                                <>
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    {item.mfi && <span className="font-bold text-emerald-800">MFI: {item.mfi}</span>}
-                                    {item.density && (
-                                      <>
-                                        <span className="text-gray-400">&bull;</span>
-                                        <span className="text-slate-600">Dens: {item.density}</span>
-                                      </>
-                                    )}
-                                    {item.regrind && (
-                                      <>
-                                        <span className="text-gray-400">&bull;</span>
-                                        <span className="text-emerald-700 font-bold">Regrind: {item.regrind}</span>
-                                      </>
-                                    )}
-                                  </div>
-                                  <div className="mt-0.5">
-                                    <span className="inline-flex items-center text-[9px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                                      RESIN FEEDSTOCK
-                                    </span>
-                                  </div>
-                                </>
-                              ) : (
-                                <span className="text-gray-400 italic text-[11px]">No Rheology Data</span>
-                              )
-                            ) : (item.type === 'Masterbatch' || item.type === 'Colorant' || item.type === 'Additive') ? (
-                              (item.masterbatchDosage || item.heatStability) ? (
-                                <>
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    {item.masterbatchDosage && <span className="font-bold text-purple-800">LDR: {item.masterbatchDosage}</span>}
-                                    {item.heatStability && (
-                                      <>
-                                        <span className="text-gray-400">&bull;</span>
-                                        <span className="text-slate-600">Heat: {item.heatStability}</span>
-                                      </>
-                                    )}
-                                  </div>
-                                  <div className="mt-0.5">
-                                    <span className="inline-flex items-center text-[9px] font-bold text-purple-800 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200">
-                                      COLOR MASTERBATCH
-                                    </span>
-                                  </div>
-                                </>
-                              ) : (
-                                <span className="text-gray-400 italic text-[11px]">No Dosage Data</span>
-                              )
-                            ) : item.type === 'Packaging Material' ? (
-                              (item.unitsPerPack || item.hsCode) ? (
-                                <>
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    {item.unitsPerPack && <span className="font-bold text-amber-800">{item.unitsPerPack} pcs/box</span>}
-                                    {item.hsCode && (
-                                      <>
-                                        <span className="text-gray-400">&bull;</span>
-                                        <span className="text-slate-600">HSN: {item.hsCode}</span>
-                                      </>
-                                    )}
-                                  </div>
-                                  <div className="mt-0.5">
-                                    <span className="inline-flex items-center text-[9px] font-bold text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
-                                      PACKAGING SPEC
-                                    </span>
-                                  </div>
-                                </>
-                              ) : (
-                                <span className="text-gray-400 italic text-[11px]">No Logistics Data</span>
-                              )
-                            ) : (
-                              (item.leadTime || item.safetyStock) ? (
-                                <>
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    {item.leadTime && <span className="font-bold text-slate-800">Lead: {item.leadTime}</span>}
-                                    {item.safetyStock && (
-                                      <>
-                                        <span className="text-gray-400">&bull;</span>
-                                        <span className="text-slate-600">Buffer: {item.safetyStock} {item.baseUOM}</span>
-                                      </>
-                                    )}
-                                  </div>
-                                  <div className="mt-0.5">
-                                    <span className="inline-flex items-center text-[9px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
-                                      PLANT ASSET
-                                    </span>
-                                  </div>
-                                </>
-                              ) : (
-                                <span className="text-gray-400 italic text-[11px]">No Maintenance Data</span>
-                              )
-                            )}
-                          </td>
-
-                          <td className="p-3 text-right font-semibold text-[#14213D] font-mono">
-                            {stockData.onHand}
-                          </td>
-                          <td className="p-3 text-right font-mono font-semibold text-emerald-700">
-                            {stockData.available}
-                          </td>
-                          <td className="p-3 font-mono text-xs text-[#6B7280]">{item.wh}</td>
-                          <td className="p-3 text-center">{renderStatusBadge(item.status)}</td>
-                          <td className="p-3 text-center">{renderApprovalBadge(item.approval, item)}</td>
-
-                          <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
-                            <div className="item-master-grid-actions flex items-center justify-end gap-1">
-                              <button
-                                className="p-1 text-[#6B7280] hover:text-[#0F8B8D] hover:bg-teal-50 rounded transition-colors"
-                                title="View Item Change & Approval Ledger (When, Who Raised, Who Approved)"
-                                onClick={() => {
-                                  setAuditTarget({ type: 'ITEM_MASTER', code: item.code, name: item.name });
-                                  setIsAuditModalOpen(true);
-                                }}
-                              >
-                                <History className="w-3.5 h-3.5 text-[#0F8B8D]" />
-                              </button>
-                              <button
-                                className="p-1 text-[#6B7280] hover:text-[#E8622C] hover:bg-orange-50 rounded transition-colors"
-                                title="Quick Modify SKU & Tooling"
-                                onClick={() => setQuickModifyItem(item)}
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                className="p-1 text-[#6B7280] hover:text-[#0066CC] hover:bg-blue-50 rounded transition-colors"
-                                title="Clone / Duplicate Item"
-                                onClick={() => {
-                                  if (!isSuperAdmin && !canCreateItem) {
-                                    showToast('Admin permission required to clone items');
-                                    return;
-                                  }
-                                  let copyCode = `${item.code}-COPY`;
-                                  let copyName = `${item.name} (Copy)`;
-                                  let copyNum = 1;
-                                  while (items.some((i) => i.code.toLowerCase() === copyCode.toLowerCase())) {
-                                    copyNum++;
-                                    copyCode = `${item.code}-COPY${copyNum}`;
-                                    copyName = `${item.name} (Copy ${copyNum})`;
-                                  }
-                                  const clone: ItemMaster = {
-                                    ...item,
-                                    code: copyCode,
-                                    name: copyName,
-                                    approval: 'pending',
-                                    status: 'inactive',
-                                    createdOn: 'Today',
-                                  };
-                                  onCreateItem(clone);
-                                  saveItemMutation.mutate(clone);
-                                  masterDataGovernanceService.submitChangeRequest({
-                                    requestType: 'CREATE',
-                                    itemCode: clone.code,
-                                    itemName: clone.name,
-                                    requestedBy: currentUser?.name || 'Shopfloor User',
-                                    userRole: currentUser?.role || 'operator',
-                                    reason: `Cloned from parent SKU ${item.code}`,
-                                    payload: clone,
-                                  });
-                                  showToast(`✓ Cloned ${item.code} to new SKU ${copyCode} (Pending Approval)`);
-                                }}
-                              >
-                                <Copy className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                className="p-1 text-[#6B7280] hover:text-[#0F8B8D] hover:bg-teal-50 rounded transition-colors"
-                                title="Create / View Manufacturing BOM"
-                                onClick={() => {
-                                  if (item.type === 'Raw Material') {
-                                    openConfirm(
-                                      'Raw Material BOM Notice',
-                                      'Raw Materials typically do not have a Manufacturing BOM. Do you want to proceed?',
-                                      () => handleOpenMfgBomWizard(item)
-                                    );
-                                  } else {
-                                    handleOpenMfgBomWizard(item);
-                                  }
-                                }}
-                              >
-                                <Layers className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                className="p-1 text-[#6B7280] hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
-                                title={isSuperAdmin ? 'Delete SKU (Admin Authority)' : 'Raise Deletion Request to Admin'}
-                                onClick={() => {
-                                  if (!isSuperAdmin) {
-                                    setDeleteTargetItem(item);
-                                    setDeleteReason('');
-                                    setIsRaiseDeleteModalOpen(true);
-                                    return;
-                                  }
-                                  openConfirm(
-                                    `Delete ${item.code}?`,
-                                    `Are you sure you want to permanently delete SKU ${item.code} (${item.name}) from the live master catalog?`,
-                                    async () => {
-                                      try {
-                                        await deleteItemMutation.mutateAsync(item.code);
-                                        onDeleteItem(item.code);
-                                        masterDataGovernanceService.recordAudit({
-                                          entityType: 'ITEM_MASTER',
-                                          entityCode: item.code,
-                                          entityName: item.name,
-                                          action: 'DELETE',
-                                          changedBy: currentUser?.name || 'Admin',
-                                          userRole: 'admin',
-                                          changeSummary: `Admin deleted item ${item.code} from Master Catalog.`,
-                                        });
-                                        showToast(`✓ Item ${item.code} deleted successfully.`);
-                                      } catch (err: any) {
-                                        console.error('[MasterDataViews.deleteItem] Error:', err);
-                                        showToast(`⚠️ Failed to delete SKU ${item.code}: ${err?.message || 'Database error'}`);
-                                      }
-                                    }
-                                  );
-                                }}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
+                    pagedItems.map((item) => (
+                      <ItemMasterGridRow
+                        key={item.code}
+                        item={item}
+                        isSelected={selectedItemCodes.includes(item.code)}
+                        onToggleSelect={(code, checked) => {
+                          if (checked) {
+                            setSelectedItemCodes([...selectedItemCodes, code]);
+                          } else {
+                            setSelectedItemCodes(selectedItemCodes.filter((c) => c !== code));
+                          }
+                        }}
+                        onNavigateDetail={(code) => onNavigate('itemDetail', code)}
+                        onOpenAudit={(itm) => {
+                          setAuditTarget({ type: 'ITEM_MASTER', code: itm.code, name: itm.name });
+                          setIsAuditModalOpen(true);
+                        }}
+                        onQuickModify={(itm) => setQuickModifyItem(itm)}
+                        onCloneItem={(itm) => {
+                          if (!isSuperAdmin && !canCreateItem) {
+                            showToast('Admin permission required to clone items');
+                            return;
+                          }
+                          let copyCode = `${itm.code}-COPY`;
+                          let copyName = `${itm.name} (Copy)`;
+                          let copyNum = 1;
+                          while (items.some((i) => i.code.toLowerCase() === copyCode.toLowerCase())) {
+                            copyNum++;
+                            copyCode = `${itm.code}-COPY${copyNum}`;
+                            copyName = `${itm.name} (Copy ${copyNum})`;
+                          }
+                          const clone: ItemMaster = {
+                            ...itm,
+                            code: copyCode,
+                            name: copyName,
+                            approval: 'pending',
+                            status: 'inactive',
+                            createdOn: 'Today',
+                          };
+                          onCreateItem(clone);
+                          saveItemMutation.mutate(clone);
+                          masterDataGovernanceService.submitChangeRequest({
+                            requestType: 'CREATE',
+                            itemCode: clone.code,
+                            itemName: clone.name,
+                            requestedBy: currentUser?.name || 'Shopfloor User',
+                            userRole: currentUser?.role || 'operator',
+                            reason: `Cloned from parent SKU ${itm.code}`,
+                            payload: clone,
+                          });
+                          showToast(`✓ Cloned ${itm.code} to new SKU ${copyCode} (Pending Approval)`);
+                        }}
+                        onOpenMfgBomWizard={(itm) => {
+                          if (itm.type === 'Raw Material') {
+                            openConfirm(
+                              'Raw Material BOM Notice',
+                              'Raw Materials typically do not have a Manufacturing BOM. Do you want to proceed?',
+                              () => handleOpenMfgBomWizard(itm)
+                            );
+                          } else {
+                            handleOpenMfgBomWizard(itm);
+                          }
+                        }}
+                        onDeleteItem={(itm) => {
+                          if (!isSuperAdmin) {
+                            setDeleteTargetItem(itm);
+                            setDeleteReason('');
+                            setIsRaiseDeleteModalOpen(true);
+                            return;
+                          }
+                          openConfirm(
+                            `Delete ${itm.code}?`,
+                            `Are you sure you want to permanently delete SKU ${itm.code} (${itm.name}) from the live master catalog?`,
+                            async () => {
+                              try {
+                                await deleteItemMutation.mutateAsync(itm.code);
+                                onDeleteItem(itm.code);
+                                masterDataGovernanceService.recordAudit({
+                                  entityType: 'ITEM_MASTER',
+                                  entityCode: itm.code,
+                                  entityName: itm.name,
+                                  action: 'DELETE',
+                                  changedBy: currentUser?.name || 'Admin',
+                                  userRole: 'admin',
+                                  changeSummary: `Admin deleted item ${itm.code} from Master Catalog.`,
+                                });
+                                showToast(`✓ Item ${itm.code} deleted successfully.`);
+                              } catch (err: any) {
+                                console.error('[MasterDataViews.deleteItem] Error:', err);
+                                showToast(`⚠️ Failed to delete SKU ${itm.code}: ${err?.message || 'Database error'}`);
+                              }
+                            }
+                          );
+                        }}
+                        renderStatusBadge={renderStatusBadge}
+                        renderApprovalBadge={renderApprovalBadge}
+                      />
+                    ))
                   ) : (
                     <tr>
-                      <td colSpan={13}>
+                      <td colSpan={10}>
                         <div className="py-12 px-6 text-center">
                           <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-teal-50 text-[#0F8B8D] mb-3">
                             <Plus className="w-6 h-6" />
@@ -2775,9 +3130,43 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
     ---------------------------------------------------- */
     if (view === 'itemDetail') {
       const effectiveCode = typeof selectedCode === 'object' ? (selectedCode as any)?.code : selectedCode;
-      const found = normalizedItems.find(
-        (i) => i.code === effectiveCode || (effectiveCode && i.code?.toLowerCase() === String(effectiveCode).toLowerCase())
-      ) || (effectiveCode ? null : (normalizedItems.length > 0 ? normalizedItems[0] : null));
+
+      const found =
+        (itemDetailData && (itemDetailData.code === effectiveCode || String(itemDetailData.code).toLowerCase() === String(effectiveCode).toLowerCase())
+          ? itemDetailData
+          : null) ||
+        normalizedItems.find(
+          (i) => i.code === effectiveCode || (effectiveCode && i.code?.toLowerCase() === String(effectiveCode).toLowerCase())
+        ) ||
+        (items || []).find(
+          (i) => i.code === effectiveCode || (effectiveCode && i.code?.toLowerCase() === String(effectiveCode).toLowerCase())
+        ) ||
+        itemDetailData ||
+        (effectiveCode ? null : (normalizedItems.length > 0 ? normalizedItems[0] : null));
+
+      if (isItemDetailLoading && !found && effectiveCode) {
+        return (
+          <div className="space-y-5 max-w-[1500px] mx-auto pb-8">
+            <div
+              className="back-link cursor-pointer flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800"
+              onClick={() => onNavigate('itemList')}
+            >
+              <ArrowLeft className="w-3.5 h-3.5" /> Back to Item Master
+            </div>
+            <div className="w-full p-4 md:p-6 space-y-4 animate-pulse">
+              <div className="h-9 w-64 bg-slate-200 rounded-lg" />
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                {[1, 2, 3, 4].map((idx) => (
+                  <div key={idx} className="p-4 rounded-xl bg-white border border-[#E4E0D6] space-y-2">
+                    <div className="h-3 bg-slate-200 rounded w-1/2" />
+                    <div className="h-6 bg-slate-200 rounded w-3/4" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      }
 
       const item = found ? normalizeItemMaster(found) : null;
 
@@ -2805,10 +3194,10 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
 
       const isFg = item.type === 'Finished Good' || item.type === 'Semi-Finished Good';
       const itemBoms = boms.filter((b) => (b.lines || []).some((l) => l.item === item.code) || b.parent === item.code);
-      const cycle = Number(item.standardCycleTime || item.cycleTime || 0);
-      const cavities = Number(item.cavityCount || 1);
-      const partWt = Number(item.partWeightGrams || item.netWeightGrams || 0);
-      const runnerWt = Number(item.runnerWeightGrams || 0);
+      const cycle = Number(item.standardCycleTime || item.cycleTime || (item as any).cycle_time || (item as any).cycle_time_seconds || (item as any).standard_cycle_time || 0);
+      const cavities = Math.max(1, Number(item.cavityCount || (item as any).cavity_count || 1));
+      const partWt = Number(item.partWeightGrams || (item as any).part_weight_grams || item.netWeightGrams || 0);
+      const runnerWt = Number(item.runnerWeightGrams || (item as any).runner_weight_grams || 0);
       const singleShotWt = Number((partWt + runnerWt).toFixed(2));
       const totalMoldShotWt = Number(((partWt * cavities) + runnerWt).toFixed(2));
       const hourlyOutput = cycle > 0 ? Math.round((3600 / cycle) * cavities) : 0;
@@ -2858,7 +3247,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   </div>
                   <div className="m flex items-center gap-1">
                     <Factory className="w-3 h-3 text-[#0F8B8D]" />
-                    Plant: <b>{item.plant || 'Plant 1 - Pimpri Auto-Hub'}</b>
+                    Plant: <b>{item.plant || '—'}</b>
                   </div>
                   <div className="m">
                     Category: <b>{item.cat || '—'}</b>
@@ -3055,7 +3444,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">Part Weight (grams/pc) *</span>
-                      <span className="font-mono text-base font-bold text-[#14213D]">{partWt > 0 ? `${partWt} g` : '—'}</span>
+                      <span className="font-mono text-base font-bold text-[#14213D]">{partWt > 0 ? `${partWt} g` : (item as any).part_weight_grams ? `${(item as any).part_weight_grams} g` : '0 g'}</span>
                     </div>
                     <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <span className="text-[11px] font-bold text-gray-500 block mb-1">Mold Cavities (count) *</span>
@@ -3262,7 +3651,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   </div>
                   <div className="kv-grid">
                     <div className="kv"><label>Item Type</label><div className="v">{item.type}</div></div>
-                    <div className="kv"><label>Plant / Unit</label><div className="v font-semibold text-[#14213D] flex items-center gap-1"><Factory className="w-3.5 h-3.5 text-[#0F8B8D]" />{item.plant || 'Plant 1 - Pimpri Auto-Hub'}</div></div>
+                    <div className="kv"><label>Plant / Unit</label><div className="v font-semibold text-[#14213D] flex items-center gap-1"><Factory className="w-3.5 h-3.5 text-[#0F8B8D]" />{item.plant || '—'}</div></div>
                     <div className="kv"><label>Material Family</label><div className="v">{item.cat || '—'}</div></div>
                     <div className="kv"><label>Base UOM</label><div className="v mono">{item.baseUOM || 'PCS'}</div></div>
                     {isFg ? (
@@ -3403,6 +3792,151 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                       )}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Tab 3: Purchasing */}
+          {activeTab === 'Purchasing' && (
+            <div className="space-y-5">
+              <div className="p-5 bg-white rounded-2xl border border-[#E4E0D6] shadow-xs space-y-4">
+                <div className="flex items-center justify-between border-b border-[#E4E0D6] pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-teal-600 text-white flex items-center justify-center">
+                      <Factory className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-[#14213D]">
+                        Procurement &amp; Vendor Supply Chain Parameters
+                      </h3>
+                      <p className="text-xs text-gray-500">
+                        Primary vendor, lead times, purchase pricing, and reorder thresholds.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPurchasingSpecsItem(item);
+                      setIsPurchasingSpecsModalOpen(true);
+                    }}
+                    className="btn btn-sm btn-primary flex items-center gap-1.5"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" /> Edit Purchasing Specs
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 text-xs">
+                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                    <span className="text-[11px] font-bold text-gray-500 block mb-1">Preferred Supplier</span>
+                    <span className="font-semibold text-sm text-[#14213D]">{item.supplier || '—'}</span>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                    <span className="text-[11px] font-bold text-gray-500 block mb-1">Standard Purchase Cost</span>
+                    <span className="font-mono text-base font-bold text-[#0F8B8D]">₹{(Number(item.standardCost || item.cost || 0)).toFixed(2)}</span>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                    <span className="text-[11px] font-bold text-gray-500 block mb-1">Procurement Lead Time</span>
+                    <span className="font-mono text-sm font-bold text-[#14213D]">{item.leadTime || '—'}</span>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                    <span className="text-[11px] font-bold text-gray-500 block mb-1">Target Receiving Store</span>
+                    <span className="font-mono text-sm font-bold text-[#14213D]">{item.wh || '—'}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs pt-2">
+                  <div className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200">
+                    <span className="text-[11px] font-bold text-gray-500 block mb-1">Reorder Level (ROP)</span>
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-mono text-lg font-bold text-[#14213D]">{item.reorderLevel || '—'}</span>
+                      <span className="text-gray-500 font-semibold">{item.reorderLevel ? (item.baseUOM || 'PCS') : ''}</span>
+                    </div>
+                  </div>
+                  <div className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200">
+                    <span className="text-[11px] font-bold text-gray-500 block mb-1">Safety Buffer Stock</span>
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-mono text-lg font-bold text-emerald-700">{item.safetyStock || '—'}</span>
+                      <span className="text-gray-500 font-semibold">{item.safetyStock ? (item.baseUOM || 'PCS') : ''}</span>
+                    </div>
+                  </div>
+                  <div className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200">
+                    <span className="text-[11px] font-bold text-gray-500 block mb-1">HSN / SAC Code</span>
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-mono text-lg font-bold text-slate-800">{item.hsnCode || '—'}</span>
+                      <span className="text-gray-500 font-semibold">{item.hsnCode ? '(18% GST)' : ''}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Tab 4: Quality */}
+          {activeTab === 'Quality' && (
+            <div className="space-y-5">
+              <div className="p-5 bg-white rounded-2xl border border-[#E4E0D6] shadow-xs space-y-4">
+                <div className="flex items-center justify-between border-b border-[#E4E0D6] pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-[#14213D]">
+                        Quality Assurance &amp; Inbound Inspection Standards
+                      </h3>
+                      <p className="text-xs text-gray-500">
+                        IQC inspection requirements, CoA verification, lot controls, and defect thresholds.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    {item.qc ? 'IQC MANDATORY' : 'IQC EXEMPT'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 text-xs">
+                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                    <span className="text-[11px] font-bold text-gray-500 block mb-1">Inbound QC Inspection</span>
+                    <span className={`font-semibold text-sm ${item.qc ? 'text-emerald-700 font-bold' : 'text-gray-600'}`}>
+                      {item.qc ? 'Required (Mandatory)' : 'Exempt'}
+                    </span>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                    <span className="text-[11px] font-bold text-gray-500 block mb-1">Lot / Batch Traceability</span>
+                    <span className="font-semibold text-sm text-[#14213D]">
+                      {item.lot ? 'Active Lot Tracking' : 'Non-Lot Tracked'}
+                    </span>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                    <span className="text-[11px] font-bold text-gray-500 block mb-1">CoA / TDS Requirement</span>
+                    <span className="font-semibold text-sm text-blue-700">
+                      {item.qc ? 'Mandatory per batch' : 'Optional'}
+                    </span>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
+                    <span className="text-[11px] font-bold text-gray-500 block mb-1">Inspection Standard</span>
+                    <span className="font-mono text-sm font-semibold text-slate-800">{(item as any).samplingPlan || '—'}</span>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2 text-xs">
+                  <h4 className="font-bold text-[#14213D] text-xs">Inspection Checkpoints &amp; Acceptance Limits</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                    <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                      <span className="text-gray-500 block text-[11px]">Specific Gravity / Density</span>
+                      <strong className="text-sm font-mono text-[#14213D]">{item.density || '—'}</strong>
+                    </div>
+                    <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                      <span className="text-gray-500 block text-[11px]">Melt Flow Index (MFI)</span>
+                      <strong className="text-sm font-mono text-[#14213D]">{item.mfi || '—'}</strong>
+                    </div>
+                    <div className="p-2.5 bg-white rounded-lg border border-slate-200">
+                      <span className="text-gray-500 block text-[11px]">Moisture Limit</span>
+                      <strong className="text-sm font-mono text-emerald-700">{item.moistureLimit || '—'}</strong>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -3698,143 +4232,26 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
 
           {/* Tab 9: Approval */}
           {activeTab === 'Approval' && (
-            <div className="panel p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-sm text-[#14213D]">Master Data Approval Workflow</h3>
-                {renderApprovalBadge(item.approval)}
-              </div>
-              <div className="space-y-3">
-                <div className="timeline-item">
-                  <div className="t-dot" style={{ background: 'var(--success)' }} />
-                  <div>
-                    <div className="t-text"><b>Item Created</b> &mdash; {item.name}</div>
-                    <div className="t-time">{item.createdOn || 'Initial Creation'} &middot; Master Record</div>
-                  </div>
-                </div>
-                <div className="timeline-item">
-                  <div className="t-dot" style={{ background: item.approval === 'approved' ? 'var(--success)' : 'var(--warning)' }} />
-                  <div>
-                    <div className="t-text">
-                      <b>QA &amp; Technical Review</b> &mdash; {item.approval === 'approved' ? (item.approvedBy ? `Approved by ${item.approvedBy}` : 'Approved & Released') : 'Awaiting Review'}
-                    </div>
-                    <div className="t-time">Master catalog release authority</div>
-                  </div>
-                </div>
-              </div>
-              {item.approval !== 'approved' && (
-                <div className="flex gap-2 pt-2">
-                  <button
-                    className="btn btn-sm btn-primary"
-                    onClick={() => handleApproveItem(item)}
-                  >
-                    Approve Item
-                  </button>
-                  <button
-                    className="btn btn-sm btn-ghost text-[#C4433A] border-[#C4433A]/30 hover:bg-[#FBE1DE]"
-                    onClick={() => handleRejectItem(item)}
-                  >
-                    Reject Item
-                  </button>
-                </div>
-              )}
-            </div>
+            <ItemApprovalTab
+              item={item}
+              currentUser={currentUser}
+              onApprove={handleApproveItem}
+              onReject={handleRejectItem}
+              onSubmitForApproval={handleSubmitForApproval}
+              canApproveItem={canApproveItem}
+              isSuperAdmin={isSuperAdmin}
+            />
           )}
 
           {/* Tab 10: Audit History */}
           {activeTab === 'Audit history' && (
-            <div className="panel p-5 space-y-4">
-              <div className="flex items-center justify-between border-b border-[#E4E0D6] pb-3">
-                <div>
-                  <h3 className="text-sm font-bold text-[#14213D] flex items-center gap-2">
-                    <History className="w-4 h-4 text-[#0F8B8D]" /> Immutable Change Audit Logs (PostgreSQL)
-                  </h3>
-                  <p className="text-xs text-gray-500">Chronological history of revisions, approvals, and tooling changes for {item.code}.</p>
-                </div>
-                <button
-                  className="btn btn-sm btn-ghost border"
-                  onClick={() => {
-                    setAuditTarget({ type: 'ITEM_MASTER', code: item.code, name: item.name });
-                    setIsAuditModalOpen(true);
-                  }}
-                >
-                  Open Full Audit Vault
-                </button>
-              </div>
-
-              {(() => {
-                const logs = masterDataGovernanceService.getAuditHistory({ code: item.code });
-                return (
-                  <div className="space-y-3">
-                    {logs.length > 0 ? (
-                      logs.map((l) => (
-                        <div key={l.id} className="timeline-item">
-                          <div
-                            className="t-dot"
-                            style={{
-                              background:
-                                l.action === 'APPROVE'
-                                  ? 'var(--success)'
-                                  : l.action === 'REJECT'
-                                  ? 'var(--danger)'
-                                  : l.action === 'CREATE'
-                                  ? '#0F8B8D'
-                                  : 'var(--warning)',
-                            }}
-                          />
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-bold text-xs text-[#14213D]">{l.action}: {l.changeSummary}</span>
-                              <span className="px-1.5 py-0.2 text-[9px] font-mono rounded bg-slate-100 border text-slate-600">
-                                {l.userRole || 'admin'}
-                              </span>
-                            </div>
-                            <div className="text-[11px] text-gray-500 mt-0.5">
-                              {new Date(l.timestamp).toLocaleString()} &bull; By: {l.changedBy} {l.approvedBy ? `(Approved by ${l.approvedBy})` : ''}
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="timeline-item">
-                        <div className="t-dot" style={{ background: 'var(--success)' }} />
-                        <div>
-                          <div className="t-text font-bold text-xs text-[#14213D]">Item Master Record Active &bull; {item.code}</div>
-                          <div className="text-[11px] text-gray-500">
-                            {item.createdOn || 'Initial catalog release'} &bull; {item.name} &bull; Plant: {item.plant || 'Plant 1 - Pimpri Auto-Hub'}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-          )}
-
-          {/* Tab 3: Purchasing */}
-          {activeTab === 'Purchasing' && (
-            <div className="panel p-5 space-y-4">
-              <div className="section-title">Supplier &amp; Procurement Rates</div>
-              <div className="kv-grid">
-                <div className="kv"><label>Preferred Supplier</label><div className="v">{item.supplier || '—'}</div></div>
-                <div className="kv"><label>Procurement Lead Time</label><div className="v">{item.leadTime || '—'}</div></div>
-                <div className="kv"><label>Valuation Standard</label><div className="v">{item.valuation || 'Standard Cost'}</div></div>
-                <div className="kv"><label>Standard Unit Cost</label><div className="v mono font-bold">₹{(item.standardCost || item.cost || 0).toFixed(2)}</div></div>
-              </div>
-            </div>
-          )}
-
-          {/* Tab 4: Quality */}
-          {activeTab === 'Quality' && (
-            <div className="panel p-5 space-y-4">
-              <div className="section-title">Quality Control &amp; Tolerances</div>
-              <div className="kv-grid">
-                <div className="kv"><label>Incoming IQC Mandatory</label><div className="v">{item.qc ? 'Yes (Mandatory Gate)' : 'No (Direct Store Acceptance)'}</div></div>
-                <div className="kv"><label>Certificate of Analysis (COA)</label><div className="v">{item.qc ? 'Mandatory Gate' : 'Optional'}</div></div>
-                <div className="kv"><label>Statistical Sampling</label><div className="v">{item.samplingMethod || (item.qc ? 'AQL Level II' : 'Standard Visual Inspection')}</div></div>
-                <div className="kv"><label>Dimensional Tolerance</label><div className="v mono">{item.tolerance || '—'}</div></div>
-              </div>
-            </div>
+            <ItemAuditHistoryTab
+              item={item}
+              onOpenAuditVault={() => {
+                setAuditTarget({ type: 'ITEM_MASTER', code: item.code, name: item.name });
+                setIsAuditModalOpen(true);
+              }}
+            />
           )}
         </div>
       );
@@ -3849,12 +4266,20 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
         showToast('Admin permission required to create BOM recipes.');
         return;
       }
-      const fgItems = items.filter((i) => i.type === 'Finished Good');
+      const fgItems = items.filter(
+        (i) =>
+          (i.type === 'Finished Good' || (i.type as string) === 'Finished Goods') &&
+          (i.approval === 'approved' || i.status === 'active')
+      );
       let parent = fgItems.length > 0 ? fgItems[0].code : '';
       let version = 'v1';
       const handleSave = () => {
         const parentItem = items.find((i) => i.code === parent);
-        const rawMaterials = items.filter((i) => i.type === 'Raw Material' || i.type === 'Masterbatch');
+        const rawMaterials = items.filter(
+          (i) =>
+            (i.type === 'Raw Material' || i.type === 'Masterbatch') &&
+            (i.approval === 'approved' || i.status === 'active')
+        );
         const lines = rawMaterials.length > 0
           ? rawMaterials.slice(0, 2).map((rm) => ({
               item: rm.code,
@@ -3886,7 +4311,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
           <div className="field">
             <label>Parent Finished Good</label>
             <select defaultValue={parent} onChange={(e) => (parent = e.target.value)}>
-              {items.filter((i) => i.type === 'Finished Good').map((i) => (
+              {fgItems.map((i) => (
                 <option key={i.code} value={i.code}>{i.code} &mdash; {i.name}</option>
               ))}
             </select>
@@ -3923,11 +4348,15 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                   showToast('Admin permission required to create/modify Manufacturing BOMs.');
                   return;
                 }
-                const defaultParent = items.find((i) => (i.type as string) === 'Finished Goods' || i.type === 'Finished Good') || (items.length > 0 ? items[0] : null);
+                const defaultParent = items.find(
+                  (i) =>
+                    ((i.type as string) === 'Finished Goods' || i.type === 'Finished Good') &&
+                    (i.approval === 'approved' || i.status === 'active')
+                ) || null;
                 if (defaultParent) {
                   handleOpenMfgBomWizard(defaultParent);
                 } else {
-                  showToast('Please create a Finished Good item first in Item Master before building a BOM.');
+                  showToast('Please approve a Finished Good item first in Item Master before building a BOM.');
                 }
               }}
             >
@@ -4502,7 +4931,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
             setBomWizardParentItem(null);
           }}
           parentItem={bomWizardParentItem}
-          allItems={items}
+          allItems={items.filter((i) => i.approval === 'approved' || i.status === 'active')}
           existingBoms={boms}
           onSaveBom={(newBom) => {
             onCreateBom(newBom);
@@ -4562,6 +4991,23 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
           onOpenWizard={(itemToEdit) => {
             setQuickModifyItem(null);
             handleOpenEditItemWizard(itemToEdit);
+          }}
+          showToast={showToast}
+        />
+      )}
+
+      {/* Dedicated Purchasing Specs Wizard Modal */}
+      {purchasingSpecsItem && (
+        <EditPurchasingSpecsModal
+          isOpen={isPurchasingSpecsModalOpen}
+          item={purchasingSpecsItem}
+          onClose={() => {
+            setIsPurchasingSpecsModalOpen(false);
+            setPurchasingSpecsItem(null);
+          }}
+          onSave={async (updated) => {
+            await handleSaveWizardItem(updated);
+            setPurchasingSpecsItem(null);
           }}
           showToast={showToast}
         />

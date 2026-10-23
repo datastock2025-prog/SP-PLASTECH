@@ -1,6 +1,5 @@
-import axios, { AxiosInstance, AxiosError } from 'axios';
 import { z } from 'zod';
-import { db } from '../shared/db';
+import { createHttpClient, type HttpClient } from '../shared/api/http';
 
 // ============================================================================
 // 1. CENTRALIZED ENTERPRISE API CLIENT (src/lib/api-client.ts)
@@ -8,31 +7,10 @@ import { db } from '../shared/db';
 // ============================================================================
 
 const DEFAULT_BASE_URL =
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) ||
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_BASE_URL) ||
   '/api/v1';
 
-export const api: AxiosInstance = axios.create({
-  baseURL: DEFAULT_BASE_URL,
-  timeout: 15000, // Prevent infinite network hanging
-  headers: {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-    // Rule 4: Cloudflare Cache Bypass for Dynamic Data
-    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-    Pragma: 'no-cache',
-    Expires: '0',
-  },
-});
-
-// Response Interceptor for Centralized Error Handling & Diagnostics
-api.interceptors.response.use(
-  (response) => response,
-  (error: AxiosError) => {
-    const errorMsg = error.response?.data || error.message;
-    console.error(`[API ERROR] ${error.config?.url}:`, errorMsg);
-    return Promise.reject(error);
-  }
-);
+export const api: HttpClient = createHttpClient(DEFAULT_BASE_URL);
 
 // ============================================================================
 // 2. ZOD VALIDATION SCHEMAS (Runtime Schema Integrity)
@@ -121,6 +99,16 @@ export const ItemMasterSchema = z.object({
   hsn_code: stringField(),
   itemGroup: stringField(),
   item_group: stringField(),
+  imageUrl: stringField(),
+  image_url: stringField(),
+  technicalDocUrl: stringField(),
+  technical_doc_url: stringField(),
+  processingMethod: stringField(),
+  processing_method: stringField(),
+  defaultWarehouse: stringField(),
+  default_warehouse: stringField(),
+  defaultBin: stringField(),
+  default_bin: stringField(),
   createdOn: stringField(),
 }).passthrough();
 
@@ -140,320 +128,8 @@ export type PaginatedItemsResponse = z.infer<typeof PaginatedItemsResponseSchema
 // 3. TYPED DATA ENDPOINTS (Provider-Agnostic with Direct Database Bridge)
 // ============================================================================
 
-function mapSupabaseRowToItemDto(row: any): ItemMasterDto {
-  const partWeight = Number(row.part_weight_grams ?? row.partWeightGrams ?? 0);
-  const runnerWeight = Number(row.runner_weight_grams ?? row.runnerWeightGrams ?? 0);
-  const shotWeight = Number((partWeight + runnerWeight).toFixed(2));
-  const cycleTimeVal = Number(
-    row.cycle_time_seconds ?? row.cycle_time ?? row.cycleTimeSec ?? row.cycleTime ?? row.standardCycleTime ?? 0
-  );
-
-  const normalized = {
-    id: String(row.id || row.code || ''),
-    code: String(row.code || ''),
-    name: String(row.name || ''),
-    category: String(row.category || row.cat || 'Finished Good'),
-    cat: String(row.category || row.cat || 'Finished Good'),
-    type:
-      row.entity_type === 'Finished Molded Component'
-        ? 'Finished Good'
-        : String(row.entity_type || row.type || 'Finished Good'),
-    stock: row.stock ?? 0,
-    avail: row.avail ?? row.stock ?? 0,
-    wh: String(row.wh || 'FG_WH_A'),
-    plant: String(row.plant || 'Plant 1 - Pimpri Auto-Hub'),
-    lot: Boolean(row.lot ?? true),
-    qc: Boolean(row.qc ?? true),
-    status: String(row.status || 'active'),
-    baseUOM: String(row.unit || row.baseUOM || 'PCS'),
-    desc: String(row.description || row.desc || ''),
-    icon: String(row.icon || '◇'),
-    approval: String(row.approval || 'approved'),
-    cost: Number(row.cost || 0),
-    standardCost: Number(row.cost || row.standardCost || 0),
-    sellingPrice: Number(row.selling_price || row.sellingPrice || 0),
-    minStock: Number(row.min_stock ?? row.minStock ?? 0),
-    maxStock: Number(row.max_stock ?? row.maxStock ?? 5000),
-    reorderPoint: Number(row.reorder_point ?? row.reorderPoint ?? 0),
-    safetyStock: Number(row.safety_stock ?? row.safetyStock ?? 0),
-    valuationMethod: String(row.valuation_method || row.valuationMethod || 'FIFO'),
-    cavityCount: Number(row.cavity_count ?? row.cavityCount ?? 1),
-    cycleTimeSec: cycleTimeVal,
-    cycleTime: cycleTimeVal,
-    standardCycleTime: cycleTimeVal,
-    partWeightGrams: partWeight,
-    netWeightGrams: partWeight,
-    runnerWeightGrams: runnerWeight,
-    shotWeightGrams: shotWeight,
-    moldToolId: String(row.mold_code || row.moldToolId || row.mold_tool_id || ''),
-    resinType: String(row.resin_type || row.resinType || row.polymerGrade || ''),
-    polymerGrade: String(row.resin_type || row.resinType || row.polymerGrade || ''),
-    color: String(row.color || ''),
-    hsnCode: String(row.hsn_code || row.hsnCode || ''),
-    itemGroup: String(row.item_group || row.itemGroup || row.category || ''),
-    createdOn: row.created_at ? new Date(row.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-  };
-
-  return ItemMasterSchema.parse(normalized);
-}
-
 export const ITEM_LEAN_SELECT_COLUMNS =
   'id, code, name, category, entity_type, unit, stock, min_stock, max_stock, reorder_point, cost, selling_price, approval, status, created_at, updated_at';
-
-export const ITEM_SELECT_COLUMNS =
-  'id, code, name, category, entity_type, unit, stock, min_stock, max_stock, reorder_point, cost, selling_price, approval, status, part_weight_grams, runner_weight_grams, cavity_count, cycle_time_seconds, item_group, resin_type, color, hsn_code, created_at, updated_at';
-
-export const itemEndpoints = {
-  /**
-   * Rule 2: Fetch Active Items with bounded limit & selective lean columns
-   */
-  async getItems(limit: number = 50): Promise<ItemMasterDto[]> {
-    const boundedLimit = Math.min(100, Math.max(1, limit));
-    const data = await db.findMany<any>('items', {
-      select: ITEM_LEAN_SELECT_COLUMNS,
-      orderBy: { column: 'created_at', ascending: false },
-      limit: boundedLimit,
-    });
-    if (Array.isArray(data)) {
-      return data.map(mapSupabaseRowToItemDto);
-    }
-    return [];
-  },
-
-  /**
-   * Rule 2: Strict Paginated Item Catalog Retrieval with Selective Column Projection
-   * Queries Database via vendor-agnostic DatabaseAdapter (db)
-   */
-  async getItemsPaginated(params: {
-    page?: number;
-    limit?: number;
-    search?: string;
-    category?: string;
-    status?: string;
-    itemType?: string;
-    approval?: string;
-    sortBy?: string;
-    sortOrder?: 'asc' | 'desc';
-    lean?: boolean;
-  }): Promise<PaginatedItemsResponse> {
-    const page = Math.max(1, params.page || 1);
-    const limit = Math.min(100, Math.max(1, params.limit || 50));
-    const from = (page - 1) * limit;
-    const selectCols = params.lean !== false ? ITEM_LEAN_SELECT_COLUMNS : ITEM_SELECT_COLUMNS;
-
-    const whereObj: Record<string, any> = {};
-    const whereInObj: Record<string, any[]> = {};
-    if (params.category && params.category !== 'All' && params.category !== 'ALL') {
-      whereObj.category = params.category;
-    }
-    if (params.status && params.status !== 'ALL') {
-      whereObj.status = params.status;
-    }
-    if (params.itemType && params.itemType !== 'all') {
-      whereInObj.entity_type = params.itemType === 'Masterbatch'
-        ? ['Masterbatch', 'Additive']
-        : params.itemType === 'Finished Good'
-          ? ['Finished Good', 'Finished Molded Component']
-          : [params.itemType];
-    }
-    if (params.approval) {
-      whereObj.approval = params.approval;
-    }
-
-    const search = params.search?.trim();
-    const searchFilter = search
-      ? { query: search, columns: ['code', 'name', 'category', 'resin_type', 'mold_code'] }
-      : undefined;
-    const sortColumns: Record<string, string> = {
-      code: 'code',
-      name: 'name',
-      type: 'entity_type',
-      cycleTime: 'cycle_time_seconds',
-      stock: 'stock',
-      avail: 'stock',
-    };
-    const sortColumn = sortColumns[params.sortBy || ''] || 'created_at';
-    const sortAscending = params.sortOrder !== 'desc';
-
-    const [rawList, totalCount] = await Promise.all([
-      db.findMany<any>('items', {
-        select: selectCols,
-        where: Object.keys(whereObj).length > 0 ? whereObj : undefined,
-        whereIn: Object.keys(whereInObj).length > 0 ? whereInObj : undefined,
-        search: searchFilter,
-        orderBy: { column: sortColumn, ascending: sortAscending },
-        limit,
-        offset: from,
-      }),
-      db.count('items', {
-        where: Object.keys(whereObj).length > 0 ? whereObj : undefined,
-        whereIn: Object.keys(whereInObj).length > 0 ? whereInObj : undefined,
-        search: searchFilter,
-      }),
-    ]);
-
-    const parsedItems = (rawList || []).map(mapSupabaseRowToItemDto);
-    const total = totalCount || parsedItems.length;
-
-    return {
-      items: parsedItems,
-      totalCount: total,
-      page,
-      limit,
-      hasMore: from + parsedItems.length < total,
-    };
-  },
-
-  /**
-   * Get Single Item by Code with Zod Validation via DatabaseAdapter (db)
-   */
-  async getItemByCode(code: string): Promise<ItemMasterDto | null> {
-    const data = await db.findOne<any>('items', code, 'code');
-    if (!data) {
-      return null;
-    }
-    return mapSupabaseRowToItemDto(data);
-  },
-
-  /**
-   * Save or Update Item Record with Zod Validation directly via DatabaseAdapter (db.upsert)
-   */
-  async saveItem(item: ItemMasterDto): Promise<ItemMasterDto> {
-    try {
-      const parseResult = ItemMasterSchema.safeParse(item);
-      const validated = parseResult.success ? parseResult.data : item;
-
-      if (!parseResult.success) {
-        console.warn('[itemEndpoints.saveItem] Zod parse note:', parseResult.error);
-      }
-
-      const partWeight = Number(validated.partWeightGrams ?? (validated as any).netWeightGrams ?? (validated as any).part_weight_grams ?? 0);
-      const runnerWeight = Number(validated.runnerWeightGrams ?? (validated as any).runner_weight_grams ?? 0);
-      const cycleTime = Number(
-        validated.cycleTimeSec ?? (validated as any).cycleTime ?? (validated as any).standardCycleTime ?? (validated as any).cycle_time_seconds ?? (validated as any).cycle_time ?? 0
-      );
-
-      const reorderVal =
-        validated.reorderPoint !== undefined
-          ? Number(validated.reorderPoint)
-          : (validated as any).reorderLevel
-          ? parseFloat(String((validated as any).reorderLevel)) || 0
-          : 0;
-
-      const currentVersion = Number((validated as any).version || 1);
-
-      // Strict verified database columns for the items table
-      const dbPayload: Record<string, any> = {
-        code: String(validated.code).trim(),
-        name: String(validated.name).trim(),
-        category: String(validated.category || validated.cat || 'Finished Good'),
-        entity_type: String(validated.type || 'Finished Good'),
-        unit: String(validated.baseUOM || validated.base_uom || 'PCS'),
-        stock: typeof validated.stock === 'number' ? validated.stock : parseFloat(String(validated.stock)) || 0,
-        cost: Number(validated.cost ?? (validated as any).standardCost ?? 0),
-        selling_price: Number(validated.sellingPrice || 0),
-        status: String(validated.status || 'active'),
-        approval: String(validated.approval || 'approved'),
-        min_stock: Number(validated.minStock ?? 0),
-        max_stock: Number(validated.maxStock ?? 5000),
-        reorder_point: reorderVal,
-        safety_stock: Number(validated.safetyStock ?? (validated as any).safety_stock ?? 0),
-        valuation_method: String(validated.valuationMethod ?? (validated as any).valuation_method ?? 'FIFO'),
-        cavity_count: Number(validated.cavityCount ?? (validated as any).cavity_count ?? 1),
-        cycle_time_seconds: cycleTime,
-        part_weight_grams: partWeight,
-        runner_weight_grams: runnerWeight,
-        mold_code: String(validated.moldToolId || (validated as any).mold_code || ''),
-        resin_type: String(validated.resinType || (validated as any).resin_type || (validated as any).polymerGrade || ''),
-        color: String((validated as any).color || ''),
-        hsn_code: String((validated as any).hsn_code || (validated as any).hsnCode || ''),
-        item_group: String((validated as any).itemGroup || (validated as any).item_group || validated.category || ''),
-        description: String(validated.desc || (validated as any).description || ''),
-        version: currentVersion + 1,
-        created_at: (validated as any).created_at || (validated as any).createdOn || new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      const savedRow = await db.upsert<any>('items', dbPayload, 'code');
-      return mapSupabaseRowToItemDto(savedRow || dbPayload);
-    } catch (error: any) {
-      const msg = error.message || 'Failed to save Item SKU';
-      console.error('[itemEndpoints.saveItem] Error:', msg);
-      throw new Error(msg);
-    }
-  },
-
-  /**
-   * Soft Delete Item by Code via DatabaseAdapter
-   */
-  async deleteItem(code: string): Promise<boolean> {
-    try {
-      const result = await db.delete('items', code, 'code');
-      return result;
-    } catch (error: any) {
-      const msg = error.message || `Failed to delete Item SKU '${code}'`;
-      console.error('[itemEndpoints.deleteItem] Error:', msg);
-      throw new Error(msg);
-    }
-  },
-
-  /**
-   * Bulk Import Items via DatabaseAdapter (db.upsert)
-   */
-  async bulkImport(items: ItemMasterDto[]): Promise<{ importedCount: number; errors: string[] }> {
-    const validItems: any[] = [];
-    const errors: string[] = [];
-
-    for (let i = 0; i < items.length; i++) {
-      try {
-        const parseResult = ItemMasterSchema.safeParse(items[i]);
-        const validated = parseResult.success ? parseResult.data : items[i];
-        const partWeight = Number(validated.partWeightGrams ?? (validated as any).netWeightGrams ?? (validated as any).part_weight_grams ?? 0);
-        const runnerWeight = Number(validated.runnerWeightGrams ?? (validated as any).runner_weight_grams ?? 0);
-        const cycleTime = Number(
-          validated.cycleTimeSec ?? (validated as any).cycleTime ?? (validated as any).standardCycleTime ?? (validated as any).cycle_time_seconds ?? 0
-        );
-
-        validItems.push({
-          code: String(validated.code).trim(),
-          name: String(validated.name).trim(),
-          category: String(validated.category || validated.cat || 'Finished Good'),
-          entity_type: String(validated.type || 'Finished Good'),
-          unit: String(validated.baseUOM || validated.base_uom || 'PCS'),
-          stock: typeof validated.stock === 'number' ? validated.stock : parseFloat(String(validated.stock)) || 0,
-          cost: Number(validated.cost ?? (validated as any).standardCost ?? 0),
-          selling_price: Number(validated.sellingPrice || 0),
-          status: String(validated.status || 'active'),
-          approval: String(validated.approval || 'approved'),
-          min_stock: Number(validated.minStock ?? 0),
-          max_stock: Number(validated.maxStock ?? 5000),
-          reorder_point: Number(validated.reorderPoint ?? 0),
-          cavity_count: Number(validated.cavityCount ?? 1),
-          cycle_time_seconds: cycleTime,
-          part_weight_grams: partWeight,
-          runner_weight_grams: runnerWeight,
-          resin_type: String(validated.resinType || (validated as any).polymerGrade || ''),
-          color: String((validated as any).color || ''),
-          hsn_code: String((validated as any).hsn_code || (validated as any).hsnCode || ''),
-          item_group: String((validated as any).itemGroup || validated.category || ''),
-          created_at: (validated as any).created_at || new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-      } catch (err: any) {
-        errors.push(`Row ${i + 1} (${items[i]?.code || 'unknown'}): ${err.message}`);
-      }
-    }
-
-    if (validItems.length > 0) {
-      await db.upsert('items', validItems, 'code');
-    }
-
-    return {
-      importedCount: validItems.length,
-      errors,
-    };
-  },
-};
 
 // ============================================================================
 // 4. ENGINEERING BOM ENDPOINTS (Strict Schema & Direct Supabase Bridge)
@@ -474,55 +150,148 @@ export const BomSchema = z.object({
 
 export type BomDto = z.infer<typeof BomSchema>;
 
-export const BOM_SELECT_COLUMNS = 'id, item_code, version, status, components, created_at, updated_at';
+export const BOM_SELECT_COLUMNS = 'id, item_code, bom_version, version, status, lines, created_at, updated_at';
 
 export const bomEndpoints = {
   async getBoms(): Promise<BomDto[]> {
     try {
-      const data = await db.findMany<any>('boms', {
-        select: BOM_SELECT_COLUMNS,
-        orderBy: { column: 'created_at', ascending: false },
-        limit: 100,
+      const res = await api.get<any>('/bill-of-materials', {
+        params: { limit: 100, sortBy: 'created_at', sortOrder: 'desc' },
       });
-
-      if (!Array.isArray(data)) {
-        return [];
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows) && rows.length > 0) {
+        return rows.map((b) =>
+          BomSchema.parse({
+            ...b,
+            version: b.bom_version || (typeof b.version === 'string' ? b.version : `v${b.version || 1}.0`),
+            components: b.lines || b.components || [],
+          })
+        );
       }
-      return data.map((b) => BomSchema.parse(b));
-    } catch {
-      return [];
+    } catch (e) {
+      console.warn('[bomEndpoints.getBoms] Direct REST note:', e);
     }
+    return [];
   },
 
   async getBomById(id: string): Promise<BomDto | null> {
     try {
-      const data = await db.findOne<any>('boms', id, 'id');
-      if (!data) return null;
-      return BomSchema.parse(data);
-    } catch {
-      return null;
+      const res = await api.get<any>(`/bill-of-materials/${encodeURIComponent(id)}`);
+      const row = res?.data?.data || res?.data;
+      if (row && typeof row === 'object' && row.id) {
+        return BomSchema.parse({
+          ...row,
+          version: row.bom_version || (typeof row.version === 'string' ? row.version : `v${row.version || 1}.0`),
+          components: row.lines || row.components || [],
+        });
+      }
+    } catch (e: any) {
+      if (e?.status === 404 || e?.code === 'NOT_FOUND') return null;
+      console.warn('[bomEndpoints.getBomById] Direct REST note:', e);
     }
+    return null;
   },
 
   async saveBom(bom: Partial<BomDto>): Promise<BomDto> {
-    const payload = {
-      id: bom.id,
+    const payload: Record<string, any> = {
       item_code: bom.item_code || bom.itemCode || (bom as any).parent,
-      version: bom.version || 'v1.0',
+      bom_version: bom.version || 'v1.0',
       status: bom.status || 'active',
-      components: (bom as any).lines || (bom as any).components || [],
+      lines: (bom as any).lines || (bom as any).components || [],
       updated_at: new Date().toISOString(),
     };
 
-    const saved = await db.upsert<any>('boms', payload, 'id');
-    return BomSchema.parse(saved || payload);
+    if (bom.id) {
+      try {
+        const res = await api.patch<any>(`/bill-of-materials/${encodeURIComponent(bom.id)}`, payload);
+        const row = res?.data?.data || res?.data;
+        if (row && typeof row === 'object') {
+          return BomSchema.parse({
+            ...row,
+            version: row.bom_version || (typeof row.version === 'string' ? row.version : `v${row.version || 1}.0`),
+            components: row.lines || row.components || [],
+          });
+        }
+      } catch (patchErr: any) {
+        if (patchErr?.status === 404 || patchErr?.code === 'NOT_FOUND') {
+          const postRes = await api.post<any>('/bill-of-materials', payload);
+          const postRow = postRes?.data?.data || postRes?.data;
+          if (postRow && typeof postRow === 'object') {
+            return BomSchema.parse({
+              ...postRow,
+              version: postRow.bom_version || (typeof postRow.version === 'string' ? postRow.version : `v${postRow.version || 1}.0`),
+              components: postRow.lines || postRow.components || [],
+            });
+          }
+        }
+      }
+    } else {
+      const postRes = await api.post<any>('/bill-of-materials', payload);
+      const postRow = postRes?.data?.data || postRes?.data;
+      if (postRow && typeof postRow === 'object') {
+        return BomSchema.parse({
+          ...postRow,
+          version: postRow.bom_version || (typeof postRow.version === 'string' ? postRow.version : `v${postRow.version || 1}.0`),
+          components: postRow.lines || postRow.components || [],
+        });
+      }
+    }
+
+    return BomSchema.parse({
+      ...payload,
+      id: bom.id || `bom-${Date.now()}`,
+      version: payload.bom_version,
+      components: payload.lines,
+    });
   },
 
   async deleteBom(id: string): Promise<boolean> {
     try {
-      return await db.delete('boms', id, 'id');
-    } catch (error: any) {
-      console.warn('[bomEndpoints.deleteBom] Note:', error?.message);
+      await api.delete(`/bill-of-materials/${encodeURIComponent(id)}`);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async explodeBom(id: string, qty: number = 1): Promise<any> {
+    const res = await api.get<any>(`/bill-of-materials/${id}/explode?qty=${qty}`);
+    return res?.data?.data || res?.data || res;
+  },
+
+  async releaseBom(id: string): Promise<any> {
+    const res = await api.post<any>(`/bill-of-materials/${id}/release`, {});
+    return res?.data?.data || res?.data || res;
+  },
+
+  async getBomLines(bomId: string): Promise<any[]> {
+    try {
+      const res = await api.get<any>('/bom-lines', {
+        params: { 'where[bom_id]': bomId, limit: 100, sortBy: 'line_no', sortOrder: 'asc' },
+      });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows)) return rows;
+    } catch {}
+    return [];
+  },
+
+  async saveBomLine(line: Record<string, any>): Promise<any> {
+    if (line.id) {
+      try {
+        const res = await api.patch<any>(`/bom-lines/${encodeURIComponent(line.id)}`, line);
+        const row = res?.data?.data || res?.data;
+        if (row) return row;
+      } catch {}
+    }
+    const res = await api.post<any>('/bom-lines', line);
+    return res?.data?.data || res?.data || line;
+  },
+
+  async deleteBomLine(id: string): Promise<boolean> {
+    try {
+      await api.delete(`/bom-lines/${encodeURIComponent(id)}`);
+      return true;
+    } catch {
       return false;
     }
   },

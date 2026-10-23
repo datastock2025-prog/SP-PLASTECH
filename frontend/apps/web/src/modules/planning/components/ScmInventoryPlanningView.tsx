@@ -15,7 +15,6 @@ import {
   DollarSign,
   Download,
 } from 'lucide-react';
-import { mockScmInventory } from '@/src/data/mockScmData';
 import { SCMInventoryItem } from '@/src/types/scm';
 import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { usePagination } from '@/src/hooks/usePagination';
@@ -26,7 +25,7 @@ interface ScmInventoryPlanningViewProps {
 }
 
 export const ScmInventoryPlanningView: React.FC<ScmInventoryPlanningViewProps> = ({ onNavigate, showToast }) => {
-  const [items, setItems] = useState<SCMInventoryItem[]>(mockScmInventory);
+  const [items, setItems] = useState<SCMInventoryItem[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');

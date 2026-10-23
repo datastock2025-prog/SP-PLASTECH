@@ -15,7 +15,6 @@ import {
   Calendar,
   Building,
 } from 'lucide-react';
-import { mockSopScenarios } from '@/src/data/mockScmData';
 import { SOPScenario } from '@/src/types/scm';
 import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { usePagination } from '@/src/hooks/usePagination';
@@ -26,7 +25,7 @@ interface ScmSopViewProps {
 }
 
 export const ScmSopView: React.FC<ScmSopViewProps> = ({ onNavigate, showToast }) => {
-  const [scenarios, setScenarios] = useState<SOPScenario[]>(mockSopScenarios);
+  const [scenarios, setScenarios] = useState<SOPScenario[]>([]);
   const [activeScenarioId, setActiveScenarioId] = useState<string>('SCEN-01');
   const [activeSection, setActiveSection] = useState<'overview' | 'capacity' | 'financials' | 'scenarios'>('overview');
 

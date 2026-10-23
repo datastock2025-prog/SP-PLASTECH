@@ -663,7 +663,7 @@ export const CreateTransferWizard: React.FC<CreateTransferWizardProps> = ({
   }, [activeFromStore, activeToStore, selectedItems, transferType]);
 
   // Inter-Plant Tax Calculation (Screen 4 Rules)
-  // Distance calculation mock: Pimpri <-> Chakan = 34km, Pimpri <-> Sanand = 645km
+  // Distance calculation simulation: Pimpri <-> Chakan = 34km, Pimpri <-> Sanand = 645km
   const calculatedDistance = useMemo(() => {
     if (fromPlant.city === toPlant.city) return 34;
     if (fromPlant.state === toPlant.state) return 55;

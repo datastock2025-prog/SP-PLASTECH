@@ -16,7 +16,8 @@ import {
   Star,
 } from 'lucide-react';
 import { Contact } from '../model/crmSchemas';
-import { mockContacts, mockAccounts } from '@/src/data/mockCrmData';
+import { useContacts, useAccounts } from '../api/useCrm';
+import { useEffect } from 'react';
 
 interface CrmContactListViewProps {
   onNavigate: (view: string, params?: any) => void;
@@ -29,7 +30,12 @@ export const CrmContactListView: React.FC<CrmContactListViewProps> = ({
   showToast,
   initialAccountId,
 }) => {
-  const [contacts, setContacts] = useState<Contact[]>(mockContacts);
+  const { data: serverContacts = [] } = useContacts();
+  const { data: accountsList = [] } = useAccounts();
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  useEffect(() => {
+    if (serverContacts.length > 0) setContacts(serverContacts);
+  }, [serverContacts]);
   const [searchQuery, setSearchQuery] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('All');
   const [buyingRoleFilter, setBuyingRoleFilter] = useState('All');
@@ -37,8 +43,8 @@ export const CrmContactListView: React.FC<CrmContactListViewProps> = ({
 
   const [newContact, setNewContact] = useState<Partial<Contact>>({
     fullName: '',
-    accountId: initialAccountId || mockAccounts[0].id,
-    accountName: mockAccounts[0].accountName,
+    accountId: initialAccountId || (accountsList[0]?.id || ''),
+    accountName: (accountsList[0]?.accountName || ''),
     designation: '',
     department: 'Procurement / SCM',
     email: '',
@@ -76,12 +82,12 @@ export const CrmContactListView: React.FC<CrmContactListViewProps> = ({
       return;
     }
 
-    const matchedAccount = mockAccounts.find(a => a.id === newContact.accountId);
+    const matchedAccount = accountsList.find(a => a.id === newContact.accountId);
 
     const created: Contact = {
       id: `CONT-0${contacts.length + 1}`,
       fullName: newContact.fullName,
-      accountId: newContact.accountId || mockAccounts[0].id,
+      accountId: newContact.accountId || (accountsList[0]?.id || ''),
       accountName: matchedAccount ? matchedAccount.accountName : 'Customer Account',
       designation: newContact.designation || 'Manager',
       department: newContact.department || 'Procurement',
@@ -255,12 +261,12 @@ export const CrmContactListView: React.FC<CrmContactListViewProps> = ({
                 <select
                   value={newContact.accountId}
                   onChange={(e) => {
-                    const acc = mockAccounts.find(a => a.id === e.target.value);
+                    const acc = accountsList.find(a => a.id === e.target.value);
                     setNewContact({ ...newContact, accountId: e.target.value, accountName: acc?.accountName });
                   }}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
                 >
-                  {mockAccounts.map(acc => (
+                  {accountsList.map(acc => (
                     <option key={acc.id} value={acc.id}>{acc.accountName}</option>
                   ))}
                 </select>

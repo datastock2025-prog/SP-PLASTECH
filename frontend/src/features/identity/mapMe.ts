@@ -11,9 +11,10 @@ const initialsOf = (name: string) =>
 
 /** Maps the server-authoritative /me payload onto the legacy AuthUser shape used by the shell. */
 export function mapMeToAuthUser(me: Me): AuthUser {
-  const plant = me.plants.find((p) => p.id === me.activePlantId);
+  const activePlantId = me.activePlantId || me.plants?.[0]?.id || '';
+  const plant = me.plants?.find((p) => p.id === activePlantId);
   const isAdmin = ADMIN_ROLES.has(me.roleCode);
-  const rules = me.abilityRules.flatMap((r) => {
+  const rules = (me.abilityRules || []).flatMap((r) => {
     if (r.inverted) return [];
     const actions = Array.isArray(r.action) ? r.action : [r.action];
     const subjects = Array.isArray(r.subject) ? r.subject : [r.subject];
@@ -27,7 +28,7 @@ export function mapMeToAuthUser(me: Me): AuthUser {
     role: me.roleName,
     roleType: isAdmin ? 'admin' : 'operator',
     department: me.department ?? '',
-    plantId: me.activePlantId ?? '',
+    plantId: activePlantId,
     plantName: plant?.name ?? '',
     shift: me.activeShift ?? '',
     badgeId: me.badgeId ?? '',

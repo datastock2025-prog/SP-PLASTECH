@@ -11,6 +11,9 @@ export {
   useSaveLead,
   useOpportunities,
   useSaveOpportunity,
+  useAccounts,
+  useContacts,
+  useActivities,
 } from './api/useCrm';
 
 export { crmApi } from './api/crmApi';

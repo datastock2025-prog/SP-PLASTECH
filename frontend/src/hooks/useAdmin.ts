@@ -38,6 +38,7 @@ import { transportMasterService, TransporterRecord } from '../services/transport
 import { masterDataGovernanceService } from '../services/masterDataGovernanceService';
 import { workspaceRbacService } from '../services/workspaceRbacService';
 import { WorkspaceRbacConfig } from '../types/workspaceRbac';
+import { identityApi } from '../features/identity/api';
 
 // ============================================================================
 // 1. HEALTH & METRICS
@@ -237,8 +238,33 @@ export function useAdminPlants() {
     queryKey: queryKeys.admin.plants(),
     queryFn: async (): Promise<PlantDetails[]> => {
       try {
-        const res = await apiClient.get<PlantDetails[]>('/admin/plants');
-        if (Array.isArray(res.data) && res.data.length > 0) return res.data;
+        const rows = await identityApi.plants();
+        if (Array.isArray(rows) && rows.length > 0) {
+          return rows.map((p) => {
+            const [city = '', state = ''] = (p.location ?? '').split(',').map((s) => s.trim());
+            return {
+              id: p.id,
+              plantCode: p.code,
+              plantName: p.name,
+              division: 'Plant',
+              address: p.address ?? '',
+              city,
+              state,
+              pincode: '',
+              gstin: p.gstin ?? '',
+              contactPerson: p.contactPerson ?? '',
+              contactEmail: p.contactEmail ?? '',
+              contactPhone: p.contactPhone ?? '',
+              totalMachines: 12,
+              activeLines: 8,
+              shifts: ['Shift A (06:00-14:00)', 'Shift B (14:00-22:00)'],
+              defaultWarehouseId: `WH-${p.code}`,
+              defaultWarehouseName: `${p.name} Store`,
+              isHeadquarters: Boolean(p.isDefault),
+              operationalStatus: p.isActive ? 'Fully Operational' : 'Offline',
+            };
+          });
+        }
       } catch {}
       return adminService.getPlants();
     },

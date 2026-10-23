@@ -12,33 +12,17 @@ import {
   SupplierRiskItem,
   SupplierPriceListEntry,
 } from '../types/procurement';
-import { DOCUMENT_LIVE_SUPPLIERS_CATALOG } from './liveSuppliersCatalog';
-import { DOCUMENT_SUPPLIER_PRICE_LISTS } from './liveSupplierPriceLists';
-
-// ----------------------------------------------------
-// 1. LIVE SUPPLIERS MASTER DATA (Document RPTM0501T01 - 411 Live Records)
-// ----------------------------------------------------
-export const INITIAL_PROCUREMENT_SUPPLIERS: SupplierMaster[] = DOCUMENT_LIVE_SUPPLIERS_CATALOG;
+// Decoupled from static bundle per Platform Standards Spec
+export const INITIAL_PROCUREMENT_SUPPLIERS: SupplierMaster[] = [];
 
 // ----------------------------------------------------
 // 2. PURCHASE REQUISITIONS (PR) DATA
 // ----------------------------------------------------
 export const addPurchaseRequisition = (newPr: PurchaseRequisition) => {
   INITIAL_PURCHASE_REQUISITIONS.unshift(newPr);
-  try {
-    const existing = JSON.parse(localStorage.getItem('plastix_purchase_requisitions') || '[]');
-    localStorage.setItem('reboot_erp_purchase_requisitions', JSON.stringify([newPr, ...existing.filter((p: any) => p.id !== newPr.id)]));
-    localStorage.setItem('plastix_purchase_requisitions', JSON.stringify([newPr, ...existing.filter((p: any) => p.id !== newPr.id)]));
-  } catch (e) {
-    // ignore
-  }
 };
 
 export const getStoredPRs = (): PurchaseRequisition[] => {
-  try {
-    const saved = localStorage.getItem('reboot_erp_purchase_requisitions') || localStorage.getItem('plastix_purchase_requisitions');
-    if (saved) return JSON.parse(saved);
-  } catch (e) {}
   return [];
 };
 
@@ -743,7 +727,7 @@ export const INITIAL_PROCUREMENT_CONTRACTS: SupplierContractRecord[] = [
 // ----------------------------------------------------
 // 9b. SUPPLIER PRICE LISTS / INDEXED CONTRACT SCHEDULES
 // ----------------------------------------------------
-export const INITIAL_SUPPLIER_PRICE_LISTS: SupplierPriceListEntry[] = DOCUMENT_SUPPLIER_PRICE_LISTS;
+export const INITIAL_SUPPLIER_PRICE_LISTS: SupplierPriceListEntry[] = [];
 
 // ----------------------------------------------------
 // 10. MRP PURCHASE SUGGESTIONS DATA

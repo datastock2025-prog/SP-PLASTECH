@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Building2, ShieldCheck, Lock, User, Eye, EyeOff, ArrowRight, AlertCircle, KeyRound } from 'lucide-react';
-import { useChangePassword, useLogin, useLogout, useMe } from '../features/identity/useIdentity';
+import { Building2, ShieldCheck, Lock, User, Eye, EyeOff, ArrowRight, AlertCircle, KeyRound, Smartphone } from 'lucide-react';
+import { useChangePassword, useLogin, useLogout, useMe, useVerifyTotp } from '../features/identity/useIdentity';
 
 const inputCls =
   'w-full pl-10 pr-10 py-2.5 bg-slate-950/60 border border-slate-700/80 rounded-xl text-slate-100 placeholder-slate-500 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all';
@@ -10,7 +10,7 @@ const btnCls =
 const msgOf = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
 
 /**
- * Three server-driven steps: credentials -> (forced password change) -> plant & shift selection.
+ * Server-driven steps: credentials -> (twoFactor) -> (forced password change) -> plant & shift selection.
  * Plant/shift are only offered after a successful login; the parent shell renders the app once all are done.
  */
 export const LoginScreen: React.FC = () => {
@@ -18,27 +18,57 @@ export const LoginScreen: React.FC = () => {
   const login = useLogin();
   const logout = useLogout();
   const changePassword = useChangePassword();
+  const verifyTotp = useVerifyTotp();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [totpCode, setTotpCode] = useState('');
+  const [twoFactorPrompt, setTwoFactorPrompt] = useState(false);
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
 
   const user = me.data;
-  const step: 'credentials' | 'password' | 'context' = !user ? 'credentials' : user.mustChangePassword ? 'password' : 'context';
+  const step: 'credentials' | 'twoFactor' | 'password' | 'context' =
+    twoFactorPrompt ? 'twoFactor'
+    : !user ? 'credentials'
+    : user.mustChangePassword ? 'password'
+    : 'context';
+
   const error = localError
     ?? (login.error && msgOf(login.error))
+    ?? (verifyTotp.error && msgOf(verifyTotp.error))
     ?? (changePassword.error && msgOf(changePassword.error))
     ?? (me.error && 'Unable to reach the authentication service.')
     ?? null;
 
+  const isLocked = Boolean(error && (error.toLowerCase().includes('lock') || error.toLowerCase().includes('too many attempts')));
+
   const submitCredentials = (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
-    login.mutate({ username, password }, { onSuccess: () => setPassword('') });
+    login.mutate({ username, password }, {
+      onSuccess: (res) => {
+        setPassword('');
+        if (res.twoFactorRequired) {
+          setTwoFactorPrompt(true);
+        }
+      },
+    });
+  };
+
+  const submitTotp = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLocalError(null);
+    if (!totpCode.trim()) return setLocalError('Please enter your 6-digit authenticator code.');
+    verifyTotp.mutate(totpCode.trim(), {
+      onSuccess: () => {
+        setTotpCode('');
+        setTwoFactorPrompt(false);
+      },
+    });
   };
 
   const submitPassword = (e: React.FormEvent) => {
@@ -51,9 +81,14 @@ export const LoginScreen: React.FC = () => {
     });
   };
 
-  const title = step === 'credentials' ? 'Enterprise Authentication' : step === 'password' ? 'Set a new password' : 'Signing you in';
+  const title =
+    step === 'credentials' ? 'Enterprise Authentication'
+    : step === 'twoFactor' ? 'Two-Factor Verification'
+    : step === 'password' ? 'Set a new password'
+    : 'Signing you in';
   const subtitle =
     step === 'credentials' ? 'Sign in with your authorized credentials'
+    : step === 'twoFactor' ? 'Enter the 6-digit code from your authenticator app'
     : step === 'password' ? 'Your administrator issued a temporary password. Choose your own to continue.'
     : `Welcome, ${user?.fullName}.`;
 
@@ -78,9 +113,24 @@ export const LoginScreen: React.FC = () => {
           </div>
 
           {error && (
-            <div role="alert" className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-medium flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-              <span>{error}</span>
+            <div
+              role="alert"
+              className={`mb-4 p-3 rounded-xl border text-xs font-medium flex items-start gap-2.5 ${
+                isLocked
+                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-200'
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+              }`}
+            >
+              <AlertCircle className={`w-4 h-4 shrink-0 mt-0.5 ${isLocked ? 'text-amber-400' : 'text-rose-400'}`} />
+              <div>
+                <span className="font-semibold">{isLocked ? 'Security Notice: ' : ''}</span>
+                <span>{error}</span>
+                {isLocked && (
+                  <p className="mt-1 text-[11px] text-amber-300/80">
+                    Failed sign-in attempts exceed policy limits. If this persists, contact IT administration.
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
@@ -108,6 +158,44 @@ export const LoginScreen: React.FC = () => {
               </div>
               <button type="submit" disabled={login.isPending} className={btnCls}>
                 {login.isPending ? 'Signing in…' : (<><span>Sign in</span><ArrowRight className="w-4 h-4" /></>)}
+              </button>
+            </form>
+          )}
+
+          {step === 'twoFactor' && (
+            <form onSubmit={submitTotp} className="space-y-4">
+              <div>
+                <label htmlFor="login-totp" className="block text-xs font-bold text-slate-300 mb-1.5">Authenticator Code (TOTP)</label>
+                <div className="relative">
+                  <Smartphone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-teal-400" />
+                  <input
+                    id="login-totp"
+                    type="text"
+                    inputMode="numeric"
+                    autoFocus
+                    placeholder="123456"
+                    maxLength={8}
+                    value={totpCode}
+                    onChange={(e) => setTotpCode(e.target.value.replace(/\s+/g, ''))}
+                    required
+                    className={inputCls}
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1.5">Open your authenticator app (e.g. Google Authenticator) and enter the 6-digit verification code.</p>
+              </div>
+              <button type="submit" disabled={verifyTotp.isPending} className={btnCls}>
+                {verifyTotp.isPending ? 'Verifying code…' : (<><span>Verify & Continue</span><ArrowRight className="w-4 h-4" /></>)}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTwoFactorPrompt(false);
+                  setTotpCode('');
+                  setLocalError(null);
+                }}
+                className="w-full text-center text-xs text-slate-400 hover:text-slate-200 mt-2 cursor-pointer"
+              >
+                ← Back to credentials
               </button>
             </form>
           )}

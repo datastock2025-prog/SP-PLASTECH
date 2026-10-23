@@ -21,7 +21,8 @@ import {
   Unlock,
 } from 'lucide-react';
 import { Account } from '../model/crmSchemas';
-import { mockAccounts } from '@/src/data/mockCrmData';
+import { useAccounts } from '../api/useCrm';
+import { useEffect } from 'react';
 
 interface CrmAccountListViewProps {
   onNavigate: (view: string, params?: any) => void;
@@ -34,7 +35,11 @@ export const CrmAccountListView: React.FC<CrmAccountListViewProps> = ({
   showToast,
   initialFilter,
 }) => {
-  const [accounts, setAccounts] = useState<Account[]>(mockAccounts);
+  const { data: serverAccounts = [] } = useAccounts();
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  useEffect(() => {
+    if (serverAccounts.length > 0) setAccounts(serverAccounts);
+  }, [serverAccounts]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedView, setSelectedView] = useState<string>(initialFilter || 'All Accounts');
   const [customerGroupFilter, setCustomerGroupFilter] = useState('All');
@@ -54,7 +59,7 @@ export const CrmAccountListView: React.FC<CrmAccountListViewProps> = ({
 
   // New Account State
   const [newAccForm, setNewAccForm] = useState<Partial<Account>>({
-    accountCode: `CUST-PLAST-0${mockAccounts.length + 1}`,
+    accountCode: `CUST-PLAST-${Date.now().toString().slice(-4)}`,
     accountName: '',
     customerGroup: 'Automotive Tier-1',
     customerType: 'Key Strategic Account',

@@ -17,7 +17,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { CustomerDocument, CustomerDocumentType } from '../model/crmSchemas';
-import { mockCustomerDocuments, mockAccounts } from '@/src/data/mockCrmData';
+import { useAccounts } from '../api/useCrm';
 
 interface CrmDocumentCenterViewProps {
   onNavigate: (view: string, params?: any) => void;
@@ -30,7 +30,8 @@ export const CrmDocumentCenterView: React.FC<CrmDocumentCenterViewProps> = ({
   showToast,
   initialAccountId,
 }) => {
-  const [documents, setDocuments] = useState<CustomerDocument[]>(mockCustomerDocuments);
+  const { data: accountsList = [] } = useAccounts();
+  const [documents, setDocuments] = useState<CustomerDocument[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [docTypeFilter, setDocTypeFilter] = useState('All');
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -38,8 +39,8 @@ export const CrmDocumentCenterView: React.FC<CrmDocumentCenterViewProps> = ({
   const [newDoc, setNewDoc] = useState<Partial<CustomerDocument>>({
     documentTitle: '',
     documentType: 'Certificate of Analysis (COA)',
-    accountId: initialAccountId || mockAccounts[0].id,
-    accountName: mockAccounts[0].accountName,
+    accountId: initialAccountId || (accountsList[0]?.id || ''),
+    accountName: (accountsList[0]?.accountName || ''),
     fileName: '',
     fileSize: '1.8 MB',
     fileExtension: 'PDF',
@@ -72,12 +73,12 @@ export const CrmDocumentCenterView: React.FC<CrmDocumentCenterViewProps> = ({
       return;
     }
 
-    const matchedAccount = mockAccounts.find(a => a.id === newDoc.accountId);
+    const matchedAccount = accountsList.find(a => a.id === newDoc.accountId);
     const created: CustomerDocument = {
       id: `DOC-2026-0${documents.length + 1}`,
       documentTitle: newDoc.documentTitle,
       documentType: newDoc.documentType as CustomerDocumentType,
-      accountId: newDoc.accountId || mockAccounts[0].id,
+      accountId: newDoc.accountId || (accountsList[0]?.id || ''),
       accountName: matchedAccount ? matchedAccount.accountName : 'Customer Account',
       fileName: newDoc.fileName || `${newDoc.documentTitle.toLowerCase().replace(/\s+/g, '_')}.pdf`,
       fileSize: newDoc.fileSize || '2.4 MB',
@@ -227,12 +228,12 @@ export const CrmDocumentCenterView: React.FC<CrmDocumentCenterViewProps> = ({
                 <select
                   value={newDoc.accountId}
                   onChange={(e) => {
-                    const acc = mockAccounts.find(a => a.id === e.target.value);
+                    const acc = accountsList.find(a => a.id === e.target.value);
                     setNewDoc({ ...newDoc, accountId: e.target.value, accountName: acc?.accountName });
                   }}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
                 >
-                  {mockAccounts.map(acc => (
+                  {accountsList.map(acc => (
                     <option key={acc.id} value={acc.id}>{acc.accountName}</option>
                   ))}
                 </select>

@@ -78,7 +78,7 @@ export function createResourceHooks<TRow, TCreate = any, TUpdate = any, TQuery =
       queryKey: keys.detail(id || ''),
       queryFn: () => api.get(id!),
       enabled: !!id,
-      staleTime: 30_000,
+      staleTime: 0, // Detail class: always revalidate edit forms
       ...options,
     });
   }

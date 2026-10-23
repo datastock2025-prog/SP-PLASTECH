@@ -1,4 +1,4 @@
-import { db } from '@/src/shared/db';
+import { api } from '@/src/lib/api-client';
 import { adminService } from '@/src/services/adminService';
 import { IntegrationConnector } from '../model/integrationsSchemas';
 
@@ -11,22 +11,24 @@ export const integrationsApi = {
     return adminService.saveIntegration(conn);
   },
 
-  testConnector: async (conn: IntegrationConnector): Promise<{ success: boolean; latencyMs: number }> => {
+  testConnector: async (_conn: IntegrationConnector): Promise<{ success: boolean; latencyMs: number }> => {
     return { success: true, latencyMs: 28 };
   },
 
   getWebhooks: async (): Promise<any[]> => {
     try {
-      const data = await db.findMany('webhook_endpoints');
-      if (Array.isArray(data) && data.length > 0) return data;
+      const res = await api.get<any>('/webhook-endpoints', { params: { limit: 100 } });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows) && rows.length > 0) return rows;
     } catch {}
     return [];
   },
 
   getLogs: async (): Promise<any[]> => {
     try {
-      const data = await db.findMany('integration_logs');
-      if (Array.isArray(data) && data.length > 0) return data;
+      const res = await api.get<any>('/integration-logs', { params: { limit: 100 } });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows) && rows.length > 0) return rows;
     } catch {}
     return [];
   },

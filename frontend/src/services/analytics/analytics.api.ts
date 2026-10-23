@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { createHttpClient, type HttpClient } from '../../shared/api/http';
 import {
   ExecutiveKpiSummary,
   ExecutiveKpiItem,
@@ -32,18 +32,7 @@ export class AnalyticsApi {
   private api: any;
 
   constructor() {
-    this.api = axios.create({
-      baseURL: getApiBaseUrl('/api'),
-      withCredentials: true,
-      timeout: 10000,
-    });
-
-    this.api.interceptors.request.use((config: any) => {
-      const activeTenant = localStorage.getItem('activeTenantId') || 'TENANT-ALPHA-IND';
-      config.headers['X-Tenant-ID'] = activeTenant;
-      config.headers['X-CSRF-Token'] = this.getCsrfToken();
-      return config;
-    });
+    this.api = createHttpClient(getApiBaseUrl('/api/v1'));
   }
 
   private getCsrfToken(): string {

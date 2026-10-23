@@ -22,7 +22,55 @@ import {
   MasterDataChangeRecord,
   MasterDataGovernancePermissions,
 } from '../api/masterDataGovernanceService';
+import { useItemAuditHistory, DbAuditLog } from '../api/useMasterData';
 import { adminEventBus } from '@/src/services/adminService';
+
+const normalizeDbAuditRecord = (raw: DbAuditLog | any): MasterDataChangeRecord => {
+  const entityCode = raw.entityCode || raw.new_values?.code || raw.old_values?.code || raw.entity_id || 'SKU';
+  const entityName = raw.entityName || raw.new_values?.name || raw.old_values?.name || '';
+  const action = raw.action || 'UPDATE';
+  const timestamp = raw.timestamp || raw.performed_at || new Date().toISOString();
+  const changedBy = raw.changedBy || raw.performed_by || 'Admin User';
+  const userRole = raw.userRole || (changedBy.toLowerCase().includes('admin') ? 'admin' : 'engineer');
+  const entityType = raw.entityType || (raw.entity_type === 'items' ? 'ITEM_MASTER' : (raw.entity_type || 'ITEM_MASTER').toUpperCase());
+
+  let diff = raw.diff;
+  if (!diff && raw.old_values && raw.new_values) {
+    diff = {};
+    const keys = new Set([...Object.keys(raw.old_values || {}), ...Object.keys(raw.new_values || {})]);
+    for (const k of keys) {
+      if (['version', 'updated_at', 'created_at', 'id', 'tenant_id'].includes(k)) continue;
+      if (JSON.stringify(raw.old_values[k]) !== JSON.stringify(raw.new_values[k])) {
+        diff[k] = { before: raw.old_values[k], after: raw.new_values[k] };
+      }
+    }
+  }
+
+  const changeSummary = raw.changeSummary || (
+    action === 'CREATE'
+      ? `Registered new ${entityType} ${entityCode} (${entityName}) in live master catalog.`
+      : action === 'APPROVE'
+      ? `Approved and released SKU ${entityCode} to live shopfloor.`
+      : action === 'REJECT'
+      ? `Rejected SKU ${entityCode} in QA / compliance gate.`
+      : `Updated ${Object.keys(diff || {}).length || 'attribute'} parameter(s) on ${entityCode}.`
+  );
+
+  return {
+    id: String(raw.id || `AUD-${Math.random().toString(36).slice(2, 8)}`),
+    entityType,
+    entityCode,
+    entityName,
+    action: action as any,
+    timestamp,
+    changedBy,
+    userRole,
+    changeSummary,
+    raisedBy: raw.raisedBy || changedBy,
+    approvedBy: raw.approvedBy || (action === 'APPROVE' ? changedBy : undefined),
+    diff,
+  };
+};
 
 /* =========================================================================
    TASK 3: POSTGRESQL SECURE AUDIT & CHANGE HISTORY MODAL
@@ -43,38 +91,23 @@ export const AuditHistoryModal: React.FC<AuditHistoryModalProps> = ({
   const [activeType, setActiveType] = useState<string>(targetFilter?.type || 'ALL');
   const [searchQ, setSearchQ] = useState<string>(targetFilter?.code || '');
   const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null);
-  const [logs, setLogs] = useState<MasterDataChangeRecord[]>([]);
+
+  const { data: dbAuditLogs = [], isLoading } = useItemAuditHistory({
+    type: activeType,
+    search: searchQ,
+    code: targetFilter?.code,
+  });
 
   useEffect(() => {
     if (isOpen) {
-      setLogs(masterDataGovernanceService.getAuditHistory());
       if (targetFilter?.type) setActiveType(targetFilter.type);
       if (targetFilter?.code) setSearchQ(targetFilter.code);
     }
   }, [isOpen, targetFilter]);
 
-  useEffect(() => {
-    const unsub = adminEventBus.on('AUDIT_RECORD_SAVED', (record) => {
-      setLogs((prev) => [record, ...prev]);
-    });
-    return () => unsub();
-  }, []);
-
   if (!isOpen) return null;
 
-  const filteredLogs = logs.filter((log) => {
-    if (!log) return false;
-    if (activeType !== 'ALL' && log.entityType !== activeType) return false;
-    if (!searchQ.trim()) return true;
-    const q = searchQ.trim().toLowerCase();
-    return (
-      (log.entityCode || '').toLowerCase().includes(q) ||
-      (log.entityName || '').toLowerCase().includes(q) ||
-      (log.changedBy || '').toLowerCase().includes(q) ||
-      (log.changeSummary || '').toLowerCase().includes(q) ||
-      (log.action || '').toLowerCase().includes(q)
-    );
-  });
+  const filteredLogs: MasterDataChangeRecord[] = (dbAuditLogs || []).map(normalizeDbAuditRecord);
 
   const getActionBadge = (action: string) => {
     switch (action) {
@@ -181,7 +214,8 @@ export const AuditHistoryModal: React.FC<AuditHistoryModalProps> = ({
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+              aria-label="Close Audit Vault"
+              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>

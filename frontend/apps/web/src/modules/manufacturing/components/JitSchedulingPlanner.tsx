@@ -113,7 +113,7 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
 
   // State: Target Production Plan Date & Plant
   const [planDate, setPlanDate] = useState<string>(tomorrowStr);
-  const defaultPlant = effectiveUser?.plantId || localStorage.getItem('sp_active_plant') || 'PLANT-01';
+  const defaultPlant = effectiveUser?.plantId || (typeof window !== 'undefined' ? sessionStorage.getItem('sp_active_plant') : null) || 'PLANT-01';
   const [plannerPlant, setPlannerPlant] = useState<string>(defaultPlant);
   const [activeTab, setActiveTab] = useState<'schedule' | 'feasibility' | 'summary'>('schedule');
 
@@ -123,10 +123,10 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
   // Modal states
   const [inspectedJob, setInspectedJob] = useState<PlannedMachineJob | null>(null);
 
-  // Task 2: Persistent DB/localStorage storage so confirmed jobs keep growing and persist
+  // Task 2: Persistent DB/session storage storage so confirmed jobs keep growing and persist
   const [jobs, setJobs] = useState<PlannedMachineJob[]>(() => {
     try {
-      const saved = localStorage.getItem('sp_jit_production_jobs');
+      const saved = (typeof window !== 'undefined' ? sessionStorage.getItem('sp_jit_production_jobs') : null);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -137,10 +137,10 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
     return [];
   });
 
-  // Sync to localStorage whenever jobs update
+  // Sync to session storage whenever jobs update
   useEffect(() => {
     try {
-      localStorage.setItem('sp_jit_production_jobs', JSON.stringify(jobs));
+      sessionStorage.setItem('sp_jit_production_jobs', JSON.stringify(jobs));
     } catch (e) {
       console.error('Failed to persist JIT jobs:', e);
     }
@@ -268,7 +268,7 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
         return j;
       });
       try {
-        localStorage.setItem('sp_jit_production_jobs', JSON.stringify(updated));
+        sessionStorage.setItem('sp_jit_production_jobs', JSON.stringify(updated));
       } catch (e) {
         console.error(e);
       }
@@ -305,7 +305,7 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
         return j;
       });
       try {
-        localStorage.setItem('sp_jit_production_jobs', JSON.stringify(updated));
+        sessionStorage.setItem('sp_jit_production_jobs', JSON.stringify(updated));
       } catch (e) {
         console.error(e);
       }
