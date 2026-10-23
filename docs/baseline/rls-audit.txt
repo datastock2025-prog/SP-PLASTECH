@@ -1,0 +1,47 @@
+﻿== tables (container reboot_erp)
+          relname          | rls | forced 
+---------------------------+-----+--------
+ admin_approval_workflows  | f   | f
+ admin_numbering_sequences | f   | f
+ admin_system_parameters   | f   | f
+ auth_active_sessions      | f   | f
+ auth_role_permissions     | f   | f
+ auth_roles                | f   | f
+ auth_users                | f   | f
+ gdpr_compliance_requests  | f   | f
+ mfg_items                 | f   | f
+ security_audit_logs       | f   | f
+ tenant_profiles           | f   | f
+ user_mfa_challenges       | f   | f
+ user_mfa_credentials      | f   | f
+ audit_logs                | t   | f
+ customer_po_versions      | t   | f
+ customers                 | t   | f
+ dispatch_documents        | t   | f
+ items                     | t   | f
+ machines                  | t   | f
+ monthly_plan_orders       | t   | f
+ order_relationships       | t   | f
+ purchase_orders           | t   | f
+ sales_order_lines         | t   | f
+ sales_orders              | t   | f
+ suppliers                 | t   | f
+ warehouses                | t   | f
+(26 rows)
+
+== roles
+    rolname     | rolbypassrls | rolsuper 
+----------------+--------------+----------
+ reboot         | t            | t
+ anon           | f            | f
+ authenticated  | f            | f
+ service_role   | t            | f
+ supabase_admin | f            | t
+(5 rows)
+
+
+== STATIC AUDIT of db/migrations (authoritative; local container reboot-v1-postgres-1 is a stale legacy DB: 26 tables, no RLS, no erp_app)
+migration files: 22 | ENABLE RLS: 50 | FORCE RLS: 20 | CREATE POLICY: 50 | erp_app refs: 67
+schema tables (drizzle): 70 -> ~20 tables not RLS-enabled (global/auth tables expected; to verify in G-RLS test after applying dbmate)
+TODO(G-RLS): apply dbmate to a clean DB and run relrowsecurity/relforcerowsecurity + erp_app rolbypassrls query.
+DEPLOY DECISION: container primary (local+live); Workers fallback = polling only. Audit via DB triggers: approved.

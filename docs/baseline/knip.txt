@@ -1,0 +1,1 @@
+﻿knip: SKIPPED - oxc-parser ArrayBuffer allocation failure on this machine (Node 24). Dead-code check covered by madge/depcruise + per-module graph checks.
