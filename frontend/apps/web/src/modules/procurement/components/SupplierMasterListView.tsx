@@ -28,6 +28,7 @@ import { ProcurementStatusBadge } from './ProcurementStatusBadge';
 import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { masterDataGovernanceService } from '@/src/services/masterDataGovernanceService';
 import { SupplierOnboardingModal } from './SupplierOnboardingModal';
+import { EntityTable, ColumnDef } from '@/src/shared/components';
 
 interface Props {
   suppliers: SupplierMaster[];
@@ -102,6 +103,156 @@ export const SupplierMasterListView: React.FC<Props> = ({
     const start = (currentPage - 1) * pageSize;
     return filteredSuppliers.slice(start, start + pageSize);
   }, [filteredSuppliers, currentPage, pageSize]);
+
+  const supplierColumns = useMemo<ColumnDef<SupplierMaster>[]>(() => [
+    {
+      id: 'name',
+      header: 'Supplier Name / Code',
+      accessorKey: 'name',
+      sortable: true,
+      cell: (sup) => (
+        <div className="flex items-center gap-2">
+          {sup.preferred && (
+            <span title="Preferred Tier-1 Supplier">
+              <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
+            </span>
+          )}
+          {sup.blocked && (
+            <span title={`Vendor Blocked: ${sup.blockedReason}`}>
+              <ShieldAlert className="w-3.5 h-3.5 text-red-500" />
+            </span>
+          )}
+          <div>
+            <div className="font-bold text-[#14213D] group-hover:text-[#0F8B8D] transition">
+              {sup.name}
+            </div>
+            <div className="text-[10px] text-slate-500 font-mono">
+              {sup.code} {sup.bankingTax?.taxId && `• GSTIN: ${sup.bankingTax.taxId}`}
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'category',
+      header: 'Category',
+      accessorKey: 'category',
+      sortable: true,
+      cell: (sup) => (
+        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-medium">
+          {sup.category}
+        </span>
+      ),
+    },
+    {
+      id: 'contact',
+      header: 'Primary Contact',
+      cell: (sup) => sup.contacts[0] ? (
+        <div>
+          <div className="font-medium text-[#14213D]">{sup.contacts[0].name}</div>
+          <div className="text-[10px] text-slate-500 flex items-center gap-1">
+            <Mail className="w-3 h-3 text-slate-400" /> {sup.contacts[0].email}
+          </div>
+        </div>
+      ) : (
+        <span className="text-slate-400 italic">No contact logged</span>
+      ),
+    },
+    {
+      id: 'terms',
+      header: 'Payment & Incoterms',
+      cell: (sup) => (
+        <div>
+          <div className="font-medium text-[#14213D]">{sup.paymentTerms}</div>
+          <div className="text-[10px] text-slate-500">{sup.deliveryTerms} • {sup.leadTimeDays}d Lead</div>
+        </div>
+      ),
+    },
+    {
+      id: 'openPOValue',
+      header: 'Open PO Value',
+      accessorKey: 'openPOValue',
+      align: 'right',
+      sortable: true,
+      cell: (sup) => sup.openPOValue > 0 ? (
+        <div className="font-semibold text-[#14213D]">
+          <div>₹{(sup.openPOValue / 100000).toFixed(2)} L</div>
+          <div className="text-[10px] text-slate-500 font-normal">{sup.openPOsCount} POs Active</div>
+        </div>
+      ) : (
+        <span className="text-slate-400 font-normal">₹0</span>
+      ),
+    },
+    {
+      id: 'rating',
+      header: 'Rating / Grade',
+      accessorKey: 'rating',
+      align: 'center',
+      sortable: true,
+      cell: (sup) => (
+        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-[11px]">
+          <Star className="w-3 h-3 text-amber-500 fill-amber-400" />
+          <span>{sup.rating?.toFixed ? sup.rating.toFixed(1) : Number(sup.rating || 4.5).toFixed(1)}</span>
+          <span className="text-[10px] text-slate-500 font-normal">({sup.scorecard?.overallGrade || 'A'})</span>
+        </div>
+      ),
+    },
+    {
+      id: 'risk',
+      header: 'Risk',
+      align: 'center',
+      cell: (sup) => (
+        <span
+          className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+            sup.riskLevel === 'Critical'
+              ? 'bg-red-100 text-red-800 border border-red-200'
+              : sup.riskLevel === 'High'
+              ? 'bg-amber-100 text-amber-800 border border-amber-200'
+              : sup.riskLevel === 'Medium'
+              ? 'bg-sky-100 text-sky-800 border border-sky-200'
+              : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+          }`}
+        >
+          {sup.riskLevel}
+        </span>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      align: 'center',
+      cell: (sup) => <ProcurementStatusBadge status={sup.status} size="xs" />,
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      align: 'right',
+      cell: (sup) => (
+        <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => onNavigate('supplierDetail', { id: sup.id })}
+            className="px-2.5 py-1.5 text-xs font-semibold bg-slate-50 hover:bg-[#14213D] text-slate-700 hover:text-white border border-slate-300 rounded-lg transition-all shadow-xs flex items-center gap-1 group/btn"
+            title="Open 14 Tabs Supplier Profile"
+          >
+            <Building className="w-3.5 h-3.5 text-[#0F8B8D] group-hover/btn:text-white transition" />
+            <span>14 Tabs</span>
+            <span className="text-[10px] text-slate-400 group-hover/btn:text-slate-300">→</span>
+          </button>
+          <button
+            onClick={() => {
+              showToast(`Creating Purchase Order for ${sup.name}`);
+              onNavigate('poList', { supplierId: sup.id, supplierName: sup.name, openCreateModal: true });
+            }}
+            className="px-2.5 py-1.5 text-xs font-semibold bg-[#0F8B8D] hover:bg-[#0d797b] text-white rounded-lg transition-all shadow-sm flex items-center gap-1"
+            title="Issue Purchase Order"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Issue PO</span>
+          </button>
+        </div>
+      ),
+    },
+  ], [onNavigate, showToast]);
 
   // Export CSV
   const handleExportCSV = () => {
@@ -532,160 +683,16 @@ export const SupplierMasterListView: React.FC<Props> = ({
 
       {/* Advanced Supplier Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
-            <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] tracking-wider border-b border-slate-200">
-              <tr>
-                <th className="py-3 px-3 font-semibold">Supplier Name / Code</th>
-                <th className="py-3 px-3 font-semibold">Category</th>
-                <th className="py-3 px-3 font-semibold">Primary Contact</th>
-                <th className="py-3 px-3 font-semibold">Payment & Incoterms</th>
-                <th className="py-3 px-3 font-semibold text-right">Open PO Value</th>
-                <th className="py-3 px-3 font-semibold text-center">Rating / Grade</th>
-                <th className="py-3 px-3 font-semibold text-center">Risk</th>
-                <th className="py-3 px-3 font-semibold text-center">Status</th>
-                <th className="py-3 px-3 font-semibold text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {paginatedSuppliers.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-400">
-                    No suppliers match your search filters.
-                  </td>
-                </tr>
-              ) : (
-                paginatedSuppliers.map((sup) => (
-                  <tr
-                    key={sup.id}
-                    className="hover:bg-slate-50/80 transition group cursor-pointer"
-                    onClick={() => onNavigate('supplierDetail', { id: sup.id })}
-                  >
-                    {/* Name & Code */}
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-2">
-                        {sup.preferred && (
-                          <span title="Preferred Tier-1 Supplier">
-                            <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-400" />
-                          </span>
-                        )}
-                        {sup.blocked && (
-                          <span title={`Vendor Blocked: ${sup.blockedReason}`}>
-                            <ShieldAlert className="w-3.5 h-3.5 text-red-500" />
-                          </span>
-                        )}
-                        <div>
-                          <div className="font-bold text-[#14213D] group-hover:text-[#0F8B8D] transition">
-                            {sup.name}
-                          </div>
-                          <div className="text-[10px] text-slate-500 font-mono">
-                            {sup.code} {sup.bankingTax?.taxId && `• GSTIN: ${sup.bankingTax.taxId}`}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Category */}
-                    <td className="py-3 px-3">
-                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-medium">
-                        {sup.category}
-                      </span>
-                    </td>
-
-                    {/* Contact */}
-                    <td className="py-3 px-3">
-                      {sup.contacts[0] ? (
-                        <div>
-                          <div className="font-medium text-[#14213D]">{sup.contacts[0].name}</div>
-                          <div className="text-[10px] text-slate-500 flex items-center gap-1">
-                            <Mail className="w-3 h-3 text-slate-400" /> {sup.contacts[0].email}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-slate-400 italic">No contact logged</span>
-                      )}
-                    </td>
-
-                    {/* Terms */}
-                    <td className="py-3 px-3">
-                      <div className="font-medium text-[#14213D]">{sup.paymentTerms}</div>
-                      <div className="text-[10px] text-slate-500">{sup.deliveryTerms} • {sup.leadTimeDays}d Lead</div>
-                    </td>
-
-                    {/* Open PO Value */}
-                    <td className="py-3 px-3 text-right font-semibold text-[#14213D]">
-                      {sup.openPOValue > 0 ? (
-                        <div>
-                          <div>₹{(sup.openPOValue / 100000).toFixed(2)} L</div>
-                          <div className="text-[10px] text-slate-500">{sup.openPOsCount} POs Active</div>
-                        </div>
-                      ) : (
-                        <span className="text-slate-400 font-normal">₹0</span>
-                      )}
-                    </td>
-
-                    {/* Score / Grade */}
-                    <td className="py-3 px-3 text-center">
-                      <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-[11px]">
-                        <Star className="w-3 h-3 text-amber-500 fill-amber-400" />
-                        <span>{sup.rating?.toFixed ? sup.rating.toFixed(1) : Number(sup.rating || 4.5).toFixed(1)}</span>
-                        <span className="text-[10px] text-slate-500 font-normal">({sup.scorecard?.overallGrade || 'A'})</span>
-                      </div>
-                    </td>
-
-                    {/* Risk Badge */}
-                    <td className="py-3 px-3 text-center">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                          sup.riskLevel === 'Critical'
-                            ? 'bg-red-100 text-red-800 border border-red-200'
-                            : sup.riskLevel === 'High'
-                            ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                            : sup.riskLevel === 'Medium'
-                            ? 'bg-sky-100 text-sky-800 border border-sky-200'
-                            : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                        }`}
-                      >
-                        {sup.riskLevel}
-                      </span>
-                    </td>
-
-                    {/* Status */}
-                    <td className="py-3 px-3 text-center">
-                      <ProcurementStatusBadge status={sup.status} size="xs" />
-                    </td>
-
-                    {/* Actions */}
-                    <td className="py-3 px-3 text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => onNavigate('supplierDetail', { id: sup.id })}
-                          className="px-2.5 py-1.5 text-xs font-semibold bg-slate-50 hover:bg-[#14213D] text-slate-700 hover:text-white border border-slate-300 rounded-lg transition-all shadow-xs flex items-center gap-1 group/btn"
-                          title="Open 14 Tabs Supplier Profile"
-                        >
-                          <Building className="w-3.5 h-3.5 text-[#0F8B8D] group-hover/btn:text-white transition" />
-                          <span>14 Tabs</span>
-                          <span className="text-[10px] text-slate-400 group-hover/btn:text-slate-300">→</span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            showToast(`Creating Purchase Order for ${sup.name}`);
-                            onNavigate('poList', { supplierId: sup.id, supplierName: sup.name, openCreateModal: true });
-                          }}
-                          className="px-2.5 py-1.5 text-xs font-semibold bg-[#0F8B8D] hover:bg-[#0d797b] text-white rounded-lg transition-all shadow-sm flex items-center gap-1"
-                          title="Issue Purchase Order"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Issue PO</span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <EntityTable<SupplierMaster>
+          data={paginatedSuppliers}
+          columns={supplierColumns}
+          keyExtractor={(sup) => sup.id}
+          onRowClick={(sup) => onNavigate('supplierDetail', { id: sup.id })}
+          hideToolbar={true}
+          hidePagination={true}
+          emptyMessage="No suppliers match your search filters."
+          emptySubtext="Try adjusting your vendor search terms or risk/category filters."
+        />
 
         {/* Pagination Bar */}
         <PaginationBar

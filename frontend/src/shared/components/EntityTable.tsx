@@ -67,6 +67,10 @@ export interface EntityTableProps<T> {
   virtualized?: boolean;
   virtualRowHeight?: number;
   scrollMaxHeight?: string | number;
+  hideToolbar?: boolean;
+  hidePagination?: boolean;
+  className?: string;
+  headerClassName?: string;
 }
 
 interface TableRowProps<T> {
@@ -231,6 +235,10 @@ export function EntityTable<T extends Record<string, any>>({
   virtualized = false,
   virtualRowHeight = 44,
   scrollMaxHeight,
+  hideToolbar = false,
+  hidePagination = false,
+  className,
+  headerClassName,
 }: EntityTableProps<T>) {
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const [internalSortBy, setInternalSortBy] = useState<string | null>(null);
@@ -356,9 +364,9 @@ export function EntityTable<T extends Record<string, any>>({
   });
 
   return (
-    <div className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs overflow-hidden flex flex-col transition-all duration-200">
+    <div className={`w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs overflow-hidden flex flex-col transition-all duration-200 ${className || ''}`}>
       {/* Header & Controls Toolbar */}
-      {(title || searchPlaceholder || filterSlot || actionSlot) && (
+      {!hideToolbar && (title || searchPlaceholder || filterSlot || actionSlot) && (
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/50 dark:bg-slate-900/50">
           {title && (
             <div className="flex items-center gap-2.5">
@@ -412,10 +420,10 @@ export function EntityTable<T extends Record<string, any>>({
       <div
         ref={scrollContainerRef}
         className={`flex-1 overflow-x-auto relative ${isVirtualized ? 'overflow-y-auto' : ''}`}
-        style={isVirtualized && scrollMaxHeight ? { maxHeight: scrollMaxHeight } : undefined}
+        style={isVirtualized ? { maxHeight: scrollMaxHeight || '600px' } : undefined}
       >
         <table className="w-full text-left border-collapse text-xs">
-          <thead className={`bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 font-medium border-b border-slate-200 dark:border-slate-800 ${stickyHeader ? 'sticky top-0 z-10' : ''}`}>
+          <thead className={`bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 font-medium border-b border-slate-200 dark:border-slate-800 ${stickyHeader ? 'sticky top-0 z-10' : ''} ${headerClassName || ''}`}>
             <tr>
               {onSelectRow && (
                 <th className="w-10 px-4 py-3 text-center">
@@ -597,72 +605,74 @@ export function EntityTable<T extends Record<string, any>>({
       </div>
 
       {/* Pagination Footer */}
-      <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-400">
-        <div className="flex items-center gap-3">
-          <span>
-            Showing <strong className="text-slate-900 dark:text-white">{effectiveTotal > 0 ? (page - 1) * pageSize + 1 : 0}</strong> to{' '}
-            <strong className="text-slate-900 dark:text-white">{Math.min(page * pageSize, effectiveTotal)}</strong> of{' '}
-            <strong className="text-slate-900 dark:text-white">{effectiveTotal.toLocaleString()}</strong> results
-          </span>
+      {!hidePagination && (
+        <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-400">
+          <div className="flex items-center gap-3">
+            <span>
+              Showing <strong className="text-slate-900 dark:text-white">{effectiveTotal > 0 ? (page - 1) * pageSize + 1 : 0}</strong> to{' '}
+              <strong className="text-slate-900 dark:text-white">{Math.min(page * pageSize, effectiveTotal)}</strong> of{' '}
+              <strong className="text-slate-900 dark:text-white">{effectiveTotal.toLocaleString()}</strong> results
+            </span>
 
-          {onPageSizeChange && (
-            <div className="flex items-center gap-1.5 border-l border-slate-200 dark:border-slate-700 pl-3">
-              <span>Rows per page:</span>
-              <select
-                value={pageSize}
-                onChange={(e) => onPageSizeChange(Number(e.target.value))}
-                className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-            </div>
-          )}
+            {onPageSizeChange && (
+              <div className="flex items-center gap-1.5 border-l border-slate-200 dark:border-slate-700 pl-3">
+                <span>Rows per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => onPageSizeChange(Number(e.target.value))}
+                  className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Page Nav */}
+          <div className="flex items-center gap-1">
+            <button
+              disabled={page <= 1 || isLoading}
+              onClick={() => onPageChange && onPageChange(1)}
+              title="First Page"
+              className="p-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronsLeft className="w-3.5 h-3.5" />
+            </button>
+            <button
+              disabled={page <= 1 || isLoading}
+              onClick={() => onPageChange && onPageChange(page - 1)}
+              title="Previous Page"
+              className="p-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+
+            <span className="px-3 py-1 font-medium text-slate-800 dark:text-slate-200">
+              Page {page} of {totalPages}
+            </span>
+
+            <button
+              disabled={page >= totalPages || isLoading}
+              onClick={() => onPageChange && onPageChange(page + 1)}
+              title="Next Page"
+              className="p-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+            <button
+              disabled={page >= totalPages || isLoading}
+              onClick={() => onPageChange && onPageChange(totalPages)}
+              title="Last Page"
+              className="p-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ChevronsRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
-
-        {/* Page Nav */}
-        <div className="flex items-center gap-1">
-          <button
-            disabled={page <= 1 || isLoading}
-            onClick={() => onPageChange && onPageChange(1)}
-            title="First Page"
-            className="p-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-          >
-            <ChevronsLeft className="w-3.5 h-3.5" />
-          </button>
-          <button
-            disabled={page <= 1 || isLoading}
-            onClick={() => onPageChange && onPageChange(page - 1)}
-            title="Previous Page"
-            className="p-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-          </button>
-
-          <span className="px-3 py-1 font-medium text-slate-800 dark:text-slate-200">
-            Page {page} of {totalPages}
-          </span>
-
-          <button
-            disabled={page >= totalPages || isLoading}
-            onClick={() => onPageChange && onPageChange(page + 1)}
-            title="Next Page"
-            className="p-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-          >
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-          <button
-            disabled={page >= totalPages || isLoading}
-            onClick={() => onPageChange && onPageChange(totalPages)}
-            title="Last Page"
-            className="p-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-          >
-            <ChevronsRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

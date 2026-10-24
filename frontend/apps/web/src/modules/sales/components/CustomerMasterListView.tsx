@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Customer, SalesOrder, SalesQuotation } from '@/src/types';
 import { PaginationBar } from '@/src/components/common/PaginationBar';
+import { EntityTable, ColumnDef } from '@/src/shared/components';
 import {
   customerMasterService,
   EnrichedCustomerRecord,
@@ -118,6 +119,153 @@ export const CustomerMasterListView: React.FC<Props> = ({
       showToast(`✓ Deactivated Customer ${c.name} (${c.code})`);
     }
   };
+
+  const customerColumns = useMemo<ColumnDef<EnrichedCustomerRecord>[]>(() => [
+    {
+      id: 'name',
+      header: 'Customer Code & Legal Name',
+      accessorKey: 'name',
+      sortable: true,
+      width: '26%',
+      cell: (c) => (
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-[#14213D] text-white flex items-center justify-center font-bold text-xs flex-shrink-0 font-mono">
+            {c.code.replace('CUST-', '')}
+          </div>
+          <div className="truncate">
+            <div className="font-bold text-[#14213D] hover:text-[#0F8B8D] truncate">
+              {c.name}
+            </div>
+            <div className="text-[10px] text-slate-400 font-mono truncate">
+              {c.code} &middot; {c.segment || 'OEM Partner'}
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'po',
+      header: 'Active PO & LIFO Revision',
+      width: '18%',
+      cell: (c) => {
+        const poInfo = customerMasterService.getLatestPoForCustomer(c.code);
+        return (
+          <div>
+            <div className="font-mono font-bold text-slate-900 truncate flex items-center gap-1">
+              <FileCheck className="w-3.5 h-3.5 text-[#0F8B8D]" />
+              <span>{poInfo.poNumber || 'No PO'}</span>
+            </div>
+            <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+              <span className="font-mono text-teal-700 bg-teal-50 px-1 py-0.2 rounded font-bold border border-teal-200">
+                {poInfo.version || 'v1.0'}
+              </span>
+              <span>({poInfo.poDate || c.poDate || '2026-09-01'})</span>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      id: 'credit',
+      header: 'Credit Limit & Terms',
+      width: '18%',
+      cell: (c) => {
+        const limit = c.creditLimit || 1500000;
+        const used = c.currentBalance || Math.round(limit * 0.45);
+        const usedPct = ((used / limit) * 100).toFixed(0);
+        return (
+          <div>
+            <div className="flex justify-between text-[11px] mb-1 font-mono">
+              <span className="font-bold text-[#14213D]">
+                ₹{(limit / 100000).toFixed(1)}L Limit
+              </span>
+              <span className="text-slate-500 font-semibold">{c.paymentTerms || 'Net 30 Days'}</span>
+            </div>
+            <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-[#0F8B8D]"
+                style={{ width: `${Math.min(100, parseInt(usedPct))}%` }}
+              />
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      id: 'state',
+      header: 'State & GSTIN',
+      width: '14%',
+      cell: (c) => (
+        <div className="text-slate-700">
+          <div className="font-semibold text-slate-900 truncate">{c.state || 'Maharashtra'}</div>
+          <div className="text-[10px] font-mono text-slate-400 truncate">{c.gstin || '27AAACT2727Q1ZW'}</div>
+        </div>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status & Risk',
+      align: 'center',
+      width: '10%',
+      cell: (c) => (
+        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+          <span
+            className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+              c.riskRating === 'AAA' || c.riskRating === 'AA'
+                ? 'bg-emerald-100 text-emerald-800'
+                : c.riskRating === 'A'
+                ? 'bg-blue-100 text-blue-800'
+                : 'bg-amber-100 text-amber-800'
+            }`}
+          >
+            {c.riskRating || 'AA'}
+          </span>
+          <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-emerald-100 text-emerald-800">
+            Active
+          </span>
+        </div>
+      ),
+    },
+    {
+      id: 'actions',
+      header: 'Admin CRUD Actions',
+      align: 'right',
+      width: '14%',
+      cell: (c) => (
+        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          <button
+            title="Edit Customer Master via Wizard"
+            onClick={() => {
+              setEditingCustomer(c);
+              setIsOnboardingWizardOpen(true);
+            }}
+            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-[#0F8B8D] cursor-pointer"
+          >
+            <Edit className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            title="Amend PO & LIFO Version Traceability"
+            onClick={() => {
+              setSelectedCustomerForPo(c);
+              setIsPoModalOpen(true);
+            }}
+            className="p-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 font-bold flex items-center gap-1 cursor-pointer"
+          >
+            <History className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            title="Deactivate Customer"
+            onClick={() => handleDeleteCustomer(c)}
+            className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ),
+    },
+  ], []);
 
   return (
     <div className="space-y-6 pb-12">
@@ -278,147 +426,17 @@ export const CustomerMasterListView: React.FC<Props> = ({
 
       {/* Customer Master Table with Full CRUD & PO Traceability */}
       <div className="bg-white rounded-xl border border-[#E4E0D6] shadow-sm overflow-hidden">
-        <table className="w-full text-xs text-left border-collapse table-fixed">
-          <colgroup>
-            <col className="w-[26%]" />
-            <col className="w-[18%]" />
-            <col className="w-[18%]" />
-            <col className="w-[14%]" />
-            <col className="w-[10%]" />
-            <col className="w-[14%]" />
-          </colgroup>
-          <thead>
-            <tr className="bg-[#14213D] text-[#EDEFF7] font-semibold text-[11px]">
-              <th className="py-3 px-4">Customer Code &amp; Legal Name</th>
-              <th className="py-3 px-3">Active PO &amp; LIFO Revision</th>
-              <th className="py-3 px-3">Credit Limit &amp; Terms</th>
-              <th className="py-3 px-3">State &amp; GSTIN</th>
-              <th className="py-3 px-3 text-center">Status &amp; Risk</th>
-              <th className="py-3 px-4 text-right">Admin CRUD Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#E4E0D6]">
-            {pagedCustomers.map((c) => {
-              const limit = c.creditLimit || 1500000;
-              const used = c.currentBalance || Math.round(limit * 0.45);
-              const usedPct = ((used / limit) * 100).toFixed(0);
-              const poInfo = customerMasterService.getLatestPoForCustomer(c.code);
-
-              return (
-                <tr
-                  key={c.code}
-                  className="hover:bg-slate-50 transition-colors cursor-pointer"
-                  onClick={() => onNavigate('customerDetail', { id: c.code })}
-                >
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-[#14213D] text-white flex items-center justify-center font-bold text-xs flex-shrink-0 font-mono">
-                        {c.code.replace('CUST-', '')}
-                      </div>
-                      <div className="truncate">
-                        <div className="font-bold text-[#14213D] hover:text-[#0F8B8D] truncate">
-                          {c.name}
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-mono truncate">
-                          {c.code} &middot; {c.segment || 'OEM Partner'}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="py-3 px-3">
-                    <div className="font-mono font-bold text-slate-900 truncate flex items-center gap-1">
-                      <FileCheck className="w-3.5 h-3.5 text-[#0F8B8D]" />
-                      <span>{poInfo.poNumber || 'No PO'}</span>
-                    </div>
-                    <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
-                      <span className="font-mono text-teal-700 bg-teal-50 px-1 py-0.2 rounded font-bold border border-teal-200">
-                        {poInfo.version || 'v1.0'}
-                      </span>
-                      <span>({poInfo.poDate || c.poDate || '2026-09-01'})</span>
-                    </div>
-                  </td>
-
-                  <td className="py-3 px-3">
-                    <div className="flex justify-between text-[11px] mb-1 font-mono">
-                      <span className="font-bold text-[#14213D]">
-                        ₹{(limit / 100000).toFixed(1)}L Limit
-                      </span>
-                      <span className="text-slate-500 font-semibold">{c.paymentTerms || 'Net 30 Days'}</span>
-                    </div>
-                    <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-[#0F8B8D]"
-                        style={{ width: `${Math.min(100, parseInt(usedPct))}%` }}
-                      />
-                    </div>
-                  </td>
-
-                  <td className="py-3 px-3 text-slate-700">
-                    <div className="font-semibold text-slate-900 truncate">{c.state || 'Maharashtra'}</div>
-                    <div className="text-[10px] font-mono text-slate-400 truncate">{c.gstin || '27AAACT2727Q1ZW'}</div>
-                  </td>
-
-                  <td className="py-3 px-3 text-center">
-                    <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                      <span
-                        className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
-                          c.riskRating === 'AAA' || c.riskRating === 'AA'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : c.riskRating === 'A'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-amber-100 text-amber-800'
-                        }`}
-                      >
-                        {c.riskRating || 'AA'}
-                      </span>
-                      <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-emerald-100 text-emerald-800">
-                        Active
-                      </span>
-                    </div>
-                  </td>
-
-                  <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-end gap-1">
-                      {/* Edit Customer Master Wizard */}
-                      <button
-                        title="Edit Customer Master via Wizard"
-                        onClick={() => {
-                          setEditingCustomer(c);
-                          setIsOnboardingWizardOpen(true);
-                        }}
-                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-[#0F8B8D] cursor-pointer"
-                      >
-                        <Edit className="w-3.5 h-3.5" />
-                      </button>
-
-                      {/* Amend PO & Version History */}
-                      <button
-                        title="Amend PO & LIFO Version Traceability"
-                        onClick={() => {
-                          setSelectedCustomerForPo(c);
-                          setIsPoModalOpen(true);
-                        }}
-                        className="p-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 font-bold flex items-center gap-1 cursor-pointer"
-                      >
-                        <History className="w-3.5 h-3.5" />
-                      </button>
-
-                      {/* Delete / Deactivate */}
-                      <button
-                        title="Deactivate Customer"
-                        onClick={() => handleDeleteCustomer(c)}
-                        className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <EntityTable<EnrichedCustomerRecord>
+          data={pagedCustomers}
+          columns={customerColumns}
+          keyExtractor={(c) => c.code}
+          onRowClick={(c) => onNavigate('customerDetail', { id: c.code })}
+          hideToolbar={true}
+          hidePagination={true}
+          headerClassName="bg-[#14213D] text-[#EDEFF7] font-semibold text-[11px]"
+          emptyMessage="No customers match your search filters."
+          emptySubtext="Try adjusting your customer search terms, segments, or risk filters."
+        />
 
         {/* High-Volume Pagination Bar */}
         <PaginationBar
