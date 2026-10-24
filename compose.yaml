@@ -25,6 +25,7 @@ services:
     depends_on: { db: { condition: service_healthy } }
 
   api:
+    image: sp-plastech-dev-api:latest
     build: { context: ./middleware, dockerfile: Dockerfile.dev }
     command: npm run dev
     environment:
@@ -34,18 +35,24 @@ services:
       PORT: "4000"
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-sp_plastech_dev_auth_secret_local_only_2026}
       AUTH_TRUSTED_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000"
-    ports: ["127.0.0.1:4000:4000"]
-    volumes: ["./middleware:/app"]
+    ports: ["4000:4000"]
+    volumes:
+      - "./middleware:/app"
+      - "/app/node_modules"
     depends_on: { migrate: { condition: service_completed_successfully } }
 
   web:
+    image: sp-plastech-dev-web:latest
     build: { context: ., dockerfile: containers/frontend.Dockerfile }
-    command: npm run dev -- --host 0.0.0.0 --port 3000
+    command: npm run dev
     environment:
       BACKEND_URL: http://api:4000
       VITE_API_URL: http://localhost:3000
-    ports: ["127.0.0.1:3000:3000"]     # Vite proxies /api to the api service
-    volumes: [".:/workspace"]
+    ports: ["3000:3000"]     # Vite proxies /api to the api service
+    volumes:
+      - ".:/workspace"
+      - "/workspace/node_modules"
+      - "/workspace/frontend/node_modules"
     depends_on: { api: { condition: service_started } }
 
 volumes:
