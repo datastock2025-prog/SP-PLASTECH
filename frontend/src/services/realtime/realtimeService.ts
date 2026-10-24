@@ -74,6 +74,10 @@ export function broadcastLocalMutation(domain: string, eventType: string, data: 
       } catch {}
     });
     adminEventBus.emit(config.eventName, data);
+  } else {
+    try {
+      queryClient.invalidateQueries({ queryKey: [domain.toLowerCase()] as any });
+    } catch {}
   }
 }
 
