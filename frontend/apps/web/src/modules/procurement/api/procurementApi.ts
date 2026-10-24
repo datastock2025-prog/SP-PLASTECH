@@ -1,6 +1,5 @@
 import { api } from '@/src/lib/api-client';
 import { PurchaseOrder } from '@/src/types';
-import { mapDbRowToPurchaseOrder } from '@/src/shared/utils/dtoMappers';
 import { CreatePurchaseOrderFormValues } from '../model/procurementSchemas';
 
 export interface ProcurementSummaryDto {
@@ -14,6 +13,23 @@ export interface ProcurementSummaryDto {
   totalSuppliers: number;
 }
 
+export const normalizePurchaseOrder = (row: any): PurchaseOrder => ({
+  ...row,
+  id: String(row.id || ''),
+  supplier: String(row.supplier_name || row.supplier || ''),
+  vendorName: row.vendor_name || row.vendorName,
+  buyerName: row.buyer_name || row.buyerName,
+  orderDate: String(row.order_date || row.orderDate || ''),
+  expectedDate: String(row.expected_delivery_date || row.expectedDate || ''),
+  status: row.status || 'OPEN',
+  approval: (row.approval || 'approved') as any,
+  rejectReason: row.reject_reason || row.rejectReason,
+  totalAmount: Number(row.total_amount ?? row.totalAmount ?? 0),
+  lines: Array.isArray(row.lines) ? row.lines : [],
+  receiptLogs: Array.isArray(row.receipt_logs) ? row.receipt_logs : [],
+  history: Array.isArray(row.history) ? row.history : [],
+});
+
 export const procurementApi = {
   getPurchaseOrders: async (): Promise<PurchaseOrder[]> => {
     try {
@@ -22,7 +38,7 @@ export const procurementApi = {
       });
       const rows = res?.data?.data || res?.data;
       if (Array.isArray(rows)) {
-        return rows.map((row) => mapDbRowToPurchaseOrder(row));
+        return rows.map((row) => normalizePurchaseOrder(row));
       }
     } catch (e) {
       console.debug('[procurementApi.getPurchaseOrders] REST query notice:', e);

@@ -1,3 +1,4 @@
+-- migrate:up
 -- Migration: 20261027000004_finance_double_entry.sql
 -- Description: Chart of Accounts, Double-Entry Journal Entries, Journal Lines, and 3-Way Match AP Invoices
 
@@ -144,3 +145,6 @@ CREATE POLICY ap_invoices_tenant_isolation ON ap_invoices
     WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON ap_invoices TO erp_app;
+
+-- migrate:down
+-- shortcut: no automated rollback for this historical migration; restore from backup.

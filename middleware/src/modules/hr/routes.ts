@@ -1,6 +1,8 @@
-import { registerResourceRoutes } from '../../crud.js';
+import { registerResourceRoutes } from '../../core/resource.js';
 import * as zod from '../../schema/zod.js';
-import { withTx } from '../../db.js';
+import { withDrizzleTx } from '../../db.js';
+import { insertRow, type ScopedTable } from '../../core/query.js';
+import { attendanceRecords } from '../../schema/erp.js';
 import { can, wrap, type Actor } from '../../middleware.js';
 import type { Req, Res } from '../../router.js';
 import { z } from 'zod';
@@ -60,20 +62,19 @@ export function hrRoutes(r: any) {
       })).min(1),
     }).parse(req.body);
 
-    const insertedCount = await withTx({ tenantId: a.tenantId, userId: a.userId }, async (c) => {
+    const toDate = (v?: string | Date | null) => (v ? new Date(v) : null);
+    const insertedCount = await withDrizzleTx({ tenantId: a.tenantId, userId: a.userId }, async (db) => {
       let count = 0;
       for (const rec of body.records) {
-        await c.query(
-          `INSERT INTO attendance_records (
-              tenant_id, plant_id, employee_id, employee_name, date,
-              check_in, check_out, status, shift, version, created_by, updated_by
-           ) VALUES ($1, $2, $3, $4, COALESCE($5, CURRENT_DATE), $6, $7, $8, $9, 1, $10, $10)`,
-          [
-            a.tenantId, a.activePlantId || null, rec.employee_id, rec.employee_name || null,
-            rec.date || null, rec.check_in || null, rec.check_out || null,
-            rec.status, rec.shift || null, a.userId
-          ]
-        );
+        await insertRow(db, attendanceRecords as ScopedTable, a, {
+          employee_id: rec.employee_id,
+          employee_name: rec.employee_name || null,
+          date: rec.date || new Date().toISOString().slice(0, 10),
+          check_in: toDate(rec.check_in),
+          check_out: toDate(rec.check_out),
+          status: rec.status,
+          shift: rec.shift || null,
+        }, ['id'], { plantScoped: true });
         count++;
       }
       return count;

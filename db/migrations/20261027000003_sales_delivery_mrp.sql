@@ -1,3 +1,4 @@
+-- migrate:up
 -- Migration: 20261027000003_sales_delivery_mrp.sql
 -- Description: Sales order lines, delivery challans, and MRP engine runs
 
@@ -102,3 +103,6 @@ CREATE POLICY mrp_runs_tenant_isolation ON mrp_runs
     WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON mrp_runs TO erp_app;
+
+-- migrate:down
+-- shortcut: no automated rollback for this historical migration; restore from backup.

@@ -4,7 +4,16 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { masterDataGovernanceService } from '../../src/services/masterDataGovernanceService';
-import { mapDbRowToItemMaster } from '../../src/shared/utils/dtoMappers';
+
+const mapDbRowToItemMaster = (row: any) => ({
+  code: String(row.code || ''),
+  name: String(row.name || ''),
+  partWeightGrams: Number(row.part_weight_grams ?? 0),
+  runnerWeightGrams: Number(row.runner_weight_grams ?? 0),
+  shotWeightGrams: Number((Number(row.part_weight_grams ?? 0) + Number(row.runner_weight_grams ?? 0)).toFixed(2)),
+  cycleTimeSec: Number(row.cycle_time_seconds ?? 0),
+  cavityCount: Number(row.cavity_count ?? 0),
+});
 
 describe('Master Data Governance Characterization Tests', () => {
   it('preserves resin formula balance verification and linked recipe hash generation', () => {

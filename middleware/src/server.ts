@@ -1,14 +1,14 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
-import { config } from './config.js';
-import { getGlobalPool } from './db.js';
-import { closeNodeDatabase, initNodeDatabase, resolveDevSecret } from './localDb.js';
+import { config, resolveDevSecret } from './config.js';
+import { getGlobalPool, initNodeDatabase, closeNodeDatabase } from './db.js';
 import { createAuth } from './auth.js';
 import { buildApp } from './app.js';
 import { verifySchemaVersion } from './migrate.js';
 import { bootstrap } from './bootstrap.js';
 import { getJobBoss, stopJobBoss } from './jobs.js';
+import { startChangeListener } from './core/events.js';
 
 async function main() {
   config.root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -18,11 +18,13 @@ async function main() {
   console.log(`[middleware] database schema verified at migration version: ${schemaVersion}`);
   await bootstrap();
   await getJobBoss();
+  const stopListener = startChangeListener((getGlobalPool() as any).options);
 
   const app = buildApp();
   const server = serve({ fetch: app.fetch, port: config.port }, () => console.log(`[middleware] listening on :${config.port}`));
   const shutdown = async () => {
     server.close();
+    stopListener();
     await stopJobBoss();
     await closeNodeDatabase(getGlobalPool()!);
     process.exit(0);

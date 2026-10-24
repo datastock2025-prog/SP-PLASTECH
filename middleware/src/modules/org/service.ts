@@ -1,0 +1,16 @@
+export const mapPlant = (r: any) => ({
+  id: r.id,
+  code: r.code,
+  name: r.name,
+  location: r.location,
+  gstin: r.gstin,
+  contactPerson: r.contact_person ?? r.contactPerson,
+  contactPhone: r.contact_phone ?? r.contactPhone,
+  contactEmail: r.contact_email ?? r.contactEmail,
+  address: r.address,
+  isDefault: Boolean(r.is_default ?? r.isDefault),
+  isActive: r.is_active ?? r.isActive,
+  version: r.version,
+  createdAt: r.created_at ?? r.createdAt,
+  updatedAt: r.updated_at ?? r.updatedAt,
+});

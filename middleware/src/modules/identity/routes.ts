@@ -1,11 +1,13 @@
 import { z } from 'zod';
 import type { Auth } from '../../auth.js';
 import { hashPassword, verifyPassword, getSecurityPolicy, validatePasswordPolicy, invalidateSecurityPolicyCache } from '../../auth.js';
-import { eq, ne, and, sql, desc } from 'drizzle-orm';
+import { eq, ne, and, sql, desc, isNull, or, gt, ilike } from 'drizzle-orm';
 import { withTx, withDrizzleTx, schema } from '../../db.js';
 import { AppError, can, wrap, type Actor } from '../../middleware.js';
-import { generateTempPassword, insertUser, writeAudit } from '../../userStore.js';
-import { ctx, mapUser, mapPlant, loadUser, assertAssignable, replacePlants, snapshot, USER_SELECT } from '../../core/helpers.js';
+import { writeAudit } from '../../core/audit.js';
+import { ctx } from '../../core/query.js';
+import { mapPlant } from '../org/service.js';
+import { generateTempPassword, insertUser, mapUser, loadUser, assertAssignable, replacePlants, snapshot } from './service.js';
 
 const str = (max = 200) => z.string().trim().min(1).max(max);
 const optStr = (max = 200) => z.string().trim().max(max).nullable().optional().transform((v) => (v ? v : null));
@@ -15,33 +17,71 @@ export function identityRoutes(r: any, auth: Auth) {
   // ---------- current user ----------
   r.get('/me', wrap(async (req, res) => {
     const a = req.actor!;
-    const data = await withTx(ctx(a), async (c) => {
+    const data = await withDrizzleTx(ctx(a), async (tx, c) => {
       const u = mapUser(await loadUser(c, a.userId));
       // Strict Plant Scoping:
       // Only SUPER_ADMIN can view and access all plants tenant-wide.
       // All other users strictly access only the plants allocated to them in plant_user.
       const isSuperAdmin = a.roleCode === 'SUPER_ADMIN';
-      const plants = await c.query(
-        isSuperAdmin
-          ? `SELECT id, code, name, location, is_active, version FROM plants WHERE deleted_at IS NULL AND is_active ORDER BY code`
-          : `SELECT pl.id, pl.code, pl.name, pl.location, pl.is_active, pl.version FROM plants pl JOIN plant_user pu ON pu.plant_id = pl.id
-              WHERE pu.user_id = $1 AND pl.deleted_at IS NULL AND pl.is_active ORDER BY pl.code`,
-        isSuperAdmin ? [] : [a.userId],
-      );
-      return { ...u, plants: plants.rows.map(mapPlant) };
+      let plantRows;
+      if (isSuperAdmin) {
+        plantRows = await tx
+          .select({
+            id: schema.plants.id,
+            code: schema.plants.code,
+            name: schema.plants.name,
+            location: schema.plants.location,
+            isActive: schema.plants.isActive,
+            version: schema.plants.version,
+          })
+          .from(schema.plants)
+          .where(and(isNull(schema.plants.deletedAt), eq(schema.plants.isActive, true)))
+          .orderBy(schema.plants.code);
+      } else {
+        plantRows = await tx
+          .select({
+            id: schema.plants.id,
+            code: schema.plants.code,
+            name: schema.plants.name,
+            location: schema.plants.location,
+            isActive: schema.plants.isActive,
+            version: schema.plants.version,
+          })
+          .from(schema.plants)
+          .innerJoin(schema.plantUser, eq(schema.plantUser.plantId, schema.plants.id))
+          .where(and(
+            eq(schema.plantUser.userId, a.userId),
+            isNull(schema.plants.deletedAt),
+            eq(schema.plants.isActive, true),
+          ))
+          .orderBy(schema.plants.code);
+      }
+      return { ...u, plants: plantRows.map(mapPlant) };
     });
     // Plant/shift come from the provisioned assignment: auto-activate the primary (or first) assigned plant.
     let activePlantId = a.activePlantId;
     let activeShift = a.activeShift;
     const stillValid = activePlantId && data.plants.some((p: any) => p.id === activePlantId);
     if (!stillValid && data.plants.length > 0) {
-      const primary = await withTx(ctx(a), async (c) =>
-        (await c.query(`SELECT primary_plant_id, assigned_shift FROM user_profiles WHERE user_id = $1`, [a.userId])).rows[0]);
-      const pick = data.plants.find((p: any) => p.id === primary?.primary_plant_id) ?? data.plants[0];
+      const primary = await withDrizzleTx(ctx(a), async (tx) => {
+        const [prof] = await tx
+          .select({
+            primaryPlantId: schema.userProfiles.primaryPlantId,
+            assignedShift: schema.userProfiles.assignedShift,
+          })
+          .from(schema.userProfiles)
+          .where(eq(schema.userProfiles.userId, a.userId));
+        return prof;
+      });
+      const pick = data.plants.find((p: any) => p.id === primary?.primaryPlantId) ?? data.plants[0];
       activePlantId = pick.id;
-      activeShift = activeShift ?? primary?.assigned_shift ?? 'General';
-      await withTx(ctx(a), (c) => c.query(`UPDATE "session" SET active_plant_id = $1, active_shift = $2 WHERE id = $3 AND "userId" = $4`,
-        [activePlantId, activeShift, a.sessionId, a.userId]));
+      activeShift = activeShift ?? primary?.assignedShift ?? 'General';
+      await withDrizzleTx(ctx(a), (tx) =>
+        tx
+          .update(schema.session)
+          .set({ activePlantId, activeShift })
+          .where(and(eq(schema.session.id, a.sessionId), eq(schema.session.userId, a.userId)))
+      );
     }
     res.json({ data: { ...data, activePlantId, activeShift, abilityRules: a.rules } });
   }));
@@ -50,16 +90,28 @@ export function identityRoutes(r: any, auth: Auth) {
   r.post('/me/context', wrap(async (req, res) => {
     const a = req.actor!;
     const body = z.object({ plantId: z.string().uuid(), shift: str(20) }).strict().parse(req.body);
-    await withTx(ctx(a), async (c) => {
-      const p = await c.query(`SELECT id FROM plants WHERE id = $1 AND deleted_at IS NULL AND is_active`, [body.plantId]);
-      if (!p.rows[0]) throw new AppError(404, 'NOT_FOUND', 'Plant not found');
+    await withDrizzleTx(ctx(a), async (tx, c) => {
+      const [p] = await tx
+        .select({ id: schema.plants.id })
+        .from(schema.plants)
+        .where(and(
+          eq(schema.plants.id, body.plantId),
+          isNull(schema.plants.deletedAt),
+          eq(schema.plants.isActive, true),
+        ));
+      if (!p) throw new AppError(404, 'NOT_FOUND', 'Plant not found');
       const isSuperAdmin = a.roleCode === 'SUPER_ADMIN';
       if (!isSuperAdmin) {
-        const m = await c.query(`SELECT 1 FROM plant_user WHERE plant_id = $1 AND user_id = $2`, [body.plantId, a.userId]);
-        if (!m.rows[0]) throw new AppError(403, 'FORBIDDEN', 'You are not assigned to this plant');
+        const [m] = await tx
+          .select({ one: sql`1` })
+          .from(schema.plantUser)
+          .where(and(eq(schema.plantUser.plantId, body.plantId), eq(schema.plantUser.userId, a.userId)));
+        if (!m) throw new AppError(403, 'FORBIDDEN', 'You are not assigned to this plant');
       }
-      await c.query(`UPDATE "session" SET active_plant_id = $1, active_shift = $2 WHERE id = $3 AND "userId" = $4`,
-        [body.plantId, body.shift, a.sessionId, a.userId]);
+      await tx
+        .update(schema.session)
+        .set({ activePlantId: body.plantId, activeShift: body.shift })
+        .where(and(eq(schema.session.id, a.sessionId), eq(schema.session.userId, a.userId)));
       await writeAudit(c, { tenantId: a.tenantId, entityType: 'session', entityId: a.sessionId, action: 'UPDATE', performedBy: a.userId,
         newValues: { activePlantId: body.plantId, activeShift: body.shift }, ip: a.ip });
     });
@@ -120,18 +172,25 @@ export function identityRoutes(r: any, auth: Auth) {
     }
 
     await withDrizzleTx(ctx(a), async (tx, c) => {
-      const acc = await c.query(`SELECT id, password FROM "account" WHERE "userId" = $1 AND "providerId" = 'credential' FOR UPDATE`, [a.userId]);
-      if (!acc.rows[0] || !(await verifyPassword({ hash: acc.rows[0].password, password: body.currentPassword }))) {
+      const [acc] = await tx
+        .select({ id: schema.account.id, password: schema.account.password })
+        .from(schema.account)
+        .where(and(eq(schema.account.userId, a.userId), eq(schema.account.providerId, 'credential')))
+        .for('update');
+      if (!acc || !acc.password || !(await verifyPassword({ hash: acc.password, password: body.currentPassword }))) {
         throw new AppError(403, 'INVALID_CREDENTIALS', 'Current password is incorrect');
       }
 
       // Check password history limit to prevent password reuse
-      const { rows: historyRows } = await c.query(
-        `SELECT password_hash FROM user_password_history WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2`,
-        [a.userId, policy.passwordHistoryLimit || 3]
-      );
+      const historyRows = await tx
+        .select({ passwordHash: schema.userPasswordHistory.passwordHash })
+        .from(schema.userPasswordHistory)
+        .where(eq(schema.userPasswordHistory.userId, a.userId))
+        .orderBy(desc(schema.userPasswordHistory.createdAt))
+        .limit(policy.passwordHistoryLimit || 3);
+
       for (const h of historyRows) {
-        if (await verifyPassword({ hash: h.password_hash, password: body.newPassword })) {
+        if (h.passwordHash && (await verifyPassword({ hash: h.passwordHash, password: body.newPassword }))) {
           throw new AppError(422, 'PASSWORD_REUSED', `You cannot reuse any of your last ${policy.passwordHistoryLimit || 3} passwords`);
         }
       }
@@ -140,7 +199,7 @@ export function identityRoutes(r: any, auth: Auth) {
       await tx
         .update(schema.account)
         .set({ password: newHash, updatedAt: new Date() })
-        .where(eq(schema.account.id, acc.rows[0].id));
+        .where(eq(schema.account.id, acc.id));
       await tx
         .update(schema.userProfiles)
         .set({
@@ -154,11 +213,11 @@ export function identityRoutes(r: any, auth: Auth) {
         .where(and(eq(schema.session.userId, a.userId), ne(schema.session.id, a.sessionId)));
 
       // Record in user_password_history
-      await c.query(
-        `INSERT INTO user_password_history (tenant_id, user_id, password_hash, created_at)
-         VALUES ($1, $2, $3, now())`,
-        [a.tenantId, a.userId, newHash]
-      );
+      await tx.insert(schema.userPasswordHistory).values({
+        tenantId: a.tenantId,
+        userId: a.userId,
+        passwordHash: newHash,
+      });
 
       await writeAudit(c, { tenantId: a.tenantId, entityType: 'user', entityId: a.userId, action: 'UPDATE', performedBy: a.userId,
         newValues: { passwordChanged: true }, ip: a.ip });
@@ -196,7 +255,11 @@ export function identityRoutes(r: any, auth: Auth) {
       notifications: z.record(z.string().max(40), z.boolean()).optional(),
     }).strict().parse(req.body);
     const data = await withDrizzleTx(ctx(a), async (tx, c) => {
-      const old = (await c.query(`SELECT user_id, theme, density, landing_view, language, timezone, date_format, notifications, version FROM user_preferences WHERE user_id = $1 FOR UPDATE`, [a.userId])).rows[0];
+      const [old] = await tx
+        .select()
+        .from(schema.userPreferences)
+        .where(eq(schema.userPreferences.userId, a.userId))
+        .for('update');
       if (!old) throw new AppError(404, 'NOT_FOUND', 'Preferences not found');
       if (old.version !== b.version) throw new AppError(409, 'CONCURRENCY_CONFLICT', 'Preferences were changed elsewhere. Reload and retry.');
       const [up] = await tx
@@ -225,16 +288,19 @@ export function identityRoutes(r: any, auth: Auth) {
   // ---------- sessions (Protocol 1B) ----------
   r.get('/me/sessions', can('manage', 'Session'), wrap(async (req, res) => {
     const a = req.actor!;
-    const rows = await withTx(ctx(a), async (c) => {
-      const q = await c.query(
-        `SELECT id, "ipAddress", "userAgent", "createdAt", "expiresAt",
-                (id = $2) AS "isCurrent"
-           FROM "session"
-          WHERE "userId" = $1 AND "expiresAt" > now()
-          ORDER BY "createdAt" DESC`,
-        [a.userId, a.sessionId],
-      );
-      return q.rows;
+    const rows = await withDrizzleTx(ctx(a), async (tx) => {
+      return await tx
+        .select({
+          id: schema.session.id,
+          ipAddress: schema.session.ipAddress,
+          userAgent: schema.session.userAgent,
+          createdAt: schema.session.createdAt,
+          expiresAt: schema.session.expiresAt,
+          isCurrent: sql<boolean>`${schema.session.id} = ${a.sessionId}`,
+        })
+        .from(schema.session)
+        .where(and(eq(schema.session.userId, a.userId), gt(schema.session.expiresAt, sql`now()`)))
+        .orderBy(desc(schema.session.createdAt));
     }, { readOnly: true });
     res.json({ data: rows });
   }));
@@ -242,8 +308,10 @@ export function identityRoutes(r: any, auth: Auth) {
   r.delete('/me/sessions/:id', can('manage', 'Session'), wrap(async (req, res) => {
     const a = req.actor!;
     const targetId = req.params.id;
-    await withTx(ctx(a), async (c) => {
-      await c.query(`DELETE FROM "session" WHERE id = $1 AND "userId" = $2`, [targetId, a.userId]);
+    await withDrizzleTx(ctx(a), async (tx, c) => {
+      await tx
+        .delete(schema.session)
+        .where(and(eq(schema.session.id, targetId), eq(schema.session.userId, a.userId)));
       await writeAudit(c, {
         tenantId: a.tenantId, entityType: 'session', entityId: targetId, action: 'DELETE', performedBy: a.userId, ip: a.ip,
       });
@@ -253,12 +321,15 @@ export function identityRoutes(r: any, auth: Auth) {
 
   r.post('/me/sessions/revoke-others', can('manage', 'Session'), wrap(async (req, res) => {
     const a = req.actor!;
-    const count = await withTx(ctx(a), async (c) => {
-      const q = await c.query(`DELETE FROM "session" WHERE "userId" = $1 AND id != $2`, [a.userId, a.sessionId]);
+    const count = await withDrizzleTx(ctx(a), async (tx, c) => {
+      const deleted = await tx
+        .delete(schema.session)
+        .where(and(eq(schema.session.userId, a.userId), ne(schema.session.id, a.sessionId)))
+        .returning({ id: schema.session.id });
       await writeAudit(c, {
         tenantId: a.tenantId, entityType: 'session', entityId: a.sessionId, action: 'REVOKE_OTHERS', performedBy: a.userId, ip: a.ip,
       });
-      return q.rowCount || 0;
+      return deleted.length;
     });
     res.json({ data: { revokedCount: count } });
   }));
@@ -271,26 +342,41 @@ export function identityRoutes(r: any, auth: Auth) {
     const offset = (page - 1) * limit;
     const successParam = req.query.success != null ? req.query.success === 'true' : null;
 
-    const data = await withTx(ctx(a), async (c) => {
-      const countRes = await c.query(
-        `SELECT count(*)::int as total
-           FROM login_events
-          WHERE (tenant_id = $1 OR tenant_id IS NULL)
-            AND ($2::boolean IS NULL OR success = $2)`,
-        [a.tenantId, successParam],
-      );
-      const total = countRes.rows[0]?.total || 0;
-      const rowsRes = await c.query(
-        `SELECT id, tenant_id, user_id, identifier_hash, success, reason, ip, user_agent, created_at
-           FROM login_events
-          WHERE (tenant_id = $1 OR tenant_id IS NULL)
-            AND ($2::boolean IS NULL OR success = $2)
-          ORDER BY created_at DESC
-          LIMIT $3 OFFSET $4`,
-        [a.tenantId, successParam, limit, offset],
-      );
+    const data = await withDrizzleTx(ctx(a), async (tx) => {
+      const conds = [
+        or(eq(schema.loginEvents.tenantId, a.tenantId), isNull(schema.loginEvents.tenantId))!,
+      ];
+      if (successParam != null) {
+        conds.push(eq(schema.loginEvents.success, successParam));
+      }
+      const whereClause = and(...conds);
+
+      const [countRes] = await tx
+        .select({ total: sql<number>`count(*)::int` })
+        .from(schema.loginEvents)
+        .where(whereClause);
+      const total = countRes?.total || 0;
+
+      const rows = await tx
+        .select({
+          id: schema.loginEvents.id,
+          tenant_id: schema.loginEvents.tenantId,
+          user_id: schema.loginEvents.userId,
+          identifier_hash: schema.loginEvents.identifierHash,
+          success: schema.loginEvents.success,
+          reason: schema.loginEvents.reason,
+          ip: schema.loginEvents.ip,
+          user_agent: schema.loginEvents.userAgent,
+          created_at: schema.loginEvents.createdAt,
+        })
+        .from(schema.loginEvents)
+        .where(whereClause)
+        .orderBy(desc(schema.loginEvents.createdAt))
+        .limit(limit)
+        .offset(offset);
+
       return {
-        data: rowsRes.rows,
+        data: rows,
         meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
       };
     }, { readOnly: true });
@@ -322,40 +408,48 @@ export function identityRoutes(r: any, auth: Auth) {
       version: z.number().int().min(1),
     }).strict().parse(req.body);
 
-    const updated = await withTx(ctx(a), async (c) => {
-      const current = (await c.query(`SELECT id, version FROM security_policies WHERE tenant_id = $1 FOR UPDATE`, [a.tenantId])).rows[0];
+    const updated = await withDrizzleTx(ctx(a), async (tx, c) => {
+      const [current] = await tx
+        .select({ id: schema.securityPolicies.id, version: schema.securityPolicies.version })
+        .from(schema.securityPolicies)
+        .where(eq(schema.securityPolicies.tenantId, a.tenantId))
+        .for('update');
       if (!current) throw new AppError(404, 'NOT_FOUND', 'Security policy not found');
       if (current.version !== body.version) throw new AppError(409, 'CONCURRENCY_CONFLICT', 'Security policy changed elsewhere');
 
-      const setClauses: string[] = ['version = version + 1', 'updated_at = now()'];
-      const params: any[] = [a.tenantId, body.version];
-      let idx = 3;
+      const updateData: Record<string, any> = {
+        version: sql`${schema.securityPolicies.version} + 1`,
+        updatedAt: new Date(),
+      };
+      if (body.minPasswordLength != null) updateData.minPasswordLength = body.minPasswordLength;
+      if (body.requireUppercase != null) updateData.requireUppercase = body.requireUppercase;
+      if (body.requireLowercase != null) updateData.requireLowercase = body.requireLowercase;
+      if (body.requireNumbers != null) updateData.requireNumbers = body.requireNumbers;
+      if (body.requireSymbols != null) updateData.requireSymbols = body.requireSymbols;
+      if (body.passwordHistoryLimit != null) updateData.passwordHistoryLimit = body.passwordHistoryLimit;
+      if (body.lockoutThreshold != null) updateData.lockoutThreshold = body.lockoutThreshold;
+      if (body.lockoutDurationMinutes != null) updateData.lockoutDurationMinutes = body.lockoutDurationMinutes;
+      if (body.sessionMaxAgeHours != null) updateData.sessionMaxAgeHours = body.sessionMaxAgeHours;
+      if (body.idleTimeoutMinutes != null) updateData.idleTimeoutMinutes = body.idleTimeoutMinutes;
+      if (body.mfaRequiredRoles != null) updateData.mfaRequiredRoles = body.mfaRequiredRoles;
+      if (body.ipAllowlist != null) updateData.ipAllowlist = body.ipAllowlist;
 
-      if (body.minPasswordLength != null) { setClauses.push(`min_password_length = $${idx++}`); params.push(body.minPasswordLength); }
-      if (body.requireUppercase != null) { setClauses.push(`require_uppercase = $${idx++}`); params.push(body.requireUppercase); }
-      if (body.requireLowercase != null) { setClauses.push(`require_lowercase = $${idx++}`); params.push(body.requireLowercase); }
-      if (body.requireNumbers != null) { setClauses.push(`require_numbers = $${idx++}`); params.push(body.requireNumbers); }
-      if (body.requireSymbols != null) { setClauses.push(`require_symbols = $${idx++}`); params.push(body.requireSymbols); }
-      if (body.passwordHistoryLimit != null) { setClauses.push(`password_history_limit = $${idx++}`); params.push(body.passwordHistoryLimit); }
-      if (body.lockoutThreshold != null) { setClauses.push(`lockout_threshold = $${idx++}`); params.push(body.lockoutThreshold); }
-      if (body.lockoutDurationMinutes != null) { setClauses.push(`lockout_duration_minutes = $${idx++}`); params.push(body.lockoutDurationMinutes); }
-      if (body.sessionMaxAgeHours != null) { setClauses.push(`session_max_age_hours = $${idx++}`); params.push(body.sessionMaxAgeHours); }
-      if (body.idleTimeoutMinutes != null) { setClauses.push(`idle_timeout_minutes = $${idx++}`); params.push(body.idleTimeoutMinutes); }
-      if (body.mfaRequiredRoles != null) { setClauses.push(`mfa_required_roles = $${idx++}`); params.push(body.mfaRequiredRoles); }
-      if (body.ipAllowlist != null) { setClauses.push(`ip_allowlist = $${idx++}`); params.push(body.ipAllowlist); }
+      const [updatedPolicy] = await tx
+        .update(schema.securityPolicies)
+        .set(updateData)
+        .where(and(
+          eq(schema.securityPolicies.tenantId, a.tenantId),
+          eq(schema.securityPolicies.version, body.version),
+        ))
+        .returning();
 
-      const q = await c.query(
-        `UPDATE security_policies
-            SET ${setClauses.join(', ')}
-          WHERE tenant_id = $1 AND version = $2
-      RETURNING *`,
-        params,
-      );
+      if (!updatedPolicy) throw new AppError(409, 'CONCURRENCY_CONFLICT', 'Security policy changed elsewhere');
+
       await writeAudit(c, {
-        tenantId: a.tenantId, entityType: 'security_policy', entityId: q.rows[0].id, action: 'UPDATE', performedBy: a.userId,
+        tenantId: a.tenantId, entityType: 'security_policy', entityId: updatedPolicy.id, action: 'UPDATE', performedBy: a.userId,
         newValues: body, ip: a.ip,
       });
-      return q.rows[0];
+      return updatedPolicy;
     });
 
     invalidateSecurityPolicyCache();
@@ -374,15 +468,83 @@ export function identityRoutes(r: any, auth: Auth) {
       sortBy: z.enum(['full_name', 'created_at', 'last_login_at', 'status']).default('created_at'),
       sortOrder: z.enum(['asc', 'desc']).default('desc'),
     }).parse(req.query);
-    const where = ['p.deleted_at IS NULL'];
-    const params: unknown[] = [];
-    if (q.search) { params.push(`%${q.search.replace(/[\\%_]/g, '\\$&')}%`); where.push(`(p.full_name ILIKE $${params.length} OR u.email ILIKE $${params.length} OR u.username ILIKE $${params.length} OR p.badge_id ILIKE $${params.length})`); }
-    if (q.status) { params.push(q.status); where.push(`p.status = $${params.length}`); }
-    if (q.roleId) { params.push(q.roleId); where.push(`p.role_id = $${params.length}`); }
-    const clause = where.join(' AND ');
-    const out = await withTx(ctx(req.actor!), async (c) => {
-      const total = (await c.query(`SELECT count(*)::int AS n FROM user_profiles p JOIN "user" u ON u.id = p.user_id WHERE ${clause}`, params)).rows[0].n;
-      const rows = (await c.query(`${USER_SELECT} WHERE ${clause} ORDER BY p.${q.sortBy} ${q.sortOrder} NULLS LAST, u.id LIMIT ${q.limit} OFFSET ${(q.page - 1) * q.limit}`, params)).rows;
+
+    const searchPattern = q.search ? `%${q.search.replace(/[\\%_]/g, '\\$&')}%` : null;
+    const conds = [isNull(schema.userProfiles.deletedAt)];
+    if (searchPattern) {
+      conds.push(
+        or(
+          ilike(schema.userProfiles.fullName, searchPattern),
+          ilike(schema.user.email, searchPattern),
+          ilike(schema.user.username, searchPattern),
+          ilike(schema.userProfiles.badgeId, searchPattern),
+        )!
+      );
+    }
+    if (q.status) {
+      conds.push(eq(schema.userProfiles.status, q.status));
+    }
+    if (q.roleId) {
+      conds.push(eq(schema.userProfiles.roleId, q.roleId));
+    }
+    const whereClause = and(...conds);
+
+    const out = await withDrizzleTx(ctx(req.actor!), async (tx) => {
+      const [countRes] = await tx
+        .select({ total: sql<number>`count(*)::int` })
+        .from(schema.userProfiles)
+        .innerJoin(schema.user, eq(schema.user.id, schema.userProfiles.userId))
+        .where(whereClause);
+      const total = countRes?.total ?? 0;
+
+      const up = tx
+        .select({
+          userId: schema.plantUser.userId,
+          plantIds: sql<string[]>`array_agg(${schema.plantUser.plantId} ORDER BY ${schema.plantUser.plantId})`.as('plant_ids'),
+        })
+        .from(schema.plantUser)
+        .groupBy(schema.plantUser.userId)
+        .as('up');
+
+      let sortCol: any = schema.userProfiles.createdAt;
+      if (q.sortBy === 'full_name') sortCol = schema.userProfiles.fullName;
+      else if (q.sortBy === 'last_login_at') sortCol = schema.userProfiles.lastLoginAt;
+      else if (q.sortBy === 'status') sortCol = schema.userProfiles.status;
+
+      const orderExpr = q.sortOrder === 'asc' ? sql`${sortCol} ASC NULLS LAST` : sql`${sortCol} DESC NULLS LAST`;
+
+      const rows = await tx
+        .select({
+          id: schema.user.id,
+          username: schema.user.username,
+          email: schema.user.email,
+          tenant_id: schema.userProfiles.tenantId,
+          full_name: schema.userProfiles.fullName,
+          phone: schema.userProfiles.phone,
+          badge_id: schema.userProfiles.badgeId,
+          department: schema.userProfiles.department,
+          designation: schema.userProfiles.designation,
+          assigned_shift: schema.userProfiles.assignedShift,
+          status: schema.userProfiles.status,
+          must_change_password: schema.userProfiles.mustChangePassword,
+          last_login_at: schema.userProfiles.lastLoginAt,
+          version: schema.userProfiles.version,
+          created_at: schema.userProfiles.createdAt,
+          updated_at: schema.userProfiles.updatedAt,
+          role_id: schema.userProfiles.roleId,
+          role_code: schema.roles.code,
+          role_name: schema.roles.name,
+          plant_ids: sql<string[]>`COALESCE(${up.plantIds}, '{}')`,
+        })
+        .from(schema.userProfiles)
+        .innerJoin(schema.user, eq(schema.user.id, schema.userProfiles.userId))
+        .innerJoin(schema.roles, eq(schema.roles.id, schema.userProfiles.roleId))
+        .leftJoin(up, eq(up.userId, schema.userProfiles.userId))
+        .where(whereClause)
+        .orderBy(orderExpr, schema.user.id)
+        .limit(q.limit)
+        .offset((q.page - 1) * q.limit);
+
       return { total, rows };
     });
     res.json({ data: out.rows.map(mapUser), meta: { page: q.page, limit: q.limit, total: out.total, totalPages: Math.max(1, Math.ceil(out.total / q.limit)) } });
@@ -484,11 +646,11 @@ export function identityRoutes(r: any, auth: Auth) {
         .update(schema.account)
         .set({ password: tempHash, updatedAt: new Date() })
         .where(and(eq(schema.account.userId, id), eq(schema.account.providerId, 'credential')));
-      await c.query(
-        `INSERT INTO user_password_history (tenant_id, user_id, password_hash, created_at)
-         VALUES ($1, $2, $3, now())`,
-        [a.tenantId, id, tempHash]
-      );
+      await tx.insert(schema.userPasswordHistory).values({
+        tenantId: a.tenantId,
+        userId: id,
+        passwordHash: tempHash,
+      });
       await tx
         .update(schema.userProfiles)
         .set({

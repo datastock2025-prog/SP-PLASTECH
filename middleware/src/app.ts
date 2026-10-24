@@ -8,18 +8,9 @@ import { migrate } from './migrate.js';
 import { bootstrap } from './bootstrap.js';
 import { buildRouter } from './routes.js';
 import { mapErrorToResponse } from './core/errors.js';
-
-const hits = new Map<string, { n: number; reset: number }>();
-function limited(key: string, limit = 300, windowMs = 60_000) {
-  const now = Date.now();
-  const h = hits.get(key);
-  if (!h || h.reset < now) {
-    if (hits.size > 5000) hits.clear();
-    hits.set(key, { n: 1, reset: now + windowMs });
-    return false;
-  }
-  return ++h.n > limit;
-}
+import { streamSSE } from 'hono/streaming';
+import { csrfMiddleware, rateLimitMiddleware, requestLoggingMiddleware, requireSession } from './middleware/index.js';
+import { subscribe } from './core/events.js';
 
 const safeEqual = (a: string, b: string) => {
   if (a.length !== b.length) return false;
@@ -33,47 +24,7 @@ export function buildApp(_sqlText?: string) {
   const auth = createAuth();
   const app = new Hono();
 
-  app.use('*', async (c, next) => {
-    const t0 = performance.now();
-    const reqId = c.req.header('x-request-id') || crypto.randomUUID();
-    c.header('X-Request-Id', reqId);
-    await next();
-    const duration = Math.round((performance.now() - t0) * 10) / 10;
-    const existingTiming = c.res.headers.get('Server-Timing') || c.res.headers.get('server-timing');
-    const totalTiming = `total;dur=${duration}`;
-    c.header('Server-Timing', existingTiming ? `${existingTiming}, ${totalTiming}` : totalTiming);
-
-    // Structured JSON log for observability (Part A6 spec)
-    const status = c.res.status;
-    if (c.req.path.startsWith('/api/') && !c.req.path.endsWith('/health') && !c.req.path.endsWith('/ready')) {
-      const actor = (c.req as any).actor || (c as any).get?.('actor');
-      const serverTiming = c.res.headers.get('Server-Timing') || c.res.headers.get('server-timing') || '';
-      const dbMatch = serverTiming.match(/db;dur=([\d.]+)/);
-      const dbMs = dbMatch ? parseFloat(dbMatch[1]) : undefined;
-
-      const logEntry = {
-        level: status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info',
-        timestamp: new Date().toISOString(),
-        request_id: reqId,
-        tenant_id: actor?.tenantId,
-        user_id: actor?.userId,
-        plant_id: actor?.activePlantId,
-        method: c.req.method,
-        path: c.req.path,
-        status,
-        duration_ms: duration,
-        db_ms: dbMs,
-        client_ip: c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'local',
-      };
-      if (status >= 500) {
-        console.error(JSON.stringify(logEntry));
-      } else if (status >= 400) {
-        console.warn(JSON.stringify(logEntry));
-      } else {
-        console.log(JSON.stringify(logEntry));
-      }
-    }
-  });
+  app.use('*', requestLoggingMiddleware());
   app.use('*', secureHeaders());
   app.use('/api/*', etag());
   app.use('/api/*', cors({ origin: (o) => (config.trustedOrigins.includes(o) ? o : null), credentials: true }));
@@ -83,50 +34,8 @@ export function buildApp(_sqlText?: string) {
       c.header('Cache-Control', 'no-store, no-cache, must-revalidate');
     }
   });
-  app.use('/api/*', async (c, next) => {
-    const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'local';
-    if (limited(ip)) {
-      return c.json({ error: { code: 'RATE_LIMITED', message: 'Too many requests. Please slow down.' } }, 429);
-    }
-    await next();
-  });
-
-  // CSRF defence-in-depth (OWASP ASVS L2: origin/referer verification and custom header requirement).
-  const allowedOrigins = new Set([...config.trustedOrigins, config.baseURL]);
-  app.use('/api/*', async (c, next) => {
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) {
-      // Exclude setup endpoint and client-errors telemetry
-      if (c.req.path === '/api/setup' || c.req.path === '/api/v1/client-errors' || c.req.path.startsWith('/api/auth')) {
-        return next();
-      }
-
-      const origin = c.req.header('origin');
-      const referer = c.req.header('referer');
-      const requestedWith = c.req.header('x-requested-with');
-
-      if (origin) {
-        if (!allowedOrigins.has(origin)) {
-          return c.json({ error: { code: 'FORBIDDEN_ORIGIN', message: 'Cross-origin request refused' } }, 403);
-        }
-      } else if (referer) {
-        try {
-          const refOrigin = new URL(referer).origin;
-          if (!allowedOrigins.has(refOrigin)) {
-            return c.json({ error: { code: 'FORBIDDEN_REFERER', message: 'Cross-origin referer refused' } }, 403);
-          }
-        } catch {
-          return c.json({ error: { code: 'FORBIDDEN_REFERER', message: 'Invalid referer header' } }, 403);
-        }
-      } else {
-        // When neither Origin nor Referer is present (e.g. form posts or forged cross-origin contexts),
-        // require custom X-Requested-With or Authorization header to prevent browser state change.
-        if (requestedWith !== 'XMLHttpRequest' && !c.req.header('authorization')) {
-          return c.json({ error: { code: 'CSRF_PROTECTION', message: 'State-changing requests must include Origin, Referer, or X-Requested-With' } }, 403);
-        }
-      }
-    }
-    await next();
-  });
+  app.use('/api/*', rateLimitMiddleware());
+  app.use('/api/*', csrfMiddleware());
 
   app.onError((err, c) => {
     const reqId = c.res.headers.get('X-Request-Id') || c.req.header('x-request-id') || crypto.randomUUID();
@@ -156,8 +65,9 @@ export function buildApp(_sqlText?: string) {
   app.get('/api/health', async (c) => {
     const t0 = performance.now();
     try {
-      const { pool } = await import('./db.js');
-      await pool.query('SELECT 1');
+      const { getDrizzle } = await import('./db.js');
+      const { sql } = await import('drizzle-orm');
+      await getDrizzle().select({ one: sql`1` }).from(sql`(VALUES (1))`);
       const dur = Math.round((performance.now() - t0) * 10) / 10;
       c.header('Server-Timing', `db;dur=${dur};desc="queries=1"`);
       return c.json({ data: { status: 'ok' } });
@@ -170,8 +80,9 @@ export function buildApp(_sqlText?: string) {
   const readinessCheck = async (c: any) => {
     const t0 = performance.now();
     try {
-      const { pool } = await import('./db.js');
-      await pool.query('SELECT 1');
+      const { getDrizzle } = await import('./db.js');
+      const { sql } = await import('drizzle-orm');
+      await getDrizzle().select({ one: sql`1` }).from(sql`(VALUES (1))`);
       const dur = Math.round((performance.now() - t0) * 10) / 10;
       c.header('Server-Timing', `db;dur=${dur};desc="queries=1"`);
       return c.json({ data: { status: 'ready', db: 'connected' } });
@@ -231,6 +142,25 @@ export function buildApp(_sqlText?: string) {
 
   // HTTP 304 ETag Cache Validation Middleware (Enterprise Checklist Item 2.1)
   app.use('/api/v1/*', etag());
+
+  // Realtime change feed (G3). Lives outside buildRouter because the custom router buffers whole responses.
+  app.get('/api/v1/events', async (c) => {
+    const req: any = { headers: c.req.raw.headers, ip: null };
+    await new Promise<void>((resolve, reject) => requireSession(auth)(req, null as any, (e) => (e ? reject(e) : resolve())));
+    const tenantId: string = req.actor.tenantId;
+    c.header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    c.header('X-Accel-Buffering', 'no');
+    c.header('ETag', 'W/"sse"'); // hono etag() skips hashing (and so buffering) when ETag is already set
+    return streamSSE(c, async (stream) => {
+      const off = subscribe(tenantId, (e) => { void stream.writeSSE({ event: 'change', data: JSON.stringify({ table: e.table, id: e.id, op: e.op }) }); });
+      stream.onAbort(off);
+      while (!stream.aborted) {
+        await stream.writeSSE({ event: 'ping', data: '' });
+        await stream.sleep(25_000);
+      }
+      off();
+    });
+  });
 
   app.route('/api/v1', buildRouter(auth));
 

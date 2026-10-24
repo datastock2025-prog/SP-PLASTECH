@@ -6,6 +6,7 @@ export const suppliers = pgTable('suppliers', {
   code: text('code').notNull(),
   name: text('name').notNull(),
   type: text('type').default('Raw Material'),
+  category: text('category'),
   rating: numeric('rating', { precision: 2, scale: 1 }).default('4.0'),
   status: text('status').default('active'),
   contacts: jsonb('contacts').default([]),

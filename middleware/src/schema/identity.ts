@@ -10,6 +10,7 @@ export const user = pgTable('user', {
   createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updatedAt', { mode: 'date' }).notNull().defaultNow(),
   username: text('username').unique(),
+  displayUsername: text('displayUsername'),
   lockedUntil: timestamp('locked_until', { withTimezone: true, mode: 'date' }),
 });
 

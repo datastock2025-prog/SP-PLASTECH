@@ -1,7 +1,10 @@
 import { z } from 'zod';
-import { registerResourceRoutes } from '../../crud.js';
-import { withTx } from '../../db.js';
-import { AppError, can, wrap, type Actor } from '../../middleware.js';
+import { registerResourceRoutes } from '../../core/resource.js';
+import { sql } from 'drizzle-orm';
+import { withDrizzleTx } from '../../db.js';
+import { patchRow, type ScopedTable } from '../../core/query.js';
+import { breakdownTickets } from '../../schema/erp.js';
+import { can, wrap, type Actor } from '../../middleware.js';
 import type { Req, Res } from '../../router.js';
 import * as zod from '../../schema/zod.js';
 
@@ -55,20 +58,24 @@ export function maintenanceRoutes(r: any) {
         action_taken: z.string().trim().optional(),
       }).parse(req.body);
 
-      const row = await withTx({ tenantId: a.tenantId, userId: a.userId }, async (c) => {
-        const { rows } = await c.query(
-          `UPDATE breakdown_tickets 
-           SET status = 'CLOSED', 
-               end_downtime = COALESCE(end_downtime, now()),
-               action_taken = COALESCE($1, action_taken), 
-               updated_at = now(), 
-               version = version + 1 
-           WHERE (id::text = $2 OR ticket_number = $2) AND tenant_id = $3 
-           RETURNING *`,
-          [body.action_taken || null, id, a.tenantId]
+      const patchData: Record<string, unknown> = {
+        status: 'CLOSED',
+        end_downtime: sql`COALESCE(${breakdownTickets.endDowntime}, now())`,
+      };
+      if (body.action_taken !== undefined) {
+        patchData.action_taken = body.action_taken;
+      }
+
+      const row = await withDrizzleTx({ tenantId: a.tenantId, userId: a.userId }, async (db) => {
+        return patchRow(
+          db,
+          breakdownTickets as ScopedTable,
+          a,
+          id,
+          patchData,
+          undefined,
+          { naturalKey: 'ticket_number' }
         );
-        if (!rows.length) throw new AppError(404, 'NOT_FOUND', 'Breakdown ticket not found');
-        return rows[0];
       });
 
       res.json({ data: row });

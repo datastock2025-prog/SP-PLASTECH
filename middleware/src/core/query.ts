@@ -15,7 +15,7 @@ import { z } from 'zod';
 import { AppError } from './errors.js';
 import { decodeCursor, encodeCursor } from './pagination.js';
 import { idempotencyKeys } from '../schema/erp.js';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 type Db = NodePgDatabase<any>;
 type Row = Record<string, any>;
@@ -279,9 +279,15 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Row identifier condition: UUID → id, otherwise the table's natural key column (e.g. `inspection_no`). */
 export function idCondition(table: ScopedTable, idOrKey: string, naturalKey?: string): SQL {
-  if (UUID.test(idOrKey)) return eq(table.id, idOrKey);
-  if (!naturalKey) return sql`false`;
-  return eq(requireColumn(table, naturalKey), idOrKey);
+  const byId = UUID.test(idOrKey) || isTextId(table) ? eq(table.id, idOrKey) : undefined;
+  const byKey = naturalKey ? eq(requireColumn(table, naturalKey), idOrKey) : undefined;
+  if (byId && byKey && !UUID.test(idOrKey)) return or(byId, byKey)!;
+  return byId ?? byKey ?? sql`false`;
+}
+
+/** Several core tables (items-era schema) keep a text primary key; legacy crud.ts matched id::text. */
+function isTextId(table: PgTable): boolean {
+  return columnMaps(table).byDb.get('id')?.columnType === 'PgText';
 }
 
 export interface RowScope {
@@ -319,6 +325,15 @@ export function toValues(table: PgTable, data: Record<string, unknown>): Row {
   return out;
 }
 
+/** created_by / updated_by exist on most, not all, tables (e.g. notifications): stamp only what is there. */
+function actorStamp(table: PgTable, actor: ScopeActor, creating: boolean): Row {
+  const { propByDb } = columnMaps(table);
+  const out: Row = {};
+  if (creating && propByDb.has('created_by')) out.createdBy = actor.userId;
+  if (propByDb.has('updated_by')) out.updatedBy = actor.userId;
+  return out;
+}
+
 export async function insertRow(
   db: Db, table: ScopedTable, actor: ScopeActor, data: Record<string, unknown>, columns: string[],
   opts: { plantScoped?: boolean } = {},
@@ -328,9 +343,12 @@ export async function insertRow(
   if (opts.plantScoped && hasPlant && !values.plantId) {
     values.plantId = actor.activePlantId ?? actor.plantIds?.[0] ?? undefined;
   }
+  const textId = isTextId(table);
+  if (typeof data.id === 'string' && data.id.trim() && (UUID.test(data.id) || textId)) values.id = data.id.trim();
+  else if (textId) values.id = randomUUID(); // text PKs have no DB default
   const [row] = (await db
     .insert(table)
-    .values({ ...values, tenantId: actor.tenantId, createdBy: actor.userId, updatedBy: actor.userId, version: 1 } as any)
+    .values({ ...values, tenantId: actor.tenantId, ...actorStamp(table, actor, true), version: 1 } as any)
     .returning(snakeSelect(table, columns))) as Row[];
   return row;
 }
@@ -346,7 +364,7 @@ export async function updateRow(
   const where = rowWhere(table, actor, idOrKey, s);
   const [row] = (await db
     .update(table)
-    .set({ ...toValues(table, data), updatedBy: actor.userId, updatedAt: new Date(), version: sql`${table.version} + 1` } as any)
+    .set({ ...toValues(table, data), ...actorStamp(table, actor, false), updatedAt: new Date(), version: sql`${table.version} + 1` } as any)
     .where(and(where, eq(table.version, version)))
     .returning(snakeSelect(table, columns))) as Row[];
   if (row) return row;
@@ -356,10 +374,33 @@ export async function updateRow(
   throw new AppError(409, 'CONCURRENCY_CONFLICT', 'Record was modified elsewhere. Reload and retry.');
 }
 
+/** Action / status-transition update: no caller OCC version required. Version is incremented atomically. */
+export async function patchRow(
+  db: Db, table: ScopedTable, actor: ScopeActor, idOrKey: string,
+  data: Record<string, unknown>, columns?: string[], s: RowScope = {},
+) {
+  const where = rowWhere(table, actor, idOrKey, s);
+  const setObj: Row = {
+    ...toValues(table, data),
+    ...actorStamp(table, actor, false),
+  };
+  const { propByDb } = columnMaps(table);
+  if (propByDb.has('updated_at')) setObj.updatedAt = new Date();
+  if (propByDb.has('version')) setObj.version = sql`${table.version} + 1`;
+
+  const [row] = (await db
+    .update(table)
+    .set(setObj as any)
+    .where(where)
+    .returning(snakeSelect(table, columns))) as Row[];
+  if (!row) throw new AppError(404, 'NOT_FOUND', 'Record not found');
+  return row;
+}
+
 export async function softDelete(db: Db, table: ScopedTable, actor: ScopeActor, idOrKey: string, s: RowScope = {}) {
   const res = await db
     .update(table)
-    .set({ deletedAt: new Date(), updatedBy: actor.userId, version: sql`${table.version} + 1` } as any)
+    .set({ deletedAt: new Date(), ...actorStamp(table, actor, false), version: sql`${table.version} + 1` } as any)
     .where(rowWhere(table, actor, idOrKey, s))
     .returning({ id: table.id });
   if (!res.length) throw new AppError(404, 'NOT_FOUND', 'Record not found');
@@ -402,3 +443,5 @@ export async function withIdempotency<T>(
     });
   return { replay: false, data };
 }
+
+export const ctx = (a: { tenantId: string; userId: string }) => ({ tenantId: a.tenantId, userId: a.userId });

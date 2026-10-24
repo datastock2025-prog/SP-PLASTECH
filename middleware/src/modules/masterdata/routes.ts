@@ -1,6 +1,6 @@
 import { withDrizzleTx } from '../../db.js';
 import { can, wrap, type Actor } from '../../middleware.js';
-import { ctx } from '../../core/helpers.js';
+import { ctx } from '../../core/query.js';
 import { itemRepository } from './items.repository.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

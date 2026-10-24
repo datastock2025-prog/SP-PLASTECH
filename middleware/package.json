@@ -30,12 +30,16 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
+    "test:resource": "tsx src/core/resource.test.ts",
+    "test:events": "tsx src/core/events.test.ts",
     "test:items": "tsx src/modules/masterdata/items.pglite.test.ts",
     "test:contract": "tsx src/modules/masterdata/items.contract.test.ts",
     "test:schemas": "tsx src/contracts/items.test.ts",
     "typecheck": "tsc --noEmit",
     "gen:sql": "node scripts/gen-sql.mjs",
     "db:generate": "drizzle-kit generate",
+    "check:schema": "tsx scripts/check-schema-drift.ts",
+    "e2e:live": "tsx scripts/e2e-live.ts",
     "db:studio": "drizzle-kit studio",
     "preview:cloudflare": "wrangler dev --config wrangler.jsonc",
     "deploy:cloudflare": "wrangler deploy --config wrangler.jsonc"

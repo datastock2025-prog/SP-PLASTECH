@@ -59,6 +59,10 @@ const TABLE_QUERY_MAP: Record<string, { queryKeys: readonly (readonly unknown[])
     queryKeys: [queryKeys.quality.all, ['quality_coas']],
     eventName: 'QUALITY_COAS_SYNCED',
   },
+  qc_inspections: {
+    queryKeys: [queryKeys.quality.all, queryKeys.dashboard.all, ['qc_inspections']],
+    eventName: 'QUALITY_NCRS_SYNCED',
+  },
 };
 
 export function broadcastLocalMutation(domain: string, eventType: string, data: any) {
@@ -73,8 +77,19 @@ export function broadcastLocalMutation(domain: string, eventType: string, data: 
   }
 }
 
+// Server-sent change feed (GET /events, fed by the erp_notify trigger). EventSource reconnects on its own;
+// every change, from any tab or user in the tenant, invalidates the matching TanStack caches.
 export function initializeRealtime(): () => void {
-  return () => {};
+  if (typeof EventSource === 'undefined') return () => {};
+  const base = (import.meta as any).env?.VITE_API_BASE_URL || '/api/v1';
+  const es = new EventSource(`${base}/events`, { withCredentials: true });
+  es.addEventListener('change', (ev) => {
+    try {
+      const { table, id, op } = JSON.parse((ev as MessageEvent).data);
+      broadcastLocalMutation(table, op, { id });
+    } catch {}
+  });
+  return () => es.close();
 }
 
 export const initializerealtimeService = initializeRealtime;

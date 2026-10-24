@@ -147,3 +147,61 @@ export async function withDrizzleTx<T>(
   }, options);
 }
 
+let globalDrizzle: NodePgDatabase<typeof schema> | undefined;
+
+export const getDrizzle = (): NodePgDatabase<typeof schema> => {
+  if (!globalDrizzle) {
+    globalDrizzle = drizzle(pool, { schema });
+  }
+  return globalDrizzle;
+};
+
+let stopEmbedded: (() => Promise<void>) | null = null;
+
+export async function initNodeDatabase(): Promise<void> {
+  let connectionString: string | undefined = config.databaseUrl || undefined;
+  let embeddedConn: pg.PoolConfig | undefined;
+
+  if (!connectionString) {
+    if (config.isProd) throw new Error('AUTH_DATABASE_URL is required in production');
+    const { default: EmbeddedPostgres } = await import('embedded-postgres');
+    const { existsSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const dataDir = resolve(config.root, '.pgdata');
+    const initialised = existsSync(resolve(dataDir, 'PG_VERSION'));
+    const server = new EmbeddedPostgres({
+      databaseDir: dataDir,
+      user: 'postgres',
+      password: 'postgres',
+      port: config.embeddedPgPort,
+      persistent: true,
+      onLog: (m: unknown) => { if (process.env.PG_DEBUG) console.log('[pg]', String(m)); },
+      onError: (e: unknown) => console.error('[pg]', e),
+    });
+    if (!initialised) await server.initialise();
+    await server.start();
+    stopEmbedded = () => server.stop();
+    const admin = new pg.Client({
+      host: 'localhost',
+      port: config.embeddedPgPort,
+      user: 'postgres',
+      password: 'postgres',
+      database: 'postgres',
+    });
+    await admin.connect();
+    const exists = await admin.query(`SELECT 1 FROM pg_database WHERE datname = 'reboot_auth'`);
+    if (exists.rowCount === 0) await admin.query('CREATE DATABASE reboot_auth');
+    await admin.end();
+    embeddedConn = { host: 'localhost', port: config.embeddedPgPort, user: 'postgres', password: 'postgres', database: 'reboot_auth' };
+  }
+
+  const p = new pg.Pool({ ...(embeddedConn ?? { connectionString }), max: 10 });
+  await p.query('SELECT 1');
+  setGlobalPool(p);
+}
+
+export async function closeNodeDatabase(pool: pg.Pool): Promise<void> {
+  await pool.end();
+  await stopEmbedded?.();
+}
+

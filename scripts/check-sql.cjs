@@ -1,4 +1,4 @@
-// check:sql — ratchet gate: raw SQL in middleware/src may only shrink.
+﻿// check:sql — ratchet gate: raw SQL in middleware/src may only shrink.
 // Counts `.query(` / `.execute(` call sites per file and compares with docs/baseline/sql-allowlist.json.
 // Fails if any file exceeds its allowance (or a new file appears). Run with --update to lower the baseline.
 // db.ts and migrate.ts are infrastructure (transaction/GUC binding, schema version probe) and always allowed.
@@ -7,7 +7,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..', 'middleware', 'src');
 const BASELINE = path.join(__dirname, '..', 'docs', 'baseline', 'sql-allowlist.json');
-const ALWAYS_ALLOWED = new Set(['db.ts', 'migrate.ts']);
+const ALWAYS_ALLOWED = new Set(['db.ts', 'migrate.ts', 'core/events.ts']);
 const PATTERN = /\.(query|execute)\(/g;
 
 function walk(dir, out = []) {

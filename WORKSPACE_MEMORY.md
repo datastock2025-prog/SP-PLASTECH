@@ -33,7 +33,7 @@
     - `<EntityTable<T> />` (`src/shared/components/EntityTable.tsx`) — Generic paginated, searchable, sortable data table with multi-select and action slots.
     - `<EntityDrawer<T> />` (`src/shared/components/EntityDrawer.tsx`) — Standardized edit/view slideover drawer with tab navigation, dirty-state detection, and action buttons.
     - `<AuditHistoryDrawer />` (`src/shared/components/AuditHistoryDrawer.tsx`) — Shared audit log and change governance viewer with visual timeline stream and field diff tracking.
-12. **Centralized DTO Mappers**: ALWAYS use centralized transformers in `src/shared/utils/dtoMappers.ts` (`mapDbRowToItemMaster`, `mapDbRowToBom`, `mapDbRowToWorkOrder`, `mapDbRowToSalesOrder`, `mapDbRowToPurchaseOrder`, `mapDbRowToMachine`, `mapDbRowToCustomer`) to enforce strict type coercion across database rows.
+12. **Pure Two-Layer Reference Model (Zero DTO Mappers)**: Database schema types flow directly to frontend via typed REST response envelopes. TanStack Query hooks consume typed JSON directly; zero legacy hand-written DTO mapper functions.
 
 ---
 

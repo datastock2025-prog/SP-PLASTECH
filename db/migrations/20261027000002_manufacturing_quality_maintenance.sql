@@ -1,3 +1,4 @@
+-- migrate:up
 -- Migration: 20261027000002_manufacturing_quality_maintenance.sql
 -- Description: Manufacturing production entries, downtime logs, QC inspections, PM schedules, and breakdown tickets
 
@@ -168,3 +169,6 @@ CREATE POLICY breakdown_tickets_tenant_isolation ON breakdown_tickets
     WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON breakdown_tickets TO erp_app;
+
+-- migrate:down
+-- shortcut: no automated rollback for this historical migration; restore from backup.

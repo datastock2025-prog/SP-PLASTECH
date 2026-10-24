@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import { eq, and, isNull, asc, sql } from 'drizzle-orm';
-import { withTx, withDrizzleTx, schema } from '../../db.js';
+import { withDrizzleTx, schema } from '../../db.js';
 import { AppError, can, wrap, type Actor } from '../../middleware.js';
-import { writeAudit } from '../../userStore.js';
-import { ctx, mapPlant } from '../../core/helpers.js';
+import { writeAudit } from '../../core/audit.js';
+import { ctx } from '../../core/query.js';
+import { mapPlant } from './service.js';
 import { ERP_MODULES, ERP_SUBJECT_CATALOG, ERP_ACTIONS, STANDARD_SOD_RULES } from '../../contracts/permissions.js';
 
 const str = (max = 200) => z.string().trim().min(1).max(max);
@@ -70,7 +71,17 @@ export function orgRoutes(r: any) {
     }).strict().parse(req.body);
 
     const updated = await withDrizzleTx(ctx(a), async (tx, c) => {
-      const existing = (await c.query(`SELECT id, code, is_system, version, permissions FROM roles WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`, [id])).rows[0];
+      const [existing] = await tx
+        .select({
+          id: schema.roles.id,
+          code: schema.roles.code,
+          is_system: schema.roles.isSystem,
+          version: schema.roles.version,
+          permissions: schema.roles.permissions,
+        })
+        .from(schema.roles)
+        .where(and(eq(schema.roles.id, id), isNull(schema.roles.deletedAt)))
+        .for('update');
       if (!existing) throw new AppError(404, 'NOT_FOUND', 'Role not found');
       if (existing.is_system && existing.code === 'SUPER_ADMIN') {
         throw new AppError(403, 'FORBIDDEN', 'Super Administrator permissions are immutable.');
@@ -204,7 +215,11 @@ export function orgRoutes(r: any) {
     }).strict().parse(req.body);
 
     const updated = await withDrizzleTx(ctx(a), async (tx, c) => {
-      const existing = (await c.query(`SELECT id, tenant_id, code, name, description, is_active, created_at, updated_at, deleted_at FROM user_groups WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`, [id])).rows[0];
+      const [existing] = await tx
+        .select()
+        .from(schema.userGroups)
+        .where(and(eq(schema.userGroups.id, id), isNull(schema.userGroups.deletedAt)))
+        .for('update');
       if (!existing) throw new AppError(404, 'NOT_FOUND', 'User group not found');
 
       const [row] = await tx
@@ -236,7 +251,11 @@ export function orgRoutes(r: any) {
     const a = req.actor!;
     const id = z.string().uuid().parse(req.params.id);
     await withDrizzleTx(ctx(a), async (tx, c) => {
-      const existing = (await c.query(`SELECT id, tenant_id, code, name, description, is_active, created_at, updated_at, deleted_at FROM user_groups WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`, [id])).rows[0];
+      const [existing] = await tx
+        .select()
+        .from(schema.userGroups)
+        .where(and(eq(schema.userGroups.id, id), isNull(schema.userGroups.deletedAt)))
+        .for('update');
       if (!existing) throw new AppError(404, 'NOT_FOUND', 'User group not found');
 
       await tx
@@ -272,30 +291,46 @@ export function orgRoutes(r: any) {
   }));
 
   r.get('/sod-violations', can('read', 'SoDRule'), wrap(async (req, res) => {
-    const violations = await withDrizzleTx(ctx(req.actor!), async (_tx, c) => {
-      const usersRes = await c.query(`
-        SELECT u.id, u.username, p.full_name, r.id as role_id, r.code as role_code, r.permissions
-          FROM user_profiles p
-          JOIN "user" u ON u.id = p.user_id
-          JOIN roles r ON r.id = p.role_id
-         WHERE p.deleted_at IS NULL
-      `);
-      const rulesRes = await c.query(`SELECT rule_code, name, risk_level, conflicting_actions FROM sod_rules WHERE is_active = true`);
-      const activeRules = rulesRes.rows;
+    const violations = await withDrizzleTx(ctx(req.actor!), async (tx) => {
+      const usersRows = await tx
+        .select({
+          id: schema.user.id,
+          username: schema.user.username,
+          full_name: schema.userProfiles.fullName,
+          role_id: schema.roles.id,
+          role_code: schema.roles.code,
+          permissions: schema.roles.permissions,
+        })
+        .from(schema.userProfiles)
+        .innerJoin(schema.user, eq(schema.user.id, schema.userProfiles.userId))
+        .innerJoin(schema.roles, eq(schema.roles.id, schema.userProfiles.roleId))
+        .where(isNull(schema.userProfiles.deletedAt));
+
+      const activeRules = await tx
+        .select({
+          rule_code: schema.sodRules.ruleCode,
+          name: schema.sodRules.name,
+          risk_level: schema.sodRules.riskLevel,
+          conflicting_actions: schema.sodRules.conflictingActions,
+        })
+        .from(schema.sodRules)
+        .where(eq(schema.sodRules.isActive, true));
+
       const detected: Array<{ userId: string; username: string; fullName: string; ruleCode: string; ruleName: string; riskLevel: string; details: string }> = [];
 
-      for (const user of usersRes.rows) {
-        const perms: Array<{ action: string; subject: string }> = Array.isArray(user.permissions) ? user.permissions : [];
+      for (const user of usersRows) {
+        const perms: Array<{ action: string; subject: string }> = Array.isArray(user.permissions) ? (user.permissions as any[]) : [];
         for (const rule of activeRules) {
-          const c1 = rule.conflicting_actions?.first;
-          const c2 = rule.conflicting_actions?.second;
+          const conflicting = rule.conflicting_actions as any;
+          const c1 = conflicting?.first;
+          const c2 = conflicting?.second;
           if (!c1 || !c2) continue;
           const has1 = perms.some((p) => (p.action === 'manage' || p.action === c1.action) && (p.subject === 'all' || p.subject === c1.subject));
           const has2 = perms.some((p) => (p.action === 'manage' || p.action === c2.action) && (p.subject === 'all' || p.subject === c2.subject));
           if (has1 && has2 && user.role_code !== 'SUPER_ADMIN') {
             detected.push({
               userId: user.id,
-              username: user.username,
+              username: user.username || '',
               fullName: user.full_name,
               ruleCode: rule.rule_code,
               ruleName: rule.name,
@@ -341,9 +376,12 @@ export function orgRoutes(r: any) {
   r.get('/plants/:id', can('read', 'Plant'), wrap(async (req, res) => {
     const a = req.actor!;
     const id = z.string().uuid().parse(req.params.id);
-    const row = await withDrizzleTx(ctx(a), async (tx, c) => {
-      const rows = (await c.query(`SELECT id, code, name, location, gstin, contact_person, contact_phone, contact_email, address, is_default, is_active, version, created_at, updated_at FROM plants WHERE id = $1 AND deleted_at IS NULL`, [id])).rows;
-      return rows[0] || null;
+    const row = await withDrizzleTx(ctx(a), async (tx) => {
+      const [found] = await tx
+        .select()
+        .from(schema.plants)
+        .where(and(eq(schema.plants.id, id), isNull(schema.plants.deletedAt)));
+      return found || null;
     });
     if (!row) throw new AppError(404, 'NOT_FOUND', 'Plant not found');
     res.json({ data: mapPlant(row) });
@@ -357,12 +395,16 @@ export function orgRoutes(r: any) {
     const idempotencyKey = typeof headerKey === 'string' ? headerKey.trim() : '';
 
     if (idempotencyKey) {
-      const cached = await withTx({ tenantId: a.tenantId, userId: a.userId }, async (c) => {
-        const { rows } = await c.query(
-          `SELECT response FROM idempotency_keys WHERE tenant_id = $1 AND key = $2`,
-          [a.tenantId, idempotencyKey]
-        );
-        return rows[0] || null;
+      const [cached] = await withDrizzleTx({ tenantId: a.tenantId, userId: a.userId }, async (tx) => {
+        return tx
+          .select({ response: schema.idempotencyKeys.response })
+          .from(schema.idempotencyKeys)
+          .where(
+            and(
+              eq(schema.idempotencyKeys.tenantId, a.tenantId),
+              eq(schema.idempotencyKeys.key, idempotencyKey)
+            )
+          );
       }, { readOnly: true });
 
       if (cached) {
@@ -404,11 +446,16 @@ export function orgRoutes(r: any) {
 
     const payload = { data: mapPlant(row) };
     if (idempotencyKey) {
-      await withTx({ tenantId: a.tenantId, userId: a.userId }, async (c) => {
-        await c.query(
-          `INSERT INTO idempotency_keys (tenant_id, key, request_hash, response) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
-          [a.tenantId, idempotencyKey, '', JSON.stringify(payload)]
-        );
+      await withDrizzleTx({ tenantId: a.tenantId, userId: a.userId }, async (tx) => {
+        await tx
+          .insert(schema.idempotencyKeys)
+          .values({
+            tenantId: a.tenantId,
+            key: idempotencyKey,
+            requestHash: '',
+            response: payload,
+          })
+          .onConflictDoNothing();
       });
     }
 
@@ -431,7 +478,11 @@ export function orgRoutes(r: any) {
       isDefault: z.boolean().optional(),
     }).strict().parse(req.body);
     const row = await withDrizzleTx(ctx(a), async (tx, c) => {
-      const old = (await c.query(`SELECT id, code, name, location, gstin, contact_person, contact_phone, contact_email, address, is_default, is_active, version FROM plants WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`, [id])).rows[0];
+      const [old] = await tx
+        .select()
+        .from(schema.plants)
+        .where(and(eq(schema.plants.id, id), isNull(schema.plants.deletedAt)))
+        .for('update');
       if (!old) throw new AppError(404, 'NOT_FOUND', 'Plant not found');
       if (old.version !== b.version) throw new AppError(409, 'CONCURRENCY_CONFLICT', 'Plant was modified by someone else. Reload and retry.');
       const updateData: any = {
@@ -467,11 +518,23 @@ export function orgRoutes(r: any) {
     const a = req.actor!;
     const id = z.string().uuid().parse(req.params.id);
     await withDrizzleTx(ctx(a), async (tx, c) => {
-      const old = (await c.query(`SELECT id, code, name, location, is_active, version FROM plants WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`, [id])).rows[0];
+      const [old] = await tx
+        .select()
+        .from(schema.plants)
+        .where(and(eq(schema.plants.id, id), isNull(schema.plants.deletedAt)))
+        .for('update');
       if (!old) throw new AppError(404, 'NOT_FOUND', 'Plant not found');
-      const n = (await c.query(
-        `SELECT count(*)::int AS n FROM plant_user pu JOIN user_profiles p ON p.user_id = pu.user_id
-          WHERE pu.plant_id = $1 AND p.deleted_at IS NULL`, [id])).rows[0].n;
+      const [userCountRow] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(schema.plantUser)
+        .innerJoin(schema.userProfiles, eq(schema.userProfiles.userId, schema.plantUser.userId))
+        .where(
+          and(
+            eq(schema.plantUser.plantId, id),
+            isNull(schema.userProfiles.deletedAt)
+          )
+        );
+      const n = userCountRow?.n || 0;
       if (n > 0) throw new AppError(409, 'PLANT_IN_USE', `${n} user(s) are assigned to this plant. Reassign them first.`);
       await tx
         .update(schema.plants)
@@ -532,7 +595,11 @@ export function orgRoutes(r: any) {
     }).strict().parse(req.body);
 
     const updated = await withDrizzleTx(ctx(a), async (tx, c) => {
-      const existing = (await c.query(`SELECT id, tenant_id, company_name, legal_name, cin, pan, gstin, currency, fiscal_year_start, registered_address, version, created_at, updated_at FROM company_settings WHERE tenant_id = $1 FOR UPDATE`, [a.tenantId])).rows[0];
+      const [existing] = await tx
+        .select()
+        .from(schema.companySettings)
+        .where(eq(schema.companySettings.tenantId, a.tenantId))
+        .for('update');
       if (!existing) throw new AppError(404, 'NOT_FOUND', 'Company settings not found');
       if (existing.version !== b.version) {
         throw new AppError(409, 'CONCURRENCY_CONFLICT', 'Company settings modified by another user. Reload and retry.');
@@ -662,12 +729,13 @@ export function orgRoutes(r: any) {
       plantId: z.string().uuid().optional().nullable(),
     }).parse(req.body);
 
-    const docNumber = await withDrizzleTx(ctx(a), async (_tx, c) => {
-      const resVal = await c.query(
-        `SELECT public.next_doc_number($1::uuid, $2::text, $3::uuid) AS doc_number`,
-        [a.tenantId, b.seriesCode, b.plantId || null]
-      );
-      return resVal.rows[0]?.doc_number;
+    const docNumber = await withDrizzleTx(ctx(a), async (tx) => {
+      const [resVal] = await tx
+        .select({
+          doc_number: sql<string>`public.next_doc_number(${a.tenantId}::uuid, ${b.seriesCode}::text, ${b.plantId || null}::uuid)`,
+        })
+        .from(sql`(VALUES (1))`);
+      return resVal?.doc_number;
     });
 
     res.json({ data: { docNumber, seriesCode: b.seriesCode } });

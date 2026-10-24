@@ -1,9 +1,10 @@
 import { z } from 'zod';
-import { eq, and, isNull, desc, asc, sql } from 'drizzle-orm';
+import { eq, and, isNull, desc, asc, gt, sql } from 'drizzle-orm';
 import { withDrizzleTx, schema } from '../../db.js';
 import { AppError, can, wrap, type Actor } from '../../middleware.js';
-import { writeAudit } from '../../userStore.js';
-import { ctx } from '../../core/helpers.js';
+import { writeAudit } from '../../core/audit.js';
+import { ctx } from '../../core/query.js';
+import { idCondition, snakeSelect, type ScopedTable } from '../../core/query.js';
 
 const str = (max = 200) => z.string().trim().min(1).max(max);
 const optStr = (max = 200) => z.string().trim().max(max).nullable().optional().transform((v) => (v ? v : null));
@@ -92,26 +93,28 @@ export function approvalsRoutes(r: any) {
     const a = req.actor!;
     const status = req.query.status ? String(req.query.status) : undefined;
     const entityType = req.query.entityType ? String(req.query.entityType) : undefined;
-    const requests = await withDrizzleTx(ctx(a), async (_tx, c) => {
-      const where = ['r.tenant_id = $1', 'r.deleted_at IS NULL'];
-      const params: any[] = [a.tenantId];
-      if (status) {
-        params.push(status);
-        where.push(`r.status = $${params.length}`);
-      }
-      if (entityType) {
-        params.push(entityType);
-        where.push(`r.entity_type = $${params.length}`);
-      }
-      const query = `
-        SELECT r.*, w.name AS workflow_name, w.code AS workflow_code
-        FROM public.approval_requests r
-        JOIN public.approval_workflows w ON w.id = r.workflow_id
-        WHERE ${where.join(' AND ')}
-        ORDER BY r.created_at DESC
-        LIMIT 100
-      `;
-      const rows = (await c.query(query, params)).rows;
+    const requests = await withDrizzleTx(ctx(a), async (tx) => {
+      const conditions = [
+        eq(schema.approvalRequests.tenantId, a.tenantId),
+        isNull(schema.approvalRequests.deletedAt),
+      ];
+      if (status) conditions.push(eq(schema.approvalRequests.status, status));
+      if (entityType) conditions.push(eq(schema.approvalRequests.entityType, entityType));
+
+      const rows = await tx
+        .select({
+          ...snakeSelect(schema.approvalRequests),
+          workflow_name: schema.approvalWorkflows.name,
+          workflow_code: schema.approvalWorkflows.code,
+        })
+        .from(schema.approvalRequests)
+        .innerJoin(
+          schema.approvalWorkflows,
+          eq(schema.approvalWorkflows.id, schema.approvalRequests.workflowId)
+        )
+        .where(and(...conditions))
+        .orderBy(desc(schema.approvalRequests.createdAt))
+        .limit(100);
       return rows;
     });
     res.json({ data: requests });
@@ -166,36 +169,55 @@ export function approvalsRoutes(r: any) {
     }).parse(req.body);
 
     const result = await withDrizzleTx(ctx(a), async (tx, c) => {
-      const reqRow = (await c.query(`SELECT id, tenant_id, workflow_id, entity_type, entity_id, current_step_number, status, requested_by, amount, metadata, version, created_at, updated_at, deleted_at FROM public.approval_requests WHERE id = $1 AND tenant_id = $2 FOR UPDATE`, [id, a.tenantId])).rows[0];
+      const [reqRow] = await tx
+        .select(snakeSelect(schema.approvalRequests))
+        .from(schema.approvalRequests)
+        .where(
+          and(
+            eq(schema.approvalRequests.id, id),
+            eq(schema.approvalRequests.tenantId, a.tenantId)
+          )
+        )
+        .for('update');
       if (!reqRow) throw new AppError(404, 'NOT_FOUND', 'Approval request not found');
-      if (reqRow.status !== 'PENDING') throw new AppError(400, 'ALREADY_DECIDED', `Request has already been ${reqRow.status.toLowerCase()}`);
+      const currentStatus = String(reqRow.status);
+      if (currentStatus !== 'PENDING') throw new AppError(400, 'ALREADY_DECIDED', `Request has already been ${currentStatus.toLowerCase()}`);
 
       // SoD Protection: Submitter cannot approve their own request unless superadmin
       if (b.action === 'APPROVE' && reqRow.requested_by === a.userId && a.role !== 'admin' && a.role !== 'director') {
         throw new AppError(403, 'SOD_VIOLATION', 'Segregation of Duties: You cannot approve a request submitted by yourself.');
       }
 
+      let currentStepNumber = Number(reqRow.current_step_number);
+
       // Record approval action
       await tx.insert(schema.approvalActions).values({
         tenantId: a.tenantId,
         requestId: id,
-        stepNumber: reqRow.current_step_number,
+        stepNumber: currentStepNumber,
         action: b.action,
         performedBy: a.userId,
         comments: b.comments || null,
       });
 
-      let nextStatus = reqRow.status;
+      let nextStatus: string = currentStatus;
       if (b.action === 'REJECT') {
         nextStatus = 'REJECTED';
       } else {
         // Check if there is another step
-        const nextStep = (await c.query(
-          `SELECT step_number FROM public.approval_steps WHERE workflow_id = $1 AND step_number > $2 ORDER BY step_number ASC LIMIT 1`,
-          [reqRow.workflow_id, reqRow.current_step_number]
-        )).rows[0];
+        const [nextStep] = await tx
+          .select({ stepNumber: schema.approvalSteps.stepNumber })
+          .from(schema.approvalSteps)
+          .where(
+            and(
+              eq(schema.approvalSteps.workflowId, reqRow.workflow_id),
+              gt(schema.approvalSteps.stepNumber, currentStepNumber)
+            )
+          )
+          .orderBy(asc(schema.approvalSteps.stepNumber))
+          .limit(1);
         if (nextStep) {
-          reqRow.current_step_number = nextStep.step_number;
+          currentStepNumber = nextStep.stepNumber;
         } else {
           nextStatus = 'APPROVED';
         }
@@ -205,7 +227,7 @@ export function approvalsRoutes(r: any) {
         .update(schema.approvalRequests)
         .set({
           status: nextStatus,
-          currentStepNumber: reqRow.current_step_number,
+          currentStepNumber: currentStepNumber,
           version: sql`${schema.approvalRequests.version} + 1`,
           updatedAt: new Date(),
         })
@@ -215,12 +237,19 @@ export function approvalsRoutes(r: any) {
       if (reqRow.entity_type === 'ITEM_MASTER' || reqRow.entity_type === 'items') {
         const itemApproval = nextStatus === 'APPROVED' ? 'approved' : nextStatus === 'REJECTED' ? 'rejected' : 'pending';
         const itemStatus = nextStatus === 'APPROVED' ? 'active' : 'inactive';
-        await c.query(
-          `UPDATE public.items
-           SET approval = $1, status = $2, updated_at = now()
-           WHERE tenant_id = $3 AND (id::text = $4 OR code = $4)`,
-          [itemApproval, itemStatus, a.tenantId, reqRow.entity_id]
-        );
+        await tx
+          .update(schema.items)
+          .set({
+            approval: itemApproval,
+            status: itemStatus,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(schema.items.tenantId, a.tenantId),
+              idCondition(schema.items as ScopedTable, reqRow.entity_id, 'code')
+            )
+          );
       }
 
       await writeAudit(c, {

@@ -4,8 +4,7 @@ import { broadcastLocalMutation } from '@/src/services/realtime/realtimeService'
 import { supplierService } from '@/src/services/procurement/supplierService';
 import { api } from '@/src/lib/api-client';
 import { PurchaseOrder } from '@/src/types';
-import { mapDbRowToPurchaseOrder } from '@/src/shared/utils/dtoMappers';
-import { procurementApi, type ProcurementSummaryDto } from './procurementApi';
+import { procurementApi, normalizePurchaseOrder, type ProcurementSummaryDto } from './procurementApi';
 
 export { type ProcurementSummaryDto };
 
@@ -20,7 +19,7 @@ export function usePurchaseOrders(_filter?: any) {
         });
         const rows = res?.data?.data || res?.data;
         if (Array.isArray(rows)) {
-          return rows.map((row: any) => mapDbRowToPurchaseOrder(row));
+          return rows.map((row: any) => normalizePurchaseOrder(row));
         }
       } catch (e) {
         console.debug('[usePurchaseOrders] REST query notice:', e);

@@ -1,37 +1,65 @@
 import { z } from 'zod';
-import { pool, withTx, withDrizzleTx } from '../../db.js';
-import { AppError, can, wrap, type Actor } from '../../middleware.js';
-import { registerResourceRoutes } from '../../crud.js';
-import { ctx, hostMetrics } from '../../core/helpers.js';
+import { and, desc, eq, ilike, isNull, or, sql } from 'drizzle-orm';
+import { withDrizzleTx } from '../../db.js';
+import { can, wrap } from '../../middleware.js';
+import { registerResourceRoutes } from '../../core/resource.js';
+import { ctx } from '../../core/query.js';
+import { items, machines, auditLogs, userProfiles } from '../../schema/index.js';
 import * as zod from '../../schema/zod.js';
+
+async function hostMetrics() {
+  try {
+    const os = await import('node:os');
+    const cores = os.cpus().length;
+    if (!cores) throw new Error('no host metrics');
+    const total = os.totalmem();
+    return {
+      cpuCores: cores,
+      loadPct: Math.min(100, Math.round((os.loadavg()[0] / cores) * 1000) / 10),
+      memoryTotalGb: Math.round((total / 1073741824) * 10) / 10,
+      memoryUsedGb: Math.round(((total - os.freemem()) / 1073741824) * 10) / 10,
+      uptimeSeconds: Math.round(process.uptime()),
+    };
+  } catch {
+    return { cpuCores: null, loadPct: null, memoryTotalGb: null, memoryUsedGb: null, uptimeSeconds: null };
+  }
+}
 
 export function platformRoutes(r: any) {
   // ---------- dashboard summary (P4 Step 6) ----------
   r.get('/dashboard/summary', can('read', 'Dashboard'), wrap(async (req, res) => {
     const a = req.actor!;
     const plantId = (req.query.plantId as string | undefined) || a.activePlantId;
-    const data = await withTx(
+    const data = await withDrizzleTx(
       ctx(a),
-      async (c) => {
-        const itemRes = await c.query(
-          `SELECT count(*)::int AS total_items,
-                  count(*) FILTER (WHERE stock <= reorder_point)::int AS low_stock_items,
-                  count(*) FILTER (WHERE status = 'active')::int AS active_items
-             FROM items
-            WHERE tenant_id = $1 AND deleted_at IS NULL`,
-          [a.tenantId],
-        );
-        const plantParam = plantId ? [plantId] : [];
-        const machineRes = await c.query(
-          `SELECT count(*)::int AS total_machines,
-                  count(*) FILTER (WHERE status = 'running')::int AS running_machines
-             FROM machines
-            WHERE deleted_at IS NULL ${plantId ? 'AND plant = (SELECT name FROM plants WHERE id = $1)' : ''}`,
-          plantParam,
-        );
+      async (db) => {
+        const [itemStats] = await db
+          .select({
+            total_items: sql<number>`count(*)::int`,
+            low_stock_items: sql<number>`count(*) FILTER (WHERE ${items.stock} <= ${items.reorderPoint})::int`,
+            active_items: sql<number>`count(*) FILTER (WHERE ${items.status} = 'active')::int`,
+          })
+          .from(items)
+          .where(and(eq(items.tenantId, a.tenantId), isNull(items.deletedAt)));
+
+        const machineConditions = [isNull(machines.deletedAt)];
+        if (plantId) {
+          machineConditions.push(
+            eq(machines.plant, sql`(SELECT name FROM plants WHERE id = ${plantId})`)
+          );
+        }
+
+        const [machineStats] = await db
+          .select({
+            total_machines: sql<number>`count(*)::int`,
+            running_machines: sql<number>`count(*) FILTER (WHERE ${machines.status} = 'running')::int`,
+          })
+          .from(machines)
+          .where(and(...machineConditions));
+
         return {
-          items: itemRes.rows[0],
-          machines: machineRes.rows[0],
+          items: itemStats ?? { total_items: 0, low_stock_items: 0, active_items: 0 },
+          machines: machineStats ?? { total_machines: 0, running_machines: 0 },
           activePlantId: plantId,
         };
       },
@@ -45,14 +73,27 @@ export function platformRoutes(r: any) {
 
   r.get('/system/health', can('manage', 'Plant'), wrap(async (_req, res) => {
     const t0 = performance.now();
-    const sessions = await pool.query(`SELECT count(*)::int AS n FROM "session" WHERE "expiresAt" > now()`);
+    const stats = await withDrizzleTx(
+      { tenantId: '00000000-0000-0000-0000-000000000000', userId: 'system' },
+      async (db) => {
+        const [sessions] = await db
+          .select({ n: sql<number>`count(*)::int` })
+          .from(sql`"session"`)
+          .where(sql`"expiresAt" > now()`);
+        const [users] = await db
+          .select({ n: sql<number>`count(*)::int` })
+          .from(userProfiles)
+          .where(isNull(userProfiles.deletedAt));
+        return { sessions: sessions?.n ?? 0, users: users?.n ?? 0 };
+      },
+      { readOnly: true }
+    );
     const dbLatencyMs = performance.now() - t0;
-    const users = await pool.query(`SELECT count(*)::int AS n FROM user_profiles WHERE deleted_at IS NULL`);
     res.json({ data: {
       status: 'ok',
       dbLatencyMs: Math.round(dbLatencyMs * 10) / 10,
-      activeSessions: sessions.rows[0].n,
-      userCount: users.rows[0].n,
+      activeSessions: stats.sessions,
+      userCount: stats.users,
       ...(await hostMetrics()),
     } });
   }));
@@ -69,56 +110,79 @@ export function platformRoutes(r: any) {
       format: z.enum(['json', 'csv']).default('json'),
     }).parse(req.query);
 
-    const out = await withTx(ctx(a), async (c) => {
-      const where = ['tenant_id = $1'];
-      const params: any[] = [a.tenantId];
+    const out = await withDrizzleTx(ctx(a), async (db) => {
+      const conditions = [eq(auditLogs.tenantId, a.tenantId)];
 
       if (q.entityType) {
-        params.push(q.entityType);
-        where.push(`entity_type = $${params.length}`);
+        conditions.push(eq(auditLogs.entityType, q.entityType));
       }
       if (q.entityId) {
-        params.push(q.entityId);
-        where.push(`(entity_id = $${params.length} OR old_values->>'code' = $${params.length} OR new_values->>'code' = $${params.length})`);
+        conditions.push(
+          or(
+            eq(auditLogs.entityId, q.entityId),
+            sql`${auditLogs.oldValues}->>'code' = ${q.entityId}`,
+            sql`${auditLogs.newValues}->>'code' = ${q.entityId}`
+          )!
+        );
       }
       if (q.search) {
-        params.push(`%${q.search.replace(/[\\%_]/g, '\\$&')}%`);
-        where.push(`(entity_id ILIKE $${params.length} OR performed_by ILIKE $${params.length} OR action ILIKE $${params.length} OR new_values::text ILIKE $${params.length} OR old_values::text ILIKE $${params.length})`);
+        const pattern = `%${q.search.replace(/[\\%_]/g, '\\$&')}%`;
+        conditions.push(
+          or(
+            ilike(auditLogs.entityId, pattern),
+            ilike(auditLogs.performedBy, pattern),
+            ilike(auditLogs.action, pattern),
+            sql`${auditLogs.newValues}::text ILIKE ${pattern}`,
+            sql`${auditLogs.oldValues}::text ILIKE ${pattern}`
+          )!
+        );
       }
       if (q.action) {
-        params.push(q.action);
-        where.push(`action = $${params.length}`);
+        conditions.push(eq(auditLogs.action, q.action));
       }
       if (q.cursor) {
-        params.push(q.cursor);
-        where.push(`performed_at < $${params.length}::timestamptz`);
+        conditions.push(sql`${auditLogs.performedAt} < ${q.cursor}::timestamptz`);
       }
 
       if (q.format === 'csv') {
-        const rows = (await c.query(
-          `SELECT id, entity_type, entity_id, action, performed_by, ip_address, performed_at
-           FROM public.audit_logs
-           WHERE ${where.join(' AND ')}
-           ORDER BY performed_at DESC
-           LIMIT 50000`,
-          params
-        )).rows;
+        const rows = await db
+          .select({
+            id: auditLogs.id,
+            entity_type: auditLogs.entityType,
+            entity_id: auditLogs.entityId,
+            action: auditLogs.action,
+            performed_by: auditLogs.performedBy,
+            ip_address: auditLogs.ipAddress,
+            performed_at: auditLogs.performedAt,
+          })
+          .from(auditLogs)
+          .where(and(...conditions))
+          .orderBy(desc(auditLogs.performedAt))
+          .limit(50000);
         return { isCsv: true, rows, data: rows, nextCursor: null };
       }
 
-      params.push(q.limit + 1);
-      const rows = (await c.query(
-        `SELECT id, entity_type, entity_id, action, changed_fields, old_values, new_values, performed_by, ip_address, performed_at
-         FROM public.audit_logs
-         WHERE ${where.join(' AND ')}
-         ORDER BY performed_at DESC
-         LIMIT $${params.length}`,
-        params
-      )).rows;
+      const rows = await db
+        .select({
+          id: auditLogs.id,
+          entity_type: auditLogs.entityType,
+          entity_id: auditLogs.entityId,
+          action: auditLogs.action,
+          changed_fields: auditLogs.changedFields,
+          old_values: auditLogs.oldValues,
+          new_values: auditLogs.newValues,
+          performed_by: auditLogs.performedBy,
+          ip_address: auditLogs.ipAddress,
+          performed_at: auditLogs.performedAt,
+        })
+        .from(auditLogs)
+        .where(and(...conditions))
+        .orderBy(desc(auditLogs.performedAt))
+        .limit(q.limit + 1);
 
       const hasMore = rows.length > q.limit;
       const data = hasMore ? rows.slice(0, q.limit) : rows;
-      const nextCursor = hasMore && data.length > 0 ? data[data.length - 1].performed_at : null;
+      const nextCursor = hasMore && data.length > 0 ? (data[data.length - 1].performed_at ? new Date(data[data.length - 1].performed_at!).toISOString() : null) : null;
 
       return { isCsv: false, data, nextCursor, rows: [] };
     });
@@ -144,13 +208,18 @@ export function platformRoutes(r: any) {
     }
     const limit = Math.min(Number(req.query.limit) || 20, 50);
 
-    const rows = await withTx(ctx(a), async (c) => {
-      const resSearch = await c.query(
-        `SELECT entity_type, entity_id, code, title, subtitle, url_path
-         FROM public.search_erp_catalog($1::uuid, $2::text, $3::int)`,
-        [a.tenantId, q, limit]
-      );
-      return resSearch.rows;
+    const rows = await withDrizzleTx(ctx(a), async (db) => {
+      const resSearch = await db
+        .select({
+          entity_type: sql`entity_type`,
+          entity_id: sql`entity_id`,
+          code: sql`code`,
+          title: sql`title`,
+          subtitle: sql`subtitle`,
+          url_path: sql`url_path`,
+        })
+        .from(sql`public.search_erp_catalog(${a.tenantId}::uuid, ${q}::text, ${limit}::int)`);
+      return resSearch;
     });
 
     res.json({ data: rows });

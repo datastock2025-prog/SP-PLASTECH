@@ -3,7 +3,6 @@ import { queryKeys } from '@/src/shared/queryKeys';
 import { broadcastLocalMutation } from '@/src/services/realtime/realtimeService';
 import { api } from '@/src/lib/api-client';
 import { WorkOrder } from '@/src/types';
-import { mapDbRowToWorkOrder } from '@/src/shared/utils/dtoMappers';
 
 export interface ProductionEntryPayload {
   workOrderId: string;
@@ -21,6 +20,28 @@ export interface ProductionEntryResult {
   workOrder: WorkOrder;
 }
 
+const normalizeWorkOrder = (row: any): WorkOrder => ({
+  ...row,
+  id: String(row.id || ''),
+  item: String(row.item || row.item_code || row.itemCode || ''),
+  bomId: row.bom_id || row.bomId || null,
+  machine: row.machine || row.machine_id || row.machineId || null,
+  day: row.day || row.plan_date || 'Day 1',
+  qty: Number(row.qty || row.target_qty || row.target || 0),
+  uom: String(row.uom || row.unit || 'PCS'),
+  completed: Number(row.completed || row.actual || row.actual_qty || 0),
+  scrap: Number(row.scrap || row.scrap_qty || 0),
+  status: (row.status || 'in_progress') as any,
+  priority: (row.priority || 'Medium') as any,
+  dueDate: String(row.due_date || row.dueDate || ''),
+  operator: String(row.operator || row.assigned_to || 'Operator 1'),
+  downtimeMin: Number(row.downtime_min || row.downtimeMin || 0),
+  outputLogs: Array.isArray(row.output_logs) ? row.output_logs : Array.isArray(row.outputLogs) ? row.outputLogs : [],
+  downtimeLogs: Array.isArray(row.downtime_logs) ? row.downtime_logs : Array.isArray(row.downtimeLogs) ? row.downtimeLogs : [],
+  checklist: Array.isArray(row.checklist) ? row.checklist : [],
+  history: Array.isArray(row.history) ? row.history : [],
+});
+
 export function useWorkOrders(status?: string) {
   return useQuery<WorkOrder[]>({
     queryKey: queryKeys.manufacturing.workOrders(status),
@@ -31,7 +52,7 @@ export function useWorkOrders(status?: string) {
         });
         const rows = res?.data?.data || res?.data;
         if (Array.isArray(rows)) {
-          const mapped = rows.map((row: any) => mapDbRowToWorkOrder(row));
+          const mapped = rows.map((row: any) => normalizeWorkOrder(row));
           return status ? mapped.filter((w: any) => w.status?.toLowerCase() === status.toLowerCase()) : mapped;
         }
       } catch (e) {

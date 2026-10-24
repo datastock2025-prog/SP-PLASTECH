@@ -2,15 +2,15 @@
 
 ## 1. Project Overview
 - **Domain**: Plastic Manufacturing ERP (MRP, BOM, Production Scheduling, Procurement, Item Master).
-- **Architecture**: Hybrid Monorepo. Frontend (React/Vite) -> Backend (Node.js/Prisma) -> Database (PostgreSQL/Supabase).
+- **Architecture**: Hybrid Monorepo. Frontend (React/Vite) -> Backend (Node.js/Hono/Drizzle ORM in `middleware/`) -> Database (PostgreSQL/Supabase).
 - **Deployment**: Frontend on Cloudflare Pages. Backend on Cloud/Podman.
 
 ## 2. Tech Stack
 - **Frontend**: React 19 / Vite, TypeScript, TailwindCSS.
 - **State & Data Fetching**: TanStack Query (React Query) v5 (MANDATORY for all API calls).
 - **Validation**: Zod (MANDATORY for all API responses and form inputs).
-- **Database**: PostgreSQL via Supabase (RLS enabled, Multi-tenant).
-- **Backend Service**: Node.js / Prisma (REST API Service in `backend/`).
+- **Database**: PostgreSQL via Supabase / Podman (RLS enabled, Multi-tenant).
+- **Backend Service**: Node.js / Hono / Drizzle ORM (REST API Service in `middleware/`).
 - **Hosting**: Cloudflare Pages (Frontend), Cloudflare Workers/Edge & Container Backend.
 
 ## 3. STRICT ENTERPRISE RULES (AI MUST FOLLOW)
@@ -33,13 +33,13 @@
     - `<EntityTable<T> />` (`src/shared/components/EntityTable.tsx`) — Generic paginated, searchable, sortable data table with multi-select and action slots.
     - `<EntityDrawer<T> />` (`src/shared/components/EntityDrawer.tsx`) — Standardized edit/view slideover drawer with tab navigation, dirty-state detection, and action buttons.
     - `<AuditHistoryDrawer />` (`src/shared/components/AuditHistoryDrawer.tsx`) — Shared audit log and change governance viewer with visual timeline stream and field diff tracking.
-12. **Centralized DTO Mappers**: ALWAYS use centralized transformers in `src/shared/utils/dtoMappers.ts` (`mapDbRowToItemMaster`, `mapDbRowToBom`, `mapDbRowToWorkOrder`, `mapDbRowToSalesOrder`, `mapDbRowToPurchaseOrder`, `mapDbRowToMachine`, `mapDbRowToCustomer`) to enforce strict type coercion across database rows.
+12. **Pure Two-Layer Reference Model (Zero DTO Mappers)**: Database schema types flow directly to frontend via typed REST response envelopes. TanStack Query hooks consume typed JSON directly; zero legacy hand-written DTO mapper functions.
 
 ---
 
 ## 4. ENTERPRISE BACKEND ARCHITECTURE & PROTOCOLS
 
-### 4.1 Database Design Standards (PostgreSQL + Prisma)
+### 4.1 Database Design Standards (PostgreSQL + Drizzle ORM)
 - **Naming Conventions**:
   - Tables: Lowercase, plural, snake_case (`items`, `bill_of_materials`, `audit_logs`).
   - Columns: Lowercase, snake_case (`part_weight_grams`, `cycle_time_seconds`, `created_at`, `deleted_at`).

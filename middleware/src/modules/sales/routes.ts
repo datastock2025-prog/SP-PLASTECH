@@ -1,8 +1,19 @@
-import { registerResourceRoutes } from '../../crud.js';
+import { and, eq, isNull, or, sql } from 'drizzle-orm';
+import { registerResourceRoutes } from '../../core/resource.js';
 import * as zod from '../../schema/zod.js';
-import { withTx } from '../../db.js';
+import { withDrizzleTx } from '../../db.js';
 import { AppError, can, wrap, type Actor } from '../../middleware.js';
 import type { Req, Res } from '../../router.js';
+import { patchRow } from '../../core/query.js';
+import {
+  deliveryChallans,
+  stockMovementLedger,
+  warehouseStock,
+  items,
+  salesOrderLines,
+  salesOrders,
+  customers,
+} from '../../schema/erp.js';
 
 export function salesRoutes(r: any) {
   registerResourceRoutes(r, '/customers', {
@@ -71,31 +82,33 @@ export function salesRoutes(r: any) {
   const handleDispatch = async (req: Req, res: Res) => {
     const a = req.actor! as Actor;
     const id = req.params.id;
-    const row = await withTx({ tenantId: a.tenantId, userId: a.userId }, async (c) => {
-      const { rows } = await c.query(
-        `SELECT id, challan_number, so_id, customer_id, vehicle_no, transporter, lr_number, dispatch_date, status, lines, total_amount, plant_id, version
-           FROM delivery_challans
-          WHERE (id = $1 OR challan_number = $1) AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE`,
-        [id, a.tenantId]
-      );
-      if (!rows.length) throw new AppError(404, 'NOT_FOUND', 'Delivery challan not found');
-      const challan = rows[0];
+    const row = await withDrizzleTx({ tenantId: a.tenantId, userId: a.userId }, async (tx) => {
+      const challans = await tx
+        .select()
+        .from(deliveryChallans)
+        .where(
+          and(
+            or(eq(deliveryChallans.id, id), eq(deliveryChallans.challanNumber, id)),
+            isNull(deliveryChallans.deletedAt)
+          )
+        )
+        .for('update');
+
+      if (!challans.length) throw new AppError(404, 'NOT_FOUND', 'Delivery challan not found');
+      const challan = challans[0];
       if (challan.status === 'dispatched') {
         throw new AppError(409, 'ALREADY_DISPATCHED', 'Delivery challan is already dispatched');
       }
 
-      const updateRes = await c.query(
-        `UPDATE delivery_challans
-            SET status = 'dispatched',
-                updated_at = now(),
-                updated_by = $1,
-                version = version + 1
-          WHERE id = $2 AND tenant_id = $3
-          RETURNING *`,
-        [a.userId, challan.id, a.tenantId]
+      const updatedChallan = await patchRow(
+        tx as any,
+        deliveryChallans,
+        a,
+        challan.id,
+        { status: 'dispatched' }
       );
 
-      const lines = Array.isArray(challan.lines) ? challan.lines : [];
+      const lines = Array.isArray(challan.lines) ? (challan.lines as any[]) : [];
       const dateStr = new Date().toISOString().split('T')[0];
 
       for (const line of lines) {
@@ -107,58 +120,66 @@ export function salesRoutes(r: any) {
         if (!itemCode || qty <= 0) continue;
 
         // 1. Append OUT movement in stock_movement_ledger
-        await c.query(
-          `INSERT INTO stock_movement_ledger 
-           (tenant_id, plant_id, ledger_date, doc_type, doc_number, location, sku, item_name, movement_type, quantity, qty_out, uom, status, destination_store, purpose_type, customer, authorized_by, created_by)
-           VALUES ($1, $2, $3, 'DELIVERY_CHALLAN', $4, 'WH-FG-01', $5, $6, 'OUT', $7, $7, $8, 'CLOSED', 'Customer Dispatch', 'SALES_DISPATCH', $9, $10, $11)`,
-          [
-            a.tenantId,
-            challan.plant_id || a.activePlantId || null,
-            dateStr,
-            challan.challan_number,
-            itemCode,
-            itemName,
-            qty,
-            uom,
-            challan.customer_id,
-            a.fullName || 'Dispatch Supervisor',
-            a.userId
-          ]
-        );
+        await tx.insert(stockMovementLedger).values({
+          tenantId: a.tenantId,
+          plantId: challan.plantId || a.activePlantId || null,
+          ledgerDate: dateStr,
+          docType: 'DELIVERY_CHALLAN',
+          docNumber: challan.challanNumber,
+          location: 'WH-FG-01',
+          sku: itemCode,
+          itemName: itemName,
+          movementType: 'OUT',
+          quantity: String(qty),
+          qtyOut: String(qty),
+          uom: uom,
+          status: 'CLOSED',
+          destinationStore: 'Customer Dispatch',
+          purposeType: 'SALES_DISPATCH',
+          customer: challan.customerId,
+          authorizedBy: a.fullName || 'Dispatch Supervisor',
+          createdBy: a.userId,
+        });
 
         // 2. Decrement warehouse_stock
-        await c.query(
-          `UPDATE warehouse_stock
-              SET total_on_hand = GREATEST(0, total_on_hand - $1),
-                  available_to_promise = GREATEST(0, available_to_promise - $1),
-                  updated_at = now()
-            WHERE sku = $2 AND tenant_id = $3 AND deleted_at IS NULL`,
-          [qty, itemCode, a.tenantId]
-        );
+        await tx
+          .update(warehouseStock)
+          .set({
+            totalOnHand: sql`GREATEST(0, ${warehouseStock.totalOnHand} - ${qty})`,
+            availableToPromise: sql`GREATEST(0, ${warehouseStock.availableToPromise} - ${qty})`,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(warehouseStock.sku, itemCode), isNull(warehouseStock.deletedAt)));
 
         // 3. Decrement items master stock
-        await c.query(
-          `UPDATE items
-              SET stock = GREATEST(0, stock - $1),
-                  updated_at = now()
-            WHERE code = $2 AND tenant_id = $3 AND deleted_at IS NULL`,
-          [qty, itemCode, a.tenantId]
-        );
+        await tx
+          .update(items)
+          .set({
+            stock: sql`GREATEST(0, ${items.stock} - ${qty})`,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(items.code, itemCode), isNull(items.deletedAt)));
 
         // 4. Update sales_order_lines dispatched_qty if so_id exists
-        if (challan.so_id) {
-          await c.query(
-            `UPDATE sales_order_lines
-                SET dispatched_qty = dispatched_qty + $1,
-                    updated_at = now(),
-                    version = version + 1
-              WHERE so_id = $2 AND item_code = $3 AND tenant_id = $4 AND deleted_at IS NULL`,
-            [qty, challan.so_id, itemCode, a.tenantId]
-          );
+        if (challan.soId) {
+          await tx
+            .update(salesOrderLines)
+            .set({
+              dispatchedQty: sql`${salesOrderLines.dispatchedQty} + ${qty}`,
+              updatedAt: new Date(),
+              version: sql`${salesOrderLines.version} + 1`,
+            })
+            .where(
+              and(
+                eq(salesOrderLines.soId, challan.soId),
+                eq(salesOrderLines.itemCode, itemCode),
+                isNull(salesOrderLines.deletedAt)
+              )
+            );
         }
       }
 
-      return updateRes.rows[0];
+      return updatedChallan;
     });
 
     res.json({ data: row });
@@ -183,32 +204,34 @@ export function salesRoutes(r: any) {
   // Single-round-trip atomic sales KPI aggregation
   const salesSummaryHandler = wrap(async (req: Req, res: Res) => {
     const a = req.actor! as Actor;
-    const stats = await withTx({ tenantId: a.tenantId, userId: a.userId }, async (c) => {
-      const orderRes = await c.query(
-        `SELECT
-           COUNT(*)::int AS total_orders,
-           COUNT(*) FILTER (WHERE status = 'draft')::int AS draft_orders,
-           COUNT(*) FILTER (WHERE status IN ('confirmed', 'approved', 'open'))::int AS confirmed_orders,
-           COUNT(*) FILTER (WHERE status IN ('in_production', 'production'))::int AS in_production_orders,
-           COUNT(*) FILTER (WHERE status IN ('dispatched', 'delivered', 'closed'))::int AS dispatched_orders,
-           COALESCE(SUM(total_amount), 0)::numeric AS total_revenue
-         FROM sales_orders
-        WHERE tenant_id = $1 AND deleted_at IS NULL`,
-        [a.tenantId]
-      );
-      const custRes = await c.query(
-        `SELECT COUNT(*)::int AS total_customers FROM customers WHERE tenant_id = $1 AND deleted_at IS NULL`,
-        [a.tenantId]
-      );
-      const row = orderRes.rows[0] || {};
+    const stats = await withDrizzleTx({ tenantId: a.tenantId, userId: a.userId }, async (tx) => {
+      const [orderRow] = await tx
+        .select({
+          total_orders: sql<number>`COUNT(*)::int`,
+          draft_orders: sql<number>`COUNT(*) FILTER (WHERE ${salesOrders.status} = 'draft')::int`,
+          confirmed_orders: sql<number>`COUNT(*) FILTER (WHERE ${salesOrders.status} IN ('confirmed', 'approved', 'open'))::int`,
+          in_production_orders: sql<number>`COUNT(*) FILTER (WHERE ${salesOrders.status} IN ('in_production', 'production'))::int`,
+          dispatched_orders: sql<number>`COUNT(*) FILTER (WHERE ${salesOrders.status} IN ('dispatched', 'delivered', 'closed'))::int`,
+          total_revenue: sql<string>`COALESCE(SUM(${salesOrders.totalAmount}), 0)::numeric`,
+        })
+        .from(salesOrders)
+        .where(isNull(salesOrders.deletedAt));
+
+      const [custRow] = await tx
+        .select({
+          total_customers: sql<number>`COUNT(*)::int`,
+        })
+        .from(customers)
+        .where(isNull(customers.deletedAt));
+
       return {
-        totalOrders: row.total_orders || 0,
-        draftOrders: row.draft_orders || 0,
-        confirmedOrders: row.confirmed_orders || 0,
-        inProductionOrders: row.in_production_orders || 0,
-        dispatchedOrders: row.dispatched_orders || 0,
-        totalRevenue: Number(row.total_revenue || 0),
-        totalCustomers: custRes.rows[0]?.total_customers || 0,
+        totalOrders: orderRow?.total_orders || 0,
+        draftOrders: orderRow?.draft_orders || 0,
+        confirmedOrders: orderRow?.confirmed_orders || 0,
+        inProductionOrders: orderRow?.in_production_orders || 0,
+        dispatchedOrders: orderRow?.dispatched_orders || 0,
+        totalRevenue: Number(orderRow?.total_revenue || 0),
+        totalCustomers: custRow?.total_customers || 0,
       };
     });
 

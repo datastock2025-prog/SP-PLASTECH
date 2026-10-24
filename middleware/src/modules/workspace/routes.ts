@@ -1,10 +1,19 @@
-import { registerResourceRoutes } from '../../crud.js';
+import { registerResourceRoutes } from '../../core/resource.js';
 import * as zod from '../../schema/zod.js';
-import { withTx } from '../../db.js';
+import { and, asc, desc, eq, gt, isNull } from 'drizzle-orm';
+import { withDrizzleTx } from '../../db.js';
 import { AppError, can, wrap, type Actor } from '../../middleware.js';
 import type { Req, Res } from '../../router.js';
 import { z } from 'zod';
-import { writeAudit } from '../../userStore.js';
+import { writeAudit } from '../../core/audit.js';
+import { patchRow, snakeSelect, type ScopedTable } from '../../core/query.js';
+import {
+  notifications,
+  approvalRequests,
+  approvalWorkflows,
+  approvalSteps,
+  approvalActions,
+} from '../../schema/index.js';
 
 export function workspaceRoutes(r: any) {
   // 1. Workspace Tasks
@@ -50,18 +59,8 @@ export function workspaceRoutes(r: any) {
     const a = req.actor! as Actor;
     const id = req.params.id;
 
-    const row = await withTx({ tenantId: a.tenantId, userId: a.userId }, async (c) => {
-      const { rows } = await c.query(
-        `UPDATE notifications
-            SET is_read = true,
-                version = version + 1,
-                updated_at = now()
-          WHERE id = $1 AND tenant_id = $2
-          RETURNING *`,
-        [id, a.tenantId]
-      );
-      if (!rows[0]) throw new AppError(404, 'NOT_FOUND', 'Notification not found');
-      return rows[0];
+    const row = await withDrizzleTx({ tenantId: a.tenantId, userId: a.userId }, async (db) => {
+      return patchRow(db, notifications as ScopedTable, a, id, { is_read: true });
     });
 
     res.json({ data: row });
@@ -74,26 +73,24 @@ export function workspaceRoutes(r: any) {
   r.get('/workspace/approvals', can('read', 'ApprovalRequest'), wrap(async (req: Req, res: Res) => {
     const a = req.actor! as Actor;
     const status = req.query.status ? String(req.query.status) : undefined;
-    const requests = await withTx({ tenantId: a.tenantId, userId: a.userId }, async (c) => {
-      const where = ['r.tenant_id = $1', 'r.deleted_at IS NULL'];
-      const params: any[] = [a.tenantId];
-      if (status) {
-        params.push(status);
-        where.push(`r.status = $${params.length}`);
-      }
-      const query = `
-        SELECT r.id, r.tenant_id, r.workflow_id, r.entity_type, r.entity_id,
-               r.current_step_number, r.status, r.requested_by, r.amount, r.metadata,
-               r.version, r.created_at, r.updated_at,
-               w.name AS workflow_name, w.code AS workflow_code
-          FROM approval_requests r
-          LEFT JOIN approval_workflows w ON w.id = r.workflow_id
-         WHERE ${where.join(' AND ')}
-         ORDER BY r.created_at DESC
-         LIMIT 100
-      `;
-      const { rows } = await c.query(query, params);
-      return rows;
+    const requests = await withDrizzleTx({ tenantId: a.tenantId, userId: a.userId }, async (db) => {
+      const conditions = [
+        eq(approvalRequests.tenantId, a.tenantId),
+        isNull(approvalRequests.deletedAt),
+      ];
+      if (status) conditions.push(eq(approvalRequests.status, status));
+
+      return db
+        .select({
+          ...snakeSelect(approvalRequests),
+          workflow_name: approvalWorkflows.name,
+          workflow_code: approvalWorkflows.code,
+        })
+        .from(approvalRequests)
+        .leftJoin(approvalWorkflows, eq(approvalWorkflows.id, approvalRequests.workflowId))
+        .where(and(...conditions))
+        .orderBy(desc(approvalRequests.createdAt))
+        .limit(100);
     }, { readOnly: true });
 
     res.json({ data: requests });
@@ -109,51 +106,63 @@ export function workspaceRoutes(r: any) {
 
     const action = b.decision === 'APPROVED' ? 'APPROVE' : 'REJECT';
 
-    const result = await withTx({ tenantId: a.tenantId, userId: a.userId }, async (c) => {
-      const { rows: reqRows } = await c.query(
-        `SELECT id, tenant_id, workflow_id, entity_type, entity_id, current_step_number, status, requested_by, amount, metadata, version
-           FROM approval_requests
-          WHERE id = $1 AND tenant_id = $2 FOR UPDATE`,
-        [id, a.tenantId]
-      );
-      const reqRow = reqRows[0];
+    const result = await withDrizzleTx({ tenantId: a.tenantId, userId: a.userId }, async (db, c) => {
+      const [reqRow] = await db
+        .select(snakeSelect(approvalRequests))
+        .from(approvalRequests)
+        .where(
+          and(
+            eq(approvalRequests.id, id),
+            eq(approvalRequests.tenantId, a.tenantId)
+          )
+        )
+        .for('update');
+
       if (!reqRow) throw new AppError(404, 'NOT_FOUND', 'Approval request not found');
-      if (reqRow.status !== 'PENDING') {
-        throw new AppError(400, 'ALREADY_DECIDED', `Request has already been ${reqRow.status.toLowerCase()}`);
+      const currentStatus = String(reqRow.status);
+      if (currentStatus !== 'PENDING') {
+        throw new AppError(400, 'ALREADY_DECIDED', `Request has already been ${currentStatus.toLowerCase()}`);
       }
 
-      // Record approval action
-      await c.query(
-        `INSERT INTO approval_actions (tenant_id, request_id, step_number, action, performed_by, comments)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [a.tenantId, id, reqRow.current_step_number, action, a.userId, b.comments || null]
-      );
+      let currentStepNumber = Number(reqRow.current_step_number);
 
-      let nextStatus = reqRow.status;
+      // Record approval action
+      await db.insert(approvalActions).values({
+        tenantId: a.tenantId,
+        requestId: id,
+        stepNumber: currentStepNumber,
+        action,
+        performedBy: a.userId,
+        comments: b.comments || null,
+      });
+
+      let nextStatus: string = currentStatus;
       if (action === 'REJECT') {
         nextStatus = 'REJECTED';
       } else {
-        const { rows: nextStepRows } = await c.query(
-          `SELECT step_number FROM approval_steps WHERE workflow_id = $1 AND step_number > $2 ORDER BY step_number ASC LIMIT 1`,
-          [reqRow.workflow_id, reqRow.current_step_number]
-        );
-        if (nextStepRows[0]) {
-          reqRow.current_step_number = nextStepRows[0].step_number;
+        const [nextStep] = await db
+          .select({ stepNumber: approvalSteps.stepNumber })
+          .from(approvalSteps)
+          .where(
+            and(
+              eq(approvalSteps.workflowId, reqRow.workflow_id),
+              gt(approvalSteps.stepNumber, currentStepNumber)
+            )
+          )
+          .orderBy(asc(approvalSteps.stepNumber))
+          .limit(1);
+
+        if (nextStep) {
+          currentStepNumber = nextStep.stepNumber;
         } else {
           nextStatus = 'APPROVED';
         }
       }
 
-      const { rows: updatedRows } = await c.query(
-        `UPDATE approval_requests
-            SET status = $1,
-                current_step_number = $2,
-                version = version + 1,
-                updated_at = now()
-          WHERE id = $3 AND tenant_id = $4
-          RETURNING *`,
-        [nextStatus, reqRow.current_step_number, id, a.tenantId]
-      );
+      const updated = await patchRow(db, approvalRequests as ScopedTable, a, id, {
+        status: nextStatus,
+        current_step_number: currentStepNumber,
+      });
 
       await writeAudit(c, {
         tenantId: a.tenantId,
@@ -161,11 +170,11 @@ export function workspaceRoutes(r: any) {
         entityId: id,
         action,
         performedBy: a.userId,
-        newValues: { status: nextStatus, currentStepNumber: reqRow.current_step_number, comments: b.comments },
+        newValues: { status: nextStatus, currentStepNumber: currentStepNumber, comments: b.comments },
         ip: a.ip,
       });
 
-      return updatedRows[0];
+      return updated;
     });
 
     res.json({ data: result });

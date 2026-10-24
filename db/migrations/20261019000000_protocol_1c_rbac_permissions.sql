@@ -244,3 +244,6 @@ GRANT ALL ON TABLE public.user_group_roles TO erp_app;
 GRANT ALL ON TABLE public.user_scopes TO erp_app;
 GRANT ALL ON TABLE public.sod_rules TO erp_app;
 GRANT ALL ON TABLE public.role_screen_access TO erp_app;
+
+-- migrate:down
+-- shortcut: no automated rollback for this historical migration; restore from backup.

@@ -2,34 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { identityApi, ApiError } from './api';
 import { MeSchema, type ManagedUser, type Me, type UpdateUserInput, type UserListParams } from './types';
 
-const SESSION_CACHE_KEY = 'sp_erp_active_session_v1';
-
 export function getCachedSession(): Me | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = sessionStorage.getItem(SESSION_CACHE_KEY) || localStorage.getItem(SESSION_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    const result = MeSchema.safeParse(parsed);
-    return result.success ? result.data : null;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
-export function setCachedSession(me: Me | null) {
-  if (typeof window === 'undefined') return;
-  try {
-    if (me) {
-      const json = JSON.stringify(me);
-      sessionStorage.setItem(SESSION_CACHE_KEY, json);
-      localStorage.setItem(SESSION_CACHE_KEY, json);
-    } else {
-      sessionStorage.removeItem(SESSION_CACHE_KEY);
-      localStorage.removeItem(SESSION_CACHE_KEY);
-    }
-  } catch {}
-}
+export function setCachedSession(_me: Me | null) {}
 
 export const identityKeys = {
   me: ['identity', 'me'] as const,
@@ -47,20 +24,14 @@ export function useMe() {
     queryFn: async () => {
       try {
         const me = await identityApi.me();
-        setCachedSession(me);
         return me;
       } catch (e) {
         if (e instanceof ApiError && (e.status === 401 || e.status === 503 || e.status === 404)) {
-          setCachedSession(null);
           return null;
         }
-        // shortcut: network error or backend offline falls back to cached session or null guest session
-        const cached = getCachedSession();
-        if (cached) return cached;
         return null;
       }
     },
-    initialData: () => getCachedSession() ?? undefined,
     retry: false,
     staleTime: 60_000,
   });
@@ -79,7 +50,6 @@ export function useLogin() {
     },
     onSuccess: (res) => {
       if (res.me) {
-        setCachedSession(res.me);
         qc.setQueryData(identityKeys.me, res.me);
       }
     },
@@ -94,7 +64,6 @@ export function useVerifyTotp() {
       return identityApi.me();
     },
     onSuccess: (me) => {
-      if (me) setCachedSession(me);
       qc.setQueryData(identityKeys.me, me);
     },
   });
@@ -105,7 +74,6 @@ export function useLogout() {
   return useMutation({
     mutationFn: () => identityApi.signOut(),
     onSettled: () => {
-      setCachedSession(null);
       qc.clear();
       qc.setQueryData(identityKeys.me, null);
     },
@@ -120,7 +88,6 @@ export function useSelectContext() {
       qc.setQueryData<Me | null>(identityKeys.me, (m) => {
         if (!m) return m;
         const updated = { ...m, activePlantId: v.plantId, activeShift: v.shift };
-        setCachedSession(updated);
         return updated;
       }),
   });

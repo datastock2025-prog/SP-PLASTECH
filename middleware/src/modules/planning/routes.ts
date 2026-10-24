@@ -1,9 +1,20 @@
 import crypto from 'node:crypto';
-import { registerResourceRoutes } from '../../crud.js';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { registerResourceRoutes } from '../../core/resource.js';
 import * as zod from '../../schema/zod.js';
-import { withTx } from '../../db.js';
+import { withDrizzleTx } from '../../db.js';
 import { can, wrap, type Actor } from '../../middleware.js';
 import type { Req, Res } from '../../router.js';
+import {
+  salesOrders,
+  salesOrderLines,
+  billOfMaterials,
+  bomLines,
+  warehouseStock,
+  items,
+  purchaseRequisitions,
+  mrpRuns,
+} from '../../schema/erp.js';
 
 export function planningRoutes(r: any) {
   const mrpRunConfig = {
@@ -28,24 +39,40 @@ export function planningRoutes(r: any) {
     const body = req.body || {};
     const specificSoIds: string[] | undefined = Array.isArray(body.so_ids || body.soIds) ? (body.so_ids || body.soIds) : undefined;
 
-    const result = await withTx({ tenantId: a.tenantId, userId: a.userId }, async (c) => {
+    const result = await withDrizzleTx({ tenantId: a.tenantId, userId: a.userId }, async (tx) => {
       // 1. Fetch sales orders to plan
-      let soQuery = `SELECT id, so_number, items, plant_id FROM sales_orders WHERE status IN ('confirmed', 'open') AND tenant_id = $1 AND deleted_at IS NULL`;
-      const soParams: any[] = [a.tenantId];
+      const soConditions = [
+        inArray(salesOrders.status, ['confirmed', 'open']),
+        isNull(salesOrders.deletedAt),
+      ];
       if (specificSoIds && specificSoIds.length > 0) {
-        soQuery += ` AND id = ANY($2)`;
-        soParams.push(specificSoIds);
+        soConditions.push(inArray(salesOrders.id, specificSoIds));
       }
-      const { rows: soRows } = await c.query(soQuery, soParams);
+      const soRows = await tx
+        .select({
+          id: salesOrders.id,
+          so_number: salesOrders.soNumber,
+          items: salesOrders.items,
+          plant_id: salesOrders.plantId,
+        })
+        .from(salesOrders)
+        .where(and(...soConditions));
 
       // 2. Fetch sales order lines if available
-      let solQuery = `SELECT so_id, item_code, item_name, quantity, dispatched_qty FROM sales_order_lines WHERE tenant_id = $1 AND deleted_at IS NULL`;
-      const solParams: any[] = [a.tenantId];
+      const solConditions = [isNull(salesOrderLines.deletedAt)];
       if (specificSoIds && specificSoIds.length > 0) {
-        solQuery += ` AND so_id = ANY($2)`;
-        solParams.push(specificSoIds);
+        solConditions.push(inArray(salesOrderLines.soId, specificSoIds));
       }
-      const { rows: solRows } = await c.query(solQuery, solParams);
+      const solRows = await tx
+        .select({
+          so_id: salesOrderLines.soId,
+          item_code: salesOrderLines.itemCode,
+          item_name: salesOrderLines.itemName,
+          quantity: salesOrderLines.quantity,
+          dispatched_qty: salesOrderLines.dispatchedQty,
+        })
+        .from(salesOrderLines)
+        .where(and(...solConditions));
 
       // Build demand map for finished goods: { [item_code]: { qty, itemName } }
       const fgDemand: Record<string, { qty: number; itemName: string }> = {};
@@ -62,7 +89,7 @@ export function planningRoutes(r: any) {
       } else {
         // Fallback to SO items jsonb
         for (const so of soRows) {
-          const items = Array.isArray(so.items) ? so.items : [];
+          const items = Array.isArray(so.items) ? (so.items as any[]) : [];
           for (const it of items) {
             const itemCode = it.item_code || it.itemCode || it.sku;
             const qty = Number(it.quantity || it.qty || 0);
@@ -93,23 +120,41 @@ export function planningRoutes(r: any) {
 
       const fgCodes = Object.keys(fgDemand);
       if (fgCodes.length > 0) {
-        const { rows: bomLineRows } = await c.query(
-          `SELECT b.item_code as parent_code, bl.component_item_code, bl.component_item_name, bl.quantity_per_unit, bl.uom, bl.scrap_pct
-             FROM bill_of_materials b
-             JOIN bom_lines bl ON bl.bom_id = b.id
-            WHERE b.item_code = ANY($1) AND b.tenant_id = $2 AND b.deleted_at IS NULL AND bl.deleted_at IS NULL`,
-          [fgCodes, a.tenantId]
-        );
-
-        const foundParents = new Set(bomLineRows.map((r: any) => r.parent_code));
-        const missingParents = fgCodes.filter((code) => !foundParents.has(code));
-        let bomJsonRows: any[] = [];
-        if (missingParents.length > 0) {
-          const res = await c.query(
-            `SELECT item_code, lines FROM bill_of_materials WHERE item_code = ANY($1) AND tenant_id = $2 AND deleted_at IS NULL`,
-            [missingParents, a.tenantId]
+        const bomLineRows = await tx
+          .select({
+            parent_code: billOfMaterials.itemCode,
+            component_item_code: bomLines.componentItemCode,
+            component_item_name: bomLines.componentItemName,
+            quantity_per_unit: bomLines.quantityPerUnit,
+            uom: bomLines.uom,
+            scrap_pct: bomLines.scrapPct,
+          })
+          .from(billOfMaterials)
+          .innerJoin(bomLines, eq(bomLines.bomId, billOfMaterials.id))
+          .where(
+            and(
+              inArray(billOfMaterials.itemCode, fgCodes),
+              isNull(billOfMaterials.deletedAt),
+              isNull(bomLines.deletedAt)
+            )
           );
-          bomJsonRows = res.rows;
+
+        const foundParents = new Set(bomLineRows.map((r) => r.parent_code));
+        const missingParents = fgCodes.filter((code) => !foundParents.has(code));
+        let bomJsonRows: { item_code: string; lines: unknown }[] = [];
+        if (missingParents.length > 0) {
+          bomJsonRows = await tx
+            .select({
+              item_code: billOfMaterials.itemCode,
+              lines: billOfMaterials.lines,
+            })
+            .from(billOfMaterials)
+            .where(
+              and(
+                inArray(billOfMaterials.itemCode, missingParents),
+                isNull(billOfMaterials.deletedAt)
+              )
+            );
         }
 
         for (const r of bomLineRows) {
@@ -130,7 +175,7 @@ export function planningRoutes(r: any) {
 
         for (const r of bomJsonRows) {
           const demand = fgDemand[r.item_code]?.qty || 0;
-          const lines = Array.isArray(r.lines) ? r.lines : [];
+          const lines = Array.isArray(r.lines) ? (r.lines as any[]) : [];
           for (const l of lines) {
             const compCode = l.component_item_code || l.componentItemCode || l.item_code || l.itemCode;
             const qpu = Number(l.quantity_per_unit || l.quantityPerUnit || l.quantity || 1);
@@ -166,24 +211,49 @@ export function planningRoutes(r: any) {
       const rmCodes = grossRequirements.map((g) => g.item_code);
 
       // 4. Netting against warehouse_stock and items master
-      let stockRows: any[] = [];
-      let itemRows: any[] = [];
-      if (rmCodes.length > 0) {
-        const sRes = await c.query(
-          `SELECT sku, name, total_on_hand, available_to_promise, uom, unit_cost_inr FROM warehouse_stock WHERE sku = ANY($1) AND tenant_id = $2 AND deleted_at IS NULL`,
-          [rmCodes, a.tenantId]
-        );
-        stockRows = sRes.rows;
+      let stockRows: {
+        sku: string;
+        name: string | null;
+        total_on_hand: string | null;
+        available_to_promise: string | null;
+        uom: string;
+        unit_cost_inr: string | null;
+      }[] = [];
+      let itemRows: {
+        code: string;
+        name: string;
+        stock: string | null;
+        unit: string | null;
+        cost: string | null;
+      }[] = [];
 
-        const iRes = await c.query(
-          `SELECT code, name, stock, unit, cost FROM items WHERE code = ANY($1) AND tenant_id = $2 AND deleted_at IS NULL`,
-          [rmCodes, a.tenantId]
-        );
-        itemRows = iRes.rows;
+      if (rmCodes.length > 0) {
+        stockRows = await tx
+          .select({
+            sku: warehouseStock.sku,
+            name: warehouseStock.name,
+            total_on_hand: warehouseStock.totalOnHand,
+            available_to_promise: warehouseStock.availableToPromise,
+            uom: warehouseStock.uom,
+            unit_cost_inr: warehouseStock.unitCostInr,
+          })
+          .from(warehouseStock)
+          .where(and(inArray(warehouseStock.sku, rmCodes), isNull(warehouseStock.deletedAt)));
+
+        itemRows = await tx
+          .select({
+            code: items.code,
+            name: items.name,
+            stock: items.stock,
+            unit: items.unit,
+            cost: items.cost,
+          })
+          .from(items)
+          .where(and(inArray(items.code, rmCodes), isNull(items.deletedAt)));
       }
 
-      const stockMap = new Map(stockRows.map((r: any) => [r.sku, r]));
-      const itemMap = new Map(itemRows.map((r: any) => [r.code, r]));
+      const stockMap = new Map(stockRows.map((r) => [r.sku, r]));
+      const itemMap = new Map(itemRows.map((r) => [r.code, r]));
 
       const netRequirements: any[] = [];
       const prsToCreate: any[] = [];
@@ -232,51 +302,49 @@ export function planningRoutes(r: any) {
           total_estimated_cost: totalEstAmount,
         };
 
-        const { rows } = await c.query(
-          `INSERT INTO purchase_requisitions (
-            id, pr_number, department, priority, status, lines, total_estimated_amount,
-            notes, tenant_id, created_by, updated_by
-          ) VALUES ($1, $2, 'Materials Planning', 'Normal', 'draft', $3, $4, $5, $6, $7, $7)
-          RETURNING id`,
-          [
-            prId,
-            prNumber,
-            JSON.stringify([line]),
-            totalEstAmount,
-            `Auto-generated via MRP Calculation for ${pr.item_code}`,
-            a.tenantId,
-            a.userId
-          ]
-        );
-        generatedPrIds.push(rows[0].id);
+        const [insertedPr] = await tx
+          .insert(purchaseRequisitions)
+          .values({
+            id: prId,
+            prNumber: prNumber,
+            department: 'Materials Planning',
+            priority: 'Normal',
+            status: 'draft',
+            lines: [line],
+            totalEstimatedAmount: String(totalEstAmount),
+            notes: `Auto-generated via MRP Calculation for ${pr.item_code}`,
+            tenantId: a.tenantId,
+            createdBy: a.userId,
+            updatedBy: a.userId,
+          })
+          .returning({ id: purchaseRequisitions.id });
+        generatedPrIds.push(insertedPr.id);
       }
 
       // 6. Record MRP Run
       const runNumber = 'MRP-' + Math.floor(100000 + Math.random() * 900000);
       const mrpId = crypto.randomUUID();
-      const insertRunRes = await c.query(
-        `INSERT INTO mrp_runs (
-          id, tenant_id, plant_id, run_number, status, total_so_processed,
-          total_items_planned, total_prs_generated, generated_pr_ids,
-          gross_requirements, net_requirements, executed_at, created_by, updated_by
-        ) VALUES ($1, $2, $3, $4, 'COMPLETED', $5, $6, $7, $8, $9, $10, now(), $11, $11)
-        RETURNING *`,
-        [
-          mrpId,
-          a.tenantId,
-          a.activePlantId || null,
-          runNumber,
-          soRows.length,
-          grossRequirements.length,
-          generatedPrIds.length,
-          JSON.stringify(generatedPrIds),
-          JSON.stringify(grossRequirements),
-          JSON.stringify(netRequirements),
-          a.userId
-        ]
-      );
+      const [insertRunRes] = await tx
+        .insert(mrpRuns)
+        .values({
+          id: mrpId,
+          tenantId: a.tenantId,
+          plantId: a.activePlantId || null,
+          runNumber: runNumber,
+          status: 'COMPLETED',
+          totalSoProcessed: soRows.length,
+          totalItemsPlanned: grossRequirements.length,
+          totalPrsGenerated: generatedPrIds.length,
+          generatedPrIds: generatedPrIds,
+          grossRequirements: grossRequirements,
+          netRequirements: netRequirements,
+          executedAt: new Date(),
+          createdBy: a.userId,
+          updatedBy: a.userId,
+        })
+        .returning();
 
-      return insertRunRes.rows[0];
+      return insertRunRes;
     });
 
     res.json({ data: result });

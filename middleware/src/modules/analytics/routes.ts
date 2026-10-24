@@ -1,94 +1,102 @@
-import { withTx } from '../../db.js';
+import { desc, isNull, sql } from 'drizzle-orm';
+import { withDrizzleTx } from '../../db.js';
 import { can, wrap, type Actor } from '../../middleware.js';
 import type { Req, Res } from '../../router.js';
+import {
+  workOrders,
+  productionEntries,
+  items,
+  salesOrders,
+  apInvoices,
+  breakdownTickets,
+  machines as machinesTable,
+  downtimeLogs,
+  qcInspections,
+  deliveryChallans,
+} from '../../schema/erp.js';
 
 export function analyticsRoutes(r: any) {
   // 1. Executive KPIs Summary
   const handleExecutiveKpis = async (req: Req, res: Res) => {
     const a = req.actor! as Actor;
 
-    const data = await withTx({ tenantId: a.tenantId, userId: a.userId }, async (c) => {
+    const data = await withDrizzleTx({ tenantId: a.tenantId, userId: a.userId }, async (tx) => {
       // Work orders
-      const woRes = await c.query(
-        `SELECT count(*)::int AS total_wo,
-                count(*) FILTER (WHERE status = 'in_progress')::int AS active_wo,
-                count(*) FILTER (WHERE status = 'completed')::int AS completed_wo
-           FROM work_orders
-          WHERE tenant_id = $1 AND deleted_at IS NULL`,
-        [a.tenantId]
-      );
-      const wo = woRes.rows[0] || { total_wo: 0, active_wo: 0, completed_wo: 0 };
+      const [wo] = await tx
+        .select({
+          total_wo: sql<number>`count(*)::int`,
+          active_wo: sql<number>`count(*) FILTER (WHERE ${workOrders.status} = 'in_progress')::int`,
+          completed_wo: sql<number>`count(*) FILTER (WHERE ${workOrders.status} = 'completed')::int`,
+        })
+        .from(workOrders)
+        .where(isNull(workOrders.deletedAt));
 
       // Production & Scrap
-      const prodRes = await c.query(
-        `SELECT COALESCE(SUM(good_qty::numeric), 0) AS good_qty,
-                COALESCE(SUM(rejected_qty::numeric), 0) AS scrap_qty,
-                COALESCE(SUM(shots_produced::numeric), 0) AS total_shots
-           FROM production_entries
-          WHERE tenant_id = $1 AND deleted_at IS NULL`,
-        [a.tenantId]
-      );
-      const prod = prodRes.rows[0] || { good_qty: '0', scrap_qty: '0', total_shots: '0' };
-      const goodQty = parseFloat(prod.good_qty);
-      const scrapQty = parseFloat(prod.scrap_qty);
+      const [prod] = await tx
+        .select({
+          good_qty: sql<string>`COALESCE(SUM(${productionEntries.goodQty}::numeric), 0)`,
+          scrap_qty: sql<string>`COALESCE(SUM(${productionEntries.rejectedQty}::numeric), 0)`,
+          total_shots: sql<string>`COALESCE(SUM(${productionEntries.shotsProduced}::numeric), 0)`,
+        })
+        .from(productionEntries)
+        .where(isNull(productionEntries.deletedAt));
+
+      const goodQty = parseFloat(prod?.good_qty || '0');
+      const scrapQty = parseFloat(prod?.scrap_qty || '0');
       const totalProduced = goodQty + scrapQty;
       const scrapRate = totalProduced > 0 ? (scrapQty / totalProduced) * 100 : 0;
 
       // Inventory & Stock value
-      const invRes = await c.query(
-        `SELECT COALESCE(SUM(stock::numeric * cost::numeric), 0) AS total_val,
-                count(*)::int AS total_items
-           FROM items
-          WHERE tenant_id = $1 AND deleted_at IS NULL`,
-        [a.tenantId]
-      );
-      const inv = invRes.rows[0] || { total_val: '0', total_items: 0 };
+      const [inv] = await tx
+        .select({
+          total_val: sql<string>`COALESCE(SUM(${items.stock}::numeric * ${items.cost}::numeric), 0)`,
+          total_items: sql<number>`count(*)::int`,
+        })
+        .from(items)
+        .where(isNull(items.deletedAt));
 
       // Sales Orders value
-      const soRes = await c.query(
-        `SELECT COALESCE(SUM(total_amount::numeric), 0) AS total_so_val,
-                count(*)::int AS total_so_count
-           FROM sales_orders
-          WHERE tenant_id = $1 AND deleted_at IS NULL`,
-        [a.tenantId]
-      );
-      const so = soRes.rows[0] || { total_so_val: '0', total_so_count: 0 };
+      const [so] = await tx
+        .select({
+          total_so_val: sql<string>`COALESCE(SUM(${salesOrders.totalAmount}::numeric), 0)`,
+          total_so_count: sql<number>`count(*)::int`,
+        })
+        .from(salesOrders)
+        .where(isNull(salesOrders.deletedAt));
 
       // AP Invoices value
-      const apRes = await c.query(
-        `SELECT COALESCE(SUM(total_amount::numeric), 0) AS total_ap_val,
-                count(*) FILTER (WHERE status = 'PENDING')::int AS pending_ap_count
-           FROM ap_invoices
-          WHERE tenant_id = $1 AND deleted_at IS NULL`,
-        [a.tenantId]
-      );
-      const ap = apRes.rows[0] || { total_ap_val: '0', pending_ap_count: 0 };
+      const [ap] = await tx
+        .select({
+          total_ap_val: sql<string>`COALESCE(SUM(${apInvoices.totalAmount}::numeric), 0)`,
+          pending_ap_count: sql<number>`count(*) FILTER (WHERE ${apInvoices.status} = 'PENDING')::int`,
+        })
+        .from(apInvoices)
+        .where(isNull(apInvoices.deletedAt));
 
       // Breakdown tickets
-      const bdRes = await c.query(
-        `SELECT count(*) FILTER (WHERE status = 'OPEN')::int AS open_tickets,
-                count(*)::int AS total_tickets
-           FROM breakdown_tickets
-          WHERE tenant_id = $1 AND deleted_at IS NULL`,
-        [a.tenantId]
-      );
-      const bd = bdRes.rows[0] || { open_tickets: 0, total_tickets: 0 };
+      const [bd] = await tx
+        .select({
+          open_tickets: sql<number>`count(*) FILTER (WHERE ${breakdownTickets.status} = 'OPEN')::int`,
+          total_tickets: sql<number>`count(*)::int`,
+        })
+        .from(breakdownTickets)
+        .where(isNull(breakdownTickets.deletedAt));
 
       return {
-        revenue: parseFloat(so.total_so_val),
+        revenue: parseFloat(so?.total_so_val || '0'),
         ebitdaMargin: 24.5,
         oeeOverall: 84.2,
         otifRate: 96.8,
-        totalInventoryValue: parseFloat(inv.total_val),
-        activeWorkOrders: wo.active_wo,
-        completedWorkOrders: wo.completed_wo,
+        totalInventoryValue: parseFloat(inv?.total_val || '0'),
+        activeWorkOrders: wo?.active_wo || 0,
+        completedWorkOrders: wo?.completed_wo || 0,
         totalProducedQty: goodQty,
         totalScrapQty: scrapQty,
         scrapRatePct: Math.round(scrapRate * 100) / 100,
-        openSalesOrdersValue: parseFloat(so.total_so_val),
-        pendingApInvoicesCount: ap.pending_ap_count,
-        pendingApValue: parseFloat(ap.total_ap_val),
-        openBreakdownTickets: bd.open_tickets,
+        openSalesOrdersValue: parseFloat(so?.total_so_val || '0'),
+        pendingApInvoicesCount: ap?.pending_ap_count || 0,
+        pendingApValue: parseFloat(ap?.total_ap_val || '0'),
+        openBreakdownTickets: bd?.open_tickets || 0,
       };
     }, { readOnly: true });
 
@@ -102,23 +110,32 @@ export function analyticsRoutes(r: any) {
   const handleOeeTelemetry = async (req: Req, res: Res) => {
     const a = req.actor! as Actor;
 
-    const data = await withTx({ tenantId: a.tenantId, userId: a.userId }, async (c) => {
+    const data = await withDrizzleTx({ tenantId: a.tenantId, userId: a.userId }, async (tx) => {
       // Get machines
-      const { rows: machines } = await c.query(
-        `SELECT id, code, name, tonnage, status FROM machines WHERE tenant_id = $1 AND deleted_at IS NULL LIMIT 20`,
-        [a.tenantId]
-      );
+      const machines = await tx
+        .select({
+          id: machinesTable.id,
+          code: machinesTable.code,
+          name: machinesTable.name,
+          tonnage: machinesTable.tonnage,
+          status: machinesTable.status,
+        })
+        .from(machinesTable)
+        .where(isNull(machinesTable.deletedAt))
+        .limit(20);
 
       // Get downtime loss pareto
-      const { rows: downtimeLosses } = await c.query(
-        `SELECT category, COALESCE(SUM(duration_minutes::numeric), 0) AS total_minutes, count(*)::int AS occurrences
-           FROM downtime_logs
-          WHERE tenant_id = $1 AND deleted_at IS NULL
-          GROUP BY category
-          ORDER BY total_minutes DESC
-          LIMIT 10`,
-        [a.tenantId]
-      );
+      const downtimeLosses = await tx
+        .select({
+          category: downtimeLogs.category,
+          total_minutes: sql<string>`COALESCE(SUM(${downtimeLogs.durationMinutes}::numeric), 0)`,
+          occurrences: sql<number>`count(*)::int`,
+        })
+        .from(downtimeLogs)
+        .where(isNull(downtimeLogs.deletedAt))
+        .groupBy(downtimeLogs.category)
+        .orderBy(desc(sql`total_minutes`))
+        .limit(10);
 
       const records = machines.map((m) => ({
         machineId: m.code,
@@ -173,18 +190,19 @@ export function analyticsRoutes(r: any) {
   const handleQualityMetrics = async (req: Req, res: Res) => {
     const a = req.actor! as Actor;
 
-    const data = await withTx({ tenantId: a.tenantId, userId: a.userId }, async (c) => {
-      const { rows: defects } = await c.query(
-        `SELECT item_code, disposition,
-                COALESCE(SUM(inspected_qty::numeric), 0) AS total_inspected,
-                COALESCE(SUM(accepted_qty::numeric), 0) AS total_accepted,
-                COALESCE(SUM(rejected_qty::numeric), 0) AS total_rejected
-           FROM qc_inspections
-          WHERE tenant_id = $1 AND deleted_at IS NULL
-          GROUP BY item_code, disposition
-          LIMIT 20`,
-        [a.tenantId]
-      );
+    const data = await withDrizzleTx({ tenantId: a.tenantId, userId: a.userId }, async (tx) => {
+      const defects = await tx
+        .select({
+          item_code: qcInspections.itemCode,
+          disposition: qcInspections.disposition,
+          total_inspected: sql<string>`COALESCE(SUM(${qcInspections.inspectedQty}::numeric), 0)`,
+          total_accepted: sql<string>`COALESCE(SUM(${qcInspections.acceptedQty}::numeric), 0)`,
+          total_rejected: sql<string>`COALESCE(SUM(${qcInspections.rejectedQty}::numeric), 0)`,
+        })
+        .from(qcInspections)
+        .where(isNull(qcInspections.deletedAt))
+        .groupBy(qcInspections.itemCode, qcInspections.disposition)
+        .limit(20);
 
       const items = defects.map((d) => ({
         itemCode: d.item_code,
@@ -210,21 +228,23 @@ export function analyticsRoutes(r: any) {
   const handleScmKpis = async (req: Req, res: Res) => {
     const a = req.actor! as Actor;
 
-    const data = await withTx({ tenantId: a.tenantId, userId: a.userId }, async (c) => {
-      const { rows: dcRows } = await c.query(
-        `SELECT count(*)::int AS total_challans,
-                count(*) FILTER (WHERE status = 'DISPATCHED')::int AS dispatched_challans
-           FROM delivery_challans
-          WHERE tenant_id = $1 AND deleted_at IS NULL`,
-        [a.tenantId]
-      );
-      const dc = dcRows[0] || { total_challans: 0, dispatched_challans: 0 };
-      const otifRate = dc.total_challans > 0 ? (dc.dispatched_challans / dc.total_challans) * 100 : 98.5;
+    const data = await withDrizzleTx({ tenantId: a.tenantId, userId: a.userId }, async (tx) => {
+      const [dc] = await tx
+        .select({
+          total_challans: sql<number>`count(*)::int`,
+          dispatched_challans: sql<number>`count(*) FILTER (WHERE ${deliveryChallans.status} = 'DISPATCHED' OR ${deliveryChallans.status} = 'dispatched')::int`,
+        })
+        .from(deliveryChallans)
+        .where(isNull(deliveryChallans.deletedAt));
+
+      const totalChallans = dc?.total_challans || 0;
+      const dispatchedChallans = dc?.dispatched_challans || 0;
+      const otifRate = totalChallans > 0 ? (dispatchedChallans / totalChallans) * 100 : 98.5;
 
       return {
         otifPercentage: Math.round(otifRate * 10) / 10,
-        totalDeliveries: dc.total_challans,
-        onTimeDeliveries: dc.dispatched_challans,
+        totalDeliveries: totalChallans,
+        onTimeDeliveries: dispatchedChallans,
         averageDispatchDelayHours: 0.8,
       };
     }, { readOnly: true });
@@ -238,17 +258,17 @@ export function analyticsRoutes(r: any) {
   // 5. Maintenance Metrics
   r.get('/analytics/maintenance/metrics', can('read', 'Dashboard'), wrap(async (req: Req, res: Res) => {
     const a = req.actor! as Actor;
-    const data = await withTx({ tenantId: a.tenantId, userId: a.userId }, async (c) => {
-      const { rows } = await c.query(
-        `SELECT count(*)::int AS total_breakdowns,
-                COALESCE(SUM(duration_minutes::numeric), 0) AS total_downtime_minutes
-           FROM downtime_logs
-          WHERE tenant_id = $1 AND deleted_at IS NULL`,
-        [a.tenantId]
-      );
-      const row = rows[0] || { total_breakdowns: 0, total_downtime_minutes: '0' };
-      const totalMinutes = parseFloat(row.total_downtime_minutes);
-      const count = row.total_breakdowns;
+    const data = await withDrizzleTx({ tenantId: a.tenantId, userId: a.userId }, async (tx) => {
+      const [row] = await tx
+        .select({
+          total_breakdowns: sql<number>`count(*)::int`,
+          total_downtime_minutes: sql<string>`COALESCE(SUM(${downtimeLogs.durationMinutes}::numeric), 0)`,
+        })
+        .from(downtimeLogs)
+        .where(isNull(downtimeLogs.deletedAt));
+
+      const totalMinutes = parseFloat(row?.total_downtime_minutes || '0');
+      const count = row?.total_breakdowns || 0;
       const mttrMinutes = count > 0 ? Math.round(totalMinutes / count) : 45;
 
       return {

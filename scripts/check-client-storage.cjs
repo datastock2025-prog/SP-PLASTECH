@@ -59,7 +59,7 @@ if (allViolations.length > 0) {
       console.error(`  Line ${v.line}: ${v.content}`);
     });
   });
-  console.error('\nRule: Enterprise Rule #3 forbids client storage for state/cache. Use TanStack Query or db adapter.');
+  console.error('\nRule: Enterprise Rule #3 forbids client storage for state/cache. Use TanStack Query as the Single Source of Truth.');
   process.exit(1);
 } else {
   console.log('[check-storage] PASSED: Zero storage violations across all frontend modules.');

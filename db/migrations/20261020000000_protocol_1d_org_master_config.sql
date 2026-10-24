@@ -232,3 +232,6 @@ GRANT ALL ON TABLE public.holidays TO erp_app;
 GRANT ALL ON TABLE public.transporters TO erp_app;
 GRANT ALL ON TABLE public.numbering_series TO erp_app;
 GRANT EXECUTE ON FUNCTION public.next_doc_number(uuid, text, uuid) TO erp_app;
+
+-- migrate:down
+-- shortcut: no automated rollback for this historical migration; restore from backup.

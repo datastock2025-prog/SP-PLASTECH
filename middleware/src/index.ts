@@ -17,5 +17,4 @@ app.use('/api/*', async (c, next) => {
   await next();
 });
 
-export { createResourceRouter } from './crud.js';
 export default app;

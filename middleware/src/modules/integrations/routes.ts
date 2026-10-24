@@ -1,10 +1,9 @@
 import { z } from 'zod';
 import { eq, and, isNull, desc, asc, sql } from 'drizzle-orm';
-import { withTx, withDrizzleTx, schema } from '../../db.js';
+import { withDrizzleTx, schema } from '../../db.js';
 import { AppError, can, wrap, type Actor } from '../../middleware.js';
-import { writeAudit } from '../../userStore.js';
-import { ctx } from '../../core/helpers.js';
-import { pool } from '../../db.js';
+import { writeAudit } from '../../core/audit.js';
+import { ctx } from '../../core/query.js';
 
 const str = (max = 200) => z.string().trim().min(1).max(max);
 const optStr = (max = 200) => z.string().trim().max(max).nullable().optional().transform((v) => (v ? v : null));
@@ -228,28 +227,57 @@ export function integrationsRoutes(r: any) {
     const id = z.string().uuid().parse(req.params.id);
 
     const committed = await withDrizzleTx(ctx(a), async (tx, c) => {
-      const job = (await c.query(`SELECT id, tenant_id, job_type, entity_type, status, file_name, total_rows, processed_rows, error_count, error_summary, created_by, created_at, updated_at FROM public.data_jobs WHERE id = $1 AND tenant_id = $2 FOR UPDATE`, [id, a.tenantId])).rows[0];
+      const [job] = await tx
+        .select()
+        .from(schema.dataJobs)
+        .where(
+          and(
+            eq(schema.dataJobs.id, id),
+            eq(schema.dataJobs.tenantId, a.tenantId)
+          )
+        )
+        .for('update');
       if (!job) throw new AppError(404, 'NOT_FOUND', 'Data job not found');
       if (job.status === 'COMMITTED') throw new AppError(400, 'ALREADY_COMMITTED', 'Job already committed');
 
-      const rows = (await c.query(
-        `SELECT id, job_id, row_number, raw_data, validation_errors, status, created_at FROM public.import_rows WHERE job_id = $1 AND status = 'VALID' ORDER BY row_number ASC`,
-        [id]
-      )).rows;
+      const rows = await tx
+        .select()
+        .from(schema.importRows)
+        .where(
+          and(
+            eq(schema.importRows.jobId, id),
+            eq(schema.importRows.status, 'VALID')
+          )
+        )
+        .orderBy(asc(schema.importRows.rowNumber));
 
       let committedCount = 0;
       for (const r of rows) {
-        const raw = r.raw_data;
-        if (job.entity_type === 'ITEM') {
-          const code = (raw.code || raw.item_code || `IMP-ITM-${r.row_number}`).trim().toUpperCase();
-          const name = raw.name || raw.item_name || 'Imported Material';
-          await c.query(
-            `INSERT INTO public.items (tenant_id, code, name, category, resin_type, stock, min_stock, cost)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-             ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL
-             DO UPDATE SET name = EXCLUDED.name, stock = EXCLUDED.stock, updated_at = now()`,
-            [a.tenantId, code, name, raw.category || 'Raw Material', raw.resin_type || 'PP', Number(raw.stock) || 0, Number(raw.min_stock) || 0, Number(raw.cost) || 0]
-          );
+        const raw = r.rawData as Record<string, any>;
+        if (job.entityType === 'ITEM') {
+          const code = String(raw.code || raw.item_code || `IMP-ITM-${r.rowNumber}`).trim().toUpperCase();
+          const name = String(raw.name || raw.item_name || 'Imported Material');
+          await tx
+            .insert(schema.items)
+            .values({
+              tenantId: a.tenantId,
+              code,
+              name,
+              category: raw.category || 'Raw Material',
+              resinType: raw.resin_type || 'PP',
+              stock: String(Number(raw.stock) || 0),
+              minStock: String(Number(raw.min_stock) || 0),
+              cost: String(Number(raw.cost) || 0),
+            })
+            .onConflictDoUpdate({
+              target: [schema.items.tenantId, schema.items.code],
+              targetWhere: isNull(schema.items.deletedAt),
+              set: {
+                name: sql`EXCLUDED.name`,
+                stock: sql`EXCLUDED.stock`,
+                updatedAt: new Date(),
+              },
+            });
           committedCount++;
         }
       }
@@ -285,12 +313,17 @@ export function integrationsRoutes(r: any) {
 
   r.post('/retention-policies/run', can('manage', 'Preference'), wrap(async (req, res) => {
     const a = req.actor!;
-    const result = await withTx(ctx(a), async (c) => {
-      const resPurge = await c.query(
-        `DELETE FROM public.login_events WHERE tenant_id = $1 AND created_at < now() - INTERVAL '180 days'`,
-        [a.tenantId]
-      );
-      return { purgedLoginEvents: resPurge.rowCount || 0, executedAt: new Date() };
+    const result = await withDrizzleTx(ctx(a), async (tx) => {
+      const resPurge = await tx
+        .delete(schema.loginEvents)
+        .where(
+          and(
+            eq(schema.loginEvents.tenantId, a.tenantId),
+            sql`${schema.loginEvents.createdAt} < now() - INTERVAL '180 days'`
+          )
+        )
+        .returning({ id: schema.loginEvents.id });
+      return { purgedLoginEvents: resPurge.length, executedAt: new Date() };
     });
     res.json({ data: result });
   }));

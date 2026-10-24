@@ -1,9 +1,12 @@
 import { z } from 'zod';
-import { withTx } from '../../db.js';
+import { and, asc, eq, inArray, isNull, ne } from 'drizzle-orm';
+import { withDrizzleTx } from '../../db.js';
 import { AppError, can, wrap } from '../../middleware.js';
-import { registerResourceRoutes } from '../../crud.js';
-import { ctx } from '../../core/helpers.js';
-import { writeAudit } from '../../userStore.js';
+import { registerResourceRoutes } from '../../core/resource.js';
+import { ctx } from '../../core/query.js';
+import { writeAudit } from '../../core/audit.js';
+import { patchRow, type ScopedTable } from '../../core/query.js';
+import { billOfMaterials, bomLines, items } from '../../schema/erp.js';
 import * as zod from '../../schema/zod.js';
 
 export function engineeringRoutes(r: any) {
@@ -67,34 +70,53 @@ export function engineeringRoutes(r: any) {
       const bomId = z.string().trim().min(1).parse(req.params.id);
       const plannedQty = Math.max(1, Number(req.query.qty) || 1);
 
-      const data = await withTx(
+      const data = await withDrizzleTx(
         ctx(a),
-        async (c) => {
+        async (db) => {
           // 1. Fetch BOM Header
-          const bomRes = await c.query(
-            `SELECT id, item_code, bom_version, status, lines
-               FROM bill_of_materials
-              WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL`,
-            [bomId, a.tenantId]
-          );
+          const [bom] = await db
+            .select({
+              id: billOfMaterials.id,
+              item_code: billOfMaterials.itemCode,
+              bom_version: billOfMaterials.bomVersion,
+              status: billOfMaterials.status,
+              lines: billOfMaterials.lines,
+            })
+            .from(billOfMaterials)
+            .where(
+              and(
+                eq(billOfMaterials.id, bomId),
+                eq(billOfMaterials.tenantId, a.tenantId),
+                isNull(billOfMaterials.deletedAt)
+              )
+            );
 
-          if (!bomRes.rows[0]) {
+          if (!bom) {
             throw new AppError(404, 'NOT_FOUND', 'Bill of Materials not found');
           }
 
-          const bom = bomRes.rows[0];
-
           // 2. Fetch lines: check normalized bom_lines table first
-          const linesRes = await c.query(
-            `SELECT line_no, component_item_code, component_item_name, category,
-                    quantity_per_unit, uom, scrap_pct, is_critical, notes
-               FROM bom_lines
-              WHERE bom_id = $1 AND tenant_id = $2 AND deleted_at IS NULL
-              ORDER BY line_no ASC`,
-            [bomId, a.tenantId]
-          );
-
-          let rawComponents: any[] = linesRes.rows;
+          let rawComponents: any[] = await db
+            .select({
+              line_no: bomLines.lineNo,
+              component_item_code: bomLines.componentItemCode,
+              component_item_name: bomLines.componentItemName,
+              category: bomLines.category,
+              quantity_per_unit: bomLines.quantityPerUnit,
+              uom: bomLines.uom,
+              scrap_pct: bomLines.scrapPct,
+              is_critical: bomLines.isCritical,
+              notes: bomLines.notes,
+            })
+            .from(bomLines)
+            .where(
+              and(
+                eq(bomLines.bomId, bomId),
+                eq(bomLines.tenantId, a.tenantId),
+                isNull(bomLines.deletedAt)
+              )
+            )
+            .orderBy(asc(bomLines.lineNo));
 
           // Fallback to JSONB lines if bom_lines has not been populated for this record
           if (rawComponents.length === 0 && Array.isArray(bom.lines) && bom.lines.length > 0) {
@@ -115,13 +137,24 @@ export function engineeringRoutes(r: any) {
           const itemMap = new Map<string, any>();
 
           if (compCodes.length > 0) {
-            const itemsRes = await c.query(
-              `SELECT code, name, category, stock, cost, unit
-                 FROM items
-                WHERE code = ANY($1::text[]) AND tenant_id = $2 AND deleted_at IS NULL`,
-              [compCodes, a.tenantId]
-            );
-            for (const item of itemsRes.rows) {
+            const itemsList = await db
+              .select({
+                code: items.code,
+                name: items.name,
+                category: items.category,
+                stock: items.stock,
+                cost: items.cost,
+                unit: items.unit,
+              })
+              .from(items)
+              .where(
+                and(
+                  inArray(items.code, compCodes),
+                  eq(items.tenantId, a.tenantId),
+                  isNull(items.deletedAt)
+                )
+              );
+            for (const item of itemsList) {
               itemMap.set(item.code, item);
             }
           }
@@ -181,40 +214,52 @@ export function engineeringRoutes(r: any) {
       const a = req.actor!;
       const bomId = z.string().trim().min(1).parse(req.params.id);
 
-      const out = await withTx(ctx(a), async (c) => {
+      const out = await withDrizzleTx(ctx(a), async (db, c) => {
         // Fetch target BOM
-        const targetRes = await c.query(
-          `SELECT id, item_code, bom_version, status, version
-             FROM bill_of_materials
-            WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
-             FOR UPDATE`,
-          [bomId, a.tenantId]
-        );
+        const [bom] = await db
+          .select({
+            id: billOfMaterials.id,
+            item_code: billOfMaterials.itemCode,
+            bom_version: billOfMaterials.bomVersion,
+            status: billOfMaterials.status,
+            version: billOfMaterials.version,
+          })
+          .from(billOfMaterials)
+          .where(
+            and(
+              eq(billOfMaterials.id, bomId),
+              eq(billOfMaterials.tenantId, a.tenantId),
+              isNull(billOfMaterials.deletedAt)
+            )
+          )
+          .for('update');
 
-        if (!targetRes.rows[0]) {
+        if (!bom) {
           throw new AppError(404, 'NOT_FOUND', 'Bill of Materials not found');
         }
 
-        const bom = targetRes.rows[0];
-
         // Archive previously released BOMs for the same parent item
-        await c.query(
-          `UPDATE bill_of_materials
-              SET status = 'archived', updated_at = now()
-            WHERE tenant_id = $1 AND item_code = $2 AND status = 'released' AND id != $3`,
-          [a.tenantId, bom.item_code, bomId]
-        );
+        await db
+          .update(billOfMaterials)
+          .set({ status: 'archived', updatedAt: new Date() })
+          .where(
+            and(
+              eq(billOfMaterials.tenantId, a.tenantId),
+              eq(billOfMaterials.itemCode, bom.item_code),
+              eq(billOfMaterials.status, 'released'),
+              ne(billOfMaterials.id, bomId)
+            )
+          );
 
         // Release the selected BOM
-        const updatedRes = await c.query(
-          `UPDATE bill_of_materials
-              SET status = 'released', updated_at = now(), version = version + 1
-            WHERE id = $1 AND tenant_id = $2
-            RETURNING id, item_code, bom_version, status, version, updated_at`,
-          [bomId, a.tenantId]
+        const updated = await patchRow(
+          db,
+          billOfMaterials as ScopedTable,
+          a,
+          bomId,
+          { status: 'released' },
+          ['id', 'item_code', 'bom_version', 'status', 'version', 'updated_at']
         );
-
-        const updated = updatedRes.rows[0];
 
         await writeAudit(c, {
           tenantId: a.tenantId,

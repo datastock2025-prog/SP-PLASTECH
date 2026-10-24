@@ -3,10 +3,25 @@ import { queryKeys } from '@/src/shared/queryKeys';
 import { broadcastLocalMutation } from '@/src/services/realtime/realtimeService';
 import { api } from '@/src/lib/api-client';
 import { SalesOrder, Quotation, ReturnMerchandise } from '@/src/types';
-import { mapDbRowToSalesOrder } from '@/src/shared/utils/dtoMappers';
 import { salesApi, type SalesSummaryDto } from './salesApi';
 
 export { type SalesSummaryDto };
+
+const normalizeSalesOrder = (row: any): SalesOrder => ({
+  ...row,
+  id: String(row.id || ''),
+  customer: String(row.customer_name || row.customer || ''),
+  customerPO: String(row.customer_po_number || row.customerPO || ''),
+  priority: (row.priority || 'Medium') as any,
+  quoteRef: row.quote_ref || row.quoteRef,
+  orderDate: String(row.order_date || row.orderDate || ''),
+  deliveryDate: String(row.delivery_date || row.deliveryDate || ''),
+  approval: (row.approval || 'approved') as any,
+  rejectReason: row.reject_reason || row.rejectReason,
+  lines: Array.isArray(row.lines) ? row.lines : [],
+  dispatchLogs: Array.isArray(row.dispatch_logs) ? row.dispatch_logs : [],
+  history: Array.isArray(row.history) ? row.history : [],
+});
 
 // 1. Sales Orders Query (TanStack Query SSOT)
 export function useSalesOrders(_filter?: any) {
@@ -19,7 +34,7 @@ export function useSalesOrders(_filter?: any) {
         });
         const rows = res?.data?.data || res?.data;
         if (Array.isArray(rows)) {
-          return rows.map((row: any) => mapDbRowToSalesOrder(row));
+          return rows.map((row: any) => normalizeSalesOrder(row));
         }
       } catch (e) {
         console.debug('[useSalesOrders] REST query notice:', e);

@@ -3,6 +3,8 @@ import { z } from 'zod';
 import dotenv from 'dotenv';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 
 if (typeof process !== 'undefined') {
   try {
@@ -73,4 +75,18 @@ export const config = { root: '', ...read(typeof process !== 'undefined' ? proce
 export function configure(rawEnv: Record<string, any>) {
   Object.assign(config, read(rawEnv));
   if (!config.secret) throw new Error('BETTER_AUTH_SECRET is required');
+}
+
+export function resolveDevSecret(): string {
+  if (config.secret) return config.secret;
+  if (config.isProd) throw new Error('BETTER_AUTH_SECRET is required in production');
+  try {
+    const file = resolve(config.root, '.dev-secret');
+    if (existsSync(file)) return readFileSync(file, 'utf8').trim();
+    const secret = randomBytes(48).toString('hex');
+    writeFileSync(file, secret, { mode: 0o600 });
+    return secret;
+  } catch {
+    return '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  }
 }

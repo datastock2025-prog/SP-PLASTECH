@@ -1,3 +1,4 @@
+-- migrate:up
 -- Migration: 20261027000005_hr_analytics_workspace.sql
 -- Description: Employees, Attendance Records, Shift Rosters, Operator Skills, Workspace Tasks, Notifications, Workspace Presets
 
@@ -216,3 +217,6 @@ CREATE POLICY workspace_presets_tenant_isolation ON workspace_presets
     WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON workspace_presets TO erp_app;
+
+-- migrate:down
+-- shortcut: no automated rollback for this historical migration; restore from backup.

@@ -1,8 +1,10 @@
 import { z } from 'zod';
-import { registerResourceRoutes } from '../../crud.js';
-import { withTx } from '../../db.js';
+import { and, desc, eq, isNull, or } from 'drizzle-orm';
+import { registerResourceRoutes } from '../../core/resource.js';
+import { withDrizzleTx } from '../../db.js';
 import { AppError, can, wrap } from '../../middleware.js';
-import { ctx } from '../../core/helpers.js';
+import { ctx } from '../../core/query.js';
+import { stockMovementLedger, warehouseStock } from '../../schema/erp.js';
 import * as zod from '../../schema/zod.js';
 
 export function warehouseRoutes(r: any) {
@@ -165,37 +167,57 @@ export function warehouseRoutes(r: any) {
     const nowIso = new Date().toISOString();
     const dateStr = nowIso.split('T')[0];
 
-    const result = await withTx(ctx(a), async (c) => {
+    const result = await withDrizzleTx(ctx(a), async (db) => {
       // 1. Post OUT movement from source
-      const outRes = await c.query(
-        `INSERT INTO stock_movement_ledger (
-          tenant_id, plant_id, ledger_date, doc_type, doc_number, location,
-          sku, item_name, movement_type, quantity, qty_out, uom, status,
-          destination_store, authorized_by, created_by
-        ) VALUES ($1, $2, $3, 'TRANSFERS', $4, $5, $6, $7, 'OUT', $8, $8, $9, 'CLOSED', $10, $11, $12)
-        RETURNING id, doc_number, sku, quantity, created_at`,
-        [
-          a.tenantId, a.activePlantId || null, dateStr, transferDocNo, body.from_location,
-          body.item_code, body.item_code, body.quantity, body.uom, body.to_location,
-          a.fullName || 'Store In-Charge', a.userId
-        ]
-      );
+      const [outRow] = await db
+        .insert(stockMovementLedger)
+        .values({
+          tenantId: a.tenantId,
+          plantId: a.activePlantId || null,
+          ledgerDate: dateStr,
+          docType: 'TRANSFERS',
+          docNumber: transferDocNo,
+          location: body.from_location,
+          sku: body.item_code,
+          itemName: body.item_code,
+          movementType: 'OUT',
+          quantity: String(body.quantity),
+          qtyOut: String(body.quantity),
+          uom: body.uom,
+          status: 'CLOSED',
+          destinationStore: body.to_location,
+          authorizedBy: a.fullName || 'Store In-Charge',
+          createdBy: a.userId,
+        })
+        .returning({
+          id: stockMovementLedger.id,
+          doc_number: stockMovementLedger.docNumber,
+          sku: stockMovementLedger.sku,
+          quantity: stockMovementLedger.quantity,
+          created_at: stockMovementLedger.createdAt,
+        });
 
       // 2. Post IN movement to destination
-      await c.query(
-        `INSERT INTO stock_movement_ledger (
-          tenant_id, plant_id, ledger_date, doc_type, doc_number, location,
-          sku, item_name, movement_type, quantity, qty_in, uom, status,
-          source_location, authorized_by, created_by
-        ) VALUES ($1, $2, $3, 'TRANSFERS', $4, $5, $6, $7, 'IN', $8, $8, $9, 'CLOSED', $10, $11, $12)`,
-        [
-          a.tenantId, a.activePlantId || null, dateStr, transferDocNo, body.to_location,
-          body.item_code, body.item_code, body.quantity, body.uom, body.from_location,
-          a.fullName || 'Store In-Charge', a.userId
-        ]
-      );
+      await db.insert(stockMovementLedger).values({
+        tenantId: a.tenantId,
+        plantId: a.activePlantId || null,
+        ledgerDate: dateStr,
+        docType: 'TRANSFERS',
+        docNumber: transferDocNo,
+        location: body.to_location,
+        sku: body.item_code,
+        itemName: body.item_code,
+        movementType: 'IN',
+        quantity: String(body.quantity),
+        qtyIn: String(body.quantity),
+        uom: body.uom,
+        status: 'CLOSED',
+        sourceLocation: body.from_location,
+        authorizedBy: a.fullName || 'Store In-Charge',
+        createdBy: a.userId,
+      });
 
-      return outRes.rows[0];
+      return outRow;
     });
 
     res.setHeader('X-Invalidate', 'warehouse_stock,stock_movement_ledger');
@@ -220,18 +242,29 @@ export function warehouseRoutes(r: any) {
     can('read', 'Warehouse'),
     wrap(async (req, res) => {
       const a = req.actor!;
-      const result = await withTx(ctx(a), async (c) => {
-        const { rows } = await c.query(
-          `SELECT id, doc_number AS "transferNumber", location AS "sourceWarehouse",
-                  destination_store AS "targetWarehouse", sku AS "itemCode", quantity,
-                  status, created_at AS "transferredAt"
-           FROM stock_movement_ledger
-           WHERE tenant_id = $1 AND doc_type = 'TRANSFERS' AND movement_type = 'OUT' AND deleted_at IS NULL
-           ORDER BY created_at DESC
-           LIMIT 50`,
-          [a.tenantId]
-        );
-        return rows;
+      const result = await withDrizzleTx(ctx(a), async (db) => {
+        return db
+          .select({
+            id: stockMovementLedger.id,
+            transferNumber: stockMovementLedger.docNumber,
+            sourceWarehouse: stockMovementLedger.location,
+            targetWarehouse: stockMovementLedger.destinationStore,
+            itemCode: stockMovementLedger.sku,
+            quantity: stockMovementLedger.quantity,
+            status: stockMovementLedger.status,
+            transferredAt: stockMovementLedger.createdAt,
+          })
+          .from(stockMovementLedger)
+          .where(
+            and(
+              eq(stockMovementLedger.tenantId, a.tenantId),
+              eq(stockMovementLedger.docType, 'TRANSFERS'),
+              eq(stockMovementLedger.movementType, 'OUT'),
+              isNull(stockMovementLedger.deletedAt)
+            )
+          )
+          .orderBy(desc(stockMovementLedger.createdAt))
+          .limit(50);
       });
       res.json({ data: result });
     })
@@ -242,17 +275,31 @@ export function warehouseRoutes(r: any) {
     can('read', 'Warehouse'),
     wrap(async (req, res) => {
       const a = req.actor!;
-      const result = await withTx(ctx(a), async (c) => {
-        const { rows } = await c.query(
-          `SELECT id, sku AS "itemCode", name, total_on_hand AS quantity, primary_warehouse AS warehouse,
-                  primary_bin AS bin, status, updated_at AS "updatedAt"
-           FROM warehouse_stock
-           WHERE tenant_id = $1 AND (status = 'QUARANTINE' OR store_type = 'QUARANTINE') AND deleted_at IS NULL
-           ORDER BY updated_at DESC
-           LIMIT 50`,
-          [a.tenantId]
-        );
-        return rows;
+      const result = await withDrizzleTx(ctx(a), async (db) => {
+        return db
+          .select({
+            id: warehouseStock.id,
+            itemCode: warehouseStock.sku,
+            name: warehouseStock.name,
+            quantity: warehouseStock.totalOnHand,
+            warehouse: warehouseStock.primaryWarehouse,
+            bin: warehouseStock.primaryBin,
+            status: warehouseStock.status,
+            updatedAt: warehouseStock.updatedAt,
+          })
+          .from(warehouseStock)
+          .where(
+            and(
+              eq(warehouseStock.tenantId, a.tenantId),
+              or(
+                eq(warehouseStock.status, 'QUARANTINE'),
+                eq(warehouseStock.storeType, 'QUARANTINE')
+              ),
+              isNull(warehouseStock.deletedAt)
+            )
+          )
+          .orderBy(desc(warehouseStock.updatedAt))
+          .limit(50);
       });
       res.json({ data: result });
     })

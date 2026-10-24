@@ -1,7 +1,12 @@
-import { registerResourceRoutes } from '../../crud.js';
-import { withTx } from '../../db.js';
-import { AppError, can, wrap, type Actor } from '../../middleware.js';
+import { and, eq, isNull, sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { registerResourceRoutes } from '../../core/resource.js';
+import { withDrizzleTx } from '../../db.js';
+import { can, wrap, type Actor } from '../../middleware.js';
 import type { Req, Res } from '../../router.js';
+import { idCondition, patchRow, type ScopedTable } from '../../core/query.js';
+import { workOrders, stockMovementLedger, items, warehouseStock } from '../../schema/erp.js';
+import * as schema from '../../schema/index.js';
 import * as zod from '../../schema/zod.js';
 
 export function manufacturingRoutes(r: any) {
@@ -49,59 +54,106 @@ export function manufacturingRoutes(r: any) {
     sortAllowlist: ['created_at', 'updated_at', 'entry_timestamp', 'good_qty'],
     createSchema: zod.insertProductionEntrySchema,
     updateSchema: zod.updateProductionEntrySchema,
-    beforeCreate: async (c: any, a: Actor, data: any) => {
+    beforeCreate: async (client: any, a: Actor, data: any, dbInstance?: any) => {
+      const db = dbInstance || drizzle(client, { schema });
       const good = Number(data.good_qty || 0);
       const rej = Number(data.rejected_qty || 0);
       const total = good + rej;
 
       // 1. Fetch work order to get item_code and plant_id
-      const { rows: woRows } = await c.query(
-        'SELECT id, item_code, plant_id, good_qty, rejection_qty, produced_qty, target_qty FROM work_orders WHERE (id = $1 OR code = $1) AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE',
-        [data.work_order_id, a.tenantId]
-      );
+      const [wo] = await db
+        .select({
+          id: workOrders.id,
+          item_code: workOrders.itemCode,
+          plant_id: workOrders.plantId,
+          good_qty: workOrders.goodQty,
+          rejection_qty: workOrders.rejectionQty,
+          produced_qty: workOrders.producedQty,
+          target_qty: workOrders.targetQty,
+        })
+        .from(workOrders)
+        .where(
+          and(
+            idCondition(workOrders as ScopedTable, data.work_order_id, 'code'),
+            eq(workOrders.tenantId, a.tenantId),
+            isNull(workOrders.deletedAt)
+          )
+        )
+        .for('update');
 
-      if (woRows.length > 0) {
-        const wo = woRows[0];
+      if (wo) {
         const newGood = Number(wo.good_qty || 0) + good;
         const newRej = Number(wo.rejection_qty || 0) + rej;
         const newProd = Number(wo.produced_qty || 0) + total;
         const newStatus = newProd >= Number(wo.target_qty || 0) ? 'completed' : 'in_progress';
 
-        await c.query(
-          'UPDATE work_orders SET good_qty = $1, rejection_qty = $2, produced_qty = $3, status = $4, updated_at = now(), version = version + 1 WHERE id = $5 AND tenant_id = $6',
-          [newGood, newRej, newProd, newStatus, wo.id, a.tenantId]
-        );
+        await patchRow(db, workOrders as ScopedTable, a, wo.id, {
+          good_qty: newGood,
+          rejection_qty: newRej,
+          produced_qty: newProd,
+          status: newStatus,
+        });
 
         // 2. Post finished goods stock movement ledger entry (movement_type = 'IN')
         if (good > 0) {
           const dateStr = new Date().toISOString().split('T')[0];
-          await c.query(
-            `INSERT INTO stock_movement_ledger 
-             (tenant_id, plant_id, ledger_date, doc_type, doc_number, location, sku, item_name, movement_type, quantity, qty_in, uom, status, source_location, destination_store, authorized_by, created_by)
-             VALUES ($1, $2, $3, 'WORK_ORDER', $4, 'WH-FG-01', $5, $5, 'IN', $6, $6, 'PCS', 'CLOSED', 'MFG-FLOOR', 'WH-FG-01', $7, $8)`,
-            [a.tenantId, wo.plant_id || a.activePlantId || null, dateStr, wo.id, wo.item_code, good, a.fullName || 'Shopfloor Lead', a.userId]
-          );
+          await db.insert(stockMovementLedger).values({
+            tenantId: a.tenantId,
+            plantId: wo.plant_id || a.activePlantId || null,
+            ledgerDate: dateStr,
+            docType: 'WORK_ORDER',
+            docNumber: wo.id,
+            location: 'WH-FG-01',
+            sku: wo.item_code,
+            itemName: wo.item_code,
+            movementType: 'IN',
+            quantity: String(good),
+            qtyIn: String(good),
+            uom: 'PCS',
+            status: 'CLOSED',
+            sourceLocation: 'MFG-FLOOR',
+            destinationStore: 'WH-FG-01',
+            authorizedBy: a.fullName || 'Shopfloor Lead',
+            createdBy: a.userId,
+          });
 
           // Increment items master live stock
-          await c.query(
-            `UPDATE items
-                SET stock = stock + $1, updated_at = now()
-              WHERE code = $2 AND tenant_id = $3`,
-            [good, wo.item_code, a.tenantId]
-          );
+          await db
+            .update(items)
+            .set({
+              stock: sql`${items.stock} + ${good}`,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(items.code, wo.item_code),
+                eq(items.tenantId, a.tenantId)
+              )
+            );
 
           // Upsert into warehouse_stock live projection
-          await c.query(
-            `INSERT INTO warehouse_stock (
-              tenant_id, plant_id, sku, name, total_on_hand, available_to_promise, uom, primary_warehouse, primary_bin
-            ) VALUES ($1, $2, $3, $3, $4, $4, 'PCS', 'WH-FG-01', 'FG-A1')
-            ON CONFLICT (tenant_id, sku) WHERE deleted_at IS NULL
-            DO UPDATE SET
-              total_on_hand = warehouse_stock.total_on_hand + EXCLUDED.total_on_hand,
-              available_to_promise = warehouse_stock.available_to_promise + EXCLUDED.available_to_promise,
-              updated_at = now()`,
-            [a.tenantId, wo.plant_id || a.activePlantId || null, wo.item_code, good]
-          );
+          await db
+            .insert(warehouseStock)
+            .values({
+              tenantId: a.tenantId,
+              plantId: wo.plant_id || a.activePlantId || null,
+              sku: wo.item_code,
+              name: wo.item_code,
+              totalOnHand: String(good),
+              availableToPromise: String(good),
+              uom: 'PCS',
+              primaryWarehouse: 'WH-FG-01',
+              primaryBin: 'FG-A1',
+            })
+            .onConflictDoUpdate({
+              target: [warehouseStock.tenantId, warehouseStock.sku],
+              targetWhere: isNull(warehouseStock.deletedAt),
+              set: {
+                totalOnHand: sql`${warehouseStock.totalOnHand} + EXCLUDED.total_on_hand`,
+                availableToPromise: sql`${warehouseStock.availableToPromise} + EXCLUDED.available_to_promise`,
+                updatedAt: new Date(),
+              },
+            });
         }
       }
 
@@ -136,13 +188,8 @@ export function manufacturingRoutes(r: any) {
     wrap(async (req: Req, res: Res) => {
       const a = req.actor! as Actor;
       const id = req.params.id;
-      const row = await withTx({ tenantId: a.tenantId, userId: a.userId }, async (c) => {
-        const { rows } = await c.query(
-          `UPDATE work_orders SET status = 'in_progress', updated_at = now(), version = version + 1 WHERE (id = $1 OR code = $1) AND tenant_id = $2 RETURNING *`,
-          [id, a.tenantId]
-        );
-        if (!rows.length) throw new AppError(404, 'NOT_FOUND', 'Work order not found');
-        return rows[0];
+      const row = await withDrizzleTx({ tenantId: a.tenantId, userId: a.userId }, async (db) => {
+        return patchRow(db, workOrders as ScopedTable, a, id, { status: 'in_progress' }, undefined, { naturalKey: 'code' });
       });
       res.json({ data: row });
     })
@@ -154,13 +201,8 @@ export function manufacturingRoutes(r: any) {
     wrap(async (req: Req, res: Res) => {
       const a = req.actor! as Actor;
       const id = req.params.id;
-      const row = await withTx({ tenantId: a.tenantId, userId: a.userId }, async (c) => {
-        const { rows } = await c.query(
-          `UPDATE work_orders SET status = 'closed', updated_at = now(), version = version + 1 WHERE (id = $1 OR code = $1) AND tenant_id = $2 RETURNING *`,
-          [id, a.tenantId]
-        );
-        if (!rows.length) throw new AppError(404, 'NOT_FOUND', 'Work order not found');
-        return rows[0];
+      const row = await withDrizzleTx({ tenantId: a.tenantId, userId: a.userId }, async (db) => {
+        return patchRow(db, workOrders as ScopedTable, a, id, { status: 'closed' }, undefined, { naturalKey: 'code' });
       });
       res.json({ data: row });
     })
