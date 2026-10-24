@@ -1412,95 +1412,21 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               </table>
             </div>
 
-            {/* High-Performance Scalable Pagination Bar */}
-            <div className="p-3 bg-[#F9F8F5] border-t border-[#E4E0D6] text-xs text-[#6B7280] flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="flex items-center gap-3 flex-wrap">
-                <span>
-                  Showing <strong className="text-[#14213D] font-mono">{displayTotalCount === 0 ? 0 : startItemIdx + 1}</strong> to{' '}
-                  <strong className="text-[#14213D] font-mono">{Math.min(startItemIdx + pagedItems.length, displayTotalCount)}</strong> of{' '}
-                  <strong className="text-[#14213D] font-mono">{displayTotalCount}</strong> items
-                </span>
-
-                {/* Rows Per Page Selector */}
-                <div className="flex items-center gap-1.5 pl-2 border-l border-[#E4E0D6]">
-                  <span className="text-[11px] text-gray-500">Rows:</span>
-                  <select
-                    value={itemPageSize}
-                    onChange={(e) => {
-                      setItemPageSize(Number(e.target.value));
-                      setItemPage(1);
-                    }}
-                    className="py-1 px-2 border border-[#E4E0D6] rounded-md bg-white text-xs font-semibold text-[#14213D]"
-                  >
-                    <option value={10}>10 / page</option>
-                    <option value={25}>25 / page</option>
-                    <option value={50}>50 / page</option>
-                    <option value={100}>100 / page</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Pagination Controls */}
-              <div className="flex items-center gap-2 flex-wrap justify-end">
-                <button
-                  onClick={() => setItemPage(1)}
-                  disabled={safeItemPage === 1}
-                  className="p-1.5 border border-[#E4E0D6] rounded bg-white text-gray-600 hover:bg-gray-100 disabled:opacity-30 transition-colors"
-                  title="First Page"
-                >
-                  <ChevronsLeft className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => setItemPage((p) => Math.max(1, p - 1))}
-                  disabled={safeItemPage === 1}
-                  className="p-1.5 border border-[#E4E0D6] rounded bg-white text-gray-600 hover:bg-gray-100 disabled:opacity-30 transition-colors"
-                  title="Previous Page"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                </button>
-
-                <span className="px-2 text-xs font-semibold text-[#14213D]">
-                  Page <span className="font-mono font-bold text-[#0F8B8D]">{safeItemPage}</span> of{' '}
-                  <span className="font-mono font-bold">{totalItemPages}</span>
-                </span>
-
-                <button
-                  onClick={() => setItemPage((p) => Math.min(totalItemPages, p + 1))}
-                  disabled={safeItemPage === totalItemPages}
-                  className="p-1.5 border border-[#E4E0D6] rounded bg-white text-gray-600 hover:bg-gray-100 disabled:opacity-30 transition-colors"
-                  title="Next Page"
-                >
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => setItemPage(totalItemPages)}
-                  disabled={safeItemPage === totalItemPages}
-                  className="p-1.5 border border-[#E4E0D6] rounded bg-white text-gray-600 hover:bg-gray-100 disabled:opacity-30 transition-colors"
-                  title="Last Page"
-                >
-                  <ChevronsRight className="w-3.5 h-3.5" />
-                </button>
-
-                {/* Jump to Page Form */}
-                <form onSubmit={handleJumpItemPage} className="flex items-center gap-1 pl-2 border-l border-[#E4E0D6]">
-                  <input
-                    type="number"
-                    min={1}
-                    max={totalItemPages}
-                    placeholder="Go to"
-                    value={jumpItemPageInput}
-                    onChange={(e) => setJumpItemPageInput(e.target.value)}
-                    className="w-14 py-1 px-1.5 border border-[#E4E0D6] rounded bg-white text-xs font-mono text-center"
-                  />
-                  <button
-                    type="submit"
-                    className="px-2 py-1 bg-[#14213D] text-white rounded text-[11px] font-semibold hover:bg-gray-800"
-                  >
-                    Go
-                  </button>
-                </form>
-              </div>
-            </div>
+            {/* Standard High-Performance Pagination Bar */}
+            <PaginationBar
+              currentPage={safeItemPage}
+              totalPages={totalItemPages}
+              pageSize={itemPageSize}
+              totalItems={displayTotalCount}
+              onPageChange={setItemPage}
+              onPageSizeChange={(newSize) => {
+                setItemPageSize(newSize);
+                setItemPage(1);
+              }}
+              pageSizeOptions={[10, 25, 50, 100]}
+              itemName="items"
+            />
+          </div>
           </div>
         </div>
       );
