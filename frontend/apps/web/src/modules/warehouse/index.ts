@@ -3,7 +3,6 @@
 // Modular Monolithic Architecture — apps/web/src/modules/warehouse/index.ts
 // ============================================================================
 
-export { WarehouseViews } from './screens/WarehouseViews';
 
 export {
   useWarehouseStock,
@@ -28,7 +27,7 @@ export {
 
 export type { StockItem, StockTransfer } from './api/useWarehouse';
 export { warehouseApi } from './api/warehouseApi';
-export { warehouseRoutes } from './routes';
+export { WarehouseViews, warehouseRoutes } from './routes';
 
 export {
   StockTransferSchema,

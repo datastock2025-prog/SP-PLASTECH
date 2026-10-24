@@ -3,7 +3,7 @@
 // Modular Monolithic Architecture — apps/web/src/modules/maintenance/index.ts
 // ============================================================================
 
-export { MaintenanceViews, MepViews } from './screens/MaintenanceViews';
+export { MaintenanceViews, MaintenanceViews as MepViews, maintenanceRoutes } from './routes';
 
 export {
   useMaintenance,
@@ -16,7 +16,6 @@ export {
 } from './api/useMaintenance';
 
 export { maintenanceApi } from './api/maintenanceApi';
-export { maintenanceRoutes } from './routes';
 
 export {
   MaintenanceWorkOrderSchema,

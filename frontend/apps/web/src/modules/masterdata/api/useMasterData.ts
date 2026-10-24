@@ -18,10 +18,18 @@ import { ItemMaster, MachineMaster, Customer, BomMaster } from '@/src/types';
 
 // 1. ITEMS / ITEM MASTER CATALOG (Rule 2: Bounded Queries)
 export function useItems(filter?: any, limit: number = 50) {
+  const page = typeof filter === 'object' && filter?.page ? filter.page : 1;
+  const effectiveLimit = typeof filter === 'object' && filter?.limit ? filter.limit : limit;
   return useQuery<ItemMaster[]>({
-    queryKey: queryKeys.masterData.items({ filter, limit }),
+    queryKey: queryKeys.masterData.items({ filter, limit: effectiveLimit, page }),
     queryFn: async () => {
-      const res = await api.get<any>('/items', { params: { limit } });
+      const res = await api.get<any>('/items', {
+        params: {
+          limit: effectiveLimit,
+          page,
+          ...(typeof filter === 'object' ? filter : {}),
+        },
+      });
       const envelope = res?.data !== undefined ? res.data : res;
       return Array.isArray(envelope?.data) ? envelope.data : Array.isArray(envelope) ? envelope : [];
     },

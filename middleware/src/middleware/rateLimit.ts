@@ -6,7 +6,18 @@ export function limited(key: string, limit = 300, windowMs = 60_000): boolean {
   const now = Date.now();
   const h = hits.get(key);
   if (!h || h.reset < now) {
-    if (hits.size > 5000) hits.clear();
+    if (hits.size > 5000) {
+      for (const [k, v] of hits) {
+        if (v.reset < now) hits.delete(k);
+      }
+      if (hits.size > 5000) {
+        let toRemove = hits.size - 4000;
+        for (const k of hits.keys()) {
+          hits.delete(k);
+          if (--toRemove <= 0) break;
+        }
+      }
+    }
     hits.set(key, { n: 1, reset: now + windowMs });
     return false;
   }

@@ -3,7 +3,7 @@
 // Modular Monolithic Architecture â€” apps/web/src/modules/masterdata/index.ts
 // ============================================================================
 
-export { MasterDataViews } from './screens/MasterDataViews';
+export { MasterDataViews, masterDataRoutes } from './routes';
 export { CreateItemWizardModal } from './components/CreateItemWizardModal';
 export { ItemGridImportModal } from './components/ItemGridImportModal';
 
@@ -28,8 +28,6 @@ export {
   useGovernanceChangeRequests,
 } from './api/useMasterData';
 export { masterDataGovernanceService } from './api/masterDataGovernanceService';
-
-export { masterDataRoutes } from './routes';
 
 export type {
   ItemContract,

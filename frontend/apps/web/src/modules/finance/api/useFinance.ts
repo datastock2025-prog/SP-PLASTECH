@@ -4,31 +4,27 @@ import { broadcastLocalMutation } from '@/src/services/realtime/realtimeService'
 import { api } from '@/src/lib/api-client';
 import { Account, JournalEntry } from '@/src/types';
 
-export function useAccounts() {
+export function useAccounts(filter?: any) {
   return useQuery<Account[]>({
-    queryKey: queryKeys.finance.accounts(),
+    queryKey: queryKeys.finance.accounts(filter),
     queryFn: async () => {
-      try {
-        const res = await api.get<any>('/gl-accounts', {
-          params: { limit: 100, sortBy: 'account_code', sortOrder: 'asc', includeTotal: true },
-        });
-        const rows = res?.data?.data || res?.data;
-        if (Array.isArray(rows) && rows.length > 0) {
-          return rows.map((r: any) => ({
-            code: r.account_code || r.code,
-            name: r.account_name || r.name,
-            type: r.account_type || r.type || 'Asset',
-            sub: r.account_group || r.sub || 'General',
-            parent: r.parent_account_id || r.parent || null,
-            balance: Number(r.current_balance || r.balance || 0),
-            currency: r.currency || 'INR',
-            tax: Boolean(r.tax),
-            cc: Boolean(r.cc),
-            status: r.is_active === false ? 'inactive' : 'active',
-          }));
-        }
-      } catch (e) {
-        console.debug('[useAccounts] REST query notice:', e);
+      const res = await api.get<any>('/gl-accounts', {
+        params: { limit: filter?.limit ?? 100, page: filter?.page ?? 1, sortBy: 'account_code', sortOrder: 'asc', includeTotal: true, ...filter },
+      });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows) && rows.length > 0) {
+        return rows.map((r: any) => ({
+          code: r.account_code || r.code,
+          name: r.account_name || r.name,
+          type: r.account_type || r.type || 'Asset',
+          sub: r.account_group || r.sub || 'General',
+          parent: r.parent_account_id || r.parent || null,
+          balance: Number(r.current_balance || r.balance || 0),
+          currency: r.currency || 'INR',
+          tax: Boolean(r.tax),
+          cc: Boolean(r.cc),
+          status: r.is_active === false ? 'inactive' : 'active',
+        }));
       }
       return [];
     },
@@ -70,19 +66,15 @@ export function useSaveAccount() {
   });
 }
 
-export function useJournalEntries(_filter?: any) {
+export function useJournalEntries(filter?: any) {
   return useQuery<JournalEntry[]>({
-    queryKey: queryKeys.finance.journalEntries(_filter),
+    queryKey: queryKeys.finance.journalEntries(filter),
     queryFn: async () => {
-      try {
-        const res = await api.get<any>('/journal-entries', {
-          params: { limit: 100, sortBy: 'created_at', sortOrder: 'desc', includeTotal: true },
-        });
-        const rows = res?.data?.data || res?.data;
-        if (Array.isArray(rows) && rows.length > 0) return rows;
-      } catch (e) {
-        console.debug('[useJournalEntries] REST query notice:', e);
-      }
+      const res = await api.get<any>('/journal-entries', {
+        params: { limit: filter?.limit ?? 100, page: filter?.page ?? 1, sortBy: 'created_at', sortOrder: 'desc', includeTotal: true, ...filter },
+      });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows) && rows.length > 0) return rows;
       return [];
     },
     staleTime: 1000 * 30,

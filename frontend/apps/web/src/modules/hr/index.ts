@@ -3,7 +3,7 @@
 // Modular Monolithic Architecture — apps/web/src/modules/hr/index.ts
 // ============================================================================
 
-export { HrViews } from './screens/HrViews';
+export { HrViews, hrRoutes } from './routes';
 
 export {
   useHr,
@@ -14,7 +14,6 @@ export {
 } from './api/useHr';
 
 export { hrApi } from './api/hrApi';
-export { hrRoutes } from './routes';
 
 export {
   EmployeeSchema,

@@ -3,9 +3,7 @@
 // Modular Monolithic Architecture — apps/web/src/modules/identity/index.ts
 // ============================================================================
 
-export { AdminViews } from './screens/AdminViews';
-export { LoginScreen } from './screens/LoginScreen';
-export { UserProfilePreferencesView } from './screens/UserProfilePreferencesView';
+export { AdminViews, LoginScreen, UserProfilePreferencesView, identityRoutes } from './routes';
 
 export {
   useMe,
@@ -28,8 +26,6 @@ export {
 } from './api/useIdentity';
 export { useAdmin } from './api/useAdmin';
 export { AuthProvider, useAuth } from './api/AuthProvider';
-
-export { identityRoutes } from './routes';
 
 export type {
   AdminUser,

@@ -3,7 +3,7 @@
 // Modular Monolithic Architecture — apps/web/src/modules/finance/index.ts
 // ============================================================================
 
-export { FinanceViews } from './screens/FinanceViews';
+export { FinanceViews, financeRoutes } from './routes';
 
 export {
   useFinance,
@@ -14,7 +14,6 @@ export {
 } from './api/useFinance';
 
 export { financeApi } from './api/financeApi';
-export { financeRoutes } from './routes';
 
 export {
   AccountSchema,

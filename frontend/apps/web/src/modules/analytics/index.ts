@@ -3,7 +3,7 @@
 // Modular Monolithic Architecture — apps/web/src/modules/analytics/index.ts
 // ============================================================================
 
-export { AnalyticsViews } from './screens/AnalyticsViews';
+export { AnalyticsViews, analyticsRoutes } from './routes';
 
 export {
   useAnalytics,
@@ -13,7 +13,6 @@ export {
 } from './api/useAnalytics';
 
 export { analyticsApi } from './api/analyticsApi';
-export { analyticsRoutes } from './routes';
 
 export {
   ExecutiveKpiSchema,

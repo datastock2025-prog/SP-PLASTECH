@@ -9,20 +9,23 @@ import { procurementApi, normalizePurchaseOrder, type ProcurementSummaryDto } fr
 export { type ProcurementSummaryDto };
 
 // 1. Purchase Orders Query (TanStack Query SSOT)
-export function usePurchaseOrders(_filter?: any) {
+export function usePurchaseOrders(filter?: any) {
   return useQuery<PurchaseOrder[]>({
-    queryKey: queryKeys.procurement.purchaseOrders(_filter),
+    queryKey: queryKeys.procurement.purchaseOrders(filter),
     queryFn: async () => {
-      try {
-        const res = await api.get<any>('/purchase-orders', {
-          params: { limit: 100, sortBy: 'created_at', sortOrder: 'desc', includeTotal: true },
-        });
-        const rows = res?.data?.data || res?.data;
-        if (Array.isArray(rows)) {
-          return rows.map((row: any) => normalizePurchaseOrder(row));
-        }
-      } catch (e) {
-        console.debug('[usePurchaseOrders] REST query notice:', e);
+      const res = await api.get<any>('/purchase-orders', {
+        params: {
+          limit: filter?.limit ?? 100,
+          page: filter?.page ?? 1,
+          sortBy: filter?.sortBy ?? 'created_at',
+          sortOrder: filter?.sortOrder ?? 'desc',
+          includeTotal: true,
+          ...filter,
+        },
+      });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows)) {
+        return rows.map((row: any) => normalizePurchaseOrder(row));
       }
       return [];
     },

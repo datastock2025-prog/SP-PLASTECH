@@ -4,19 +4,22 @@ import { broadcastLocalMutation } from '@/src/services/realtime/realtimeService'
 import { api } from '@/src/lib/api-client';
 import { NonConformanceReport, CapaReport, CertificateOfAnalysis, InspectionPlan } from '@/src/types';
 
-export function useNcrs(_filter?: any) {
+export function useNcrs(filter?: any) {
   return useQuery<NonConformanceReport[]>({
-    queryKey: queryKeys.quality.ncrs(_filter),
+    queryKey: queryKeys.quality.ncrs(filter),
     queryFn: async () => {
-      try {
-        const res = await api.get<any>('/qc-inspections', {
-          params: { limit: 100, sortBy: 'created_at', sortOrder: 'desc', includeTotal: true },
-        });
-        const rows = res?.data?.data || res?.data;
-        if (Array.isArray(rows) && rows.length > 0) return rows;
-      } catch (e) {
-        console.debug('[useNcrs] REST query notice:', e);
-      }
+      const res = await api.get<any>('/qc-inspections', {
+        params: {
+          limit: filter?.limit ?? 100,
+          page: filter?.page ?? 1,
+          sortBy: filter?.sortBy ?? 'created_at',
+          sortOrder: filter?.sortOrder ?? 'desc',
+          includeTotal: true,
+          ...filter,
+        },
+      });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows) && rows.length > 0) return rows;
       return [];
     },
     staleTime: 1000 * 30,

@@ -11,19 +11,15 @@ import {
   INITIAL_HR_DEPARTMENTS,
 } from '@/src/data/hrData';
 
-export function useEmployees() {
+export function useEmployees(filter?: any) {
   return useQuery<HrEmployee[]>({
-    queryKey: queryKeys.hr.employees(),
+    queryKey: queryKeys.hr.employees(filter),
     queryFn: async () => {
-      try {
-        const res = await api.get<any>('/employees', {
-          params: { limit: 100, sortBy: 'created_at', sortOrder: 'desc', includeTotal: true },
-        });
-        const rows = res?.data?.data || res?.data;
-        if (Array.isArray(rows) && rows.length > 0) return rows;
-      } catch (e) {
-        console.debug('[useEmployees] REST query notice:', e);
-      }
+      const res = await api.get<any>('/employees', {
+        params: { limit: filter?.limit ?? 100, page: filter?.page ?? 1, sortBy: 'created_at', sortOrder: 'desc', includeTotal: true, ...filter },
+      });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows) && rows.length > 0) return rows;
       return [];
     },
     staleTime: 1000 * 60 * 5,
@@ -55,19 +51,21 @@ export function useSaveEmployee() {
   });
 }
 
-export function useAttendance(date?: string) {
+export function useAttendance(date?: string, filter?: any) {
   return useQuery<HrAttendanceRecord[]>({
-    queryKey: queryKeys.hr.attendance(date),
+    queryKey: queryKeys.hr.attendance({ date, ...filter }),
     queryFn: async () => {
-      try {
-        const res = await api.get<any>('/attendance-records', {
-          params: { ...(date ? { 'where[date]': date } : {}), limit: 100, includeTotal: true },
-        });
-        const rows = res?.data?.data || res?.data;
-        if (Array.isArray(rows) && rows.length > 0) return rows;
-      } catch (e) {
-        console.debug('[useAttendance] REST query notice:', e);
-      }
+      const res = await api.get<any>('/attendance-records', {
+        params: {
+          ...(date ? { 'where[date]': date } : {}),
+          limit: filter?.limit ?? 100,
+          page: filter?.page ?? 1,
+          includeTotal: true,
+          ...filter,
+        },
+      });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows) && rows.length > 0) return rows;
       return [];
     },
     staleTime: 1000 * 30,

@@ -3,7 +3,7 @@
 // Modular Monolithic Architecture — apps/web/src/modules/planning/index.ts
 // ============================================================================
 
-export { ScmViews as PlanningViews, ScmViews } from './screens/PlanningViews';
+export { PlanningViews, PlanningViews as ScmViews, planningRoutes } from './routes';
 
 export {
   usePlanning,
@@ -14,7 +14,6 @@ export {
 } from './api/usePlanning';
 
 export { planningApi } from './api/planningApi';
-export { planningRoutes } from './routes';
 
 export {
   PlannedOrderSchema,

@@ -3,7 +3,7 @@
 // Modular Monolithic Architecture — apps/web/src/modules/procurement/index.ts
 // ============================================================================
 
-export { ProcurementViews } from './screens/ProcurementViews';
+export { ProcurementViews, procurementRoutes } from './routes';
 
 export {
   useProcurement,
@@ -13,8 +13,6 @@ export {
   useSupplierPriceLists,
 } from './api/useProcurement';
 export { procurementApi } from './api/procurementApi';
-
-export { procurementRoutes } from './routes';
 
 export type {
   PurchaseOrderContract,

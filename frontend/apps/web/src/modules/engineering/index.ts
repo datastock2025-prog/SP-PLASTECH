@@ -3,7 +3,6 @@
 // Modular Monolithic Architecture — apps/web/src/modules/engineering/index.ts
 // ============================================================================
 
-export { EngineeringViews } from './screens/EngineeringViews';
 export { LegacyBomBuilderView } from './components/LegacyBomBuilderView';
 export { MultiLevelBomTreeView } from './components/MultiLevelBomTreeView';
 export { ProcessRoutingOperationsView } from './components/ProcessRoutingOperationsView';
@@ -25,7 +24,7 @@ export {
 } from './api/useEngineering';
 export { engineeringApi } from './api/engineeringApi';
 
-export { engineeringRoutes } from './routes';
+export { EngineeringViews, engineeringRoutes } from './routes';
 
 export type {
   BomContract,

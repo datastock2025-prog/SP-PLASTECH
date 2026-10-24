@@ -11,19 +11,15 @@ import {
   MepCleanroomZone,
 } from '../model/maintenanceSchemas';
 
-export function useMaintenanceWorkOrders() {
+export function useMaintenanceWorkOrders(filter?: any) {
   return useQuery<MepWorkOrder[]>({
-    queryKey: queryKeys.maintenance.workOrders(),
+    queryKey: queryKeys.maintenance.workOrders(filter),
     queryFn: async () => {
-      try {
-        const res = await api.get<any>('/maintenance-work-orders', {
-          params: { limit: 100, includeTotal: true },
-        });
-        const rows = res?.data?.data || res?.data;
-        if (Array.isArray(rows)) return rows;
-      } catch (e) {
-        console.debug('[useMaintenanceWorkOrders] REST query notice:', e);
-      }
+      const res = await api.get<any>('/maintenance-work-orders', {
+        params: { limit: filter?.limit ?? 100, page: filter?.page ?? 1, includeTotal: true, ...filter },
+      });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows)) return rows;
       return [];
     },
     staleTime: 1000 * 30,
@@ -56,19 +52,15 @@ export function useSaveMaintenanceWorkOrder() {
   });
 }
 
-export function useEquipmentAssets() {
+export function useEquipmentAssets(filter?: any) {
   return useQuery<MepEquipment[]>({
-    queryKey: queryKeys.maintenance.equipment(),
+    queryKey: queryKeys.maintenance.equipment(filter),
     queryFn: async () => {
-      try {
-        const res = await api.get<any>('/machines', {
-          params: { limit: 100, includeTotal: true },
-        });
-        const rows = res?.data?.data || res?.data;
-        if (Array.isArray(rows)) return rows;
-      } catch (e) {
-        console.debug('[useEquipmentAssets] REST query notice:', e);
-      }
+      const res = await api.get<any>('/machines', {
+        params: { limit: filter?.limit ?? 100, page: filter?.page ?? 1, includeTotal: true, ...filter },
+      });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows)) return rows;
       return [];
     },
     staleTime: 1000 * 30,

@@ -3,7 +3,7 @@
 // Modular Monolithic Architecture — apps/web/src/modules/quality/index.ts
 // ============================================================================
 
-export { QualityViews } from './screens/QualityViews';
+export { QualityViews, qualityRoutes } from './routes';
 
 export {
   useQuality,
@@ -17,7 +17,6 @@ export {
 } from './api/useQuality';
 
 export { qualityApi } from './api/qualityApi';
-export { qualityRoutes } from './routes';
 
 export {
   NcrSchema,

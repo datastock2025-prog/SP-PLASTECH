@@ -42,21 +42,24 @@ const normalizeWorkOrder = (row: any): WorkOrder => ({
   history: Array.isArray(row.history) ? row.history : [],
 });
 
-export function useWorkOrders(status?: string) {
+export function useWorkOrders(status?: string, filter?: any) {
   return useQuery<WorkOrder[]>({
-    queryKey: queryKeys.manufacturing.workOrders(status),
+    queryKey: queryKeys.manufacturing.workOrders({ status, ...filter }),
     queryFn: async () => {
-      try {
-        const res = await api.get<any>('/work-orders', {
-          params: { limit: 100, sortBy: 'created_at', sortOrder: 'desc', includeTotal: true },
-        });
-        const rows = res?.data?.data || res?.data;
-        if (Array.isArray(rows)) {
-          const mapped = rows.map((row: any) => normalizeWorkOrder(row));
-          return status ? mapped.filter((w: any) => w.status?.toLowerCase() === status.toLowerCase()) : mapped;
-        }
-      } catch (e) {
-        console.debug('[useWorkOrders] REST query notice:', e);
+      const res = await api.get<any>('/work-orders', {
+        params: {
+          limit: filter?.limit ?? 100,
+          page: filter?.page ?? 1,
+          sortBy: filter?.sortBy ?? 'created_at',
+          sortOrder: filter?.sortOrder ?? 'desc',
+          includeTotal: true,
+          ...filter,
+        },
+      });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows)) {
+        const mapped = rows.map((row: any) => normalizeWorkOrder(row));
+        return status ? mapped.filter((w: any) => w.status?.toLowerCase() === status.toLowerCase()) : mapped;
       }
       return [];
     },

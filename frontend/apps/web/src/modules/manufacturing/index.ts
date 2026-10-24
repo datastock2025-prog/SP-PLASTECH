@@ -3,7 +3,7 @@
 // Modular Monolithic Architecture — apps/web/src/modules/manufacturing/index.ts
 // ============================================================================
 
-export { ManufacturingViews } from './screens/ManufacturingViews';
+export { ManufacturingViews, manufacturingRoutes } from './routes';
 
 export {
   useManufacturing,
@@ -18,7 +18,6 @@ export type {
 } from './api/useManufacturing';
 
 export { manufacturingApi } from './api/manufacturingApi';
-export { manufacturingRoutes } from './routes';
 
 export {
   WorkOrderSchema,

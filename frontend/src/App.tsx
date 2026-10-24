@@ -16,7 +16,6 @@ import { useSaveItem } from './hooks/useMasterData';
 import { adminEventBus } from './services/adminService';
 import { initializeRealtime } from './services/realtime/realtimeService';
 import { api } from './lib/api-client';
-import { legacyDbShim as db } from './shared/compat/testShim';
 import { useDashboardKpis } from './hooks/useDashboard';
 import { initVersionCheck } from './shared/utils/versionCheck';
 import { SessionTimeoutModal, MfaVerificationModal, CookieConsentModal } from './security';
@@ -410,7 +409,11 @@ function resolveViewFromLocation(pathname: string, search: string): string {
     // 0. Expose services globally for testing & external hooks
     if (typeof window !== 'undefined') {
       (window as any).__ERP_EVENT_BUS__ = adminEventBus;
-      (window as any).__ERP_DB__ = db;
+      if (import.meta.env?.DEV || (window as any).__E2E__) {
+        import('./shared/compat/testShim').then(({ legacyDbShim }) => {
+          (window as any).__ERP_DB__ = legacyDbShim;
+        });
+      }
     }
 
     // 0. Initialize realtime event listener & cache buster version sync

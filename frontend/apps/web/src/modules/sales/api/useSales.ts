@@ -24,20 +24,23 @@ const normalizeSalesOrder = (row: any): SalesOrder => ({
 });
 
 // 1. Sales Orders Query (TanStack Query SSOT)
-export function useSalesOrders(_filter?: any) {
+export function useSalesOrders(filter?: any) {
   return useQuery<SalesOrder[]>({
-    queryKey: queryKeys.sales.orders(_filter),
+    queryKey: queryKeys.sales.orders(filter),
     queryFn: async () => {
-      try {
-        const res = await api.get<any>('/sales-orders', {
-          params: { limit: 100, sortBy: 'created_at', sortOrder: 'desc', includeTotal: true },
-        });
-        const rows = res?.data?.data || res?.data;
-        if (Array.isArray(rows)) {
-          return rows.map((row: any) => normalizeSalesOrder(row));
-        }
-      } catch (e) {
-        console.debug('[useSalesOrders] REST query notice:', e);
+      const res = await api.get<any>('/sales-orders', {
+        params: {
+          limit: filter?.limit ?? 100,
+          page: filter?.page ?? 1,
+          sortBy: filter?.sortBy ?? 'created_at',
+          sortOrder: filter?.sortOrder ?? 'desc',
+          includeTotal: true,
+          ...filter,
+        },
+      });
+      const rows = res?.data?.data || res?.data;
+      if (Array.isArray(rows)) {
+        return rows.map((row: any) => normalizeSalesOrder(row));
       }
       return [];
     },

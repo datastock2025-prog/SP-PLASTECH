@@ -3,7 +3,7 @@
 // Modular Monolithic Architecture — apps/web/src/modules/crm/index.ts
 // ============================================================================
 
-export { CrmViews } from './screens/CrmViews';
+export { CrmViews, crmRoutes } from './routes';
 
 export {
   useCrm,
@@ -17,7 +17,6 @@ export {
 } from './api/useCrm';
 
 export { crmApi } from './api/crmApi';
-export { crmRoutes } from './routes';
 
 export {
   LeadSchema,
