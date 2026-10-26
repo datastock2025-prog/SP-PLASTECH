@@ -31,6 +31,8 @@
     "check:size": "size-limit"
   },
   "dependencies": {
+    "@casl/ability": "^7.0.1",
+    "@casl/react": "^7.0.1",
     "@fontsource-variable/geist": "^5.3.0",
     "@google/genai": "^2.4.0",
     "@hookform/resolvers": "^5.9.1",

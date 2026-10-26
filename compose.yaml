@@ -35,6 +35,10 @@ services:
       PORT: "4000"
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-sp_plastech_dev_auth_secret_local_only_2026}
       AUTH_TRUSTED_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000"
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@spplastech.com}
+      BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-admin}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-Plas!Tech#Boot91}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-System Administrator}
     ports: ["4000:4000"]
     volumes:
       - "./middleware:/app"

@@ -7,7 +7,7 @@ async function main() {
   const accounts = await pool.query('SELECT id, "userId", "providerId", password FROM "account"');
   console.log('Accounts:', accounts.rows);
   if (accounts.rows[0]) {
-    const ok = await verifyPassword(accounts.rows[0].password, 'Plas!Tech#Boot91');
+    const ok = await verifyPassword({ hash: accounts.rows[0].password, password: 'Plas!Tech#Boot91' });
     console.log('Password Plas!Tech#Boot91 match:', ok);
   }
   await pool.end();

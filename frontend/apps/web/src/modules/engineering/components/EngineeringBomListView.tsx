@@ -1,5 +1,6 @@
 import { PaginationBar } from '@/src/components/common/PaginationBar';
 import React, { useState } from 'react';
+import { useGridUrlSync } from '@/src/shared/hooks';
 import { BomMaster, ItemMaster, ApprovalStatus } from '@/src/types';
 import {
   Boxes,
@@ -54,7 +55,25 @@ export const EngineeringBomListView: React.FC<EngineeringBomListViewProps> = ({
   showToast,
   renderStatusBadge,
 }) => {
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const {
+    page: currentPage,
+    pageSize,
+    search: searchQuery,
+    debouncedSearch,
+    sortBy: sortField = 'id',
+    sortOrder: sortDirection = 'asc',
+    setPage: setCurrentPage,
+    setPageSize,
+    setSearch: setSearchQuery,
+    setSorting,
+  } = useGridUrlSync({
+    prefix: 'bom',
+    defaultPage: 1,
+    defaultPageSize: 25,
+    defaultSortBy: 'id',
+    defaultSortOrder: 'asc',
+    debounceMs: 300,
+  });
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [selectedBomIds, setSelectedBomIds] = useState<string[]>([]);
@@ -62,12 +81,6 @@ export const EngineeringBomListView: React.FC<EngineeringBomListViewProps> = ({
   // Inline editing state for BOM list and grid
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
   const [cellEditValue, setCellEditValue] = useState<string>('');
-
-  // Scalable BOM Grid State
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(25);
-  const [sortField, setSortField] = useState<string>('id');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [jumpPageInput, setJumpPageInput] = useState<string>('');
 
   // KPI Stats computation
@@ -80,7 +93,7 @@ export const EngineeringBomListView: React.FC<EngineeringBomListViewProps> = ({
 
   // Filtering
   const filteredBoms = effectiveBoms.filter((b) => {
-    const q = searchQuery.toLowerCase().trim();
+    const q = debouncedSearch.toLowerCase().trim();
     const matchSearch =
       !q ||
       b.id.toLowerCase().includes(q) ||
@@ -130,13 +143,7 @@ export const EngineeringBomListView: React.FC<EngineeringBomListViewProps> = ({
     paginatedBoms.length > 0 && paginatedBoms.every((b) => selectedBomIds.includes(b.id));
 
   const handleSort = (field: string) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-    setCurrentPage(1);
+    setSorting(field);
   };
 
   const handleJumpToPage = (e: React.FormEvent) => {

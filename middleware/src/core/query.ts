@@ -235,21 +235,27 @@ export async function listPage(db: Db, table: ScopedTable, actor: ScopeActor, ra
   const keyset = cursorCondition(sortCol, table.id, q.sortOrder, q.cursor);
   const offset = keyset ? 0 : (q.page - 1) * q.limit;
 
-  const rows = (await db
+  // Run SELECT and COUNT in parallel to eliminate sequential database latency
+  const rowsPromise = db
     .select(snakeSelect(table, cfg.columns))
     .from(table)
     .where(and(base, keyset))
     .orderBy(dir(sortCol), dir(table.id))
     .limit(q.limit + 1)
-    .offset(offset)) as Row[];
+    .offset(offset) as Promise<Row[]>;
+
+  const countPromise = (q.includeTotal && !keyset)
+    ? db.select({ n: count() }).from(table).where(base).then(([r]) => Number(r?.n ?? 0))
+    : Promise.resolve<number | null>(null);
+
+  const [rows, countedTotal] = await Promise.all([rowsPromise, countPromise]);
 
   const hasMore = rows.length > q.limit;
   const data = hasMore ? rows.slice(0, q.limit) : rows;
 
   let total = 0;
-  if (q.includeTotal && !keyset) {
-    const [r] = await db.select({ n: count() }).from(table).where(base);
-    total = Number(r?.n ?? 0);
+  if (countedTotal !== null) {
+    total = countedTotal;
   } else if (!keyset) {
     total = hasMore ? offset + q.limit + 1 : offset + data.length;
   }

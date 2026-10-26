@@ -29,6 +29,7 @@ import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { masterDataGovernanceService } from '@/src/services/masterDataGovernanceService';
 import { SupplierOnboardingModal } from './SupplierOnboardingModal';
 import { EntityTable, ColumnDef } from '@/src/shared/components';
+import { useGridUrlSync } from '@/src/shared/hooks';
 
 interface Props {
   suppliers: SupplierMaster[];
@@ -58,12 +59,18 @@ export const SupplierMasterListView: React.FC<Props> = ({
       setIsOnboardModalOpen(true);
     }
   }, [activeParam]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const {
+    page: currentPage,
+    pageSize,
+    search: searchTerm,
+    debouncedSearch,
+    setPage: setCurrentPage,
+    setPageSize,
+    setSearch: setSearchTerm,
+  } = useGridUrlSync({ prefix: 'supp', defaultPageSize: 10 });
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedStatus, setSelectedStatus] = useState<string>('All');
   const [selectedRisk, setSelectedRisk] = useState<string>('All');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const categories: string[] = [
@@ -82,13 +89,15 @@ export const SupplierMasterListView: React.FC<Props> = ({
 
   // Filtering
   const filteredSuppliers = useMemo(() => {
+    const q = debouncedSearch.toLowerCase().trim();
     return suppliers.filter((sup) => {
       const matchSearch =
-        sup.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        sup.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (sup.bankingTax?.taxId && sup.bankingTax.taxId.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        sup.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        sup.contacts.some(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.email.toLowerCase().includes(searchTerm.toLowerCase()));
+        !q ||
+        sup.name.toLowerCase().includes(q) ||
+        sup.code.toLowerCase().includes(q) ||
+        (sup.bankingTax?.taxId && sup.bankingTax.taxId.toLowerCase().includes(q)) ||
+        sup.category.toLowerCase().includes(q) ||
+        sup.contacts.some(c => c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q));
 
       const matchCategory = selectedCategory === 'All' || sup.category === selectedCategory;
       const matchStatus = selectedStatus === 'All' || sup.status === selectedStatus;
@@ -96,7 +105,7 @@ export const SupplierMasterListView: React.FC<Props> = ({
 
       return matchSearch && matchCategory && matchStatus && matchRisk;
     });
-  }, [suppliers, searchTerm, selectedCategory, selectedStatus, selectedRisk]);
+  }, [suppliers, debouncedSearch, selectedCategory, selectedStatus, selectedRisk]);
 
   const totalPages = Math.ceil(filteredSuppliers.length / pageSize) || 1;
   const paginatedSuppliers = useMemo(() => {

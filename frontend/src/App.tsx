@@ -34,22 +34,21 @@ import {
 } from './modules/workspace';
 
 // Domain Feature Modules (Code-Splitted via React.lazy for Granular Module Chunking & Ultra-Low Initial Bundle Size)
-const masterDataPromise = import('../apps/web/src/modules/masterdata');
-const MasterDataViews = React.lazy(() => masterDataPromise.then((m) => ({ default: m.MasterDataViews })));
-const EngineeringViews = React.lazy(() => import('../apps/web/src/modules/engineering').then((m) => ({ default: m.EngineeringViews })));
-const ManufacturingViews = React.lazy(() => import('../apps/web/src/modules/manufacturing').then((m) => ({ default: m.ManufacturingViews })));
-const ProcurementViews = React.lazy(() => import('../apps/web/src/modules/procurement').then((m) => ({ default: m.ProcurementViews })));
-const WarehouseViews = React.lazy(() => import('../apps/web/src/modules/warehouse').then((m) => ({ default: m.WarehouseViews })));
-const SalesViews = React.lazy(() => import('../apps/web/src/modules/sales').then((m) => ({ default: m.SalesViews })));
-const FinanceViews = React.lazy(() => import('../apps/web/src/modules/finance').then((m) => ({ default: m.FinanceViews })));
-const QualityViews = React.lazy(() => import('../apps/web/src/modules/quality').then((m) => ({ default: m.QualityViews })));
-const MepViews = React.lazy(() => import('../apps/web/src/modules/maintenance').then((m) => ({ default: m.MaintenanceViews })));
-const HrViews = React.lazy(() => import('../apps/web/src/modules/hr').then((m) => ({ default: m.HrViews })));
-const ScmViews = React.lazy(() => import('../apps/web/src/modules/planning').then((m) => ({ default: m.PlanningViews })));
-const CrmViews = React.lazy(() => import('../apps/web/src/modules/crm').then((m) => ({ default: m.CrmViews })));
-const AdminViews = React.lazy(() => import('./modules/admin').then((m) => ({ default: m.AdminViews })));
-const AnalyticsViews = React.lazy(() => import('../apps/web/src/modules/analytics').then((m) => ({ default: m.AnalyticsViews })));
-const ReactArchitectureGuide = React.lazy(() => import('./modules/architecture').then((m) => ({ default: m.ReactArchitectureGuide })));
+const MasterDataViews = React.lazy(() => import('../apps/web/src/modules/masterdata/screens/MasterDataViews').then((m) => ({ default: m.MasterDataViews })));
+const EngineeringViews = React.lazy(() => import('../apps/web/src/modules/engineering/screens/EngineeringViews').then((m) => ({ default: m.EngineeringViews })));
+const ManufacturingViews = React.lazy(() => import('../apps/web/src/modules/manufacturing/screens/ManufacturingViews').then((m) => ({ default: m.ManufacturingViews })));
+const ProcurementViews = React.lazy(() => import('../apps/web/src/modules/procurement/screens/ProcurementViews').then((m) => ({ default: m.ProcurementViews })));
+const WarehouseViews = React.lazy(() => import('../apps/web/src/modules/warehouse/screens/WarehouseViews').then((m) => ({ default: m.WarehouseViews })));
+const SalesViews = React.lazy(() => import('../apps/web/src/modules/sales/screens/SalesViews').then((m) => ({ default: m.SalesViews })));
+const FinanceViews = React.lazy(() => import('../apps/web/src/modules/finance/screens/FinanceViews').then((m) => ({ default: m.FinanceViews })));
+const QualityViews = React.lazy(() => import('../apps/web/src/modules/quality/screens/QualityViews').then((m) => ({ default: m.QualityViews })));
+const MepViews = React.lazy(() => import('../apps/web/src/modules/maintenance/screens/MaintenanceViews').then((m) => ({ default: m.MaintenanceViews })));
+const HrViews = React.lazy(() => import('../apps/web/src/modules/hr/screens/HrViews').then((m) => ({ default: m.HrViews })));
+const ScmViews = React.lazy(() => import('../apps/web/src/modules/planning/screens/PlanningViews').then((m) => ({ default: m.PlanningViews })));
+const CrmViews = React.lazy(() => import('../apps/web/src/modules/crm/screens/CrmViews').then((m) => ({ default: m.CrmViews })));
+const AdminViews = React.lazy(() => import('../apps/web/src/modules/identity/screens/AdminViews').then((m) => ({ default: m.AdminViews })));
+const AnalyticsViews = React.lazy(() => import('../apps/web/src/modules/analytics/screens/AnalyticsViews').then((m) => ({ default: m.AnalyticsViews })));
+const ReactArchitectureGuide = React.lazy(() => import('./components/ReactArchitectureGuide').then((m) => ({ default: m.ReactArchitectureGuide })));
 
 import { useMe, useLogout, useSelectContext } from './features/identity/useIdentity';
 import { mapMeToAuthUser } from './features/identity/mapMe';

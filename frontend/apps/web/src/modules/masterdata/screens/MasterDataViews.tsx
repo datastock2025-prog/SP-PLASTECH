@@ -93,6 +93,7 @@ import {
   MasterDataChangeRequest,
 } from '../api/masterDataGovernanceService';
 import { adminEventBus } from '@/src/services/adminService';
+import { useGridUrlSync } from '@/src/shared/hooks';
 
 interface MasterDataProps {
   view: string;
@@ -215,25 +216,25 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   showToast,
 }) => {
   const [filterType, setFilterType] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>('');
-
-  // Debounce search query to eliminate rapid connection cancellations (net::ERR_ABORTED)
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery);
-    }, 200);
-    return () => clearTimeout(handler);
-  }, [searchQuery]);
-
-  const [activeTab, setActiveTab] = useState<string>('Overview');
-  const [editingItemCell, setEditingItemCell] = useState<{ code: string; field: string } | null>(null);
-  const [itemCellVal, setItemCellVal] = useState<string>('');
-  const [selectedItemCodes, setSelectedItemCodes] = useState<string[]>([]);
-  const [itemPage, setItemPage] = useState<number>(1);
-  const [itemPageSize, setItemPageSize] = useState<number>(25);
-  const [itemSortField, setItemSortField] = useState<string>('code');
-  const [itemSortDirection, setItemSortDirection] = useState<'asc' | 'desc'>('asc');
+  const {
+    page: itemPage,
+    pageSize: itemPageSize,
+    search: searchQuery,
+    debouncedSearch: debouncedSearchQuery,
+    sortBy: itemSortField = 'code',
+    sortOrder: itemSortDirection = 'asc',
+    setPage: setItemPage,
+    setPageSize: setItemPageSize,
+    setSearch: setSearchQuery,
+    setSorting: setItemSorting,
+  } = useGridUrlSync({
+    prefix: 'item',
+    defaultPage: 1,
+    defaultPageSize: 25,
+    defaultSortBy: 'code',
+    defaultSortOrder: 'asc',
+    debounceMs: 300,
+  });
   const [jumpItemPageInput, setJumpItemPageInput] = useState<string>('');
   const [quickModifyItem, setQuickModifyItem] = useState<ItemMaster | null>(null);
   const [machinePage, setMachinePage] = useState<number>(1);
@@ -830,13 +831,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
       const pagedItems = filteredItems;
 
       const handleItemSort = (field: string) => {
-        if (itemSortField === field) {
-          setItemSortDirection(itemSortDirection === 'asc' ? 'desc' : 'asc');
-        } else {
-          setItemSortField(field);
-          setItemSortDirection('asc');
-        }
-        setItemPage(1);
+        setItemSorting(field);
       };
 
       const handleJumpItemPage = (e: React.FormEvent) => {
@@ -1426,7 +1421,6 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
               pageSizeOptions={[10, 25, 50, 100]}
               itemName="items"
             />
-          </div>
           </div>
         </div>
       );

@@ -26,6 +26,7 @@ import {
 import { Customer, SalesOrder, SalesQuotation } from '@/src/types';
 import { PaginationBar } from '@/src/components/common/PaginationBar';
 import { EntityTable, ColumnDef } from '@/src/shared/components';
+import { useGridUrlSync } from '@/src/shared/hooks';
 import {
   customerMasterService,
   EnrichedCustomerRecord,
@@ -57,11 +58,17 @@ export const CustomerMasterListView: React.FC<Props> = ({
   closeDrawer,
   showToast,
 }) => {
-  const [search, setSearch] = useState<string>('');
+  const {
+    page: currentPage,
+    pageSize,
+    search,
+    debouncedSearch,
+    setPage: setCurrentPage,
+    setPageSize,
+    setSearch,
+  } = useGridUrlSync({ prefix: 'cust', defaultPageSize: 10 });
   const [segmentFilter, setSegmentFilter] = useState<string>('all');
   const [riskFilter, setRiskFilter] = useState<string>('all');
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(10);
 
   // Live Enriched Customers from CustomerMasterService
   const [liveCustomers, setLiveCustomers] = useState<EnrichedCustomerRecord[]>(() =>
@@ -94,12 +101,14 @@ export const CustomerMasterListView: React.FC<Props> = ({
   const totalOverdue = liveCustomers.reduce((sum, c) => sum + (c.overdueAmount || 0), 0);
 
   const filteredCustomers = liveCustomers.filter((c) => {
+    const q = debouncedSearch.toLowerCase().trim();
     const matchSearch =
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.code.toLowerCase().includes(search.toLowerCase()) ||
-      (c.contactPerson && c.contactPerson.toLowerCase().includes(search.toLowerCase())) ||
-      (c.gstin && c.gstin.toLowerCase().includes(search.toLowerCase())) ||
-      (c.poNumber && c.poNumber.toLowerCase().includes(search.toLowerCase()));
+      !q ||
+      c.name.toLowerCase().includes(q) ||
+      c.code.toLowerCase().includes(q) ||
+      (c.contactPerson && c.contactPerson.toLowerCase().includes(q)) ||
+      (c.gstin && c.gstin.toLowerCase().includes(q)) ||
+      (c.poNumber && c.poNumber.toLowerCase().includes(q));
 
     const matchSegment = segmentFilter === 'all' || c.segment === segmentFilter;
     const matchRisk = riskFilter === 'all' || (c.riskRating && c.riskRating === riskFilter);
