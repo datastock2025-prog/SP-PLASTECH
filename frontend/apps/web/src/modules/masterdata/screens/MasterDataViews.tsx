@@ -280,11 +280,7 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
 
   const displayTotalCount = grid.data?.totalCount ?? (effectiveItemsList.length > 0 ? effectiveItemsList.length : items?.length || 0);
   const isInitialCatalogLoading =
-    grid.isLoading ||
-    grid.isPending ||
-    !grid.isSuccess ||
-    (!grid.data && effectiveItemsList.length === 0) ||
-    (grid.isFetching && effectiveItemsList.length === 0);
+    (grid.isLoading || grid.isPending) && effectiveItemsList.length === 0;
 
   const saveItemMutation = useSaveItem();
   const deleteItemMutation = useDeleteItem();

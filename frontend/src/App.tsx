@@ -50,16 +50,9 @@ const AdminViews = React.lazy(() => import('../apps/web/src/modules/identity/scr
 const AnalyticsViews = React.lazy(() => import('../apps/web/src/modules/analytics/screens/AnalyticsViews').then((m) => ({ default: m.AnalyticsViews })));
 const ReactArchitectureGuide = React.lazy(() => import('./components/ReactArchitectureGuide').then((m) => ({ default: m.ReactArchitectureGuide })));
 
-// Eager idle-preload for MasterDataViews to eliminate double skeleton / loading screen transition
+// Eager immediate preload for MasterDataViews to eliminate Suspense delay
 if (typeof window !== 'undefined') {
-  const preload = () => {
-    import('../apps/web/src/modules/masterdata/screens/MasterDataViews').catch(() => {});
-  };
-  if ('requestIdleCallback' in window) {
-    (window as any).requestIdleCallback(preload);
-  } else {
-    setTimeout(preload, 50);
-  }
+  import('../apps/web/src/modules/masterdata/screens/MasterDataViews').catch(() => {});
 }
 
 import { useMe, useLogout, useSelectContext } from './features/identity/useIdentity';
