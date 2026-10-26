@@ -50,6 +50,18 @@ const AdminViews = React.lazy(() => import('../apps/web/src/modules/identity/scr
 const AnalyticsViews = React.lazy(() => import('../apps/web/src/modules/analytics/screens/AnalyticsViews').then((m) => ({ default: m.AnalyticsViews })));
 const ReactArchitectureGuide = React.lazy(() => import('./components/ReactArchitectureGuide').then((m) => ({ default: m.ReactArchitectureGuide })));
 
+// Eager idle-preload for MasterDataViews to eliminate double skeleton / loading screen transition
+if (typeof window !== 'undefined') {
+  const preload = () => {
+    import('../apps/web/src/modules/masterdata/screens/MasterDataViews').catch(() => {});
+  };
+  if ('requestIdleCallback' in window) {
+    (window as any).requestIdleCallback(preload);
+  } else {
+    setTimeout(preload, 50);
+  }
+}
+
 import { useMe, useLogout, useSelectContext } from './features/identity/useIdentity';
 import { mapMeToAuthUser } from './features/identity/mapMe';
 
@@ -610,8 +622,14 @@ function resolveViewFromLocation(pathname: string, search: string): string {
     if (!currentUser) return;
 
     let lastActive = Date.now();
+    try {
+      localStorage.setItem('sp_last_activity', Date.now().toString());
+    } catch {}
     const handleUserActivity = () => {
       lastActive = Date.now();
+      try {
+        localStorage.setItem('sp_last_activity', Date.now().toString());
+      } catch {}
     };
 
     const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];

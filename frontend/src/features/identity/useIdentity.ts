@@ -2,12 +2,23 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { identityApi, ApiError } from './api';
 import { MeSchema, type ManagedUser, type Me, type UpdateUserInput, type UserListParams } from './types';
 
-const SESSION_STORAGE_KEY = 'sp_me_session';
+const SESSION_CACHE_KEY = 'sp_me_session';
+const SESSION_ACTIVITY_KEY = 'sp_last_activity';
+export const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
 export function getCachedSession(): Me | null {
   try {
-    const raw = typeof window !== 'undefined' ? sessionStorage.getItem(SESSION_STORAGE_KEY) : null;
-    return raw ? (JSON.parse(raw) as Me) : null;
+    if (typeof window === 'undefined') return null;
+    const raw = localStorage.getItem(SESSION_CACHE_KEY);
+    if (!raw) return null;
+    const lastActive = Number(localStorage.getItem(SESSION_ACTIVITY_KEY) || '0');
+    if (lastActive && Date.now() - lastActive > SESSION_IDLE_TIMEOUT_MS) {
+      localStorage.removeItem(SESSION_CACHE_KEY);
+      localStorage.removeItem(SESSION_ACTIVITY_KEY);
+      return null;
+    }
+    localStorage.setItem(SESSION_ACTIVITY_KEY, Date.now().toString());
+    return JSON.parse(raw) as Me;
   } catch {
     return null;
   }
@@ -17,9 +28,11 @@ export function setCachedSession(me: Me | null) {
   try {
     if (typeof window === 'undefined') return;
     if (me) {
-      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(me));
+      localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(me));
+      localStorage.setItem(SESSION_ACTIVITY_KEY, Date.now().toString());
     } else {
-      sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      localStorage.removeItem(SESSION_CACHE_KEY);
+      localStorage.removeItem(SESSION_ACTIVITY_KEY);
     }
   } catch {}
 }
@@ -44,11 +57,16 @@ export function useMe() {
         setCachedSession(me);
         return me;
       } catch (e) {
-        setCachedSession(null);
-        if (e instanceof ApiError && (e.status === 401 || e.status === 503 || e.status === 404)) {
-          return null;
+        const cached = getCachedSession();
+        if (e instanceof ApiError && e.status === 401) {
+          const lastActive = Number(typeof window !== 'undefined' ? localStorage.getItem(SESSION_ACTIVITY_KEY) || '0' : '0');
+          if (!lastActive || Date.now() - lastActive > SESSION_IDLE_TIMEOUT_MS) {
+            setCachedSession(null);
+            return null;
+          }
+          return cached;
         }
-        return null;
+        return cached;
       }
     },
     retry: false,

@@ -142,7 +142,7 @@ export function normalizeItemMaster(i: any): ItemMaster {
   const costVal = Number(i.standardCost ?? i.standard_cost ?? i.cost ?? 0);
 
   // Auto-detect finished goods if type is missing or generic
-  let itemType: ItemType = i.type || i.item_type || 'Finished Good';
+  let itemType: ItemType = (i.type || i.item_type || i.category || 'Finished Good') as ItemType;
   if (!itemType || (itemType as any) === 'STORE' || (itemType as any) === 'Plant Asset' || (itemType as any) === 'Other') {
     if (String(i.code || '').startsWith('120') || i.cat === 'SACL' || i.cat === 'INJECTION MOLDING' || cycle > 0) {
       itemType = 'Finished Good';

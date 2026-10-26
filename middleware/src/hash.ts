@@ -17,7 +17,13 @@ export async function hashPassword(password: string): Promise<string> {
   return `pbkdf2$${ITERATIONS}$${toHex(salt)}$${toHex(await derive(password, salt, ITERATIONS))}`;
 }
 
-export async function verifyPassword({ hash, password }: { hash: string; password: string }): Promise<boolean> {
+export async function verifyPassword(
+  arg1: { hash: string; password: string } | string,
+  arg2?: string,
+): Promise<boolean> {
+  const hash = typeof arg1 === 'string' ? arg1 : arg1?.hash;
+  const password = typeof arg1 === 'string' ? arg2! : arg1?.password;
+  if (!hash || !password) return false;
   try {
     const [scheme, iter, salt, expected] = hash.split('$');
     if (scheme !== 'pbkdf2' || !iter || !salt || !expected) return false;
