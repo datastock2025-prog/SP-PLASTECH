@@ -9,6 +9,7 @@ name: sp-plastech-dev
 services:
   db:
     image: docker.io/library/postgres:16-alpine
+    container_name: sp-plastech-dev-db-1
     environment:
       POSTGRES_USER: erp
       POSTGRES_PASSWORD: ${DEV_DB_PASSWORD:-erp_local_only}   # local only; never reused anywhere else
@@ -61,4 +62,5 @@ services:
     depends_on: { api: { condition: service_started } }
 
 volumes:
-  pgdata: {}
+  pgdata:
+    name: sp-plastech-dev_pgdata
