@@ -13,7 +13,7 @@ export interface DashboardKpis {
   revenueMtd: number;
 }
 
-export function useDashboardKpis(plantId?: string) {
+export function useDashboardKpis(plantId?: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.dashboard.kpis(plantId),
     queryFn: async () => {
@@ -33,6 +33,7 @@ export function useDashboardKpis(plantId?: string) {
     },
     staleTime: 1000 * 60, // 1 minute stale time
     refetchInterval: 1000 * 60 * 2, // Auto poll every 2 min
+    enabled: options?.enabled ?? true,
   });
 }
 

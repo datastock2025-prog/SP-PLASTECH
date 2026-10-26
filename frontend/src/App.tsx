@@ -1392,7 +1392,7 @@ function resolveViewFromLocation(pathname: string, search: string): string {
     [items]
   );
 
-  const { data: dashboardKpis } = useDashboardKpis();
+  const { data: dashboardKpis } = useDashboardKpis(undefined, { enabled: !!currentUser });
   const activeWOCount = dashboardKpis?.activeWorkOrders ?? workOrders.filter((w) => !['completed', 'cancelled'].includes(w.status)).length;
   const lowStockCount = dashboardKpis?.lowStockItemsCount ?? items.filter((i) => i.status === 'low').length;
   const openPOCount = purchaseOrders.filter((p) => p.status !== 'received').length;
@@ -1400,8 +1400,11 @@ function resolveViewFromLocation(pathname: string, search: string): string {
   if (!currentUser) {
     if (meQuery.isLoading || meQuery.isPending) {
       return (
-        <div className="flex flex-col h-screen w-full max-w-full overflow-hidden bg-[var(--paper)]">
-          <ModuleLoadingFallback moduleName="init" />
+        <div className="flex h-screen w-full items-center justify-center bg-[var(--paper)]">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 rounded-full border-2 border-[#14213D] border-t-transparent animate-spin" />
+            <span className="text-xs font-semibold tracking-wider text-slate-500 uppercase">Loading SP-PLASTECH ERP...</span>
+          </div>
         </div>
       );
     }

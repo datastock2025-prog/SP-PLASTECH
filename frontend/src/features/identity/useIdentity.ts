@@ -2,11 +2,27 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { identityApi, ApiError } from './api';
 import { MeSchema, type ManagedUser, type Me, type UpdateUserInput, type UserListParams } from './types';
 
+const SESSION_STORAGE_KEY = 'sp_me_session';
+
 export function getCachedSession(): Me | null {
-  return null;
+  try {
+    const raw = typeof window !== 'undefined' ? sessionStorage.getItem(SESSION_STORAGE_KEY) : null;
+    return raw ? (JSON.parse(raw) as Me) : null;
+  } catch {
+    return null;
+  }
 }
 
-export function setCachedSession(_me: Me | null) {}
+export function setCachedSession(me: Me | null) {
+  try {
+    if (typeof window === 'undefined') return;
+    if (me) {
+      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(me));
+    } else {
+      sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    }
+  } catch {}
+}
 
 export const identityKeys = {
   me: ['identity', 'me'] as const,
@@ -21,11 +37,14 @@ export const identityKeys = {
 export function useMe() {
   return useQuery<Me | null>({
     queryKey: identityKeys.me,
+    initialData: getCachedSession,
     queryFn: async () => {
       try {
         const me = await identityApi.me();
+        setCachedSession(me);
         return me;
       } catch (e) {
+        setCachedSession(null);
         if (e instanceof ApiError && (e.status === 401 || e.status === 503 || e.status === 404)) {
           return null;
         }
@@ -50,6 +69,7 @@ export function useLogin() {
     },
     onSuccess: (res) => {
       if (res.me) {
+        setCachedSession(res.me);
         qc.setQueryData(identityKeys.me, res.me);
       }
     },
@@ -64,6 +84,7 @@ export function useVerifyTotp() {
       return identityApi.me();
     },
     onSuccess: (me) => {
+      setCachedSession(me);
       qc.setQueryData(identityKeys.me, me);
     },
   });
@@ -74,6 +95,7 @@ export function useLogout() {
   return useMutation({
     mutationFn: () => identityApi.signOut(),
     onSettled: () => {
+      setCachedSession(null);
       qc.clear();
       qc.setQueryData(identityKeys.me, null);
     },
@@ -88,6 +110,7 @@ export function useSelectContext() {
       qc.setQueryData<Me | null>(identityKeys.me, (m) => {
         if (!m) return m;
         const updated = { ...m, activePlantId: v.plantId, activeShift: v.shift };
+        setCachedSession(updated);
         return updated;
       }),
   });

@@ -235,6 +235,8 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
     defaultSortOrder: 'asc',
     debounceMs: 300,
   });
+  const [activeTab, setActiveTab] = useState<string>('Overview');
+  const [selectedItemCodes, setSelectedItemCodes] = useState<string[]>([]);
   const [jumpItemPageInput, setJumpItemPageInput] = useState<string>('');
   const [quickModifyItem, setQuickModifyItem] = useState<ItemMaster | null>(null);
   const [machinePage, setMachinePage] = useState<number>(1);
