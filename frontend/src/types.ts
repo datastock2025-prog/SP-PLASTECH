@@ -144,6 +144,12 @@ export interface ItemMaster {
   reorderPoint?: number;
   valuationMethod?: string;
   cycleTimeSec?: number;
+  processingMethod?: string;
+  samplingPlan?: string;
+  coaRequired?: boolean;
+  purchaseUOM?: string;
+  department?: string;
+  [key: string]: any;
 }
 
 
@@ -265,6 +271,10 @@ export interface BomMaster {
   lines: BomLine[];
   approvals?: BomApprovalHistory[];
   documents?: BomDocument[];
+  department?: string;
+  bomType?: string;
+  mfgCategory?: string;
+  [key: string]: any;
 }
 
 export interface SecondaryOperationDetail {

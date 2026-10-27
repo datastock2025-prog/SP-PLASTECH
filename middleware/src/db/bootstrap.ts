@@ -48,6 +48,40 @@ export async function bootstrap(): Promise<{ tenantId: string }> {
         });
     }
 
+    // Ensure default manufacturing plants exist for multi-plant / All Plants scope
+    const [existingPlantsCount] = await tx
+      .select({ count: sql<number>`count(*)::int` })
+      .from(schema.plants)
+      .where(and(eq(schema.plants.tenantId, tenantId), isNull(schema.plants.deletedAt)));
+
+    if ((existingPlantsCount?.count ?? 0) === 0) {
+      const defaultPlants = [
+        { code: 'PLT-01', name: 'Plant 1 - Pimpri Auto-Hub', location: 'Pune, MH', isDefault: true },
+        { code: 'PLT-02', name: 'Plant 2 - Chakan Complex', location: 'Chakan, MH', isDefault: false },
+        { code: 'PLT-03', name: 'Plant 3 - Sanand Mega Plant', location: 'Sanand, GJ', isDefault: false },
+        { code: 'PLT-04', name: 'Plant 4 - Pantnagar Facility', location: 'Pantnagar, UK', isDefault: false },
+      ];
+      for (const p of defaultPlants) {
+        await tx
+          .insert(schema.plants)
+          .values({
+            tenantId,
+            code: p.code,
+            name: p.name,
+            location: p.location,
+            isDefault: p.isDefault,
+            isActive: true,
+          })
+          .onConflictDoNothing();
+      }
+    }
+
+    const allTenantPlants = await tx
+      .select({ id: schema.plants.id })
+      .from(schema.plants)
+      .where(and(eq(schema.plants.tenantId, tenantId), isNull(schema.plants.deletedAt), eq(schema.plants.isActive, true)));
+    const allPlantIds = allTenantPlants.map((p) => p.id);
+
     const [users] = await tx
       .select({ count: sql<number>`count(*)::int` })
       .from(schema.userProfiles);
@@ -67,7 +101,7 @@ export async function bootstrap(): Promise<{ tenantId: string }> {
           password,
           fullName: name,
           roleId: role.id,
-          plantIds: [],
+          plantIds: allPlantIds,
           mustChangePassword: true,
         });
 

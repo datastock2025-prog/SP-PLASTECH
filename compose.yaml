@@ -15,14 +15,14 @@ services:
       POSTGRES_PASSWORD: ${DEV_DB_PASSWORD:-erp_local_only} # local only; never reused anywhere else
       POSTGRES_DB: erp
     ports: [ "5432:5432" ]
-    volumes: [ pgdata:/var/lib/postgresql/data ]
+    volumes: [ pgdata:/var/lib/postgresql/data:Z ]
     healthcheck: { test: [ "CMD-SHELL", "pg_isready -U erp" ], interval: 5s, retries: 10 }
 
   migrate:
     image: ghcr.io/amacneil/dbmate
     command: --migrations-dir /db/migrations --wait up
     environment: { DATABASE_URL: "postgres://erp:${DEV_DB_PASSWORD:-erp_local_only}@db:5432/erp?sslmode=disable" }
-    volumes: [ "./db/migrations:/db/migrations:ro" ]
+    volumes: [ "./db/migrations:/db/migrations:ro,Z" ]
     depends_on: { db: { condition: service_healthy } }
 
   api:
@@ -42,7 +42,7 @@ services:
       BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-System Administrator}
     ports: [ "4000:4000" ]
     volumes:
-      - "./middleware:/app"
+      - "./middleware:/app:Z"
       - "/app/node_modules"
     depends_on: { migrate: { condition: service_completed_successfully } }
 
@@ -53,10 +53,9 @@ services:
     environment:
       BACKEND_URL: http://api:4000
       VITE_API_URL: http://localhost:3000
-      CHOKIDAR_USEPOLLING: "true"
     ports: [ "3000:3000" ] # Vite proxies /api to the api service
     volumes:
-      - ".:/workspace"
+      - ".:/workspace:Z"
       - "/workspace/node_modules"
       - "/workspace/frontend/node_modules"
     depends_on: { api: { condition: service_started } }

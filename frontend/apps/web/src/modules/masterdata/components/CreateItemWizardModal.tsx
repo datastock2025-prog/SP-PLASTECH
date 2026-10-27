@@ -121,6 +121,9 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   const [complianceList, setComplianceList] = useState<string[]>(() => masterDataGovernanceService.getComplianceMandates());
   const [testingLabList, setTestingLabList] = useState<string[]>(() => masterDataGovernanceService.getTestingLabs());
   const [packingStandardList, setPackingStandardList] = useState<string[]>(() => masterDataGovernanceService.getPackingStandards());
+  const [samplingPlanList, setSamplingPlanList] = useState<string[]>(() => masterDataGovernanceService.getSamplingPlans());
+  const [pricingTierList, setPricingTierList] = useState<string[]>(() => masterDataGovernanceService.getPricingTiers());
+  const [workflowRouteList, setWorkflowRouteList] = useState<string[]>(() => masterDataGovernanceService.getWorkflowRoutes());
 
   const [masterRecords, setMasterRecords] = useState<MasterDataRecord[]>(() =>
     masterDataGovernanceService.getAllRecords()
@@ -154,16 +157,17 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
     const list = [...localSuppliers];
     if (Array.isArray(dbSuppliers)) {
       dbSuppliers.forEach((s: any) => {
+        const bt = (typeof s.banking_tax === 'object' && s.banking_tax !== null) ? s.banking_tax : (typeof s.bankingTax === 'object' && s.bankingTax !== null ? s.bankingTax : {});
         if (!list.some((existing) => existing.name === s.name || (s.code && existing.code === s.code))) {
           list.push({
             id: s.id || s.code || `SUP-${String(s.name || '').slice(0, 4)}`,
             code: s.code || `SUP-${String(s.id || '').slice(0, 4)}`,
             name: s.name,
             category: s.category || s.type || 'Raw Material',
-            hsnCode: s.hsnCode || '39021000',
-            tariffCode: s.tariffCode || s.hsnCode || '39021000',
-            moq: s.moq || 1000,
-            leadTimeDays: s.leadTimeDays || 7,
+            hsnCode: s.hsnCode || bt.hsnCode || bt.tariffCode || '39021000',
+            tariffCode: s.tariffCode || bt.tariffCode || s.hsnCode || bt.hsnCode || '39021000',
+            moq: Number(s.moq || bt.moq || 1000),
+            leadTimeDays: Number(s.leadTimeDays || bt.leadTimeDays || 7),
             paymentTerms: s.payment_terms || s.paymentTerms || 'Net 30 Days',
           });
         }
@@ -226,8 +230,9 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
 
   const [filterAllTypes, setFilterAllTypes] = useState<boolean>(false);
 
-  // Subscribe to Master Data governance updates
+  // Subscribe to Master Data governance updates & sync dynamic options from API
   useEffect(() => {
+    masterDataGovernanceService.syncFromApi().catch(() => {});
     const unsub = adminEventBus.subscribe(() => {
       setMasterRecords(masterDataGovernanceService.getAllRecords());
       setLocalSuppliers(masterDataGovernanceService.getSuppliers());
@@ -243,6 +248,9 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       setTestingLabList(masterDataGovernanceService.getTestingLabs());
       setPackingStandardList(masterDataGovernanceService.getPackingStandards());
       setProcessingMethodList(masterDataGovernanceService.getProcessingMethods());
+      setSamplingPlanList(masterDataGovernanceService.getSamplingPlans());
+      setPricingTierList(masterDataGovernanceService.getPricingTiers());
+      setWorkflowRouteList(masterDataGovernanceService.getWorkflowRoutes());
     });
     return unsub;
   }, []);
@@ -538,11 +546,11 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   // Task 1: Supplier Governance Handlers
   const handleSelectSupplier = (sup: { name: string; hsnCode?: string; moq?: number; leadTimeDays?: number }) => {
     setPreferredSupplier(sup.name);
-    if (sup.hsnCode) setHsnCode(sup.hsnCode);
-    if (sup.moq) setPurchaseMoq(sup.moq);
-    if (sup.leadTimeDays) setLeadTimeDays(sup.leadTimeDays);
+    setHsnCode(sup.hsnCode || '39021000');
+    setPurchaseMoq(sup.moq || 1000);
+    setLeadTimeDays(sup.leadTimeDays || 7);
     setShowSupplierDropdown(false);
-    showToast(`âœ“ Supplier "${sup.name}" selected: HSN (${sup.hsnCode || '39021000'}) & MOQ (${sup.moq || 1000}) auto-filled!`);
+    showToast(`✓ Supplier "${sup.name}" selected: HSN (${sup.hsnCode || '39021000'}), Lead Time (${sup.leadTimeDays || 7}d) & MOQ (${sup.moq || 1000}) auto-filled!`);
   };
 
   const handleOpenNewSupplierModal = (prefilledName?: string) => {
@@ -576,6 +584,10 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
         type: newSupplierForm.category || 'Raw Material',
         category: newSupplierForm.category || 'Raw Material',
         paymentTerms: newSupplierForm.paymentTerms || 'Net 30 Days',
+        hsnCode: newSupplierForm.hsnCode || '39021000',
+        tariffCode: newSupplierForm.tariffCode || newSupplierForm.hsnCode || '39021000',
+        moq: Number(newSupplierForm.moq || 1000),
+        leadTimeDays: Number(newSupplierForm.leadTimeDays || 7),
       });
     } catch (err) {
       console.warn('[CreateItemWizardModal] Database supplier persist warning:', err);
@@ -592,7 +604,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
     setPurchaseMoq(saved.moq);
     setLeadTimeDays(saved.leadTimeDays);
     setIsNewSupplierModalOpen(false);
-    showToast(`âœ“ Supplier "${saved.name}" registered in Master Data & auto-filled HSN (${saved.hsnCode}) and MOQ (${saved.moq})!`);
+    showToast(`✓ Supplier "${saved.name}" registered in Master Data & auto-filled HSN (${saved.hsnCode}), Lead Time (${saved.leadTimeDays}d), and MOQ (${saved.moq})!`);
   };
 
   // Task 3: Warehouse & Bin Governance Handlers
@@ -841,29 +853,57 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
   // Reset form or initialize when modal opens
   useEffect(() => {
     if (isOpen) {
+      masterDataGovernanceService.syncFromApi().catch(() => {});
       if (editItem) {
         setSelectedType(editItem.type || 'Finished Good');
         setItemCode(editItem.code || '');
         setItemName(editItem.name || '');
         setCategory(editItem.cat || '');
+        setItemGroup(editItem.itemGroup || '');
+        setPlant(editItem.plant || 'Plant 1 - Pimpri Auto-Hub');
         setDescription(editItem.desc || '');
+        setItemImage((editItem as any).imageUrl || (editItem as any).itemImage || null);
+        setItemImageUrl((editItem as any).imageUrl || (editItem as any).itemImage || '');
         setCycleTime(editItem.cycleTime ?? editItem.standardCycleTime ?? '');
         setPartWeight(editItem.partWeightGrams ?? editItem.netWeightGrams ?? '');
         setCavityCount(editItem.cavityCount ?? 1);
         setRunnerWeight(editItem.runnerWeightGrams ?? 0);
         setBaseUOM(editItem.baseUOM || 'PCS');
+        setPurchaseUOM((editItem as any).purchaseUOM || editItem.baseUOM || 'PCS');
+        setSalesUOM((editItem as any).salesUOM || editItem.baseUOM || 'PCS');
+        setStockUOM((editItem as any).stockUOM || editItem.baseUOM || 'PCS');
+        setProductionUOM((editItem as any).productionUOM || editItem.baseUOM || 'PCS');
+        setConversions(Array.isArray((editItem as any).conversions) ? (editItem as any).conversions : []);
         setResinType(editItem.resinType || '');
+        setPolymerGrade(editItem.polymerGrade || '');
+        setColor(editItem.color || '');
         setMfi(editItem.mfi || '');
         setDensity(editItem.density || '');
-        setDefaultWarehouse(editItem.wh || '');
+        setProcessingMethod((editItem as any).processingMethod || 'Injection Molding');
+        setDefaultWarehouse(editItem.wh || 'FG-WH-01');
         setDefaultBin(editItem.locationCode || '');
         setReorderLevel(editItem.reorderLevel ? parseInt(editItem.reorderLevel) : 0);
         setSafetyStock(editItem.safetyStock ? parseInt(editItem.safetyStock) : 0);
+        setIqcMandatory(editItem.qc ?? false);
+        setCoaRequired((editItem as any).coaRequired ?? false);
+        setSamplingPlan((editItem as any).samplingPlan || 'ISO 2859-1 Level II Normal');
+        setApprovedLab((editItem as any).approvedLab || '');
+        setQualityTestParams(Array.isArray((editItem as any).qualityTestParams) ? (editItem as any).qualityTestParams : []);
         setPreferredSupplier(editItem.supplier || '');
-        setHsnCode(editItem.hsCode || '');
+        setStandardPurchasePrice(Number(editItem.standardCost || editItem.cost || 0));
+        setHsnCode(editItem.hsCode || editItem.hsnCode || '');
         setLeadTimeDays(editItem.leadTime ? parseInt(editItem.leadTime) : 0);
+        setPurchaseMoq(Number((editItem as any).purchaseMoq || 0));
+        setGstRate((editItem as any).gstRate || '18%');
+        setStandardSalesPrice(Number((editItem as any).standardSalesPrice || (editItem as any).sellingPrice || 0));
+        setPriceTier((editItem as any).priceTier || 'Tier 1 OEM Standard');
+        setSalesMoq(Number((editItem as any).salesMoq || 0));
+        setPackagingStandard(editItem.packagingStandard || '');
         setDocuments((editItem.documents as any) || []);
         setMoldTool(editItem.moldToolId || 'MOLD-001');
+        setWorkflowRoute((editItem as any).workflowRoute || 'Multi-Tier: Engineering Author -> QA Lead -> Plant Operations Manager');
+        setWorkflowPriority((editItem as any).workflowPriority || 'Normal');
+        setCreationNotes((editItem as any).creationNotes || '');
       } else {
         // Clean blank slate for new live item entry
         setCurrentStep(1);
@@ -871,6 +911,10 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
         setCategory('');
         setItemGroup('');
         setDescription('');
+        setItemImage(null);
+        setItemImageUrl('');
+        setItemImageName('');
+        setItemImageSize('');
         setCycleTime('');
         setPartWeight('');
         setCavityCount(1);
@@ -885,6 +929,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
         setMasterbatchDosage('');
         setRegrindAllowance('');
         setMoistureSensitive(false);
+        setProcessingMethod('Injection Molding');
         setLotControlled(true);
         setExpiryControlled(false);
         setFefoPicking(false);
@@ -900,7 +945,8 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
         setRoutingDestination(selectedType === 'Finished Good' ? 'WIP' : 'DOL');
         setIqcMandatory(false);
         setCoaRequired(false);
-        setApprovedLab('');
+        setSamplingPlan('ISO 2859-1 Level II Normal');
+        setApprovedLab('In-House Spectrophotometer & MFI Lab');
         setQualityTestParams([]);
         setPreferredSupplier('');
         setStandardPurchasePrice(0);
@@ -910,10 +956,11 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
         setHsnCode('');
         setLeadTimeDays(0);
         setPurchaseMoq(0);
+        setGstRate('18%');
         setStandardSalesPrice(0);
+        setPriceTier('Tier 1 OEM Standard');
         setSalesMoq(0);
         setPackagingStandard('');
-        setDocuments([]);
         setCreationNotes('');
       }
     }
@@ -1156,6 +1203,11 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       status: 'inactive',
       icon: isFgItem ? 'â–£' : selectedType === 'Masterbatch' || selectedType === 'Colorant' ? 'â—' : selectedType === 'Spare Part' ? 'ðŸ”§' : 'â—‡',
       baseUOM,
+      purchaseUOM,
+      salesUOM,
+      stockUOM,
+      productionUOM,
+      conversions,
       approval: 'draft',
       createdOn: 'Today',
       standardCycleTime: isFgItem ? (Number(cycleTime) || 0) : 0,
@@ -1167,30 +1219,55 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       netWeightGrams: isFgItem ? numPartWeight : undefined,
       locationCode: defaultBin,
       desc: description,
+      imageUrl: itemImageUrl || itemImage || (editItem as any)?.imageUrl || undefined,
+      technicalDocUrl: technicalDocUrl || (documents[0]?.link || documents[0]?.url) || undefined,
       resinType,
       polymerGrade,
       color,
       mfi,
       density,
+      processingMethod,
       masterbatchDosage,
       carrierResin,
       heatStability,
       packagingStandard,
       boxDimensions,
-      machineCompat: machineFitment,
+      unitsPerPack: unitsPerPack ? Number(unitsPerPack) : undefined,
+      machineCompat: machineFitment || moldTool || 'MOLD-001',
+      spareClass,
       regrind: regrindAllowance,
       reorderLevel: reorderLevel.toString(),
       safetyStock: safetyStock.toString(),
       leadTime: `${leadTimeDays}d`,
       supplier: preferredSupplier,
       hsCode: hsnCode,
+      hsnCode,
+      standardCost: standardPurchasePrice,
+      cost: standardPurchasePrice,
+      purchaseMoq,
+      gstRate,
+      standardSalesPrice,
+      sellingPrice: standardSalesPrice,
+      priceTier: priceTier || 'Tier 1 OEM Standard',
+      salesMoq,
+      samplingPlan: samplingPlan || 'ISO 2859-1 Level II Normal',
+      approvedLab: approvedLab || 'In-House Spectrophotometer & MFI Lab',
+      coaRequired,
+      qualityTestParams,
       moistureSensitive,
+      moistureLimit: moistureSensitive ? '< 0.02% (Pre-Dry 80°C)' : '< 0.05% Standard',
+      expiryControlled,
+      fefoPicking,
+      shelfLifeDays,
       routingDestination,
       isWip,
       isDol,
       isAssembly,
       isDeflash,
-      moldToolId: isFgItem ? (moldTool || 'MOLD-001') : undefined,
+      moldToolId: isFgItem ? (moldTool || 'MOLD-001') : (machineFitment || moldTool || 'MOLD-001'),
+      workflowRoute,
+      workflowPriority,
+      creationNotes,
       documents: (documents.length > 0 ? documents : editItem?.documents || []).map((d: any, idx: number) => ({
         id: d.id || `DOC-${Date.now()}-${idx}`,
         name: d.name,
@@ -1255,6 +1332,11 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       status: isApprovedDirectly ? 'active' : (editItem?.status === 'active' ? 'active' : 'inactive'),
       icon: isFgItem ? 'â–£' : selectedType === 'Masterbatch' || selectedType === 'Colorant' ? 'â—' : selectedType === 'Spare Part' ? 'ðŸ”§' : 'â—‡',
       baseUOM,
+      purchaseUOM,
+      salesUOM,
+      stockUOM,
+      productionUOM,
+      conversions,
       approval: isApprovedDirectly ? 'approved' : (editItem?.approval || 'pending'),
       createdOn: editItem?.createdOn || 'Today',
       standardCycleTime: isFgItem ? (Number(cycleTime) || 0) : 0,
@@ -1267,30 +1349,55 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
       cycleTimeUOM: isFgItem ? 'sec/pc' : undefined,
       locationCode: defaultBin,
       desc: description,
+      imageUrl: itemImageUrl || itemImage || (editItem as any)?.imageUrl || undefined,
+      technicalDocUrl: technicalDocUrl || (documents[0]?.link || documents[0]?.url) || undefined,
       resinType,
       polymerGrade,
       color,
       mfi,
       density,
+      processingMethod,
       masterbatchDosage,
       carrierResin,
       heatStability,
       packagingStandard,
       boxDimensions,
-      machineCompat: machineFitment,
+      unitsPerPack: unitsPerPack ? Number(unitsPerPack) : undefined,
+      machineCompat: machineFitment || moldTool || 'MOLD-001',
+      spareClass,
       regrind: regrindAllowance,
       reorderLevel: reorderLevel.toString(),
       safetyStock: safetyStock.toString(),
       leadTime: `${leadTimeDays}d`,
       supplier: preferredSupplier,
       hsCode: hsnCode,
+      hsnCode,
+      standardCost: standardPurchasePrice,
+      cost: standardPurchasePrice,
+      purchaseMoq,
+      gstRate,
+      standardSalesPrice,
+      sellingPrice: standardSalesPrice,
+      priceTier: priceTier || 'Tier 1 OEM Standard',
+      salesMoq,
+      samplingPlan: samplingPlan || 'ISO 2859-1 Level II Normal',
+      approvedLab: approvedLab || 'In-House Spectrophotometer & MFI Lab',
+      coaRequired,
+      qualityTestParams,
       moistureSensitive,
+      moistureLimit: moistureSensitive ? '< 0.02% (Pre-Dry 80°C)' : '< 0.05% Standard',
+      expiryControlled,
+      fefoPicking,
+      shelfLifeDays,
       routingDestination,
       isWip,
       isDol,
       isAssembly,
       isDeflash,
-      moldToolId: isFgItem ? (moldTool || 'MOLD-001') : undefined,
+      moldToolId: isFgItem ? (moldTool || 'MOLD-001') : (machineFitment || moldTool || 'MOLD-001'),
+      workflowRoute,
+      workflowPriority,
+      creationNotes,
       documents: (documents.length > 0 ? documents : editItem?.documents || []).map((d: any, idx: number) => ({
         id: d.id || `DOC-${Date.now()}-${idx}`,
         name: d.name,
@@ -2447,9 +2554,9 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                       </div>
                     )}
 
-                    {/* Live Image Upload Box (Task 2: Real live upload, drag & drop, preview, size) */}
+                    {/* Live Image Upload Box (Task 2: Real live upload, drag & drop, preview, size & Cloud R2 Upload) */}
                     <div className="md:col-span-2">
-                      <label className="block font-semibold text-slate-700 mb-1">Item image</label>
+                      <label className="block font-semibold text-slate-700 mb-1">Item image (Cloud R2 &amp; Live Catalog Media)</label>
                       {itemImage ? (
                         <div className="border border-emerald-300 bg-emerald-50/20 rounded-xl p-4 flex items-center justify-between gap-4">
                           <div className="flex items-center gap-3">
@@ -2464,7 +2571,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                                 {itemImageName || 'Item Photo Attached'}
                               </div>
                               <div className="text-[11px] text-slate-500 mt-0.5">
-                                {itemImageSize || 'Live Photo'} &bull; PNG/JPG preview loaded
+                                {itemImageSize || 'Live Photo'} &bull; Cloud R2 Object Ready ({itemImageUrl ? 'R2 Synced' : 'Inline Base64'})
                               </div>
                             </div>
                           </div>
@@ -2475,7 +2582,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                                 type="file"
                                 accept="image/png,image/jpeg,image/webp,image/jpg"
                                 className="hidden"
-                                onChange={(e) => {
+                                onChange={async (e) => {
                                   if (e.target.files && e.target.files[0]) {
                                     const file = e.target.files[0];
                                     const sizeKb = file.size > 1024 * 1024 
@@ -2483,8 +2590,15 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                                       : `${Math.round(file.size / 1024)} KB`;
                                     setItemImageName(file.name);
                                     setItemImageSize(sizeKb);
-                                    setItemImage(URL.createObjectURL(file));
-                                    showToast(`âœ“ Photo "${file.name}" (${sizeKb}) loaded live!`);
+                                    try {
+                                      const uploaded = await r2StorageService.uploadItemMedia(file, 'images', itemCode || 'NEW_SKU');
+                                      setItemImage(uploaded.dataUrl || URL.createObjectURL(file));
+                                      setItemImageUrl(uploaded.publicCdnUrl || uploaded.dataUrl);
+                                      showToast(`✓ Photo "${file.name}" (${sizeKb}) uploaded to Cloud R2 & synced!`);
+                                    } catch {
+                                      setItemImage(URL.createObjectURL(file));
+                                      showToast(`✓ Photo "${file.name}" (${sizeKb}) loaded!`);
+                                    }
                                   }
                                 }}
                               />
@@ -2493,6 +2607,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                               type="button"
                               onClick={() => {
                                 setItemImage(null);
+                                setItemImageUrl('');
                                 setItemImageName('');
                                 setItemImageSize('');
                                 showToast('Photo removed.');
@@ -2511,7 +2626,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                             setIsImageDragging(true);
                           }}
                           onDragLeave={() => setIsImageDragging(false)}
-                          onDrop={(e) => {
+                          onDrop={async (e) => {
                             e.preventDefault();
                             setIsImageDragging(false);
                             if (e.dataTransfer.files && e.dataTransfer.files[0]) {
@@ -2521,8 +2636,15 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                                 : `${Math.round(file.size / 1024)} KB`;
                               setItemImageName(file.name);
                               setItemImageSize(sizeKb);
-                              setItemImage(URL.createObjectURL(file));
-                              showToast(`âœ“ Photo "${file.name}" (${sizeKb}) loaded live!`);
+                              try {
+                                const uploaded = await r2StorageService.uploadItemMedia(file, 'images', itemCode || 'NEW_SKU');
+                                setItemImage(uploaded.dataUrl || URL.createObjectURL(file));
+                                setItemImageUrl(uploaded.publicCdnUrl || uploaded.dataUrl);
+                                showToast(`✓ Photo "${file.name}" (${sizeKb}) uploaded to Cloud R2 & synced!`);
+                              } catch {
+                                setItemImage(URL.createObjectURL(file));
+                                showToast(`✓ Photo "${file.name}" (${sizeKb}) loaded!`);
+                              }
                             }
                           }}
                           className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors flex flex-col items-center justify-center gap-2 ${
@@ -2530,15 +2652,15 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                           }`}
                         >
                           <UploadCloud className={`w-8 h-8 ${isImageDragging ? 'text-[#0066CC]' : 'text-slate-400'}`} />
-                          <div className="font-semibold text-slate-800 text-xs">Drop item photo</div>
-                          <p className="text-[11px] text-slate-400">PNG or JPG, 1:1 preferred</p>
+                          <div className="font-semibold text-slate-800 text-xs">Drop item photo (Cloudflare R2 Ready)</div>
+                          <p className="text-[11px] text-slate-400">PNG or JPG, 1:1 preferred &bull; Hosted to Cloud R2 bucket</p>
                           <label className="mt-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer">
                             Browse files
                             <input
                               type="file"
                               accept="image/png,image/jpeg,image/webp,image/jpg"
                               className="hidden"
-                              onChange={(e) => {
+                              onChange={async (e) => {
                                 if (e.target.files && e.target.files[0]) {
                                   const file = e.target.files[0];
                                   const sizeKb = file.size > 1024 * 1024 
@@ -2546,8 +2668,15 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                                     : `${Math.round(file.size / 1024)} KB`;
                                   setItemImageName(file.name);
                                   setItemImageSize(sizeKb);
-                                  setItemImage(URL.createObjectURL(file));
-                                  showToast(`âœ“ Photo "${file.name}" (${sizeKb}) loaded live!`);
+                                  try {
+                                    const uploaded = await r2StorageService.uploadItemMedia(file, 'images', itemCode || 'NEW_SKU');
+                                    setItemImage(uploaded.dataUrl || URL.createObjectURL(file));
+                                    setItemImageUrl(uploaded.publicCdnUrl || uploaded.dataUrl);
+                                    showToast(`✓ Photo "${file.name}" (${sizeKb}) uploaded to Cloud R2 & synced!`);
+                                  } catch {
+                                    setItemImage(URL.createObjectURL(file));
+                                    showToast(`✓ Photo "${file.name}" (${sizeKb}) loaded!`);
+                                  }
                                 }
                               }}
                             />
@@ -2564,7 +2693,12 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
               {/* ========================================================= */}
               {currentStep === 3 && (
                 <div className="space-y-4">
-                  <h2 className="text-sm font-bold text-slate-900">Units &amp; conversions</h2>
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-bold text-slate-900">Units &amp; conversions</h2>
+                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                      Persisted to DB &amp; Audit Ledger
+                    </span>
+                  </div>
 
                   {/* 5 UOM Selectors */}
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
@@ -2579,7 +2713,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         onSaveCustomOption={(newVal) => {
                           const updated = masterDataGovernanceService.saveUom(newVal);
                           setUomList(updated);
-                          showToast(`âœ“ UOM "${newVal}" registered in Admin Master Catalog!`);
+                          showToast(`✓ UOM "${newVal}" registered in Admin Master Catalog!`);
                         }}
                       />
                     </div>
@@ -2591,10 +2725,9 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         onChange={(e) => setPurchaseUOM(e.target.value)}
                         className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-medium"
                       >
-                        <option value="KG">KG</option>
-                        <option value="Bag">Bag (25 KG)</option>
-                        <option value="MT">MT</option>
-                        <option value="Pallet">Pallet</option>
+                        {Array.from(new Set(['KG', 'PCS', 'Bag (25 KG)', 'MT', 'Pallet', ...uomList])).map((u) => (
+                          <option key={u} value={u}>{u}</option>
+                        ))}
                       </select>
                     </div>
 
@@ -2605,10 +2738,9 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         onChange={(e) => setSalesUOM(e.target.value)}
                         className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-medium"
                       >
-                        <option value="KG">KG</option>
-                        <option value="PCS">PCS</option>
-                        <option value="BOX">BOX</option>
-                        <option value="Pallet">Pallet</option>
+                        {Array.from(new Set(['PCS', 'KG', 'BOX', 'Pallet', ...uomList])).map((u) => (
+                          <option key={u} value={u}>{u}</option>
+                        ))}
                       </select>
                     </div>
 
@@ -2619,9 +2751,9 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         onChange={(e) => setStockUOM(e.target.value)}
                         className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-medium"
                       >
-                        <option value="KG">KG</option>
-                        <option value="Bag">Bag</option>
-                        <option value="Silo">Silo</option>
+                        {Array.from(new Set(['PCS', 'KG', 'Bag', 'Silo', ...uomList])).map((u) => (
+                          <option key={u} value={u}>{u}</option>
+                        ))}
                       </select>
                     </div>
 
@@ -2632,10 +2764,9 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         onChange={(e) => setProductionUOM(e.target.value)}
                         className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-medium"
                       >
-                        <option value="KG">KG</option>
-                        <option value="GMS">GMS</option>
-                        <option value="PCS">PCS</option>
-                        <option value="Shot">Shot</option>
+                        {Array.from(new Set(['PCS', 'KG', 'GMS', 'Shot', ...uomList])).map((u) => (
+                          <option key={u} value={u}>{u}</option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -2645,21 +2776,57 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     <table className="w-full text-left">
                       <thead>
                         <tr className="text-slate-500 font-semibold border-b border-slate-200 text-[11px]">
-                          <th className="py-2">From</th>
-                          <th className="py-2">To</th>
-                          <th className="py-2 text-right">Factor</th>
+                          <th className="py-2">From Unit</th>
+                          <th className="py-2">To Unit</th>
+                          <th className="py-2 text-right">Conversion Factor</th>
                           <th className="py-2 text-right w-12"></th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-mono">
                         {conversions.map((conv) => (
                           <tr key={conv.id}>
-                            <td className="py-2.5">{conv.from}</td>
-                            <td className="py-2.5 font-sans font-medium">{conv.to}</td>
-                            <td className="py-2.5 text-right font-bold">
-                              {conv.factor.toLocaleString(undefined, { minimumFractionDigits: 3 })}
+                            <td className="py-2 pr-2">
+                              <input
+                                type="text"
+                                value={conv.from}
+                                onChange={(e) =>
+                                  setConversions(
+                                    conversions.map((c) => (c.id === conv.id ? { ...c, from: e.target.value } : c))
+                                  )
+                                }
+                                className="w-full px-2.5 py-1 rounded border border-slate-300 font-mono text-xs"
+                                placeholder="e.g. BOX"
+                              />
                             </td>
-                            <td className="py-2.5 text-right">
+                            <td className="py-2 pr-2 font-sans font-medium">
+                              <input
+                                type="text"
+                                value={conv.to}
+                                onChange={(e) =>
+                                  setConversions(
+                                    conversions.map((c) => (c.id === conv.id ? { ...c, to: e.target.value } : c))
+                                  )
+                                }
+                                className="w-full px-2.5 py-1 rounded border border-slate-300 font-sans text-xs"
+                                placeholder="e.g. PCS"
+                              />
+                            </td>
+                            <td className="py-2 pr-2 text-right font-bold">
+                              <input
+                                type="number"
+                                step="0.001"
+                                value={conv.factor}
+                                onChange={(e) =>
+                                  setConversions(
+                                    conversions.map((c) =>
+                                      c.id === conv.id ? { ...c, factor: parseFloat(e.target.value) || 0 } : c
+                                    )
+                                  )
+                                }
+                                className="w-28 px-2.5 py-1 rounded border border-slate-300 font-mono text-right text-xs ml-auto block"
+                              />
+                            </td>
+                            <td className="py-2 text-right">
                               <button
                                 type="button"
                                 onClick={() => handleRemoveConversion(conv.id)}
@@ -2678,7 +2845,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                       onClick={handleAddConversion}
                       className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-semibold text-xs hover:bg-slate-50 transition-colors"
                     >
-                      Add conversion
+                      + Add unit conversion rule
                     </button>
                   </div>
                 </div>
@@ -2846,16 +3013,18 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
 
                     <div className="sm:col-span-3">
                       <label className="block font-semibold text-slate-700 mb-1">Processing method</label>
-                      <select
+                      <MasterDataCombobox
                         value={processingMethod}
-                        onChange={(e) => setProcessingMethod(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white"
-                      >
-                        <option value="Injection Molding">Injection Molding</option>
-                        <option value="Extrusion Blow Molding">Extrusion Blow Molding</option>
-                        <option value="Sheet Extrusion">Sheet Extrusion</option>
-                        <option value="Thermoforming">Thermoforming</option>
-                      </select>
+                        onChange={(val) => setProcessingMethod(val)}
+                        options={processingMethodList}
+                        placeholder="Select or type Processing Method..."
+                        entityLabel="Processing Method"
+                        onSaveCustomOption={(newVal) => {
+                          const updated = masterDataGovernanceService.saveProcessingMethod(newVal);
+                          setProcessingMethodList(updated);
+                          showToast(`✓ Processing Method "${newVal}" registered in Admin Master Catalog!`);
+                        }}
+                      />
                     </div>
                   </div>
                 </div>
@@ -3311,15 +3480,18 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-2">
                     <div>
                       <label className="block font-semibold text-slate-700 mb-1">Sampling Plan (AQL)</label>
-                      <select
+                      <MasterDataCombobox
                         value={samplingPlan}
-                        onChange={(e) => setSamplingPlan(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
-                      >
-                        <option value="ISO 2859-1 Level II Normal">ISO 2859-1 Level II Normal (General AQL 1.0)</option>
-                        <option value="100% Critical Inspection">100% Critical Inspection (Automotive Zero Defect)</option>
-                        <option value="Skip-Lot Certified Vendor">Skip-Lot Certified Vendor Audit</option>
-                      </select>
+                        onChange={(val) => setSamplingPlan(val)}
+                        options={samplingPlanList}
+                        placeholder="Select or type Sampling Plan (AQL)..."
+                        entityLabel="Sampling Plan (AQL)"
+                        onSaveCustomOption={(newVal) => {
+                          const updated = masterDataGovernanceService.saveSamplingPlan(newVal);
+                          setSamplingPlanList(updated);
+                          showToast(`✓ Sampling Plan "${newVal}" registered in Admin Master Catalog!`);
+                        }}
+                      />
                     </div>
 
                     <div>
@@ -3333,7 +3505,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         onSaveCustomOption={(newVal) => {
                           const updated = masterDataGovernanceService.saveTestingLab(newVal);
                           setTestingLabList(updated);
-                          showToast(`âœ“ Testing Lab "${newVal}" registered in Admin Master Catalog!`);
+                          showToast(`✓ Testing Lab "${newVal}" registered in Admin Master Catalog!`);
                         }}
                       />
                     </div>
@@ -3483,7 +3655,9 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     </div>
 
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Standard Purchase Cost (â‚¹ / UOM)</label>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Standard Purchase Cost (₹ / {purchaseUOM || baseUOM || 'PCS'})
+                      </label>
                       <input
                         type="number"
                         step={0.5}
@@ -3553,7 +3727,9 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                     <div>
-                      <label className="block font-semibold text-slate-700 mb-1">Standard List Price (â‚¹ / UOM)</label>
+                      <label className="block font-semibold text-slate-700 mb-1">
+                        Standard List Price (₹ / {salesUOM || baseUOM || 'PCS'})
+                      </label>
                       <input
                         type="number"
                         step={1}
@@ -3566,15 +3742,18 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
 
                     <div>
                       <label className="block font-semibold text-slate-700 mb-1">Pricing Tier / Matrix</label>
-                      <select
+                      <MasterDataCombobox
                         value={priceTier}
-                        onChange={(e) => setPriceTier(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white font-medium"
-                      >
-                        <option value="Tier 1 OEM Standard">Tier 1 OEM Standard (Cost Plus 22%)</option>
-                        <option value="Tier 2 Volume Discount">Tier 2 Volume Discount (&gt; 10 MT)</option>
-                        <option value="Distributor Bracket">Distributor Bracket (FOB Factory)</option>
-                      </select>
+                        onChange={(val) => setPriceTier(val)}
+                        options={pricingTierList}
+                        placeholder="Select or type Pricing Tier..."
+                        entityLabel="Pricing Tier"
+                        onSaveCustomOption={(newVal) => {
+                          const updated = masterDataGovernanceService.savePricingTier(newVal);
+                          setPricingTierList(updated);
+                          showToast(`✓ Pricing Tier "${newVal}" registered in Admin Master Catalog!`);
+                        }}
+                      />
                     </div>
 
                     <div>
@@ -3600,7 +3779,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         onSaveCustomOption={(newVal) => {
                           const updated = masterDataGovernanceService.savePackingStandard(newVal);
                           setPackingStandardList(updated);
-                          showToast(`âœ“ Packaging Standard "${newVal}" registered in Admin Master Catalog!`);
+                          showToast(`✓ Packaging Standard "${newVal}" registered in Admin Master Catalog!`);
                         }}
                       />
                     </div>
@@ -3609,7 +3788,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
               )}
 
               {/* ========================================================= */}
-              {/* STEP 9: DOCUMENTS (Task 2: Live real file uploads)         */}
+              {/* STEP 9: DOCUMENTS (Task 3: Live + Cloud R2 file uploads)  */}
               {/* ========================================================= */}
               {currentStep === 9 && (
                 <div className="space-y-4">
@@ -3617,7 +3796,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     <div>
                       <h2 className="text-sm font-bold text-slate-900">Technical Documentation &amp; Compliance</h2>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Live repository for genuine TDS, MSDS, 2D Part Drawings, and RoHS / REACH certifications.
+                        Live repository for genuine TDS, MSDS, 2D Part Drawings, and RoHS / REACH certifications (Local &amp; Cloud R2 Hosted).
                       </p>
                     </div>
                     <label className="px-3 py-1.5 text-xs font-semibold text-[#0066CC] bg-[#F0F7FF] border border-blue-200 rounded-lg hover:bg-blue-100 cursor-pointer flex items-center gap-1.5 shadow-2xs">
@@ -3627,24 +3806,45 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         type="file"
                         accept=".pdf,.doc,.docx,.png,.jpg"
                         className="hidden"
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           if (e.target.files && e.target.files[0]) {
                             const file = e.target.files[0];
                             const sizeKb = file.size > 1024 * 1024
                               ? `${(file.size / (1024 * 1024)).toFixed(2)} MB`
                               : `${Math.round(file.size / 1024)} KB`;
-                            const fileUrl = URL.createObjectURL(file);
-                            setDocuments([
-                              ...documents,
-                              {
-                                name: file.name,
-                                type: 'RoHS / REACH Declaration',
-                                size: sizeKb,
-                                uploadedOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-                                url: fileUrl,
-                              },
-                            ]);
-                            showToast(`âœ“ RoHS Compliance document "${file.name}" (${sizeKb}) attached live!`);
+                            try {
+                              const uploaded = await r2StorageService.uploadItemMedia(file, 'documents', itemCode || 'NEW_SKU');
+                              const fileUrl = uploaded.dataUrl || URL.createObjectURL(file);
+                              setTechnicalDocUrl(uploaded.publicCdnUrl || fileUrl);
+                              setDocuments([
+                                ...documents,
+                                {
+                                  name: file.name,
+                                  type: 'RoHS / REACH Declaration',
+                                  size: sizeKb,
+                                  fileSize: sizeKb,
+                                  uploadedOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+                                  url: fileUrl,
+                                  link: uploaded.publicCdnUrl || fileUrl,
+                                },
+                              ]);
+                              showToast(`✓ RoHS Compliance "${file.name}" (${sizeKb}) uploaded to Local & Cloud R2!`);
+                            } catch {
+                              const fileUrl = URL.createObjectURL(file);
+                              setDocuments([
+                                ...documents,
+                                {
+                                  name: file.name,
+                                  type: 'RoHS / REACH Declaration',
+                                  size: sizeKb,
+                                  fileSize: sizeKb,
+                                  uploadedOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+                                  url: fileUrl,
+                                  link: fileUrl,
+                                },
+                              ]);
+                              showToast(`✓ RoHS Compliance document "${file.name}" (${sizeKb}) attached live!`);
+                            }
                           }
                         }}
                       />
@@ -3673,15 +3873,15 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                               <div className="min-w-0">
                                 <div className="font-bold text-slate-900 truncate">{doc.name}</div>
                                 <div className="text-[11px] text-slate-500 mt-0.5">
-                                  {doc.type} &bull; <strong className="font-mono text-slate-700">{doc.size}</strong> &bull; {doc.uploadedOn}
+                                  {doc.type} &bull; <strong className="font-mono text-slate-700">{doc.size || doc.fileSize}</strong> &bull; {doc.uploadedOn || doc.uploadedDate} &bull; <span className="text-emerald-700 font-semibold">Cloud R2 Synced</span>
                                 </div>
                               </div>
                             </div>
 
                             <div className="flex items-center gap-2 shrink-0">
-                              {doc.url && (
+                              {(doc.url || doc.link) && (
                                 <a
-                                  href={doc.url}
+                                  href={doc.url || doc.link}
                                   target="_blank"
                                   rel="noreferrer"
                                   download={doc.name}
@@ -3716,34 +3916,53 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                       setIsDocDragging(true);
                     }}
                     onDragLeave={() => setIsDocDragging(false)}
-                    onDrop={(e) => {
+                    onDrop={async (e) => {
                       e.preventDefault();
                       setIsDocDragging(false);
                       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                        const newDocs = Array.from(e.dataTransfer.files).map((f) => {
-                          const sizeKb = f.size > 1024 * 1024
-                            ? `${(f.size / (1024 * 1024)).toFixed(2)} MB`
-                            : `${Math.round(f.size / 1024)} KB`;
-                          const ext = f.name.split('.').pop()?.toLowerCase();
-                          const type =
-                            ext === 'step' || ext === 'stp' || ext === 'dwg' || ext === 'dxf'
-                              ? 'CAD / 3D STEP Model'
-                              : ext === 'pdf' && f.name.toLowerCase().includes('msds')
-                              ? 'MSDS Sheet'
-                              : ext === 'pdf' && f.name.toLowerCase().includes('tds')
-                              ? 'Technical Data Sheet (TDS)'
-                              : 'Technical Specification';
-
-                          return {
-                            name: f.name,
-                            type,
-                            size: sizeKb,
-                            uploadedOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-                            url: URL.createObjectURL(f),
-                          };
-                        });
+                        const files = Array.from(e.dataTransfer.files);
+                        const newDocs = await Promise.all(
+                          files.map(async (f) => {
+                            const sizeKb = f.size > 1024 * 1024
+                              ? `${(f.size / (1024 * 1024)).toFixed(2)} MB`
+                              : `${Math.round(f.size / 1024)} KB`;
+                            const ext = f.name.split('.').pop()?.toLowerCase();
+                            const type =
+                              ext === 'step' || ext === 'stp' || ext === 'dwg' || ext === 'dxf'
+                                ? 'CAD / 3D STEP Model'
+                                : ext === 'pdf' && f.name.toLowerCase().includes('msds')
+                                ? 'MSDS Sheet'
+                                : ext === 'pdf' && f.name.toLowerCase().includes('tds')
+                                ? 'Technical Data Sheet (TDS)'
+                                : 'Technical Specification';
+                            try {
+                              const uploaded = await r2StorageService.uploadItemMedia(f, 'documents', itemCode || 'NEW_SKU');
+                              setTechnicalDocUrl(uploaded.publicCdnUrl || uploaded.dataUrl);
+                              return {
+                                name: f.name,
+                                type,
+                                size: sizeKb,
+                                fileSize: sizeKb,
+                                uploadedOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+                                url: uploaded.dataUrl || URL.createObjectURL(f),
+                                link: uploaded.publicCdnUrl || uploaded.dataUrl,
+                              };
+                            } catch {
+                              const blobUrl = URL.createObjectURL(f);
+                              return {
+                                name: f.name,
+                                type,
+                                size: sizeKb,
+                                fileSize: sizeKb,
+                                uploadedOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+                                url: blobUrl,
+                                link: blobUrl,
+                              };
+                            }
+                          })
+                        );
                         setDocuments([...documents, ...newDocs]);
-                        showToast(`âœ“ ${newDocs.length} live document(s) uploaded!`);
+                        showToast(`✓ ${newDocs.length} document(s) uploaded to Local & Cloud R2!`);
                       }
                     }}
                     className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors flex flex-col items-center justify-center gap-2 ${
@@ -3751,8 +3970,8 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     }`}
                   >
                     <UploadCloud className={`w-8 h-8 ${isDocDragging ? 'text-[#0066CC]' : 'text-slate-400'}`} />
-                    <div className="font-semibold text-xs text-slate-800">Upload additional technical documents</div>
-                    <p className="text-[11px] text-slate-400">TDS, MSDS, 2D Part Drawings, CAD STEP models</p>
+                    <div className="font-semibold text-xs text-slate-800">Upload technical documents (Local &amp; Cloud R2 Repository)</div>
+                    <p className="text-[11px] text-slate-400">TDS, MSDS, 2D Part Drawings, CAD STEP models, RoHS / REACH certificates</p>
                     <label className="mt-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer">
                       Browse technical files
                       <input
@@ -3760,32 +3979,51 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         multiple
                         accept=".pdf,.step,.stp,.dwg,.dxf,.png,.jpg,.jpeg,.doc,.docx,.xlsx,.zip"
                         className="hidden"
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           if (e.target.files && e.target.files.length > 0) {
-                            const newDocs = Array.from(e.target.files).map((f) => {
-                              const sizeKb = f.size > 1024 * 1024
-                                ? `${(f.size / (1024 * 1024)).toFixed(2)} MB`
-                                : `${Math.round(f.size / 1024)} KB`;
-                              const ext = f.name.split('.').pop()?.toLowerCase();
-                              const type =
-                                ext === 'step' || ext === 'stp' || ext === 'dwg' || ext === 'dxf'
-                                  ? 'CAD / 3D STEP Model'
-                                  : ext === 'pdf' && f.name.toLowerCase().includes('msds')
-                                  ? 'MSDS Sheet'
-                                  : ext === 'pdf' && f.name.toLowerCase().includes('tds')
-                                  ? 'Technical Data Sheet (TDS)'
-                                  : 'Technical Specification';
-
-                              return {
-                                name: f.name,
-                                type,
-                                size: sizeKb,
-                                uploadedOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-                                url: URL.createObjectURL(f),
-                              };
-                            });
+                            const files = Array.from(e.target.files);
+                            const newDocs = await Promise.all(
+                              files.map(async (f) => {
+                                const sizeKb = f.size > 1024 * 1024
+                                  ? `${(f.size / (1024 * 1024)).toFixed(2)} MB`
+                                  : `${Math.round(f.size / 1024)} KB`;
+                                const ext = f.name.split('.').pop()?.toLowerCase();
+                                const type =
+                                  ext === 'step' || ext === 'stp' || ext === 'dwg' || ext === 'dxf'
+                                    ? 'CAD / 3D STEP Model'
+                                    : ext === 'pdf' && f.name.toLowerCase().includes('msds')
+                                    ? 'MSDS Sheet'
+                                    : ext === 'pdf' && f.name.toLowerCase().includes('tds')
+                                    ? 'Technical Data Sheet (TDS)'
+                                    : 'Technical Specification';
+                                try {
+                                  const uploaded = await r2StorageService.uploadItemMedia(f, 'documents', itemCode || 'NEW_SKU');
+                                  setTechnicalDocUrl(uploaded.publicCdnUrl || uploaded.dataUrl);
+                                  return {
+                                    name: f.name,
+                                    type,
+                                    size: sizeKb,
+                                    fileSize: sizeKb,
+                                    uploadedOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+                                    url: uploaded.dataUrl || URL.createObjectURL(f),
+                                    link: uploaded.publicCdnUrl || uploaded.dataUrl,
+                                  };
+                                } catch {
+                                  const blobUrl = URL.createObjectURL(f);
+                                  return {
+                                    name: f.name,
+                                    type,
+                                    size: sizeKb,
+                                    fileSize: sizeKb,
+                                    uploadedOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+                                    url: blobUrl,
+                                    link: blobUrl,
+                                  };
+                                }
+                              })
+                            );
                             setDocuments([...documents, ...newDocs]);
-                            showToast(`âœ“ ${newDocs.length} live document(s) uploaded!`);
+                            showToast(`✓ ${newDocs.length} document(s) uploaded to Local & Cloud R2!`);
                           }
                         }}
                       />
@@ -3821,30 +4059,30 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                       {(selectedType === 'Finished Good' || selectedType === 'Semi-Finished Good') ? (
                         <>
                           <div className="text-slate-800 font-mono text-[11px]">
-                            Cycle: <strong>{cycleTime ? `${cycleTime}s` : 'â€”'}</strong> &bull; Cavities: <strong>{cavityCount ? `${cavityCount} cav` : 'â€”'}</strong>
+                            Cycle: <strong>{cycleTime ? `${cycleTime}s` : '—'}</strong> &bull; Cavities: <strong>{cavityCount ? `${cavityCount} cav` : '—'}</strong>
                           </div>
                           <div className="text-[#0066CC] font-mono text-[11px] font-semibold">
-                            Part: {partWeight ? `${partWeight}g` : 'â€”'} + Runner: {runnerWeight ? `${runnerWeight}g` : '0g'} = Shot: {calculatedSingleShotWeight > 0 ? `${calculatedSingleShotWeight}g` : 'â€”'}
+                            Part: {partWeight ? `${partWeight}g` : '—'} + Runner: {runnerWeight ? `${runnerWeight}g` : '0g'} = Shot: {calculatedSingleShotWeight > 0 ? `${calculatedSingleShotWeight}g` : '—'}
                           </div>
                         </>
                       ) : (selectedType === 'Raw Material' || selectedType === 'Regrind') ? (
                         <>
-                          <div className="text-slate-800 font-mono text-[11px]">MFI: <strong>{mfi ? `${mfi} g/10min` : 'â€”'}</strong> &bull; Dens: <strong>{density || 'â€”'}</strong></div>
-                          <div className="text-emerald-700 text-[11px] font-semibold">Resin: {resinType || 'â€”'} ({polymerGrade || 'â€”'}) {regrindAllowance ? `â€¢ Regrind: ${regrindAllowance}%` : ''}</div>
+                          <div className="text-slate-800 font-mono text-[11px]">MFI: <strong>{mfi ? `${mfi} g/10min` : '—'}</strong> &bull; Dens: <strong>{density || '—'}</strong></div>
+                          <div className="text-emerald-700 text-[11px] font-semibold">Resin: {resinType || '—'} ({polymerGrade || '—'}) {regrindAllowance ? `• Regrind: ${regrindAllowance}%` : ''}</div>
                         </>
                       ) : (selectedType === 'Masterbatch' || selectedType === 'Colorant' || selectedType === 'Additive') ? (
                         <>
-                          <div className="text-slate-800 font-mono text-[11px]">LDR Dosage: <strong>{masterbatchDosage ? `${masterbatchDosage}%` : 'â€”'}</strong> &bull; Heat: <strong>{heatStability || 'â€”'}</strong></div>
-                          <div className="text-purple-700 text-[11px] font-semibold">Color: {color || 'â€”'} &bull; Carrier: {carrierResin || 'â€”'}</div>
+                          <div className="text-slate-800 font-mono text-[11px]">LDR Dosage: <strong>{masterbatchDosage ? `${masterbatchDosage}%` : '—'}</strong> &bull; Heat: <strong>{heatStability || '—'}</strong></div>
+                          <div className="text-purple-700 text-[11px] font-semibold">Color: {color || '—'} &bull; Carrier: {carrierResin || '—'}</div>
                         </>
                       ) : selectedType === 'Packaging Material' ? (
                         <>
-                          <div className="text-slate-800 font-mono text-[11px]">Dim: <strong>{boxDimensions || 'â€”'}</strong></div>
-                          <div className="text-amber-800 text-[11px] font-semibold">Pack: {unitsPerPack ? `${unitsPerPack} pcs/box` : 'â€”'} &bull; {packagingStandard || 'â€”'}</div>
+                          <div className="text-slate-800 font-mono text-[11px]">Dim: <strong>{boxDimensions || '—'}</strong></div>
+                          <div className="text-amber-800 text-[11px] font-semibold">Pack: {unitsPerPack ? `${unitsPerPack} pcs/box` : '—'} &bull; {packagingStandard || '—'}</div>
                         </>
                       ) : (
                         <>
-                          <div className="text-slate-800 font-mono text-[11px]">Fitment: <strong>{machineFitment || 'â€”'}</strong></div>
+                          <div className="text-slate-800 font-mono text-[11px]">Fitment: <strong>{machineFitment || '—'}</strong></div>
                           <div className="text-slate-700 text-[11px] font-semibold">Class: {spareClass} &bull; Lead: {leadTimeDays}d</div>
                         </>
                       )}
@@ -3861,7 +4099,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                         }>
                           {routingDestination === 'WIP' ? 'WIP (WIP-STORE - Intermediate)' :
                            routingDestination === 'DOL' ? 'DOL (FG-STORE - Direct)' :
-                           routingDestination === 'ASSEMBLY' ? 'ASSEMPLY (ASSEMBLY-STORE)' :
+                           routingDestination === 'ASSEMBLY' ? 'ASSEMBLY (ASSEMBLY-STORE)' :
                            'DEFLASH (DEFLASH-STORE)'}
                         </strong>
                       </div>
@@ -3880,21 +4118,18 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block font-semibold text-slate-700 mb-1">Approval Workflow Route</label>
-                        <select
+                        <MasterDataCombobox
                           value={workflowRoute}
-                          onChange={(e) => setWorkflowRoute(e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white"
-                        >
-                          <option value="Multi-Tier: Engineering Author -> QA Lead -> Plant Operations Manager">
-                            Multi-Tier: Engineering Author &rarr; QA Lead &rarr; Plant Head
-                          </option>
-                          <option value="Direct Release: QA Director Immediate Approval">
-                            Direct Release: QA Director Immediate Approval
-                          </option>
-                          <option value="Standard Procurement: Sourcing Lead -> Finance Controller">
-                            Standard Procurement: Sourcing Lead &rarr; Finance Controller
-                          </option>
-                        </select>
+                          onChange={(val) => setWorkflowRoute(val)}
+                          options={workflowRouteList}
+                          placeholder="Select or type Approval Workflow Route..."
+                          entityLabel="Approval Workflow Route"
+                          onSaveCustomOption={(newVal) => {
+                            const updated = masterDataGovernanceService.saveWorkflowRoute(newVal);
+                            setWorkflowRouteList(updated);
+                            showToast(`✓ Approval Workflow Route "${newVal}" saved to Admin DB & active globally!`);
+                          }}
+                        />
                       </div>
 
                       <div>

@@ -24,17 +24,27 @@ export interface Actor {
   ip: string | null;
 }
 
-const sessionActorCache = new Map<string, { actorData: any; expiresAt: number }>();
+const sessionActorCache = new Map<string, { actorData: any; ability: AppAbility; expiresAt: number }>();
+const inflightSessions = new Map<string, Promise<any>>();
 
 export function invalidateActorSession(sessionId?: string) {
   if (sessionId) sessionActorCache.delete(sessionId);
   else sessionActorCache.clear();
+  inflightSessions.clear();
 }
 
 export function requireSession(auth: Auth) {
   return async (req: Request, _res: Response, next: Next) => {
     try {
-      const s = await auth.api.getSession({ headers: req.headers });
+      const authKey = req.headers.get?.('cookie') || req.headers.get?.('authorization') || '';
+      let sPromise = authKey ? inflightSessions.get(authKey) : undefined;
+      if (!sPromise) {
+        sPromise = auth.api.getSession({ headers: req.headers }).finally(() => {
+          if (authKey) inflightSessions.delete(authKey);
+        });
+        if (authKey) inflightSessions.set(authKey, sPromise);
+      }
+      const s = await sPromise;
       if (!s) throw new AppError(401, 'UNAUTHENTICATED', 'Authentication required');
 
       const now = Date.now();
@@ -65,6 +75,7 @@ export function requireSession(auth: Auth) {
 
       const cached = sessionActorCache.get(s.session.id);
       let p = cached && cached.expiresAt > now ? cached.actorData : null;
+      let cachedAbility = cached && cached.expiresAt > now ? cached.ability : null;
 
       if (!p) {
         const d = getDrizzle();
@@ -74,6 +85,7 @@ export function requireSession(auth: Auth) {
             plantIds: sql<string[]>`array_agg(${schema.plantUser.plantId} ORDER BY ${schema.plantUser.plantId})`.as('plant_ids'),
           })
           .from(schema.plantUser)
+          .where(eq(schema.plantUser.userId, s.user.id))
           .groupBy(schema.plantUser.userId)
           .as('up');
 
@@ -103,8 +115,9 @@ export function requireSession(auth: Auth) {
           ));
         p = row;
         if (p) {
+          cachedAbility = buildAbility(p.permissions as StoredRule[], s.user.id);
           if (sessionActorCache.size > 2000) sessionActorCache.clear();
-          sessionActorCache.set(s.session.id, { actorData: p, expiresAt: now + 10_000 });
+          sessionActorCache.set(s.session.id, { actorData: p, ability: cachedAbility, expiresAt: now + 30_000 });
         }
       }
       if (!p || p.status !== 'ACTIVE') throw new AppError(401, 'UNAUTHENTICATED', 'Account is not active');
@@ -123,7 +136,7 @@ export function requireSession(auth: Auth) {
         activeShift: p.active_shift,
         plantIds: p.plant_ids ?? [],
         rules,
-        ability: buildAbility(rules, s.user.id),
+        ability: cachedAbility || buildAbility(rules, s.user.id),
         ip: req.ip,
       };
       next();

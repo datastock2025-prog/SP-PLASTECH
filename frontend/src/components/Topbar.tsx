@@ -400,13 +400,13 @@ export const Topbar: React.FC<TopbarProps> = ({
 
   // Current entity details
   const singleEntity: PlantEntity = entities.find((p) => p.id === activePlantId) || entities[0] || {
-    id: '', code: 'â€”', name: 'No plant assigned', location: '', type: 'Plant', userRole: '',
+    id: 'ALL', code: 'ALL', name: 'All Plants', location: 'All Facilities Combined', type: 'Plant', userRole: '',
   };
   const currentEntity: PlantEntity = plantScope.isAll
     ? {
         id: 'ALL',
         code: 'ALL',
-        name: `All Plants (${entities.length})`,
+        name: entities.length > 0 ? `All Plants (${entities.length})` : 'All Plants',
         location: entities.length <= 3 ? entities.map((e) => e.code).join(', ') : `${entities.length} Facilities Combined`,
         type: 'Plant',
         userRole: '',

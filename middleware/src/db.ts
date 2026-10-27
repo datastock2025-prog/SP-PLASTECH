@@ -1,9 +1,40 @@
 import pg from 'pg';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { drizzle as drizzleNeon, NeonDatabase } from 'drizzle-orm/neon-serverless';
+import { Pool as NeonPool, neonConfig } from '@neondatabase/serverless';
 import { config } from './config.js';
 import * as schema from './schema/index.js';
 
 export * as schema from './schema/index.js';
+
+export interface DatabaseEnv {
+  DATABASE_URL?: string;
+  HYPERDRIVE?: { connectionString: string };
+}
+
+/**
+ * Creates an edge-compatible database client using @neondatabase/serverless and Drizzle.
+ * Adapts automatically to Cloudflare Hyperdrive / WebSocket runtime in production,
+ * and direct raw TCP in local Podman/Node environments.
+ */
+export function createAdaptiveDatabase(env?: DatabaseEnv): NeonDatabase<typeof schema> {
+  const isCloudflare = typeof WebSocket !== 'undefined' && Boolean(env?.HYPERDRIVE);
+
+  if (!isCloudflare) {
+    // Local dev mode: adjust neonConfig for internal network / TCP
+    neonConfig.wsProxy = (host) => `${host}:5432/v1`;
+    neonConfig.useSecureWebSocket = false;
+    neonConfig.pipelineTLS = false;
+  }
+
+  const conn = env?.HYPERDRIVE?.connectionString || env?.DATABASE_URL || config.databaseUrl;
+  if (!conn) {
+    throw new Error('Database connection string not configured (missing DATABASE_URL or HYPERDRIVE)');
+  }
+
+  const neonPool = new NeonPool({ connectionString: conn });
+  return drizzleNeon(neonPool, { schema });
+}
 
 const APP_ROLE = 'erp_app';
 let globalPool: pg.Pool | undefined;

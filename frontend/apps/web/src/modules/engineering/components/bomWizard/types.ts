@@ -24,19 +24,21 @@ export const WIZARD_STEPS: WizardStepMeta[] = [
 export interface ManufacturingBomWizardState {
   // Parent item info
   parentItem: ItemMaster;
-  
+
   // Step 1: Basic Information
   bomCode: string;
   isCustomCode: boolean;
   bomName: string;
   bomVersion: string;
-  bomType: 'Manufacturing BOM' | 'Engineering BOM' | 'Packaging BOM' | 'Pilot/Prototype BOM';
+  bomType: 'Manufacturing BOM' | 'Engineering BOM' | 'Packaging BOM' | 'Pilot/Prototype BOM' | string;
   effectiveFrom: string;
   effectiveTo: string;
   plantId: string;
   owner: string;
   description: string;
   remarks: string;
+  moldId?: string;
+  machineGroup?: string;
 
   // Step 2: Manufacturing Type
   mfgCategory: 'Discrete Manufacturing BOM' | 'Formula / Recipe BOM' | 'Assembly BOM' | 'Packaging BOM' | 'Secondary Operation BOM';

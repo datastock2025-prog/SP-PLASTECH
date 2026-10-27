@@ -173,8 +173,27 @@ async function runPilotItemPGliteSuite() {
   assert.equal(afterDelete, null, 'Soft-deleted item must not be returned');
   console.log('  ✔ Test 6: Soft delete verified');
 
+  // --- Test 7: Keyset Cursor Pagination ---
+  // Create 3 additional active items for tenant A
+  await itemRepository.create(db, tenantA, { code: 'CURSOR-ITEM-1', name: 'Item 1', category: 'Raw Material' }, actorId);
+  await itemRepository.create(db, tenantA, { code: 'CURSOR-ITEM-2', name: 'Item 2', category: 'Raw Material' }, actorId);
+  await itemRepository.create(db, tenantA, { code: 'CURSOR-ITEM-3', name: 'Item 3', category: 'Raw Material' }, actorId);
+
+  // Chunk 1 with limit = 2
+  const cursorChunk1 = await itemRepository.findPaginated(db, tenantA, { mode: 'cursor', limit: 2 });
+  assert.equal(cursorChunk1.meta.mode, 'cursor');
+  assert.equal(cursorChunk1.data.length, 2);
+  assert.equal(cursorChunk1.meta.hasMore, true);
+  assert.ok(cursorChunk1.meta.nextCursor, 'nextCursor must be returned when hasMore is true');
+
+  // Chunk 2 using nextCursor
+  const cursorChunk2 = await itemRepository.findPaginated(db, tenantA, { cursor: cursorChunk1.meta.nextCursor!, limit: 2 });
+  assert.equal(cursorChunk2.meta.mode, 'cursor');
+  assert.ok(cursorChunk2.data.length >= 1, 'Chunk 2 should return remaining items');
+  console.log('  ✔ Test 7: Keyset cursor pagination chunking verified');
+
   const dur = Math.round(performance.now() - t0);
-  console.log(`\n🎉 ALL 6 TESTS PASSED in ${dur}ms using in-memory PGlite!`);
+  console.log(`\n🎉 ALL 7 TESTS PASSED in ${dur}ms using in-memory PGlite!`);
 }
 
 runPilotItemPGliteSuite().catch((err) => {

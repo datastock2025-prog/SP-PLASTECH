@@ -88,6 +88,8 @@ import {
 } from 'lucide-react';
 import { masterDataGovernanceService } from '@/src/services/masterDataGovernanceService';
 import { useBoms, useSaveBom, useDeleteBom } from '../api/useEngineering';
+import { usePaginatedItems } from '@/src/hooks/useMasterData';
+import { normalizeItemMaster } from '../../masterdata/screens/MasterDataViews';
 
 interface EngineeringViewsProps {
   view: string;
@@ -122,7 +124,44 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
   const { data: queryBoms, isLoading: isBomsLoading } = useBoms();
   const saveBomMutation = useSaveBom();
   const deleteBomMutation = useDeleteBom();
-  const effectiveBoms = (boms && boms.length > 0 ? boms : queryBoms) || [];
+  const effectiveBoms = (queryBoms && queryBoms.length > 0 ? queryBoms : boms) || [];
+
+  // Fetch Approved Master Items via bounded TanStack Query so BOM Wizard always has live Approved FG & RM items
+  const { data: approvedCatalogData } = usePaginatedItems({
+    page: 1,
+    limit: 100,
+    approval: 'approved',
+  });
+  const effectiveApprovedItems = useMemo(() => {
+    const map = new Map<string, ItemMaster>();
+    if (Array.isArray(items)) {
+      items.forEach((i) => {
+        const norm = normalizeItemMaster(i);
+        if (norm.code && norm.approval === 'approved') map.set(norm.code, norm);
+      });
+    }
+    if (Array.isArray(approvedCatalogData?.items)) {
+      approvedCatalogData.items.forEach((i) => {
+        const norm = normalizeItemMaster(i);
+        if (norm.code && norm.approval === 'approved') map.set(norm.code, norm);
+      });
+    }
+    return Array.from(map.values());
+  }, [items, approvedCatalogData?.items]);
+
+  const handleSaveBomToApi = (bom: BomMaster, isCreate: boolean = false) => {
+    if (isCreate) {
+      onCreateBom(bom);
+    } else {
+      onUpdateBom(bom);
+    }
+    saveBomMutation.mutate(bom);
+  };
+
+  const handleDeleteBomFromApi = (id: string) => {
+    onDeleteBom(id);
+    deleteBomMutation.mutate(id);
+  };
 
   // Local state for engineering sub-views & controls
   const [activeTab, setActiveTab] = useState<string>('Overview');
@@ -131,9 +170,20 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
   const [selectedProcess, setSelectedProcess] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   
-  // Selected BOM for details/editing/tree
+  // Selected BOM for details/editing/tree (No static INITIAL_BOMS fallback)
   const activeBom = useMemo(() => {
-    return effectiveBoms.find((b) => b.id === selectedId) || effectiveBoms[0] || INITIAL_BOMS[0];
+    return (
+      effectiveBoms.find((b) => b.id === selectedId) ||
+      effectiveBoms[0] || {
+        id: 'BOM-NEW',
+        parent: '',
+        parentName: 'No BOM Selected',
+        version: '1.0',
+        status: 'draft',
+        updated: '',
+        lines: [],
+      }
+    );
   }, [effectiveBoms, selectedId]);
 
   const [quickModifyBom, setQuickModifyBom] = useState<BomMaster | null>(null);
@@ -184,7 +234,7 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
       return (
         <EngineeringDashboardView
           effectiveBoms={effectiveBoms}
-          boms={boms}
+          boms={effectiveBoms}
           ecrs={ecrs}
           ecos={ecos}
           onNavigate={onNavigate}
@@ -192,7 +242,7 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
             setWizardParentItem(null);
             setIsMfgBomWizardOpen(true);
           }}
-          onUpdateBom={onUpdateBom}
+          onUpdateBom={(updated) => handleSaveBomToApi(updated, false)}
           showToast={showToast}
         />
       );
@@ -202,12 +252,12 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
       return (
         <EngineeringBomListView
           effectiveBoms={effectiveBoms}
-          boms={boms}
-          items={items}
-          isBomsLoading={isBomsLoading}
+          boms={effectiveBoms}
+          items={effectiveApprovedItems}
+          isBomsLoading={isBomsLoading && effectiveBoms.length === 0}
           onNavigate={onNavigate}
-          onUpdateBom={onUpdateBom}
-          onDeleteBom={onDeleteBom}
+          onUpdateBom={(updated) => handleSaveBomToApi(updated, false)}
+          onDeleteBom={handleDeleteBomFromApi}
           onOpenQuickModify={(b) => setQuickModifyBom(b)}
           onOpenWizard={(pItem) => {
             setWizardParentItem(pItem || null);
@@ -226,8 +276,8 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
   if (view === 'bomBuilder') {
     return (
       <LegacyBomBuilderView
-        boms={boms}
-        items={items}
+        boms={effectiveBoms}
+        items={effectiveApprovedItems}
         selectedId={selectedId}
         routings={routings}
         alternates={alternates}
@@ -235,8 +285,8 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
         machineReqs={machineReqs}
         ecrs={ecrs}
         ecos={ecos}
-        onUpdateBom={onUpdateBom}
-        onCreateBom={onCreateBom}
+        onUpdateBom={(updated) => handleSaveBomToApi(updated, false)}
+        onCreateBom={(created) => handleSaveBomToApi(created, true)}
         onNavigate={onNavigate}
         showToast={showToast}
         onOpenWizard={(parent) => {
@@ -642,9 +692,9 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
       {/* Quick Modify BOM Modal on Row Click */}
       <QuickModifyBomModal
         bom={quickModifyBom}
-        items={items}
+        items={effectiveApprovedItems}
         onClose={() => setQuickModifyBom(null)}
-        onSave={(updated) => onUpdateBom(updated)}
+        onSave={(updated) => handleSaveBomToApi(updated, false)}
         onNavigate={onNavigate}
         onOpenWizard={(parentItem) => {
           setWizardParentItem(parentItem);
@@ -661,17 +711,17 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
             setIsMfgBomWizardOpen(false);
           }}
           parentItem={wizardParentItem}
-          allItems={items}
-          existingBoms={boms}
+          allItems={effectiveApprovedItems}
+          existingBoms={effectiveBoms}
           onSaveBom={(newBom) => {
-            const exists = boms.some((b) => b.id === newBom.id);
-            if (exists) {
-              onUpdateBom(newBom);
-            } else {
-              onCreateBom(newBom);
-            }
+            const exists = effectiveBoms.some((b) => b.id === newBom.id);
+            handleSaveBomToApi(newBom, !exists);
             setIsMfgBomWizardOpen(false);
             onNavigate('bomDetail', { id: newBom.id });
+          }}
+          onSaveDraftBom={(draftBom) => {
+            const exists = effectiveBoms.some((b) => b.id === draftBom.id);
+            handleSaveBomToApi(draftBom, !exists);
           }}
           showToast={showToast}
           onViewBomDetails={(b) => {

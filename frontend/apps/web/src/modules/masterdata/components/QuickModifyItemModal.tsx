@@ -20,7 +20,9 @@ import {
   Wrench,
   Factory,
   Sliders,
+  FileText,
 } from 'lucide-react';
+import { r2StorageService } from '@/src/services/storage/r2StorageService';
 
 export interface QuickModifyItemModalProps {
   item: ItemMaster | null;
@@ -76,36 +78,38 @@ export const QuickModifyItemModal: React.FC<QuickModifyItemModalProps> = ({
   const totalMoldShotWt = (partWt > 0 || runnerWt > 0) ? Number(((partWt * Math.max(1, cavities)) + runnerWt).toFixed(2)) : 0;
   const hourlyOutput = cycle > 0 && cavities > 0 ? Math.round((3600 / cycle) * cavities) : 0;
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const newDocs = Array.from(e.target.files).map((file) => {
-        const sizeKb =
-          file.size > 1024 * 1024
-            ? `${(file.size / (1024 * 1024)).toFixed(2)} MB`
-            : `${Math.round(file.size / 1024)} KB`;
-        const ext = file.name.split('.').pop()?.toLowerCase();
-        const type =
-          ext === 'step' || ext === 'stp' || ext === 'dwg' || ext === 'dxf'
-            ? 'CAD / 3D Model'
-            : ext === 'pdf'
-            ? 'PDF Spec / Drawing'
-            : 'Technical Document';
+      const files = Array.from(e.target.files);
+      const newDocs = await Promise.all(
+        files.map(async (file) => {
+          const uploaded = await r2StorageService.uploadItemMedia(file, 'documents', form.code);
+          const ext = file.name.split('.').pop()?.toLowerCase();
+          const type =
+            ext === 'step' || ext === 'stp' || ext === 'dwg' || ext === 'dxf'
+              ? 'CAD / 3D Model'
+              : ext === 'pdf'
+              ? 'PDF Spec / Drawing'
+              : 'Technical Document';
 
-        return {
-          id: `DOC-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          name: file.name,
-          type,
-          version: 'v1.0',
-          fileSize: sizeKb,
-          uploadedDate: new Date().toISOString().split('T')[0],
-          uploadedBy: 'Current User',
-          link: URL.createObjectURL(file),
-        };
-      });
+          return {
+            id: `DOC-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            name: file.name,
+            type,
+            version: 'v1.0',
+            fileSize: uploaded.fileSize,
+            uploadedDate: new Date().toISOString().split('T')[0],
+            uploadedBy: 'Current User',
+            link: uploaded.url || URL.createObjectURL(file),
+            url: uploaded.url || URL.createObjectURL(file),
+            publicCdnUrl: uploaded.publicCdnUrl,
+          };
+        })
+      );
 
       const updatedDocs = [...(form.documents || []), ...newDocs];
       setForm({ ...form, documents: updatedDocs });
-      showToast(`✓ Attached ${newDocs.length} document(s) from PC!`);
+      showToast(`✓ Attached & uploaded ${newDocs.length} document(s) to Cloud Storage!`);
     }
   };
 

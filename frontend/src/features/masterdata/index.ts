@@ -5,4 +5,6 @@
 
 export * from './types/masterDataSchemas';
 export * from './hooks/useMasterData';
+export * from './hooks/useItemMasterGrid';
+export * from './hooks/useInfiniteItemMaster';
 export { MasterDataViews, CreateItemWizardModal } from '../../../apps/web/src/modules/masterdata';

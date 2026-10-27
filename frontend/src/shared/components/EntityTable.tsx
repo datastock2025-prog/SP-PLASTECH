@@ -69,6 +69,10 @@ export interface EntityTableProps<T> {
   scrollMaxHeight?: string | number;
   hideToolbar?: boolean;
   hidePagination?: boolean;
+  infiniteScroll?: boolean;
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  onFetchNextPage?: () => void;
   className?: string;
   headerClassName?: string;
 }
@@ -80,6 +84,7 @@ interface TableRowProps<T> {
   isSelected: boolean;
   columns: ColumnDef<T>[];
   hasRowActions: boolean;
+  measureRef?: (node: Element | null) => void;
   onSelectRow?: (id: string | number, selected: boolean) => void;
   onRowClick?: (row: T) => void;
   onView?: (row: T) => void;
@@ -107,6 +112,7 @@ const TableRow = React.memo(
     isSelected,
     columns,
     hasRowActions,
+    measureRef,
     onSelectRow,
     onRowClick,
     onView,
@@ -115,6 +121,8 @@ const TableRow = React.memo(
   }: TableRowProps<T>) {
     return (
       <tr
+        ref={measureRef}
+        data-index={rIdx}
         key={rowKey}
         onClick={() => onRowClick && onRowClick(row)}
         className={`group hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-colors ${
@@ -237,6 +245,10 @@ export function EntityTable<T extends Record<string, any>>({
   scrollMaxHeight,
   hideToolbar = false,
   hidePagination = false,
+  infiniteScroll = false,
+  hasNextPage = false,
+  isFetchingNextPage = false,
+  onFetchNextPage,
   className,
   headerClassName,
 }: EntityTableProps<T>) {
@@ -356,12 +368,22 @@ export function EntityTable<T extends Record<string, any>>({
   const isVirtualized = Boolean(virtualized && displayRows.length > 0);
 
   const rowVirtualizer = useVirtualizer({
-    count: displayRows.length,
+    count: infiniteScroll && hasNextPage ? displayRows.length + 1 : displayRows.length,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: () => virtualRowHeight,
-    overscan: 5,
+    overscan: 6,
     enabled: isVirtualized,
   });
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+
+  React.useEffect(() => {
+    if (!infiniteScroll || !onFetchNextPage || !hasNextPage || isFetchingNextPage) return;
+    const last = virtualItems[virtualItems.length - 1];
+    if (last && last.index >= displayRows.length - 3) {
+      onFetchNextPage();
+    }
+  }, [virtualItems, displayRows.length, infiniteScroll, hasNextPage, isFetchingNextPage, onFetchNextPage]);
 
   return (
     <div className={`w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs overflow-hidden flex flex-col transition-all duration-200 ${className || ''}`}>
@@ -541,6 +563,26 @@ export function EntityTable<T extends Record<string, any>>({
                   </tr>
                 )}
                 {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  if (virtualRow.index >= displayRows.length) {
+                    return (
+                      <tr
+                        key="virtual-stream-loader"
+                        ref={rowVirtualizer.measureElement}
+                        data-index={virtualRow.index}
+                      >
+                        <td
+                          colSpan={columns.length + (onSelectRow ? 1 : 0) + (hasRowActions ? 1 : 0)}
+                          className="py-3 text-center text-xs text-slate-500 bg-slate-50/50 dark:bg-slate-800/40"
+                        >
+                          <div className="inline-flex items-center gap-2">
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-500" />
+                            <span>Streaming records...</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+
                   const row = displayRows[virtualRow.index];
                   const rowKey = keyExtractor(row, virtualRow.index);
                   const isSelected = selectedSet.has(rowKey);
@@ -554,6 +596,7 @@ export function EntityTable<T extends Record<string, any>>({
                       isSelected={isSelected}
                       columns={columns}
                       hasRowActions={Boolean(hasRowActions)}
+                      measureRef={rowVirtualizer.measureElement}
                       onSelectRow={onSelectRow}
                       onRowClick={onRowClick}
                       onView={onView}
@@ -605,7 +648,7 @@ export function EntityTable<T extends Record<string, any>>({
       </div>
 
       {/* Pagination Footer */}
-      {!hidePagination && (
+      {!hidePagination && !infiniteScroll && (
         <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-400">
           <div className="flex items-center gap-3">
             <span>

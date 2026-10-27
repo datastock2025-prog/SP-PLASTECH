@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { queryClient } from '../queryClient.js';
 
-export { ApiError } from './errors.js';
+import { ApiError } from './errors.js';
+export { ApiError };
 
 export interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined | null>;

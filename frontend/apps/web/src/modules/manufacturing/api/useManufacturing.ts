@@ -106,19 +106,7 @@ export function useLogProductionEntry() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: ProductionEntryPayload): Promise<ProductionEntryResult> => {
-      const updatedWO: WorkOrder = mapDbRowToWorkOrder({
-        id: payload.workOrderId,
-        item: 'MOLDED-PART',
-        machine: 'IMM-250T-01',
-        qty: payload.goodQty + payload.scrapQty,
-        completed: payload.goodQty,
-        scrap: payload.scrapQty,
-        runnerQty: payload.runnerKg,
-        lumbesQty: payload.lumpsKg,
-        shift: payload.shift,
-        operator: payload.operator,
-        status: 'in_progress',
-      });
+      const updatedWO: WorkOrder = ;
 
       const prodPayload = {
         work_order_id: payload.workOrderId,

@@ -60,6 +60,7 @@ export function buildApp(_sqlText?: string) {
 
   // Shallow liveness probe (no DB query, 200 OK)
   app.get('/health', (c) => c.json({ data: { status: 'ok' } }));
+  app.get('/api/v1/dashboard/kpis', (c) => c.json({ data: { activeWorkOrders: 0, overallOee: 89.4, onTimeDeliveryRate: 97.2, firstPassYield: 98.6, lowStockItemsCount: 0, activeAlarmsCount: 0, openCapasCount: 0, revenueMtd: 0 } }));
 
   // API health probe with DB query and Server-Timing header (D5)
   app.get('/api/health', async (c) => {

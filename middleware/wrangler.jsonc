@@ -4,6 +4,13 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-14",
   "compatibility_flags": ["nodejs_compat"],
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "sp_plastech_hyperdrive_prod",
+      "localConnectionString": "postgres://erp:erp_local_only@127.0.0.1:5432/erp"
+    }
+  ],
   "assets": {
     "directory": "../frontend/dist",
     "binding": "ASSETS",

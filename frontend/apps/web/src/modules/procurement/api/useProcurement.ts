@@ -66,19 +66,19 @@ export function useSavePurchaseOrder() {
         try {
           const res = await api.patch<any>(`/purchase-orders/${encodeURIComponent(po.id)}`, payload);
           const row = res?.data?.data || res?.data;
-          if (row) return mapDbRowToPurchaseOrder(row);
+          if (row) return ;
         } catch {
           try {
             const res = await api.post<any>('/purchase-orders', payload);
             const row = res?.data?.data || res?.data;
-            if (row) return mapDbRowToPurchaseOrder(row);
+            if (row) return ;
           } catch {}
         }
       } else {
         try {
           const res = await api.post<any>('/purchase-orders', payload);
           const row = res?.data?.data || res?.data;
-          if (row) return mapDbRowToPurchaseOrder(row);
+          if (row) return ;
         } catch {}
       }
       return po;

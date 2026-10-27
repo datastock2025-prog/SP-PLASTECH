@@ -23,3 +23,21 @@ export const decodeCursor = (s?: string | null): KeysetCursor | null => {
     return null;
   }
 };
+
+export type PaginationMeta =
+  | {
+      mode: 'offset';
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasMore: boolean;
+    }
+  | {
+      mode: 'cursor';
+      limit: number;
+      hasMore: boolean;
+      nextCursor: string | null;
+      total?: number;
+    };
+

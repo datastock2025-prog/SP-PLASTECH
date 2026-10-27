@@ -1,5 +1,7 @@
 import { MasterDataRecord, masterDataRecords } from '../../../../../../src/data/adminExtendedData';
-import { adminEventBus } from '../../../../../../src/services/adminService';
+import { adminEventBus } from '@/src/services/adminEventBus';
+
+import { api } from '../../../../../../src/lib/api-client';
 
 // In-memory transient store replacing client cache per Enterprise Rule #3 & Ponytail
 const memStore = new Map<string, string>();
@@ -1082,6 +1084,24 @@ class MasterDataGovernanceService {
       } catch (e) {
         console.warn(`Failed to save item to ${key}`, e);
       }
+      const storageToApiKey: Record<string, string> = {
+        reboot_erp_catalog_categories: 'categories',
+        reboot_erp_catalog_item_groups: 'itemGroups',
+        reboot_erp_catalog_uoms: 'uoms',
+        reboot_erp_catalog_plant_scopes: 'plantScopes',
+        reboot_erp_catalog_resin_types: 'resinTypes',
+        reboot_erp_catalog_colors: 'colors',
+        reboot_erp_catalog_compliance_mandates: 'complianceMandates',
+        reboot_erp_catalog_testing_labs: 'testingLabs',
+        reboot_erp_catalog_packing_standards: 'packingStandards',
+        reboot_erp_catalog_processing_methods: 'processingMethods',
+        reboot_erp_catalog_sampling_plans: 'samplingPlans',
+        reboot_erp_catalog_pricing_tiers: 'pricingTiers',
+        reboot_erp_catalog_workflow_routes: 'workflowRoutes',
+      };
+      if (storageToApiKey[key]) {
+        this.persistOptionToApi(storageToApiKey[key], clean);
+      }
       adminEventBus.emit('MASTER_OPTIONS_UPDATED', { key, item: clean });
     }
     return list;
@@ -1269,7 +1289,139 @@ class MasterDataGovernanceService {
   }
 
   public saveProcessingMethod(method: string): string[] {
+    this.persistOptionToApi('processingMethods', method);
     return this.saveStoredList('reboot_erp_catalog_processing_methods', method, this.getProcessingMethods());
+  }
+
+  public getSamplingPlans(): string[] {
+    return this.getStoredList('reboot_erp_catalog_sampling_plans', [
+      'ISO 2859-1 Level II Normal',
+      '100% Critical Inspection',
+      'Skip-Lot Certified Vendor',
+      'ISO 2859-1 Level III Tightened (AQL 0.65)',
+      'Zero-Defect C=0 Sampling Plan',
+    ]);
+  }
+
+  public saveSamplingPlan(plan: string): string[] {
+    this.persistOptionToApi('samplingPlans', plan);
+    return this.saveStoredList('reboot_erp_catalog_sampling_plans', plan, this.getSamplingPlans());
+  }
+
+  public getPricingTiers(): string[] {
+    return this.getStoredList('reboot_erp_catalog_pricing_tiers', [
+      'Tier 1 OEM Standard',
+      'Tier 2 Volume Discount',
+      'Distributor Bracket',
+      'Export FOB Contract Matrix',
+      'Spot Market Resin Index Linked',
+    ]);
+  }
+
+  public savePricingTier(tier: string): string[] {
+    this.persistOptionToApi('pricingTiers', tier);
+    return this.saveStoredList('reboot_erp_catalog_pricing_tiers', tier, this.getPricingTiers());
+  }
+
+  public getWorkflowRoutes(): string[] {
+    return this.getStoredList('reboot_erp_catalog_workflow_routes', [
+      'Multi-Tier: Engineering Author -> QA Lead -> Plant Operations Manager',
+      'Direct Release: QA Director Immediate Approval',
+      'Standard Procurement: Sourcing Lead -> Finance Controller',
+      'Automotive PPAP Gate: Tooling Lead -> IQC Head -> Plant Director',
+    ]);
+  }
+
+  public saveWorkflowRoute(route: string): string[] {
+    this.persistOptionToApi('workflowRoutes', route);
+    return this.saveStoredList('reboot_erp_catalog_workflow_routes', route, this.getWorkflowRoutes());
+  }
+
+  public getBomClasses(): string[] {
+    return this.getStoredList('reboot_erp_catalog_bom_classes', [
+      'Manufacturing BOM',
+      'Engineering BOM',
+      'Packaging BOM',
+      'Pilot/Prototype BOM',
+    ]);
+  }
+
+  public saveBomClass(bomClass: string): string[] {
+    this.persistOptionToApi('bomClasses', bomClass);
+    const updated = this.saveStoredList('reboot_erp_catalog_bom_classes', bomClass, this.getBomClasses());
+    adminEventBus.emit('BOM_CLASS_SAVED', bomClass);
+    return updated;
+  }
+
+  public persistOptionToApi(apiKey: string, value: string): void {
+    const clean = (value || '').trim();
+    if (!clean) return;
+    api.post('/master-data/options', { key: apiKey, value: clean }).catch(() => {});
+  }
+
+  public async syncFromApi(): Promise<void> {
+    try {
+      const res: any = await api.get('/master-data/options');
+      const data = res?.data || res;
+      if (!data || typeof data !== 'object') return;
+      const keyMap: Record<string, string> = {
+        categories: 'reboot_erp_catalog_categories',
+        itemGroups: 'reboot_erp_catalog_item_groups',
+        uoms: 'reboot_erp_catalog_uoms',
+        plantScopes: 'reboot_erp_catalog_plant_scopes',
+        resinTypes: 'reboot_erp_catalog_resin_types',
+        colors: 'reboot_erp_catalog_colors',
+        complianceMandates: 'reboot_erp_catalog_compliance_mandates',
+        testingLabs: 'reboot_erp_catalog_testing_labs',
+        packingStandards: 'reboot_erp_catalog_packing_standards',
+        processingMethods: 'reboot_erp_catalog_processing_methods',
+        samplingPlans: 'reboot_erp_catalog_sampling_plans',
+        pricingTiers: 'reboot_erp_catalog_pricing_tiers',
+        workflowRoutes: 'reboot_erp_catalog_workflow_routes',
+        bomClasses: 'reboot_erp_catalog_bom_classes',
+      };
+      let changed = false;
+      for (const [apiKey, storageKey] of Object.entries(keyMap)) {
+        const arr = data[apiKey];
+        if (Array.isArray(arr) && arr.length > 0) {
+          const existingRaw = memGet(storageKey);
+          const existing = existingRaw ? JSON.parse(existingRaw) : [];
+          const merged = Array.from(new Set([...arr, ...(Array.isArray(existing) ? existing : [])]));
+          memSet(storageKey, JSON.stringify(merged));
+          changed = true;
+        }
+      }
+      const jsonObjMap: Record<string, { storageKey: string; idField: string; eventName: string }> = {
+        bomVersions: { storageKey: 'reboot_erp_bom_versions', idField: 'id', eventName: 'BOM_VERSION_SAVED' },
+        bomPlants: { storageKey: 'reboot_erp_master_plants', idField: 'code', eventName: 'PLANT_MASTER_SAVED' },
+        bomOwners: { storageKey: 'reboot_erp_master_owners', idField: 'name', eventName: 'OWNER_MASTER_SAVED' },
+      };
+      for (const [apiKey, cfg] of Object.entries(jsonObjMap)) {
+        const rawArr = data[apiKey];
+        if (Array.isArray(rawArr) && rawArr.length > 0) {
+          const existingRaw = memGet(cfg.storageKey);
+          const existing: any[] = existingRaw ? JSON.parse(existingRaw) : [];
+          const byId = new Map<string, any>();
+          existing.forEach((item) => {
+            if (item && item[cfg.idField]) byId.set(String(item[cfg.idField]).toLowerCase(), item);
+          });
+          rawArr.forEach((strOrObj: any) => {
+            try {
+              const parsed = typeof strOrObj === 'string' ? JSON.parse(strOrObj) : strOrObj;
+              if (parsed && parsed[cfg.idField]) {
+                byId.set(String(parsed[cfg.idField]).toLowerCase(), parsed);
+              }
+            } catch {}
+          });
+          memSet(cfg.storageKey, JSON.stringify(Array.from(byId.values())));
+          adminEventBus.emit(cfg.eventName, {});
+          changed = true;
+        }
+      }
+      if (changed) {
+        adminEventBus.emit('MASTER_OPTIONS_UPDATED', data);
+      }
+    } catch (_) {}
   }
 
 // ==========================================

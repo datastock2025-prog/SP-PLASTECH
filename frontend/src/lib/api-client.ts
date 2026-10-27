@@ -132,25 +132,57 @@ export const ITEM_LEAN_SELECT_COLUMNS =
   'id, code, name, category, entity_type, unit, stock, min_stock, max_stock, reorder_point, cost, selling_price, approval, status, created_at, updated_at';
 
 // ============================================================================
-// 4. ENGINEERING BOM ENDPOINTS (Strict Schema & Direct Supabase Bridge)
+// 4. ENGINEERING BOM ENDPOINTS (Strict Schema & Direct PostgreSQL Bridge)
 // ============================================================================
 
 export const BomSchema = z.object({
-  id: z.string().min(1, 'BOM ID is required'),
-  item_code: z.string().optional(),
-  itemCode: z.string().optional(),
-  parent: z.string().optional(),
-  parentName: z.string().optional(),
-  version: z.string().default('v1.0'),
-  status: z.string().default('active'),
+  id: stringField(),
+  item_code: stringField(),
+  itemCode: stringField(),
+  parent: stringField(),
+  parentName: stringField(),
+  version: z.union([z.string(), z.number()]).transform((v) => String(v || '1.0')).default('1.0'),
+  status: stringField('draft'),
   components: z.array(z.any()).default([]),
-  created_at: z.string().optional(),
-  updated_at: z.string().optional(),
+  lines: z.array(z.any()).default([]),
+  created_at: z.any().optional(),
+  updated_at: z.any().optional(),
 }).passthrough();
 
 export type BomDto = z.infer<typeof BomSchema>;
 
 export const BOM_SELECT_COLUMNS = 'id, item_code, bom_version, version, status, lines, created_at, updated_at';
+
+function unpackBomRow(row: any): BomDto {
+  const rawLines = Array.isArray(row.lines)
+    ? row.lines
+    : Array.isArray(row.components)
+      ? row.components
+      : [];
+  const meta =
+    rawLines.find((l: any) => l && typeof l === 'object' && l._bomMeta)?._bomMeta ||
+    row._bomMeta ||
+    {};
+  const cleanLines = rawLines
+    .filter((l: any) => !(l && l._bomMetaOnly))
+    .map((l: any) => {
+      if (!l || typeof l !== 'object') return l;
+      const { _bomMeta, ...rest } = l;
+      return rest;
+    });
+
+  return BomSchema.parse({
+    ...meta,
+    ...row,
+    item_code: row.item_code || row.itemCode || meta.parent || '',
+    parent: row.item_code || row.itemCode || meta.parent || '',
+    parentName: meta.parentName || meta.bomName || row.parentName || row.item_code || '',
+    version: row.bom_version || meta.bomVersion || (typeof row.version === 'string' ? row.version : `${row.version || '1.0'}`),
+    status: row.status || meta.status || 'draft',
+    lines: cleanLines,
+    components: cleanLines,
+  });
+}
 
 export const bomEndpoints = {
   async getBoms(): Promise<BomDto[]> {
@@ -160,13 +192,7 @@ export const bomEndpoints = {
       });
       const rows = res?.data?.data || res?.data;
       if (Array.isArray(rows) && rows.length > 0) {
-        return rows.map((b) =>
-          BomSchema.parse({
-            ...b,
-            version: b.bom_version || (typeof b.version === 'string' ? b.version : `v${b.version || 1}.0`),
-            components: b.lines || b.components || [],
-          })
-        );
+        return rows.map(unpackBomRow);
       }
     } catch (e) {
       console.warn('[bomEndpoints.getBoms] Direct REST note:', e);
@@ -179,11 +205,7 @@ export const bomEndpoints = {
       const res = await api.get<any>(`/bill-of-materials/${encodeURIComponent(id)}`);
       const row = res?.data?.data || res?.data;
       if (row && typeof row === 'object' && row.id) {
-        return BomSchema.parse({
-          ...row,
-          version: row.bom_version || (typeof row.version === 'string' ? row.version : `v${row.version || 1}.0`),
-          components: row.lines || row.components || [],
-        });
+        return unpackBomRow(row);
       }
     } catch (e: any) {
       if (e?.status === 404 || e?.code === 'NOT_FOUND') return null;
@@ -193,35 +215,29 @@ export const bomEndpoints = {
   },
 
   async saveBom(bom: Partial<BomDto>): Promise<BomDto> {
+    const b: any = bom;
     const payload: Record<string, any> = {
-      item_code: bom.item_code || bom.itemCode || (bom as any).parent,
-      bom_version: bom.version || 'v1.0',
-      status: bom.status || 'active',
-      lines: (bom as any).lines || (bom as any).components || [],
-      updated_at: new Date().toISOString(),
+      ...b,
+      id: b.id,
+      item_code: b.item_code || b.itemCode || b.parent,
+      bom_version: b.bom_version || b.bomVersion || b.version || '1.0',
+      status: b.status || 'draft',
+      lines: b.lines || b.components || [],
     };
 
-    if (bom.id) {
+    if (b.id) {
       try {
-        const res = await api.patch<any>(`/bill-of-materials/${encodeURIComponent(bom.id)}`, payload);
+        const res = await api.patch<any>(`/bill-of-materials/${encodeURIComponent(b.id)}`, payload);
         const row = res?.data?.data || res?.data;
         if (row && typeof row === 'object') {
-          return BomSchema.parse({
-            ...row,
-            version: row.bom_version || (typeof row.version === 'string' ? row.version : `v${row.version || 1}.0`),
-            components: row.lines || row.components || [],
-          });
+          return unpackBomRow(row);
         }
       } catch (patchErr: any) {
         if (patchErr?.status === 404 || patchErr?.code === 'NOT_FOUND') {
           const postRes = await api.post<any>('/bill-of-materials', payload);
           const postRow = postRes?.data?.data || postRes?.data;
           if (postRow && typeof postRow === 'object') {
-            return BomSchema.parse({
-              ...postRow,
-              version: postRow.bom_version || (typeof postRow.version === 'string' ? postRow.version : `v${postRow.version || 1}.0`),
-              components: postRow.lines || postRow.components || [],
-            });
+            return unpackBomRow(postRow);
           }
         }
       }
@@ -229,19 +245,13 @@ export const bomEndpoints = {
       const postRes = await api.post<any>('/bill-of-materials', payload);
       const postRow = postRes?.data?.data || postRes?.data;
       if (postRow && typeof postRow === 'object') {
-        return BomSchema.parse({
-          ...postRow,
-          version: postRow.bom_version || (typeof postRow.version === 'string' ? postRow.version : `v${postRow.version || 1}.0`),
-          components: postRow.lines || postRow.components || [],
-        });
+        return unpackBomRow(postRow);
       }
     }
 
-    return BomSchema.parse({
+    return unpackBomRow({
       ...payload,
-      id: bom.id || `bom-${Date.now()}`,
-      version: payload.bom_version,
-      components: payload.lines,
+      id: b.id || `BOM-${Date.now()}`,
     });
   },
 
@@ -296,4 +306,3 @@ export const bomEndpoints = {
     }
   },
 };
-

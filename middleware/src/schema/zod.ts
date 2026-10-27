@@ -42,9 +42,21 @@ export const selectSupplierSchema = createSelectSchema(erp.suppliers);
 const normalizeSupplierInput = (val: any) => {
   if (!val || typeof val !== 'object') return val;
   const out = { ...val };
+  if (!out.id && out.code) out.id = String(out.code).trim();
   if (out.paymentTerms !== undefined && out.payment_terms === undefined) out.payment_terms = out.paymentTerms;
   if (out.bankingTax !== undefined && out.banking_tax === undefined) out.banking_tax = out.bankingTax;
   if (out.plantId !== undefined && out.plant_id === undefined) out.plant_id = out.plantId;
+  const bt = (typeof out.banking_tax === 'object' && out.banking_tax !== null) ? { ...out.banking_tax } : {};
+  if (out.hsnCode !== undefined) bt.hsnCode = out.hsnCode;
+  if (out.tariffCode !== undefined) bt.tariffCode = out.tariffCode;
+  if (out.moq !== undefined) bt.moq = out.moq;
+  if (out.leadTimeDays !== undefined) bt.leadTimeDays = out.leadTimeDays;
+  if (out.standardCost !== undefined) bt.standardCost = out.standardCost;
+  if (out.gstRate !== undefined) bt.gstRate = out.gstRate;
+  if (out.contactPerson !== undefined) bt.contactPerson = out.contactPerson;
+  if (out.email !== undefined) bt.email = out.email;
+  if (out.phone !== undefined) bt.phone = out.phone;
+  if (Object.keys(bt).length > 0) out.banking_tax = bt;
   delete out.paymentTerms;
   delete out.bankingTax;
   delete out.plantId;
@@ -61,8 +73,11 @@ const normalizeSupplierInput = (val: any) => {
   delete out.created_by;
   delete out.updated_by;
   delete out.hsnCode;
+  delete out.tariffCode;
   delete out.moq;
   delete out.leadTimeDays;
+  delete out.standardCost;
+  delete out.gstRate;
   delete out.contactPerson;
   delete out.email;
   delete out.phone;
@@ -170,8 +185,11 @@ export const selectWarehouseSchema = createSelectSchema(erp.warehouses);
 const normalizeWarehouseInput = (val: any) => {
   if (!val || typeof val !== 'object') return val;
   const out = { ...val };
+  if (!out.id && out.code) out.id = String(out.code).trim();
   if (out.plantId !== undefined && out.plant_id === undefined) out.plant_id = out.plantId;
+  if (!out.plant_id) out.plant_id = out.plantScope || 'ALL';
   if (out.locationType !== undefined && out.location_type === undefined) out.location_type = out.locationType;
+  if (!out.location_type && out.zone) out.location_type = out.zone;
   delete out.plantId;
   delete out.locationType;
   delete out.tenantId;
@@ -269,25 +287,58 @@ export const selectBillOfMaterialsSchema = createSelectSchema(erp.billOfMaterial
 
 const normalizeBomInput = (val: any) => {
   if (!val || typeof val !== 'object') return val;
-  const out = { ...val };
-  if (out.itemCode !== undefined && out.item_code === undefined) out.item_code = out.itemCode;
-  if (out.bomVersion !== undefined && out.bom_version === undefined) out.bom_version = out.bomVersion;
-  if (out.plantId !== undefined && out.plant_id === undefined) out.plant_id = out.plantId;
-  delete out.itemCode;
-  delete out.bomVersion;
-  delete out.plantId;
-  delete out.tenantId;
-  delete out.tenant_id;
-  delete out.created_at;
-  delete out.updated_at;
-  delete out.createdAt;
-  delete out.updatedAt;
-  delete out.deleted_at;
-  delete out.deletedAt;
-  delete out.createdBy;
-  delete out.updatedBy;
-  delete out.created_by;
-  delete out.updated_by;
+  const out: Record<string, any> = {};
+  out.id = val.id;
+  out.item_code = val.item_code || val.itemCode || val.parent || '';
+  out.bom_version = val.bom_version || val.bomVersion || val.version || 'v1.0';
+  out.status = val.status || 'draft';
+  if (val.plant_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(val.plant_id))) {
+    out.plant_id = val.plant_id;
+  } else if (val.plantId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(val.plantId))) {
+    out.plant_id = val.plantId;
+  }
+
+  // Preserve full BOM header & technical metadata alongside recipe lines inside the JSONB `lines` column
+  const rawLines = Array.isArray(val.lines)
+    ? val.lines
+    : Array.isArray(val.components)
+      ? val.components
+      : Array.isArray(val.lines?.items)
+        ? val.lines.items
+        : [];
+
+  const metaFields: Record<string, any> = {};
+  const extraKeys = [
+    'parent', 'parentName', 'bomName', 'bomType', 'mfgCategory', 'processType',
+    'plant', 'plantCode', 'plantName', 'owner', 'department', 'effectiveDate',
+    'effectiveFrom', 'effectiveTo', 'description', 'remarks', 'notes',
+    'batchSize', 'baseUOM', 'batchUOM', 'yieldPct', 'scrapPct', 'standardCost',
+    'cycleTimeSec', 'standardCycleTimeSec', 'cavities', 'moldCavities',
+    'shotWeightGrams', 'itemNetWeightGrams', 'runnerWeightGrams', 'totalShotWeightGrams',
+    'moldId', 'machineGroup', 'defaultFgLocation', 'routingResources', 'documents',
+    'approvals', 'approvalStage', 'updated',
+  ];
+  for (const k of extraKeys) {
+    if (val[k] !== undefined) metaFields[k] = val[k];
+  }
+  if (val.plantId && !out.plant_id) {
+    metaFields.plantCode = val.plantId;
+  }
+
+  // Store array of lines with an attached _bomMeta entry or if lines is array, attach _bomMeta on first line / meta wrapper
+  if (Object.keys(metaFields).length > 0) {
+    out.lines = rawLines.map((l: any, idx: number) => (idx === 0 ? { ...l, _bomMeta: metaFields } : l));
+    if (out.lines.length === 0) {
+      out.lines = [{ _bomMetaOnly: true, _bomMeta: metaFields }];
+    }
+  } else {
+    out.lines = rawLines;
+  }
+
+  if (val.version !== undefined && typeof val.version === 'number') {
+    out.version = val.version;
+  }
+  if (!out.id) delete out.id;
   return out;
 };
 

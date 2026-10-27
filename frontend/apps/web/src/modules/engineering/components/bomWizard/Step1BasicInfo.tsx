@@ -4,23 +4,16 @@ import { ItemMaster } from '@/src/types';
 import { ItemAutocompleteInput } from './ItemAutocompleteInput';
 import { masterDataGovernanceService } from '@/src/services/masterDataGovernanceService';
 import { adminEventBus } from '@/src/services/adminService';
+import { ModernDatePicker } from '@/src/components/common/ModernDatePicker';
 import {
-  Sparkles,
-  Edit3,
-  Calendar,
-  Building2,
   User,
-  Info,
-  CheckCircle2,
-  PackageSearch,
   Package,
   Plus,
   GitBranch,
   X,
   Check,
   Building,
-  ShieldCheck,
-  AlertTriangle,
+  Layers,
 } from 'lucide-react';
 
 interface Step1Props {
@@ -42,11 +35,13 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
 
   // Modals state
   const [isNewVersionModalOpen, setIsNewVersionModalOpen] = useState(false);
+  const [isNewBomClassModalOpen, setIsNewBomClassModalOpen] = useState(false);
   const [isNewPlantModalOpen, setIsNewPlantModalOpen] = useState(false);
   const [isNewOwnerModalOpen, setIsNewOwnerModalOpen] = useState(false);
 
-  // Dynamic Master lists from Governance Service
+  // Dynamic Master lists from Governance Service (synced with Admin & DB `/api/v1/master-data/options`)
   const [versionList, setVersionList] = useState(() => masterDataGovernanceService.getBomVersions(parentItem?.code));
+  const [bomClassList, setBomClassList] = useState(() => masterDataGovernanceService.getBomClasses());
   const [plantList, setPlantList] = useState(() => masterDataGovernanceService.getPlants());
   const [ownerList, setOwnerList] = useState(() => masterDataGovernanceService.getOwners());
 
@@ -58,6 +53,8 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
     effectiveFrom: new Date().toISOString().split('T')[0],
     changeReason: '',
   });
+
+  const [newBomClassName, setNewBomClassName] = useState('');
 
   const [newPlantForm, setNewPlantForm] = useState({
     code: '',
@@ -72,10 +69,20 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
     role: 'BOM Design Authority',
   });
 
-  // Listen to Admin events for dynamic updates
+  // Sync from Admin API on mount & listen to Admin events for dynamic updates
   useEffect(() => {
+    masterDataGovernanceService.syncFromApi().then(() => {
+      setVersionList(masterDataGovernanceService.getBomVersions(parentItem?.code));
+      setBomClassList(masterDataGovernanceService.getBomClasses());
+      setPlantList(masterDataGovernanceService.getPlants());
+      setOwnerList(masterDataGovernanceService.getOwners());
+    });
+
     const unsubVer = adminEventBus.on('BOM_VERSION_SAVED', () => {
       setVersionList(masterDataGovernanceService.getBomVersions(parentItem?.code));
+    });
+    const unsubClass = adminEventBus.on('BOM_CLASS_SAVED', () => {
+      setBomClassList(masterDataGovernanceService.getBomClasses());
     });
     const unsubPlant = adminEventBus.on('PLANT_MASTER_SAVED', () => {
       setPlantList(masterDataGovernanceService.getPlants());
@@ -83,32 +90,48 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
     const unsubOwner = adminEventBus.on('OWNER_MASTER_SAVED', () => {
       setOwnerList(masterDataGovernanceService.getOwners());
     });
+    const unsubOpts = adminEventBus.on('MASTER_OPTIONS_UPDATED', () => {
+      setVersionList(masterDataGovernanceService.getBomVersions(parentItem?.code));
+      setBomClassList(masterDataGovernanceService.getBomClasses());
+      setPlantList(masterDataGovernanceService.getPlants());
+      setOwnerList(masterDataGovernanceService.getOwners());
+    });
     return () => {
       unsubVer?.();
+      unsubClass?.();
       unsubPlant?.();
       unsubOwner?.();
+      unsubOpts?.();
     };
   }, [parentItem?.code]);
 
-  // Task 2: Only allow FG (Finished Good) items - filter out RM, RG, MB, etc.
+  // Task 1: Strictly allow only Approved Finished Good (FG) items
   const fgOnlyItems = React.useMemo(() => {
     if (!items || !Array.isArray(items)) return [];
     return items.filter((item) => {
       if (!item || !item.code) return false;
 
-      // Task 1: Strictly show only Approved / Released items
-      if (item.approval !== 'approved' && item.approval !== 'released') {
+      // Strictly show only Approved items
+      const approval = String(item.approval || '').toLowerCase();
+      if (approval !== 'approved' && approval !== 'released') {
         return false;
       }
       if (item.status === 'rejected' || item.status === 'blocked' || item.status === 'inactive') {
         return false;
       }
 
+      const code = (item.code || '').toUpperCase();
       const type = (item.type || '').toLowerCase();
       const cat = (item.cat || '').toLowerCase();
 
-      // Disallow raw materials, masterbatch, regrind, spare parts
+      // Disallow raw materials, masterbatch, regrind, spare parts, additives by type, category, or SKU prefix
       if (
+        code.startsWith('RM-') ||
+        code.startsWith('MB-') ||
+        code.startsWith('RG-') ||
+        code.startsWith('AD-') ||
+        code.startsWith('CON-') ||
+        code.startsWith('BOP-') ||
         type.includes('raw') ||
         type.includes('resin') ||
         type.includes('masterbatch') ||
@@ -116,7 +139,14 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
         type.includes('spare') ||
         type.includes('colorant') ||
         type.includes('additive') ||
-        type.includes('packaging material')
+        type.includes('packaging material') ||
+        cat.includes('raw') ||
+        cat.includes('resin') ||
+        cat.includes('masterbatch') ||
+        cat.includes('regrind') ||
+        cat.includes('spare') ||
+        cat.includes('consumable') ||
+        cat.includes('additive')
       ) {
         return false;
       }
@@ -135,23 +165,43 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
     });
   }, [items]);
 
-  // Task 1 & 2: When an item is selected, autofill all FG parameters and match BOM Code/Name
+  // Task 1 & 2: When an approved FG item is selected, auto-complete all remaining fields from Item Master DB record
   const handleSelectParentItem = (item: ItemMaster) => {
     if (!item) return;
-    // Task 2 & Task 6: BOM number strictly matches Item Code, BOM name matches Item name
     const cleanBomCode = item.code || '';
-    const newCycleTime = Number(item.cycleTime ?? item.standardCycleTime ?? 14.5) || 14.5;
+    const newCycleTime = Number(item.standardCycleTime ?? item.cycleTime ?? 0);
     const newCavities = Number(item.cavityCount ?? 1) || 1;
-    const netWeight = Number((item as any).partWeightGrams ?? (item as any).netWeightGrams ?? (item.weight ? item.weight * 1000 : 45.2)) || 45.2;
+    const netWeight = Number((item as any).partWeightGrams ?? (item as any).netWeightGrams ?? (item.weight ? item.weight * 1000 : 0));
     const runnerWeight = Number((item as any).runnerWeightGrams ?? 0);
     const totalShotWeight = Number((item as any).shotWeightGrams ?? ((netWeight * newCavities) + runnerWeight)) || Number(((netWeight * newCavities) + runnerWeight).toFixed(2));
-    const estHours = Number(((newCycleTime * (state.batchSize || 1000)) / 3600).toFixed(2));
+    const estHours = newCycleTime > 0 ? Number(((newCycleTime * (state.batchSize || 1000)) / 3600).toFixed(2)) : 0;
+
+    // Match item's plant to Operating Plant list (or add it dynamically if custom)
+    let matchedPlantId = state.plantId;
+    if (item.plant) {
+      const existingPlant = plantList.find(
+        (p) =>
+          p.code.toLowerCase() === item.plant!.toLowerCase() ||
+          p.name.toLowerCase() === item.plant!.toLowerCase() ||
+          p.name.toLowerCase().includes(item.plant!.toLowerCase()) ||
+          item.plant!.toLowerCase().includes(p.code.toLowerCase())
+      );
+      if (existingPlant) {
+        matchedPlantId = existingPlant.code;
+      } else {
+        matchedPlantId = item.plant;
+      }
+    }
 
     onChange({
       parentItem: item,
       bomCode: cleanBomCode,
       bomName: item.name || '',
-      description: item.desc || `Standard manufacturing bill of materials for ${item.name || item.code}.`,
+      plantId: matchedPlantId,
+      description: item.desc || `Manufacturing Bill of Materials for ${item.name || item.code} (${item.cat || 'Finished Good'}).`,
+      remarks:
+        (item as any).creationNotes ||
+        `Tooling: ${item.moldToolId || 'MOLD-001'} (${newCavities} Cav) • Resin: ${item.resinType || 'Standard Grade'} • Default WH: ${item.wh || 'FG-WH-01'}`,
       batchUOM: item.baseUOM || 'PCS',
       standardCycleTimeSec: newCycleTime,
       moldCavities: newCavities,
@@ -159,13 +209,15 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
       runnerWeightGrams: runnerWeight,
       totalShotWeightGrams: totalShotWeight,
       estimatedProductionTimeHours: estHours,
-      defaultFgLocation: item.wh || 'FG-WH1-B02',
+      defaultFgLocation: item.wh || 'FG-WH-01',
+      moldId: item.moldToolId || state.moldId,
+      machineGroup: item.machineCompat || state.machineGroup,
     });
 
-    showToast(`✓ Selected FG Item "${item.code} - ${item.name}". BOM number & attributes auto-filled!`);
+    showToast(`✓ Selected Approved FG "${item.code} — ${item.name}". All BOM & molding fields auto-completed from Item Master!`);
   };
 
-  // Task 3: Save New Version
+  // Save New Version (Persisted to Admin & DB)
   const handleSaveNewVersion = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newVersionForm.version.trim()) {
@@ -180,13 +232,30 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
       effectiveFrom: newVersionForm.effectiveFrom,
       changeReason: newVersionForm.changeReason,
     });
+    masterDataGovernanceService.persistOptionToApi('bomVersions', JSON.stringify(saved));
     setVersionList(masterDataGovernanceService.getBomVersions(parentItem.code));
     onChange({ bomVersion: saved.version });
     setIsNewVersionModalOpen(false);
-    showToast(`✓ Registered BOM Version "${saved.version}" in Master Governance & selected!`);
+    showToast(`✓ Registered BOM Version "${saved.version}" in Admin & Database!`);
   };
 
-  // Task 4: Save New Plant
+  // Save New BOM Class (Persisted to Admin & DB)
+  const handleSaveNewBomClass = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBomClassName.trim()) {
+      showToast('Please enter BOM Class name');
+      return;
+    }
+    const clean = newBomClassName.trim();
+    const updated = masterDataGovernanceService.saveBomClass(clean);
+    setBomClassList(updated);
+    onChange({ bomType: clean as any });
+    setNewBomClassName('');
+    setIsNewBomClassModalOpen(false);
+    showToast(`✓ Registered BOM Class "${clean}" in Admin & Database!`);
+  };
+
+  // Save New Plant (Persisted to Admin & DB)
   const handleSaveNewPlant = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPlantForm.name.trim()) {
@@ -199,14 +268,15 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
       name: `${autoCode} - ${newPlantForm.name.trim()}`,
       location: newPlantForm.location,
     });
+    masterDataGovernanceService.persistOptionToApi('bomPlants', JSON.stringify(saved));
     setPlantList(masterDataGovernanceService.getPlants());
     onChange({ plantId: saved.code });
     setIsNewPlantModalOpen(false);
     setNewPlantForm({ code: '', name: '', location: '', type: 'Injection & Extrusion' });
-    showToast(`✓ Registered Plant "${saved.name}" in Master Governance!`);
+    showToast(`✓ Registered Operating Plant "${saved.name}" in Admin & Database!`);
   };
 
-  // Task 4: Save New Owner
+  // Save New Owner (Persisted to Admin & DB)
   const handleSaveNewOwner = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newOwnerForm.name.trim()) {
@@ -218,12 +288,24 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
       department: newOwnerForm.department,
       role: newOwnerForm.role,
     });
+    masterDataGovernanceService.persistOptionToApi('bomOwners', JSON.stringify(saved));
     setOwnerList(masterDataGovernanceService.getOwners());
     onChange({ owner: saved.name });
     setIsNewOwnerModalOpen(false);
     setNewOwnerForm({ name: '', department: 'Engineering & Tooling', role: 'BOM Design Authority' });
-    showToast(`✓ Registered Owner "${saved.name}" in Master Governance!`);
+    showToast(`✓ Registered Department / Process Owner "${saved.name}" in Admin & Database!`);
   };
+
+  // Ensure current state.plantId is always visible in dropdown even if auto-completed from Item Master
+  const effectivePlantList = React.useMemo(() => {
+    if (!state.plantId) return plantList;
+    const exists = plantList.some((p) => p.code === state.plantId || p.name === state.plantId);
+    if (exists) return plantList;
+    return [
+      { id: state.plantId, code: state.plantId, name: state.plantId, location: 'Item Master Default', type: 'Manufacturing' },
+      ...plantList,
+    ];
+  }, [plantList, state.plantId]);
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto py-2">
@@ -236,10 +318,10 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
             </div>
             <div>
               <h2 className="text-sm font-bold text-[#14213D]">
-                Finished Good (FG) Parent Item Selection
+                Finished Good (FG) Parent Item Selection <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full ml-1">{fgOnlyItems.length} Approved FG Items</span>
               </h2>
               <p className="text-xs text-gray-500">
-                Search by Item Code or Item Name. Selecting auto-fills BOM details &amp; injection molding attributes.
+                Only Approved Finished Goods from Item Master are listed. Selecting an item auto-completes all BOM &amp; molding attributes.
               </p>
             </div>
           </div>
@@ -253,7 +335,7 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
               value={parentItem.code}
               displayMode="code"
               label="Search / Select by Item Number (FG Only)"
-              placeholder="Search FG Item Code (e.g. FG-BMP-NEXON-F)..."
+              placeholder="Search Approved FG Item Code (e.g. BODYLATCH-001)..."
               onSelect={handleSelectParentItem}
               error={errors.parentItem}
             />
@@ -265,7 +347,7 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
               value={parentItem.name}
               displayMode="name"
               label="Search / Select by Item Name (FG Only)"
-              placeholder="Search FG Item Name (e.g. Front Bumper Cladding)..."
+              placeholder="Search Approved FG Item Name..."
               onSelect={handleSelectParentItem}
             />
           </div>
@@ -293,11 +375,13 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
               </div>
             </div>
 
-            {/* Quick parameter readout pills */}
+            {/* Quick parameter readout pills from Item Master */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-gray-100 text-xs">
               <div className="bg-gray-50 p-2 rounded-lg">
                 <span className="text-[10px] text-gray-500 block uppercase font-semibold">Standard Cycle</span>
-                <span className="font-mono font-bold text-gray-900">{state.standardCycleTimeSec}s</span>
+                <span className="font-mono font-bold text-gray-900">
+                  {state.standardCycleTimeSec > 0 ? `${state.standardCycleTimeSec}s` : '—'}
+                </span>
               </div>
               <div className="bg-gray-50 p-2 rounded-lg">
                 <span className="text-[10px] text-gray-500 block uppercase font-semibold">Mold Cavities</span>
@@ -305,17 +389,19 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
               </div>
               <div className="bg-gray-50 p-2 rounded-lg">
                 <span className="text-[10px] text-gray-500 block uppercase font-semibold">Net Part Weight</span>
-                <span className="font-mono font-bold text-gray-900">{state.itemNetWeightGrams}g</span>
+                <span className="font-mono font-bold text-gray-900">
+                  {state.itemNetWeightGrams > 0 ? `${state.itemNetWeightGrams}g` : '—'}
+                </span>
               </div>
               <div className="bg-gray-50 p-2 rounded-lg">
                 <span className="text-[10px] text-gray-500 block uppercase font-semibold">Default FG Warehouse</span>
-                <span className="font-mono font-bold text-gray-900">{parentItem.wh || 'FG-WH1-B02'}</span>
+                <span className="font-mono font-bold text-gray-900">{parentItem.wh || '—'}</span>
               </div>
             </div>
           </div>
         ) : (
           <div className="text-center py-3 bg-white/60 rounded-xl border border-dashed border-blue-200 text-xs text-gray-500">
-            No Finished Good item selected yet. Please select an existing Finished Good from the search boxes above.
+            No Finished Good item selected yet. Please select an Approved Finished Good from the search boxes above.
           </div>
         )}
       </div>
@@ -324,11 +410,11 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
       <div className="bg-white border border-[#E4E0D6] rounded-xl p-5 shadow-xs space-y-5">
         <div className="border-b border-[#E4E0D6] pb-2">
           <h3 className="text-sm font-bold text-[#14213D]">BOM Identity, Version &amp; Plant Scope</h3>
-          <p className="text-xs text-gray-500">Configure matching BOM number, admin-governed version, and operating plant.</p>
+          <p className="text-xs text-gray-500">Configure matching BOM number, admin-governed version, BOM class, and operating plant.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Task 2 & 6: BOM Code (Strictly Matches Item Code - Custom Override Removed) */}
+          {/* BOM Code (Strictly Matches Item Code) */}
           <div className="field mb-0">
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-bold text-[#14213D]">
@@ -352,7 +438,7 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
             {errors.bomCode && <p className="text-[11px] text-rose-600 mt-1">{errors.bomCode}</p>}
           </div>
 
-          {/* Task 2: BOM Name (Matches Item Name) */}
+          {/* BOM Name (Matches Item Name) */}
           <div className="field mb-0">
             <label className="text-xs font-bold text-[#14213D] block mb-1">
               BOM Name / Description <span className="text-rose-600">*</span>
@@ -361,7 +447,7 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
               type="text"
               value={state.bomName}
               onChange={(e) => onChange({ bomName: e.target.value })}
-              placeholder="e.g. Front Bumper Cladding - Black"
+              placeholder="Auto-filled from selected FG Item Name..."
               className={`w-full text-xs py-2 px-3 border rounded-lg ${
                 errors.bomName ? 'border-rose-500 bg-rose-50/50' : 'border-[#E4E0D6]'
               }`}
@@ -369,7 +455,7 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
             {errors.bomName && <p className="text-[11px] text-rose-600 mt-1">{errors.bomName}</p>}
           </div>
 
-          {/* Task 3: BOM Version (Connected to Admin Version Control + Create Version Option) */}
+          {/* BOM Version Tag * (Admin-governed + Create Version Option) */}
           <div className="field mb-0">
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-bold text-[#14213D]">
@@ -416,22 +502,45 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
             {errors.bomVersion && <p className="text-[11px] text-rose-600 mt-1">{errors.bomVersion}</p>}
           </div>
 
-          {/* BOM Class */}
+          {/* BOM Class (Dynamic Admin-Governed + Create BOM Class Option) */}
           <div className="field mb-0">
-            <label className="text-xs font-bold text-[#14213D] block mb-1">BOM Class</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-bold text-[#14213D]">BOM Class</label>
+              <button
+                type="button"
+                onClick={() => {
+                  setNewBomClassName('');
+                  setIsNewBomClassModalOpen(true);
+                }}
+                className="text-[11px] font-semibold text-[#0F8B8D] hover:text-[#0c7274] flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3 h-3" />
+                + Create Class
+              </button>
+            </div>
             <select
               value={state.bomType}
-              onChange={(e) => onChange({ bomType: e.target.value as any })}
-              className="w-full text-xs py-2 px-3 border border-[#E4E0D6] rounded-lg bg-white"
+              onChange={(e) => {
+                if (e.target.value === '__CREATE_NEW__') {
+                  setIsNewBomClassModalOpen(true);
+                } else {
+                  onChange({ bomType: e.target.value as any });
+                }
+              }}
+              className="w-full text-xs py-2 px-3 border border-[#E4E0D6] rounded-lg bg-white font-medium"
             >
-              <option value="Manufacturing BOM">Manufacturing BOM (Standard Shop-Floor Execution)</option>
-              <option value="Engineering BOM">Engineering BOM (Prototype &amp; R&amp;D Baseline)</option>
-              <option value="Packaging BOM">Packaging BOM (Secondary Pack-out)</option>
-              <option value="Pilot/Prototype BOM">Pilot/Prototype BOM (Pre-production Run)</option>
+              {bomClassList.map((cls) => (
+                <option key={cls} value={cls}>
+                  {cls}
+                </option>
+              ))}
+              <option value="__CREATE_NEW__" className="text-[#0F8B8D] font-bold">
+                + Create New BOM Class in Admin...
+              </option>
             </select>
           </div>
 
-          {/* Task 4: Operating Plant (Connected to Admin Plants + Create Plant Option) */}
+          {/* Operating Plant * (Connected to Admin Plants + Auto-completed from Item Master) */}
           <div className="field mb-0">
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-bold text-[#14213D]">
@@ -465,9 +574,9 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
               }}
               className="w-full text-xs py-2 px-3 border border-[#E4E0D6] rounded-lg bg-white font-medium"
             >
-              {plantList.map((p) => (
+              {effectivePlantList.map((p) => (
                 <option key={p.id} value={p.code}>
-                  {p.name} ({p.location})
+                  {p.name} {p.location ? `(${p.location})` : ''}
                 </option>
               ))}
               <option value="__CREATE_NEW__" className="text-[#0F8B8D] font-bold">
@@ -476,7 +585,7 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
             </select>
           </div>
 
-          {/* Task 4: Department / Owner (Connected to Admin Owners + Create Owner Option) */}
+          {/* Department / Process Owner (Connected to Admin Owners + Create Owner Option) */}
           <div className="field mb-0">
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-bold text-[#14213D]">Department / Process Owner</label>
@@ -518,37 +627,35 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
             </select>
           </div>
 
-          {/* Effective From */}
+          {/* Task 3: Modern Advanced UI Date Picker for Effective From Date */}
           <div className="field mb-0">
             <label className="text-xs font-bold text-[#14213D] block mb-1">
               Effective From Date <span className="text-rose-600">*</span>
             </label>
-            <input
-              type="date"
+            <ModernDatePicker
               value={state.effectiveFrom}
-              onChange={(e) => onChange({ effectiveFrom: e.target.value })}
-              className={`w-full text-xs py-2 px-3 border rounded-lg ${
-                errors.effectiveFrom ? 'border-rose-500 bg-rose-50/50' : 'border-[#E4E0D6]'
-              }`}
+              onChange={(val) => onChange({ effectiveFrom: val })}
+              placeholder="Select effective start date..."
+              hasError={Boolean(errors.effectiveFrom)}
             />
             {errors.effectiveFrom && <p className="text-[11px] text-rose-600 mt-1">{errors.effectiveFrom}</p>}
           </div>
 
-          {/* Effective To */}
+          {/* Task 3: Modern Advanced UI Date Picker for Effective To Date */}
           <div className="field mb-0">
             <label className="text-xs font-bold text-[#14213D] block mb-1">
               Effective To Date <span className="text-gray-400 font-normal">(Optional)</span>
             </label>
-            <input
-              type="date"
+            <ModernDatePicker
               value={state.effectiveTo}
-              onChange={(e) => onChange({ effectiveTo: e.target.value })}
-              className="w-full text-xs py-2 px-3 border border-[#E4E0D6] rounded-lg"
+              onChange={(val) => onChange({ effectiveTo: val })}
+              placeholder="Select optional sunset date..."
+              minDate={state.effectiveFrom}
             />
           </div>
         </div>
 
-        {/* Description & Remarks */}
+        {/* Technical Description & Engineering Remarks / Notes (Persisted to DB) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
           <div className="field mb-0">
             <label className="text-xs font-bold text-[#14213D] block mb-1">Technical Description</label>
@@ -556,7 +663,7 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
               rows={2}
               value={state.description}
               onChange={(e) => onChange({ description: e.target.value })}
-              placeholder="Brief manufacturing and material description..."
+              placeholder="Brief manufacturing and material description (stored in DB)..."
               className="w-full text-xs p-2.5 border border-[#E4E0D6] rounded-lg resize-none"
             />
           </div>
@@ -566,7 +673,7 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
               rows={2}
               value={state.remarks}
               onChange={(e) => onChange({ remarks: e.target.value })}
-              placeholder="Special customer packaging instructions or mold setup notes..."
+              placeholder="Special customer packaging instructions or mold setup notes (stored in DB)..."
               className="w-full text-xs p-2.5 border border-[#E4E0D6] rounded-lg resize-none"
             />
           </div>
@@ -574,7 +681,7 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
       </div>
 
       {/* ========================================================= */}
-      {/* SUBMODALS: Create Version, Plant, Owner                   */}
+      {/* SUBMODALS: Create Version, BOM Class, Plant, Owner        */}
       {/* ========================================================= */}
 
       {/* 1. Create BOM Version Modal */}
@@ -641,11 +748,9 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
 
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">Effective Date</label>
-                    <input
-                      type="date"
+                    <ModernDatePicker
                       value={newVersionForm.effectiveFrom}
-                      onChange={(e) => setNewVersionForm({ ...newVersionForm, effectiveFrom: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300"
+                      onChange={(val) => setNewVersionForm({ ...newVersionForm, effectiveFrom: val })}
                     />
                   </div>
                 </div>
@@ -678,6 +783,66 @@ export const Step1BasicInfo: React.FC<Step1Props> = ({
                   >
                     <Check className="w-3.5 h-3.5" />
                     Save &amp; Select Version
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Create BOM Class Modal */}
+      {isNewBomClassModalOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden my-auto animate-in zoom-in-95 duration-150">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-teal-50 via-white to-teal-50/30">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-[#0F8B8D] text-white flex items-center justify-center shadow-xs">
+                  <Layers className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900">Register BOM Class in Admin</h3>
+                  <p className="text-[11px] text-slate-500">Adds global BOM classification option</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsNewBomClassModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveNewBomClass} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">BOM Class Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={newBomClassName}
+                  onChange={(e) => setNewBomClassName(e.target.value)}
+                  placeholder="e.g. Tooling Trial BOM or Export Assembly BOM"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-medium"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
+                <span className="text-[11px] text-slate-500">Persists to Admin Master Governance</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsNewBomClassModalOpen(false)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#0F8B8D] hover:bg-[#0c7274] text-white font-semibold shadow-sm cursor-pointer"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    Save &amp; Select Class
                   </button>
                 </div>
               </div>

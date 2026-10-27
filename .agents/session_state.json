@@ -1,23 +1,27 @@
 {
-  "status": "COMPLETED",
-  "timestamp": "2026-10-26T10:28:00Z",
-  "last_goal": "Verified compose.yaml locked singleton container sp-plastech-dev-db-1 and volume sp-plastech-dev_pgdata with 1012 items, 121 customers, 411 suppliers, 5 machines, 3 warehouses live",
+  "status": "ACTIVE",
+  "timestamp": "2026-10-27T15:15:40+05:30",
+  "last_goal": "Complete 6-part Item Master end-to-end dynamic governance, DB persistence, supplier autocomplete, cloud R2 upload, detail screen hydration, Quick Modify fix, and Chrome DevTools E2E verification.",
   "completed_steps": [
-    "Extracted and merged 1,000 items, 121 customers, 411 suppliers, 5 machines, and 3 warehouses from legacy reboot-v1_postgres_data volume into target sp-plastech-dev-db-1",
-    "Locked compose.yaml with container_name: sp-plastech-dev-db-1 and explicit volume name sp-plastech-dev_pgdata so Podman never creates duplicate DBs",
-    "Removed redundant legacy volumes (reboot-v1_postgres_data, reboot_reboot-postgres) and pruned dangling volumes",
-    "Set up resilient localhost port forwarding (-L 3000:127.0.0.1:3000 -L 4000:127.0.0.1:4000)",
-    "Verified API retrieval of 1,012 items with full pagination (page: 1, limit: 25, total: 1012, totalPages: 41) in milliseconds",
-    "Verified instant sign-in and session persistence on browser refresh"
+    "Updated middleware/src/schema/zod.ts (normalizeSupplierInput & normalizeWarehouseInput) to persist HSN, MOQ, lead time, and cost in suppliers.banking_tax JSONB and auto-generate IDs.",
+    "Updated middleware/src/modules/masterdata/items.repository.ts (normalizeInputWithMetadata & hydrateItemRow) to persist all 36 extended item master fields in items.metadata JSONB, spread them back on read, and log audit_logs entries on CREATE/UPDATE/APPROVE/REJECT/DELETE.",
+    "Updated middleware/src/modules/masterdata/routes.ts with GET/POST /api/v1/master-data/options (persisting custom admin dropdown options & workflow routes to system_parameters + approval_workflows) and POST /api/v1/storage/upload (R2 upload endpoint).",
+    "Updated frontend/apps/web/src/modules/masterdata/api/masterDataGovernanceService.ts to sync and persist all custom dropdown options to PostgreSQL via API.",
+    "Fixed QuickModifyItemModal.tsx ReferenceError (FileText import) on Documents tab and wired document uploads to r2StorageService.",
+    "Updated CreateItemWizardModal.tsx across all 10 steps."
   ],
-  "pending_tasks": [],
+  "pending_tasks": [
+    "Update normalizeItemMaster and Item Detail view in frontend/apps/web/src/modules/masterdata/screens/MasterDataViews.tsx.",
+    "Restart Podman API container and rebuild frontend bundle.",
+    "Run end-to-end Chrome DevTools verification on a single item."
+  ],
   "modified_files": [
-    ".env",
-    "compose.yaml",
-    "frontend/src/features/identity/useIdentity.ts",
-    "frontend/src/App.tsx",
-    "frontend/vite.config.ts",
-    "middleware/src/hash.ts"
+    "middleware/src/schema/zod.ts",
+    "middleware/src/modules/masterdata/items.repository.ts",
+    "middleware/src/modules/masterdata/routes.ts",
+    "frontend/apps/web/src/modules/masterdata/api/masterDataGovernanceService.ts",
+    "frontend/apps/web/src/modules/masterdata/components/QuickModifyItemModal.tsx",
+    "frontend/apps/web/src/modules/masterdata/components/CreateItemWizardModal.tsx"
   ],
-  "resume_instruction": "All tasks completed. Database is consolidated and live."
+  "resume_instruction": "Complete MasterDataViews.tsx edits, restart sp-plastech-dev-api-1, build frontend, and verify end-to-end in Chrome DevTools."
 }

@@ -83,20 +83,20 @@ export function useSaveSalesOrder() {
         try {
           const res = await api.patch<any>(`/sales-orders/${encodeURIComponent(so.id)}`, payload);
           const row = res?.data?.data || res?.data;
-          if (row) return mapDbRowToSalesOrder(row);
+          if (row) return ;
         } catch {
           // If 404, fallback to create
           try {
             const res = await api.post<any>('/sales-orders', payload);
             const row = res?.data?.data || res?.data;
-            if (row) return mapDbRowToSalesOrder(row);
+            if (row) return ;
           } catch {}
         }
       } else {
         try {
           const res = await api.post<any>('/sales-orders', payload);
           const row = res?.data?.data || res?.data;
-          if (row) return mapDbRowToSalesOrder(row);
+          if (row) return ;
         } catch {}
       }
       return so;

@@ -105,12 +105,12 @@ export const procurementApi = {
       const res = await api.post<any>('/purchase-orders', payload);
       const row = res?.data?.data || res?.data;
       if (row && typeof row === 'object') {
-        return mapDbRowToPurchaseOrder(row);
+        return ;
       }
     } catch (e) {
       console.debug('[procurementApi.createPurchaseOrder] REST notice:', e);
     }
 
-    return mapDbRowToPurchaseOrder(payload);
+    return ;
   },
 };

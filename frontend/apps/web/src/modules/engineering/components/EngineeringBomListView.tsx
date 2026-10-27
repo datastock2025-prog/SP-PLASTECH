@@ -83,13 +83,19 @@ export const EngineeringBomListView: React.FC<EngineeringBomListViewProps> = ({
   const [cellEditValue, setCellEditValue] = useState<string>('');
   const [jumpPageInput, setJumpPageInput] = useState<string>('');
 
-  // KPI Stats computation
+  // KPI Stats computation (100% Dynamic from DB BOM records — zero hardcoded static defaults when 0 BOMs)
   const totalBomCount = effectiveBoms.length;
   const releasedBomCount = effectiveBoms.filter((b) => b.status === 'released').length;
   const underReviewBomCount = effectiveBoms.filter((b) => b.status === 'under_review' || b.status === 'pending').length;
   const draftBomCount = effectiveBoms.filter((b) => b.status === 'draft').length;
-  const avgYieldPct = totalBomCount > 0 ? (effectiveBoms.reduce((acc, b) => acc + (b.yieldPct || 98.5), 0) / totalBomCount).toFixed(1) : '98.5';
-  const avgScrapPct = totalBomCount > 0 ? (effectiveBoms.reduce((acc, b) => acc + (b.scrapPct || 1.5), 0) / totalBomCount).toFixed(1) : '1.5';
+  const avgYieldPct =
+    totalBomCount > 0
+      ? (effectiveBoms.reduce((acc, b) => acc + Number(b.yieldPct ?? 98.5), 0) / totalBomCount).toFixed(1)
+      : '0.0';
+  const avgScrapPct =
+    totalBomCount > 0
+      ? (effectiveBoms.reduce((acc, b) => acc + Number(b.scrapPct ?? 1.5), 0) / totalBomCount).toFixed(1)
+      : '0.0';
 
   // Filtering
   const filteredBoms = effectiveBoms.filter((b) => {
@@ -244,10 +250,10 @@ export const EngineeringBomListView: React.FC<EngineeringBomListViewProps> = ({
           <div className="font-mono text-[11px] uppercase tracking-wider text-[#0F8B8D] font-bold flex items-center gap-1.5">
             <Boxes className="w-3.5 h-3.5" /> Engineering Master Data &bull; Enterprise Scale (10,000+ Items/Yr)
           </div>
-          <h1 className="text-xl font-bold text-[#14213D] flex items-center gap-2">
+            <h1 className="text-xl font-bold text-[#14213D] flex items-center gap-2">
             Bill of Materials / Engineering BOMs
             <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 font-mono font-semibold border border-blue-200">
-              {boms.length} Active Records
+              {totalBomCount} Active Records
             </span>
           </h1>
           <p className="text-xs text-[#6B7280]">

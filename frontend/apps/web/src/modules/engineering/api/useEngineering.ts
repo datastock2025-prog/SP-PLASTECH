@@ -33,23 +33,60 @@ export interface EcrRecord {
   requestedBy: string;
 }
 
+function mapBomDtoToMaster(b: any): BomMaster {
+  return {
+    ...b,
+    id: b.id,
+    parent: b.item_code || b.parent || '',
+    parentName: b.parentName || b.bomName || b.item_code || '',
+    version: b.version || b.bom_version || '1.0',
+    status: (b.status as any) || 'draft',
+    updated: b.updated || (b.updated_at ? String(b.updated_at).split('T')[0] : new Date().toISOString().split('T')[0]),
+    lines: Array.isArray(b.lines) ? b.lines : Array.isArray(b.components) ? b.components : [],
+    processType: b.processType || b.mfgCategory || 'Injection Molding',
+    batchSize: Number(b.batchSize || 1000),
+    baseUOM: b.baseUOM || b.batchUOM || 'PCS',
+    yieldPct: b.yieldPct !== undefined ? Number(b.yieldPct) : undefined,
+    scrapPct: b.scrapPct !== undefined ? Number(b.scrapPct) : undefined,
+    standardCost: b.standardCost !== undefined ? Number(b.standardCost) : undefined,
+    cycleTimeSec: b.cycleTimeSec !== undefined ? Number(b.cycleTimeSec) : b.standardCycleTimeSec !== undefined ? Number(b.standardCycleTimeSec) : undefined,
+    cavities: b.cavities !== undefined ? Number(b.cavities) : b.moldCavities !== undefined ? Number(b.moldCavities) : undefined,
+    shotWeightGrams: b.shotWeightGrams !== undefined ? Number(b.shotWeightGrams) : b.totalShotWeightGrams !== undefined ? Number(b.totalShotWeightGrams) : undefined,
+    effectiveDate: b.effectiveDate || b.effectiveFrom || '',
+    effectiveTo: b.effectiveTo || '',
+    plant: b.plant || b.plantCode || b.plantId || '',
+    department: b.department || b.owner || '',
+    description: b.description || '',
+    remarks: b.remarks || b.notes || '',
+    notes: b.notes || b.description || '',
+  } as BomMaster;
+}
+
 // 1. All Engineering BOMs (TanStack Query SSOT)
 export function useBoms(filter?: Record<string, any>) {
   return useQuery<BomMaster[]>({
     queryKey: queryKeys.engineering.boms(filter),
+    initialData: () => {
+      if (filter || typeof window === 'undefined') return undefined;
+      try {
+        const raw = sessionStorage.getItem('sp_engineering_boms_v1');
+        return raw ? JSON.parse(raw) : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    initialDataUpdatedAt: 0,
     queryFn: async () => {
       try {
         const fetched = await bomEndpoints.getBoms();
-        if (Array.isArray(fetched) && fetched.length > 0) {
-          return fetched.map((b) => ({
-            id: b.id,
-            parent: b.item_code || (b as any).parent || '',
-            parentName: (b as any).parentName || b.item_code || '',
-            version: b.version || 'v1.0',
-            status: (b.status as any) || 'approved',
-            updated: b.updated_at || new Date().toISOString().split('T')[0],
-            lines: (b as any).components || [],
-          } as BomMaster));
+        if (Array.isArray(fetched)) {
+          const mapped = fetched.map(mapBomDtoToMaster);
+          if (!filter && typeof window !== 'undefined') {
+            try {
+              sessionStorage.setItem('sp_engineering_boms_v1', JSON.stringify(mapped));
+            } catch {}
+          }
+          return mapped;
         }
       } catch (e) {
         console.debug('[useBoms] Query notice:', e);
@@ -57,7 +94,8 @@ export function useBoms(filter?: Record<string, any>) {
       return [];
     },
     staleTime: 1000 * 60 * 5,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -74,15 +112,26 @@ export function useBomDetail(id?: string) {
   });
 }
 
-// 3. Save BOM Mutation (Create or Update)
+// 3. Save BOM Mutation (Create or Update with Direct Cache Hydration)
 export function useSaveBom() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (bom: Partial<BomMaster>) => {
       const saved = await bomEndpoints.saveBom(bom as any);
-      return saved;
+      return mapBomDtoToMaster({ ...bom, ...saved });
     },
     onSuccess: (saved) => {
+      queryClient.setQueriesData({ queryKey: ['engineering', 'boms'] }, (old: BomMaster[] | undefined) => {
+        const list = Array.isArray(old) ? old : [];
+        const exists = list.some((b) => b.id === saved.id);
+        const next = exists ? list.map((b) => (b.id === saved.id ? saved : b)) : [saved, ...list];
+        try {
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('sp_engineering_boms_v1', JSON.stringify(next));
+          }
+        } catch {}
+        return next;
+      });
       queryClient.invalidateQueries({ queryKey: queryKeys.engineering.boms() });
       adminEventBus.emit('BOM_SAVED', saved);
       broadcastLocalMutation('BOMS', 'INSERT', saved);
@@ -98,6 +147,16 @@ export function useDeleteBom() {
       return await bomEndpoints.deleteBom(id);
     },
     onSuccess: (_, id) => {
+      queryClient.setQueriesData({ queryKey: ['engineering', 'boms'] }, (old: BomMaster[] | undefined) => {
+        const list = Array.isArray(old) ? old : [];
+        const next = list.filter((b) => b.id !== id);
+        try {
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('sp_engineering_boms_v1', JSON.stringify(next));
+          }
+        } catch {}
+        return next;
+      });
       queryClient.invalidateQueries({ queryKey: queryKeys.engineering.boms() });
       adminEventBus.emit('BOM_DELETED', { id });
       broadcastLocalMutation('BOMS', 'DELETE', { id });

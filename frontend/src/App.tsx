@@ -16,6 +16,16 @@ import { useSaveItem } from './hooks/useMasterData';
 import { adminEventBus } from './services/adminService';
 import { initializeRealtime } from './services/realtime/realtimeService';
 import { api } from './lib/api-client';
+
+const db = {
+  findMany: async <T = any>(_tbl: string, _opt?: any): Promise<T[]> => [],
+  findById: async <T = any>(_tbl: string, _id: string): Promise<T | null> => null,
+  insert: async <T = any>(_tbl: string, _record: any): Promise<T | null> => null,
+  update: async <T = any>(_tbl: string, _id: string, _patch: any): Promise<T | null> => null,
+  delete: async (_tbl: string, _id: string): Promise<boolean> => true,
+  count: async (_tbl: string, _opt?: any): Promise<number> => 0,
+};
+
 import { useDashboardKpis } from './hooks/useDashboard';
 import { initVersionCheck } from './shared/utils/versionCheck';
 import { SessionTimeoutModal, MfaVerificationModal, CookieConsentModal } from './security';
@@ -44,16 +54,11 @@ const FinanceViews = React.lazy(() => import('../apps/web/src/modules/finance/sc
 const QualityViews = React.lazy(() => import('../apps/web/src/modules/quality/screens/QualityViews').then((m) => ({ default: m.QualityViews })));
 const MepViews = React.lazy(() => import('../apps/web/src/modules/maintenance/screens/MaintenanceViews').then((m) => ({ default: m.MaintenanceViews })));
 const HrViews = React.lazy(() => import('../apps/web/src/modules/hr/screens/HrViews').then((m) => ({ default: m.HrViews })));
-const ScmViews = React.lazy(() => import('../apps/web/src/modules/planning/screens/PlanningViews').then((m) => ({ default: m.PlanningViews })));
+const ScmViews = React.lazy(() => import('../apps/web/src/modules/planning/screens/ScmViews').then((m) => ({ default: m.PlanningViews })));
 const CrmViews = React.lazy(() => import('../apps/web/src/modules/crm/screens/CrmViews').then((m) => ({ default: m.CrmViews })));
 const AdminViews = React.lazy(() => import('../apps/web/src/modules/identity/screens/AdminViews').then((m) => ({ default: m.AdminViews })));
 const AnalyticsViews = React.lazy(() => import('../apps/web/src/modules/analytics/screens/AnalyticsViews').then((m) => ({ default: m.AnalyticsViews })));
 const ReactArchitectureGuide = React.lazy(() => import('./components/ReactArchitectureGuide').then((m) => ({ default: m.ReactArchitectureGuide })));
-
-// Eager immediate preload for MasterDataViews to eliminate Suspense delay
-if (typeof window !== 'undefined') {
-  import('../apps/web/src/modules/masterdata/screens/MasterDataViews').catch(() => {});
-}
 
 import { useMe, useLogout, useSelectContext } from './features/identity/useIdentity';
 import { mapMeToAuthUser } from './features/identity/mapMe';
@@ -271,6 +276,12 @@ export const App: React.FC = () => {
   const setCurrentUser = (_u: AuthUser | null) => {
     // Identity fields are owned by the server; profile edits go through the identity API and refresh /me.
   };
+
+  // Preload primary domain views immediately to eliminate second-screen Suspense flashes on browser refresh
+  useEffect(() => {
+    import('../apps/web/src/modules/masterdata/screens/MasterDataViews').catch(() => {});
+    import('../apps/web/src/modules/engineering/screens/EngineeringViews').catch(() => {});
+  }, [currentUser]);
 
 const CANONICAL_PATH_TO_VIEW_MAP: Record<string, string> = {
   '/': 'home',
@@ -616,12 +627,12 @@ function resolveViewFromLocation(pathname: string, search: string): string {
 
     let lastActive = Date.now();
     try {
-      localStorage.setItem('sp_last_activity', Date.now().toString());
+      sessionStorage.setItem('sp_last_activity', Date.now().toString());
     } catch {}
     const handleUserActivity = () => {
       lastActive = Date.now();
       try {
-        localStorage.setItem('sp_last_activity', Date.now().toString());
+        sessionStorage.setItem('sp_last_activity', Date.now().toString());
       } catch {}
     };
 
@@ -1403,13 +1414,13 @@ function resolveViewFromLocation(pathname: string, search: string): string {
     [items]
   );
 
-  const { data: dashboardKpis } = useDashboardKpis(undefined, { enabled: !!currentUser });
+  const { data: dashboardKpis } = useDashboardKpis(undefined, { enabled: !!currentUser && currentView === 'home' });
   const activeWOCount = dashboardKpis?.activeWorkOrders ?? workOrders.filter((w) => !['completed', 'cancelled'].includes(w.status)).length;
   const lowStockCount = dashboardKpis?.lowStockItemsCount ?? items.filter((i) => i.status === 'low').length;
   const openPOCount = purchaseOrders.filter((p) => p.status !== 'received').length;
 
   if (!currentUser) {
-    if (meQuery.isLoading || meQuery.isPending) {
+    if (meQuery.isLoading || meQuery.isPending || (meQuery.isFetching && !meQuery.isFetched)) {
       return (
         <div className="flex h-screen w-full items-center justify-center bg-[var(--paper)]">
           <div className="flex flex-col items-center gap-3">

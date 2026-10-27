@@ -30,8 +30,14 @@ export function useItems(filter?: any, limit: number = 50) {
           ...(typeof filter === 'object' ? filter : {}),
         },
       });
-      const envelope = res?.data !== undefined ? res.data : res;
-      return Array.isArray(envelope?.data) ? envelope.data : Array.isArray(envelope) ? envelope : [];
+      const items = Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res?.data?.data)
+          ? res.data.data
+          : Array.isArray(res)
+            ? res
+            : [];
+      return items;
     },
     staleTime: 1000 * 60 * 5, // 5 minutes fresh cache
     refetchOnWindowFocus: false, // Prevent window focus query barrage
@@ -60,9 +66,25 @@ export function useItemCount() {
 export function useItemCatalogStats() {
   return useQuery({
     queryKey: ['masterData', 'itemCatalogStats'],
+    initialData: () => {
+      try {
+        if (typeof window === 'undefined') return undefined;
+        const raw = sessionStorage.getItem('sp_item_catalog_stats_v1');
+        return raw ? JSON.parse(raw) : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    initialDataUpdatedAt: 0,
     queryFn: async () => {
       const res = await api.get<any>('/items/summary');
-      return res?.data?.data ?? res?.data ?? { total: 0, pending: 0, drafts: 0, rejected: 0, lowStock: 0, active: 0 };
+      const data = res?.data?.data ?? res?.data ?? { total: 0, pending: 0, drafts: 0, rejected: 0, lowStock: 0, active: 0 };
+      try {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('sp_item_catalog_stats_v1', JSON.stringify(data));
+        }
+      } catch {}
+      return data;
     },
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
@@ -81,35 +103,60 @@ export function usePaginatedItems(params: {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }) {
+  const isDefaultFirstPage =
+    (!params.page || params.page === 1) &&
+    !params.search?.trim() &&
+    !params.itemType &&
+    !params.approval;
+
   return useQuery({
     queryKey: ['masterData', 'paginatedItems', params],
+    initialData: () => {
+      if (!isDefaultFirstPage || typeof window === 'undefined') return undefined;
+      try {
+        const raw = sessionStorage.getItem('sp_paginated_items_p1_v1');
+        return raw ? JSON.parse(raw) : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    initialDataUpdatedAt: 0,
     queryFn: async () => {
       const page = Math.max(1, params.page || 1);
       const limit = Math.min(100, Math.max(1, params.limit || 50));
       const queryParams: Record<string, any> = { page, limit };
       if (params.search?.trim()) queryParams.search = params.search.trim();
       if (params.category && params.category !== 'All' && params.category !== 'ALL') queryParams.category = params.category;
+      if (params.itemType) queryParams.itemType = params.itemType;
       if (params.status && params.status !== 'ALL') queryParams.status = params.status;
       if (params.approval) queryParams.approval = params.approval;
       if (params.sortBy) queryParams.sortBy = params.sortBy;
       if (params.sortOrder) queryParams.sortOrder = params.sortOrder;
 
       const res = await api.get<any>('/items', { params: queryParams });
-      const envelope = res?.data !== undefined ? res.data : res;
-      const items: ItemMaster[] = Array.isArray(envelope?.data)
-        ? envelope.data
-        : Array.isArray(envelope)
-          ? envelope
-          : [];
-      const total = Number(envelope?.meta?.total ?? items.length);
+      const items: ItemMaster[] = Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res?.data?.data)
+          ? res.data.data
+          : Array.isArray(res)
+            ? res
+            : [];
+      const meta = res?.meta || res?.data?.meta || {};
+      const total = Number(meta.total ?? items.length);
 
-      return {
+      const payload = {
         items,
         totalCount: total,
         page,
         limit,
         hasMore: page * limit < total,
       };
+      if (isDefaultFirstPage && typeof window !== 'undefined' && items.length > 0) {
+        try {
+          sessionStorage.setItem('sp_paginated_items_p1_v1', JSON.stringify(payload));
+        } catch {}
+      }
+      return payload;
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
     refetchOnWindowFocus: false,

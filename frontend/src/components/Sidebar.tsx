@@ -375,7 +375,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             queryFn: async () => {
               const res = await api.get<any>('/bill-of-materials', { params: { limit: 50 } });
               const rows = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-              return rows.map((r: any) => mapDbRowToBom(r));
+              return rows;
             },
             staleTime: 1000 * 60 * 5,
           });
@@ -387,7 +387,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             queryFn: async () => {
               const res = await api.get<any>('/customers', { params: { limit: 50 } });
               const rows = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-              return rows.map((r: any) => mapDbRowToCustomer(r));
+              return rows;
             },
             staleTime: 1000 * 60 * 5,
           });
@@ -399,7 +399,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             queryFn: async () => {
               const res = await api.get<any>('/sales-orders', { params: { limit: 50 } });
               const rows = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-              return rows.map((r: any) => mapDbRowToSalesOrder(r));
+              return rows;
             },
             staleTime: 1000 * 60 * 5,
           });
@@ -411,7 +411,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             queryFn: async () => {
               const res = await api.get<any>('/purchase-orders', { params: { limit: 50 } });
               const rows = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-              return rows.map((r: any) => mapDbRowToPurchaseOrder(r));
+              return rows;
             },
             staleTime: 1000 * 60 * 5,
           });
@@ -434,7 +434,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             queryFn: async () => {
               const res = await api.get<any>('/work-orders', { params: { limit: 50 } });
               const rows = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-              return rows.map((r: any) => mapDbRowToWorkOrder(r));
+              return rows;
             },
             staleTime: 1000 * 60 * 5,
           });
@@ -446,7 +446,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             queryFn: async () => {
               const res = await api.get<any>('/machines', { params: { limit: 50 } });
               const rows = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-              return rows.map((r: any) => mapDbRowToMachine(r));
+              return rows;
             },
             staleTime: 1000 * 60 * 5,
           });

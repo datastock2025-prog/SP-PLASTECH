@@ -81,10 +81,9 @@ export default defineConfig(() => {
           },
         },
       },
-      hmr: process.env.DISABLE_HMR !== 'true',
       watch: {
-        usePolling: true,
-        interval: 300,
+        usePolling: false,
+        ignored: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/middleware/**', '**/db/**', '**/docs/**'],
       },
     },
   };

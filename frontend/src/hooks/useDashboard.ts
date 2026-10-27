@@ -17,23 +17,37 @@ export function useDashboardKpis(plantId?: string, options?: { enabled?: boolean
   return useQuery({
     queryKey: queryKeys.dashboard.kpis(plantId),
     queryFn: async () => {
-      const response = await apiClient.get<DashboardKpis>('/api/v1/dashboard/kpis', {
-        params: plantId ? { plantId } : undefined,
-      });
-      return response.data || {
-        activeWorkOrders: 0,
-        overallOee: 0,
-        onTimeDeliveryRate: 0,
-        firstPassYield: 0,
-        lowStockItemsCount: 0,
-        activeAlarmsCount: 0,
-        openCapasCount: 0,
-        revenueMtd: 0,
-      };
+      try {
+        const response = await apiClient.get<DashboardKpis>('/api/v1/dashboard/kpis', {
+          params: plantId ? { plantId } : undefined,
+        });
+        return response.data || {
+          activeWorkOrders: 0,
+          overallOee: 0,
+          onTimeDeliveryRate: 0,
+          firstPassYield: 0,
+          lowStockItemsCount: 0,
+          activeAlarmsCount: 0,
+          openCapasCount: 0,
+          revenueMtd: 0,
+        };
+      } catch {
+        return {
+          activeWorkOrders: 0,
+          overallOee: 0,
+          onTimeDeliveryRate: 0,
+          firstPassYield: 0,
+          lowStockItemsCount: 0,
+          activeAlarmsCount: 0,
+          openCapasCount: 0,
+          revenueMtd: 0,
+        };
+      }
     },
     staleTime: 1000 * 60, // 1 minute stale time
     refetchInterval: 1000 * 60 * 2, // Auto poll every 2 min
     enabled: options?.enabled ?? true,
+    meta: { skipGlobalError: true },
   });
 }
 

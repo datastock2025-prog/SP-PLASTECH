@@ -9,15 +9,15 @@ export const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 export function getCachedSession(): Me | null {
   try {
     if (typeof window === 'undefined') return null;
-    const raw = localStorage.getItem(SESSION_CACHE_KEY);
+    const raw = sessionStorage.getItem(SESSION_CACHE_KEY);
     if (!raw) return null;
-    const lastActive = Number(localStorage.getItem(SESSION_ACTIVITY_KEY) || '0');
+    const lastActive = Number(sessionStorage.getItem(SESSION_ACTIVITY_KEY) || '0');
     if (lastActive && Date.now() - lastActive > SESSION_IDLE_TIMEOUT_MS) {
-      localStorage.removeItem(SESSION_CACHE_KEY);
-      localStorage.removeItem(SESSION_ACTIVITY_KEY);
+      sessionStorage.removeItem(SESSION_CACHE_KEY);
+      sessionStorage.removeItem(SESSION_ACTIVITY_KEY);
       return null;
     }
-    localStorage.setItem(SESSION_ACTIVITY_KEY, Date.now().toString());
+    sessionStorage.setItem(SESSION_ACTIVITY_KEY, Date.now().toString());
     return JSON.parse(raw) as Me;
   } catch {
     return null;
@@ -28,11 +28,11 @@ export function setCachedSession(me: Me | null) {
   try {
     if (typeof window === 'undefined') return;
     if (me) {
-      localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(me));
-      localStorage.setItem(SESSION_ACTIVITY_KEY, Date.now().toString());
+      sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(me));
+      sessionStorage.setItem(SESSION_ACTIVITY_KEY, Date.now().toString());
     } else {
-      localStorage.removeItem(SESSION_CACHE_KEY);
-      localStorage.removeItem(SESSION_ACTIVITY_KEY);
+      sessionStorage.removeItem(SESSION_CACHE_KEY);
+      sessionStorage.removeItem(SESSION_ACTIVITY_KEY);
     }
   } catch {}
 }
@@ -50,22 +50,18 @@ export const identityKeys = {
 export function useMe() {
   return useQuery<Me | null>({
     queryKey: identityKeys.me,
-    initialData: getCachedSession,
+    initialData: () => getCachedSession() ?? undefined,
     queryFn: async () => {
       try {
         const me = await identityApi.me();
         setCachedSession(me);
         return me;
       } catch (e) {
-        const cached = getCachedSession();
         if (e instanceof ApiError && e.status === 401) {
-          const lastActive = Number(typeof window !== 'undefined' ? localStorage.getItem(SESSION_ACTIVITY_KEY) || '0' : '0');
-          if (!lastActive || Date.now() - lastActive > SESSION_IDLE_TIMEOUT_MS) {
-            setCachedSession(null);
-            return null;
-          }
-          return cached;
+          setCachedSession(null);
+          return null;
         }
+        const cached = getCachedSession();
         return cached;
       }
     },
