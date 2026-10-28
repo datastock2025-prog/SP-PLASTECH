@@ -34,6 +34,15 @@
     - `<EntityDrawer<T> />` (`src/shared/components/EntityDrawer.tsx`) — Standardized edit/view slideover drawer with tab navigation, dirty-state detection, and action buttons.
     - `<AuditHistoryDrawer />` (`src/shared/components/AuditHistoryDrawer.tsx`) — Shared audit log and change governance viewer with visual timeline stream and field diff tracking.
 12. **Pure Two-Layer Reference Model (Zero DTO Mappers)**: Database schema types flow directly to frontend via typed REST response envelopes. TanStack Query hooks consume typed JSON directly; zero legacy hand-written DTO mapper functions.
+13. **Instant Session Hydration & Zero-Flash Browser Reload (0ms First Paint)**:
+    - Primary list screens must cache page-1 records into `sessionStorage` (e.g. `sp_items_cache_p1`, `reboot_mfg_boms_cache_p1`).
+    - TanStack Query hooks must inject `initialData: getCachedPage1()` with `initialDataUpdatedAt: 0` (or `staleTime: 0`) so tables render existing rows in **0ms** without blank or skeleton flashes while revalidating fresh data in the background.
+14. **Dynamic Master Data Governance & Admin Options SSOT**:
+    - Extensible dropdown lists (Resin types, Item groups, BOM classes, Operating Plants, Process Owners, Warehouses, Quality labs) MUST NOT be hardcoded in UI components.
+    - They must sync to PostgreSQL via `/api/v1/master-data/options` and `masterDataGovernanceService.ts` so custom options created by Admin persist in DB and reflect globally across all forms and wizards.
+15. **Domain Metadata JSONB Strategy & Transactional Audit Logging**:
+    - Extended domain specifications (e.g. molding rheology, machine fitment, technical drawings, certification metadata) must be preserved in a structured JSONB column (`metadata` or `lines._bomMeta`) without requiring destructive table schema alterations.
+    - Every domain write mutation (CREATE, UPDATE, APPROVE, REJECT, DELETE) must execute within an interactive transaction that writes an immutable record to `audit_logs` tracking user, timestamp, before/after diffs, and change reasons.
 
 ---
 
