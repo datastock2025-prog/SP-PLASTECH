@@ -711,6 +711,89 @@ export function orgRoutes(r: any) {
     res.json({ data: rows });
   }));
 
+  const transporterMeta = z.object({
+    address: z.string().trim().max(255).optional(),
+    city: z.string().trim().max(80).optional(),
+    state: z.string().trim().max(80).optional(),
+    transportModes: z.array(z.enum(['Road', 'Rail', 'Air', 'Ship', 'Multi-Modal'])).max(5).optional(),
+    vehicleTypes: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
+    notes: z.string().trim().max(500).optional(),
+  }).strict();
+  const gstin = z.string().trim().toUpperCase().regex(/^[0-9A-Z]{15}$/, 'GSTIN must be 15 alphanumeric characters');
+
+  r.post('/transporters', can('create', 'Supplier'), wrap(async (req, res) => {
+    const a = req.actor!;
+    const b = z.object({
+      code: str(30).transform((v) => v.toUpperCase()),
+      name: str(160),
+      gstin,
+      contactPerson: optStr(120),
+      phone: optStr(30),
+      email: z.string().trim().email().max(160).optional().nullable(),
+      metadata: transporterMeta.default({}),
+    }).strict().parse(req.body);
+
+    const created = await withDrizzleTx(ctx(a), async (tx, c) => {
+      const [row] = await tx.insert(schema.transporters).values({ tenantId: a.tenantId, ...b }).returning();
+      await writeAudit(c, {
+        tenantId: a.tenantId, entityType: 'transporter', entityId: row.id,
+        action: 'CREATE', performedBy: a.userId, newValues: row, ip: a.ip,
+      });
+      return row;
+    });
+    res.status(201).json({ data: created });
+  }));
+
+  r.patch('/transporters/:id', can('update', 'Supplier'), wrap(async (req, res) => {
+    const a = req.actor!;
+    const id = z.string().uuid().parse(req.params.id);
+    const b = z.object({
+      name: str(160).optional(),
+      gstin: gstin.optional(),
+      contactPerson: z.string().trim().max(120).nullable().optional(),
+      phone: z.string().trim().max(30).nullable().optional(),
+      email: z.string().trim().email().max(160).optional().nullable(),
+      isActive: z.boolean().optional(),
+      metadata: transporterMeta.optional(),
+    }).strict().parse(req.body);
+
+    const updated = await withDrizzleTx(ctx(a), async (tx, c) => {
+      const [existing] = await tx.select().from(schema.transporters)
+        .where(and(eq(schema.transporters.id, id), isNull(schema.transporters.deletedAt)))
+        .for('update');
+      if (!existing) throw new AppError(404, 'NOT_FOUND', 'Transporter not found');
+      const [row] = await tx.update(schema.transporters)
+        .set({ ...b, updatedAt: new Date() })
+        .where(eq(schema.transporters.id, id))
+        .returning();
+      await writeAudit(c, {
+        tenantId: a.tenantId, entityType: 'transporter', entityId: id,
+        action: 'UPDATE', performedBy: a.userId, oldValues: existing, newValues: row, ip: a.ip,
+      });
+      return row;
+    });
+    res.json({ data: updated });
+  }));
+
+  r.delete('/transporters/:id', can('delete', 'Supplier'), wrap(async (req, res) => {
+    const a = req.actor!;
+    const id = z.string().uuid().parse(req.params.id);
+    await withDrizzleTx(ctx(a), async (tx, c) => {
+      const [existing] = await tx.select().from(schema.transporters)
+        .where(and(eq(schema.transporters.id, id), isNull(schema.transporters.deletedAt)))
+        .for('update');
+      if (!existing) throw new AppError(404, 'NOT_FOUND', 'Transporter not found');
+      await tx.update(schema.transporters)
+        .set({ deletedAt: new Date(), isActive: false })
+        .where(eq(schema.transporters.id, id));
+      await writeAudit(c, {
+        tenantId: a.tenantId, entityType: 'transporter', entityId: id,
+        action: 'DELETE', performedBy: a.userId, oldValues: existing, ip: a.ip,
+      });
+    });
+    res.status(204).end();
+  }));
+
   r.get('/numbering-series', can('read', 'Preference'), wrap(async (req, res) => {
     const rows = await withDrizzleTx(ctx(req.actor!), async (tx) => {
       return tx

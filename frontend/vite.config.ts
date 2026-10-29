@@ -1,7 +1,22 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import { execSync } from 'child_process';
+import { defineConfig } from 'vite';
+
+function getBackendUrl(): string {
+  if (process.env.BACKEND_URL) return process.env.BACKEND_URL;
+  if (process.platform === 'win32') {
+    try {
+      const out = execSync('wsl hostname -I', { encoding: 'utf8' }).trim();
+      const ip = out.split(/\s+/)[0];
+      if (ip && /^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) {
+        return `http://${ip}:4000`;
+      }
+    } catch {}
+  }
+  return 'http://127.0.0.1:4000';
+}
 
 export default defineConfig(() => {
   return {
@@ -69,7 +84,7 @@ export default defineConfig(() => {
       allowedHosts: true as const,
       proxy: {
         '/api': {
-          target: process.env.BACKEND_URL || 'http://localhost:4000',
+          target: getBackendUrl(),
           changeOrigin: true,
           configure: (proxy) => {
             proxy.on('error', (_err, _req, res) => {

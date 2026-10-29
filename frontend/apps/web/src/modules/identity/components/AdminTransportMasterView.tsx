@@ -20,20 +20,21 @@ import {
   Check,
   X,
 } from 'lucide-react';
+import { TransporterRecord } from '@/src/services/transportMasterService';
 import {
-  transportMasterService,
-  TransporterRecord,
-  INITIAL_TRANSPORTERS,
-} from '@/src/services/transportMasterService';
+  useAdminTransporters,
+  useSaveAdminTransporter,
+  useDeleteAdminTransporter,
+} from '@/src/hooks/useAdmin';
 
 interface Props {
   showToast: (msg: string) => void;
 }
 
 export const AdminTransportMasterView: React.FC<Props> = ({ showToast }) => {
-  const [transporters, setTransporters] = useState<TransporterRecord[]>(() =>
-    transportMasterService.getTransportersSync()
-  );
+  const { data: transporters = [], isLoading, isError, error } = useAdminTransporters();
+  const saveMutation = useSaveAdminTransporter();
+  const deleteMutation = useDeleteAdminTransporter();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'active' | 'inactive'>('ALL');
   const [modeFilter, setModeFilter] = useState<string>('ALL');
@@ -59,24 +60,28 @@ export const AdminTransportMasterView: React.FC<Props> = ({ showToast }) => {
   const [vehicleInput, setVehicleInput] = useState('');
   const [notes, setNotes] = useState('');
 
-  // Reload data
-  const refreshData = () => {
-    setTransporters(transportMasterService.getTransportersSync());
+  // Next code derived from live rows (DB unique index on tenant+code is the final guard).
+  const nextTransporterCode = () => {
+    const max = transporters.reduce((m, t) => {
+      const n = Number(/(\d+)$/.exec(t.transporterCode)?.[1] ?? 0);
+      return n > m ? n : m;
+    }, 0);
+    return `TRP-${String(max + 1).padStart(3, '0')}`;
   };
 
   const handleOpenCreate = () => {
     setEditingTransporter(null);
     setName('');
     setTransporterIdGstin('');
-    setTransporterCode(transportMasterService.generateNextTransporterCode());
+    setTransporterCode(nextTransporterCode());
     setContactPerson('');
     setPhone('');
     setEmail('');
     setAddress('');
-    setCity('Pune');
-    setState('Maharashtra');
+    setCity('');
+    setState('');
     setSelectedModes(['Road']);
-    setVehicleTypes(['32ft Multi-Axle Container (14 Ton)', '20ft Closed Body Truck (7 Ton)']);
+    setVehicleTypes([]);
     setVehicleInput('');
     setNotes('');
     setIsModalOpen(true);
@@ -111,48 +116,56 @@ export const AdminTransportMasterView: React.FC<Props> = ({ showToast }) => {
       return;
     }
 
-    const newRecord: TransporterRecord = {
-      id: editingTransporter ? editingTransporter.id : `TRP-${Date.now()}`,
-      transporterCode: transporterCode.trim() || transportMasterService.generateNextTransporterCode(),
+    const patch: Partial<TransporterRecord> = {
+      transporterCode: transporterCode.trim() || nextTransporterCode(),
       name: name.trim(),
       transporterIdGstin: transporterIdGstin.trim().toUpperCase(),
-      contactPerson: contactPerson.trim() || 'Logistics Coordinator',
-      phone: phone.trim() || '+91 98000 00000',
-      email: email.trim() || 'dispatch@transporter.example',
-      address: address.trim() || 'Transport Nagar Hub',
-      city: city.trim() || 'Pune',
-      state: state.trim() || 'Maharashtra',
-      transportModes: selectedModes.length > 0 ? selectedModes : ['Road'],
-      vehicleTypes: vehicleTypes.length > 0 ? vehicleTypes : ['Standard Truck (7 Ton)'],
-      status: editingTransporter ? editingTransporter.status : 'active',
-      rating: editingTransporter ? editingTransporter.rating : 4.8,
-      totalShipments: editingTransporter ? editingTransporter.totalShipments : 0,
-      onTimeDeliveryPct: editingTransporter ? editingTransporter.onTimeDeliveryPct : 98.0,
-      notes: notes.trim(),
-      createdDate: editingTransporter ? editingTransporter.createdDate : new Date().toISOString().slice(0, 10),
+      contactPerson,
+      phone,
+      email,
+      address,
+      city,
+      state,
+      transportModes: selectedModes,
+      vehicleTypes,
+      notes,
     };
 
-    transportMasterService.saveTransporter(newRecord);
-    refreshData();
-    setIsModalOpen(false);
-    showToast(
-      editingTransporter
-        ? `✓ Transporter ${newRecord.name} updated successfully`
-        : `✓ New Transporter ${newRecord.name} (${newRecord.transporterIdGstin}) registered in Master Data!`
+    const wasEdit = !!editingTransporter;
+    saveMutation.mutate(
+      { id: editingTransporter?.id, patch },
+      {
+        onSuccess: (saved) => {
+          setIsModalOpen(false);
+          showToast(
+            wasEdit
+              ? `✓ Transporter ${saved.name} updated successfully`
+              : `✓ New Transporter ${saved.name} (${saved.transporterIdGstin}) registered in Master Data!`
+          );
+        },
+        onError: (err: any) => showToast(`Save failed: ${err?.message ?? 'Unknown error'}`),
+      }
     );
   };
 
   const handleToggleStatus = (id: string) => {
-    transportMasterService.toggleStatus(id);
-    refreshData();
-    showToast('Transporter status updated.');
+    const t = transporters.find((x) => x.id === id);
+    if (!t) return;
+    saveMutation.mutate(
+      { id, patch: { isActive: t.status !== 'active' } },
+      {
+        onSuccess: () => showToast('Transporter status updated.'),
+        onError: (err: any) => showToast(`Status update failed: ${err?.message ?? 'Unknown error'}`),
+      }
+    );
   };
 
   const handleDelete = (id: string, tName: string) => {
     if (window.confirm(`Are you sure you want to remove transporter "${tName}"?`)) {
-      transportMasterService.deleteTransporter(id);
-      refreshData();
-      showToast(`Transporter ${tName} removed from Master Data.`);
+      deleteMutation.mutate(id, {
+        onSuccess: () => showToast(`Transporter ${tName} removed from Master Data.`),
+        onError: (err: any) => showToast(`Delete failed: ${err?.message ?? 'Unknown error'}`),
+      });
     }
   };
 
@@ -161,11 +174,11 @@ export const AdminTransportMasterView: React.FC<Props> = ({ showToast }) => {
     return transporters.filter((t) => {
       const matchSearch =
         searchTerm === '' ||
-        t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.transporterCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.transporterIdGstin.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.city.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.contactPerson.toLowerCase().includes(searchTerm.toLowerCase());
+        (t.name || "").toLowerCase().includes((searchTerm || "").toLowerCase()) ||
+        (t.transporterCode || "").toLowerCase().includes((searchTerm || "").toLowerCase()) ||
+        (t.transporterIdGstin || "").toLowerCase().includes((searchTerm || "").toLowerCase()) ||
+        (t.city || "").toLowerCase().includes((searchTerm || "").toLowerCase()) ||
+        (t.contactPerson || "").toLowerCase().includes((searchTerm || "").toLowerCase());
 
       const matchStatus = statusFilter === 'ALL' || t.status === statusFilter;
       const matchMode = modeFilter === 'ALL' || t.transportModes.includes(modeFilter as any);
@@ -175,6 +188,7 @@ export const AdminTransportMasterView: React.FC<Props> = ({ showToast }) => {
   }, [transporters, searchTerm, statusFilter, modeFilter]);
 
   const activeCount = transporters.filter((t) => t.status === 'active').length;
+  const gstinVerifiedCount = transporters.filter((t) => /^[0-9A-Z]{15}$/.test(t.transporterIdGstin)).length;
 
   return (
     <div className="space-y-5 animate-fade-in text-slate-800">
@@ -239,7 +253,7 @@ export const AdminTransportMasterView: React.FC<Props> = ({ showToast }) => {
           <div>
             <div className="text-[11px] font-medium text-slate-500">NIC EWB Registered</div>
             <div className="text-xl font-bold font-['Space_Grotesk'] text-[#14213D]">
-              100% Verified
+              {gstinVerifiedCount} / {transporters.length} GSTIN
             </div>
           </div>
         </div>
@@ -249,13 +263,22 @@ export const AdminTransportMasterView: React.FC<Props> = ({ showToast }) => {
             <Navigation className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-[11px] font-medium text-slate-500">Avg On-Time SLA</div>
+            <div className="text-[11px] font-medium text-slate-500">Inactive Carriers</div>
             <div className="text-xl font-bold font-['Space_Grotesk'] text-[#14213D]">
-              97.2% Rating
+              {transporters.length - activeCount} Inactive
             </div>
           </div>
         </div>
       </div>
+
+      {isLoading && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-500">Loading transporters from server…</div>
+      )}
+      {isError && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700">
+          Failed to load transporters: {(error as Error)?.message ?? 'Unknown error'}
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -328,7 +351,7 @@ export const AdminTransportMasterView: React.FC<Props> = ({ showToast }) => {
                           {t.transporterCode}
                         </span>
                       </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">{t.notes || 'Standard Logistics Partner'}</div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">{t.notes || '—'}</div>
                     </td>
 
                     {/* GSTIN / EWB ID */}
@@ -371,7 +394,7 @@ export const AdminTransportMasterView: React.FC<Props> = ({ showToast }) => {
                       <div className="text-[11px] text-slate-700 max-w-xs line-clamp-2">
                         {t.vehicleTypes && t.vehicleTypes.length > 0
                           ? t.vehicleTypes.join(' • ')
-                          : 'General Trucks (7 - 14 Ton)'}
+                          : '—'}
                       </div>
                     </td>
 

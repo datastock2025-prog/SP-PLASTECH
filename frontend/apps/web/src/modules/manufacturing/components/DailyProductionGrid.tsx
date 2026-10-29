@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, Component, ErrorInfo } from 'react
 import * as XLSX from 'xlsx';
 import { WorkOrder, MachineMaster, ItemMaster, BomMaster, RejectionBreakdownItem, DowntimeIntervalItem } from '@/src/types';
 import { MoldMaster } from '@/src/data/manufacturingData';
+import { api } from '@/src/lib/api-client';
 import {
   Save,
   Plus,
@@ -550,6 +551,18 @@ export const DailyProductionGridInner: React.FC<ProductionGridProps> = ({
       onSyncWipLot?.(updatedMasterWO, 'grid_entry', `Accumulated shift production: +${shiftGood} Good PCS for ${id}`);
 
       const dest = getItemStoreDestination(row.item);
+
+      // API Live Push: Push production entry directly to PostgreSQL via REST API
+      api.post('/production-entries', {
+        work_order_id: updatedMasterWO.id,
+        machine_id: updatedMasterWO.machine || 'WC-INJ-01',
+        good_qty: shiftGood,
+        rejected_qty: shiftScrap,
+        shift_id: updatedMasterWO.shift || 'Shift A',
+        regrind_kg_generated: (shiftRunner || 0) + (shiftLumps || 0),
+      }).then(() => {
+        window.dispatchEvent(new CustomEvent('inventory-updated', { detail: { sku: row.item, qty: shiftGood } }));
+      }).catch((e) => console.debug('[DailyProductionGrid.api] production-entries notice:', e));
 
       // Task 3: Auto-deduct BOM Raw Materials & record Production Output to Warehouse Stock & Lot Ledger
       try {

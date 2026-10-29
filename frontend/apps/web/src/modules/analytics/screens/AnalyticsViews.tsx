@@ -8,6 +8,7 @@ import {
   Leaf,
   Wrench,
   FileCode,
+  FileSpreadsheet,
   Sparkles,
 } from 'lucide-react';
 import {
@@ -20,6 +21,7 @@ import {
   MaintenanceMtbfView,
   CustomDocumentBuilder,
 } from '../components';
+import { DocumentHubView } from '../../document-hub/components/DocumentHubView';
 import { useOeeStream, useKpiReports } from '../api/useAnalytics';
 
 interface AnalyticsViewsProps {
@@ -31,7 +33,7 @@ interface AnalyticsViewsProps {
 
 export const AnalyticsViews: React.FC<AnalyticsViewsProps> = ({
   currentView,
-  viewParams,
+  viewParams: _viewParams,
   onNavigate,
   showToast,
 }) => {
@@ -41,6 +43,7 @@ export const AnalyticsViews: React.FC<AnalyticsViewsProps> = ({
 
   const analyticsNavTabs = [
     { id: 'analyticsDash', label: 'Executive Dashboard', icon: BarChart3 },
+    { id: 'documentHub', label: 'Document Hub & Reports', icon: FileSpreadsheet },
     { id: 'oeeDash', label: 'OEE & Loss Pareto', icon: PieChart },
     { id: 'qualityReports', label: 'Quality & PPM', icon: ShieldAlert },
     { id: 'scmInventoryAging', label: 'Inventory Aging & SLOB', icon: Boxes },
@@ -83,6 +86,9 @@ export const AnalyticsViews: React.FC<AnalyticsViewsProps> = ({
 
       {/* Main View Container */}
       <div>
+        {currentView === 'documentHub' && (
+          <DocumentHubView onNavigate={onNavigate} showToast={showToast} />
+        )}
         {currentView === 'analyticsDash' && (
           <ModernAnalyticsDashboard onNavigate={onNavigate} showToast={showToast} />
         )}

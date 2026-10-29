@@ -48,31 +48,6 @@ export function requireSession(auth: Auth) {
       if (!s) throw new AppError(401, 'UNAUTHENTICATED', 'Authentication required');
 
       const now = Date.now();
-      const policy = await getSecurityPolicy();
-
-      // Check session idle timeout (ASVS L2)
-      if (policy.idleTimeoutMinutes > 0 && s.session.updatedAt) {
-        const lastActive = new Date(s.session.updatedAt).getTime();
-        if (now - lastActive > policy.idleTimeoutMinutes * 60 * 1000) {
-          throw new AppError(401, 'SESSION_EXPIRED', 'Session expired due to inactivity. Please sign in again.');
-        }
-      }
-
-      // Check max session lifetime (ASVS L2)
-      if (policy.sessionMaxAgeHours > 0 && s.session.createdAt) {
-        const sessionCreated = new Date(s.session.createdAt).getTime();
-        if (now - sessionCreated > policy.sessionMaxAgeHours * 60 * 60 * 1000) {
-          throw new AppError(401, 'SESSION_EXPIRED', 'Session maximum duration exceeded. Please sign in again.');
-        }
-      }
-
-      // Check IP allowlist if policy has rules
-      if (policy.ipAllowlist && policy.ipAllowlist.length > 0 && req.ip) {
-        if (!policy.ipAllowlist.includes(req.ip)) {
-          throw new AppError(403, 'IP_FORBIDDEN', 'Access from this IP address is not permitted by tenant security policy');
-        }
-      }
-
       const cached = sessionActorCache.get(s.session.id);
       let p = cached && cached.expiresAt > now ? cached.actorData : null;
       let cachedAbility = cached && cached.expiresAt > now ? cached.ability : null;
@@ -121,6 +96,32 @@ export function requireSession(auth: Auth) {
         }
       }
       if (!p || p.status !== 'ACTIVE') throw new AppError(401, 'UNAUTHENTICATED', 'Account is not active');
+
+      // Check tenant-scoped security policy
+      const policy = await getSecurityPolicy(p.tenant_id);
+
+      // Check session idle timeout (ASVS L2)
+      if (policy.idleTimeoutMinutes > 0 && s.session.updatedAt) {
+        const lastActive = new Date(s.session.updatedAt).getTime();
+        if (now - lastActive > policy.idleTimeoutMinutes * 60 * 1000) {
+          throw new AppError(401, 'SESSION_EXPIRED', 'Session expired due to inactivity. Please sign in again.');
+        }
+      }
+
+      // Check max session lifetime (ASVS L2)
+      if (policy.sessionMaxAgeHours > 0 && s.session.createdAt) {
+        const sessionCreated = new Date(s.session.createdAt).getTime();
+        if (now - sessionCreated > policy.sessionMaxAgeHours * 60 * 60 * 1000) {
+          throw new AppError(401, 'SESSION_EXPIRED', 'Session maximum duration exceeded. Please sign in again.');
+        }
+      }
+
+      // Check IP allowlist if policy has rules
+      if (policy.ipAllowlist && policy.ipAllowlist.length > 0 && req.ip) {
+        if (!policy.ipAllowlist.includes(req.ip)) {
+          throw new AppError(403, 'IP_FORBIDDEN', 'Access from this IP address is not permitted by tenant security policy');
+        }
+      }
       const rules = p.permissions as StoredRule[];
       req.actor = {
         userId: s.user.id,

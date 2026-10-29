@@ -6,7 +6,7 @@ import { Account, JournalEntry } from '@/src/types';
 
 export function useAccounts(filter?: any) {
   return useQuery<Account[]>({
-    queryKey: queryKeys.finance.accounts(filter),
+    queryKey: [...queryKeys.finance.accounts(), filter],
     queryFn: async () => {
       const res = await api.get<any>('/gl-accounts', {
         params: { limit: filter?.limit ?? 100, page: filter?.page ?? 1, sortBy: 'account_code', sortOrder: 'asc', includeTotal: true, ...filter },

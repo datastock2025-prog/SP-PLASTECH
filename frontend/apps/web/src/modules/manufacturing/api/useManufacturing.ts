@@ -106,7 +106,7 @@ export function useLogProductionEntry() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: ProductionEntryPayload): Promise<ProductionEntryResult> => {
-      const updatedWO: WorkOrder = ;
+      const updatedWO: WorkOrder = { id: payload.workOrderId } as WorkOrder;
 
       const prodPayload = {
         work_order_id: payload.workOrderId,

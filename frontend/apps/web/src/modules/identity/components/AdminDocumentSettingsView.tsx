@@ -73,9 +73,9 @@ export const AdminDocumentSettingsView: React.FC<AdminDocumentSettingsViewProps>
 
   const filtered = policies.filter(
     (p) =>
-      p.categoryName.toLowerCase().includes(search.toLowerCase()) ||
-      p.codePrefix.toLowerCase().includes(search.toLowerCase()) ||
-      p.cloudStorageBucket.toLowerCase().includes(search.toLowerCase())
+      (p.categoryName || "").toLowerCase().includes((search || "").toLowerCase()) ||
+      (p.codePrefix || "").toLowerCase().includes((search || "").toLowerCase()) ||
+      (p.cloudStorageBucket || "").toLowerCase().includes((search || "").toLowerCase())
   );
 
   // Open Wizard

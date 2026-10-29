@@ -1,4 +1,5 @@
 import type { MiddlewareHandler } from 'hono';
+import { extractClientIp } from '../core/ip.js';
 
 const hits = new Map<string, { n: number; reset: number }>();
 
@@ -26,8 +27,15 @@ export function limited(key: string, limit = 300, windowMs = 60_000): boolean {
 
 export function rateLimitMiddleware(): MiddlewareHandler {
   return async (c, next) => {
-    const ip = c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'local';
-    if (limited(ip)) {
+    const ip = extractClientIp({ header: (n) => c.req.header(n), raw: c.req.raw, env: c.env as any });
+    
+    const path = c.req.path;
+    const isAuthRoute = path.includes('/auth/sign-in') || path.includes('/auth/sign-up');
+    
+    const rateKey = isAuthRoute ? `auth:${ip}` : `ip:${ip}`;
+    const maxLimit = isAuthRoute ? 20 : 300;
+
+    if (limited(rateKey, maxLimit)) {
       return c.json({ error: { code: 'RATE_LIMITED', message: 'Too many requests. Please slow down.' } }, 429);
     }
     await next();

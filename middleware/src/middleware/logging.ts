@@ -1,3 +1,4 @@
+import { extractClientIp } from '../core/ip.js';
 import type { MiddlewareHandler } from 'hono';
 
 export function requestLoggingMiddleware(): MiddlewareHandler {
@@ -31,7 +32,7 @@ export function requestLoggingMiddleware(): MiddlewareHandler {
         status,
         duration_ms: duration,
         db_ms: dbMs,
-        client_ip: c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'local',
+        client_ip: extractClientIp({ header: (n) => c.req.header(n), raw: c.req.raw, env: c.env as any }),
       };
       if (status >= 500) {
         console.error(JSON.stringify(logEntry));

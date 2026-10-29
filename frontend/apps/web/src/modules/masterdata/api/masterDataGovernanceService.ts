@@ -268,6 +268,16 @@ class MasterDataGovernanceService {
       console.warn('Failed to save master warehouse', e);
     }
 
+    try {
+      api.post('/warehouses', {
+        id: `WH-${newRecord.code}`,
+        code: newRecord.code,
+        name: newRecord.name,
+        plantId: wh.plantScope || 'All Plants',
+        locationType: 'raw_material',
+      }).catch((err: any) => console.warn('Backend warehouse post error:', err));
+    } catch (_) {}
+
     adminEventBus.emit('WAREHOUSE_MASTER_SAVED', newRecord);
     return newRecord;
   }
@@ -343,6 +353,12 @@ class MasterDataGovernanceService {
       console.warn('Failed to save master bin', e);
     }
 
+    api.post('/warehouse-bins', {
+      warehouseId: newRecord.warehouseCode,
+      binCode: newRecord.code,
+      zone: newRecord.zone,
+      capacityKg: 1000,
+    }).catch(() => {});
     adminEventBus.emit('BIN_MASTER_SAVED', newRecord);
     return newRecord;
   }
@@ -594,6 +610,7 @@ class MasterDataGovernanceService {
       console.warn('Failed to save master operation', e);
     }
 
+    api.post('/master-data/options', { key: 'operations', value: JSON.stringify(newRecord) }).catch(() => {});
     adminEventBus.emit('OPERATION_MASTER_SAVED', newRecord);
     return newRecord;
   }
@@ -653,6 +670,7 @@ class MasterDataGovernanceService {
     }
 
     adminEventBus.emit('WORKCENTER_MASTER_SAVED', newRecord);
+    api.post('/master-data/options', { key: 'workCenters', value: JSON.stringify(newRecord) }).catch(() => {});
     adminEventBus.emit('WORK_CENTER_MASTER_SAVED', newRecord);
     return newRecord;
   }
@@ -708,6 +726,7 @@ class MasterDataGovernanceService {
       console.warn('Failed to save master machine', e);
     }
 
+    api.post('/machines', { code: newRecord.code, name: newRecord.name, brand: newRecord.brand, tonnage: newRecord.tonnage, status: 'active', plant: 'PLANT-01' }).catch(() => {});
     adminEventBus.emit('MACHINE_MASTER_SAVED', newRecord);
     return newRecord;
   }
@@ -762,6 +781,7 @@ class MasterDataGovernanceService {
       console.warn('Failed to save master mold', e);
     }
 
+    api.post('/master-data/options', { key: 'molds', value: JSON.stringify(newRecord) }).catch(() => {});
     adminEventBus.emit('MOLD_MASTER_SAVED', newRecord);
     return newRecord;
   }
@@ -817,6 +837,7 @@ class MasterDataGovernanceService {
       console.warn('Failed to save runner scrap category', e);
     }
 
+    api.post('/master-data/options', { key: 'runnerScrapCategories', value: JSON.stringify(newRecord) }).catch(() => {});
     adminEventBus.emit('RUNNER_SCRAP_SAVED', newRecord);
     return newRecord;
   }
@@ -869,6 +890,7 @@ class MasterDataGovernanceService {
       console.warn('Failed to save purge lumps category', e);
     }
 
+    api.post('/master-data/options', { key: 'purgeLumpsCategories', value: JSON.stringify(newRecord) }).catch(() => {});
     adminEventBus.emit('PURGE_LUMPS_SAVED', newRecord);
     return newRecord;
   }
@@ -1352,6 +1374,167 @@ class MasterDataGovernanceService {
     adminEventBus.emit('BOM_CLASS_SAVED', bomClass);
     return updated;
   }
+  public getCycleTimeSources(): string[] {
+    return this.getStoredList('reboot_erp_catalog_cycle_time_sources', [
+      'Item Master Standard',
+      'Engineering Routing Step Average',
+      'Machine / Tooling Specific Fitment',
+      'Manual Override (Special Job Run)',
+    ]);
+  }
+
+  public saveCycleTimeSource(source: string): string[] {
+    this.persistOptionToApi('cycleTimeSources', source);
+    const updated = this.saveStoredList('reboot_erp_catalog_cycle_time_sources', source, this.getCycleTimeSources());
+    adminEventBus.emit('CYCLE_TIME_SOURCE_SAVED', source);
+    return updated;
+  }
+
+  public getBomComponentCategories(): string[] {
+    return this.getStoredList('reboot_erp_catalog_bom_component_categories', [
+      'Virgin Resin',
+      'Color Masterbatch',
+      'Additive / Stabilizer',
+      'Regrind Polymer',
+      'Metal Insert',
+      'Label / Decal',
+      'Packaging Consumable',
+      'Corrugated Shipper',
+    ]);
+  }
+
+  public saveBomComponentCategory(cat: string): string[] {
+    this.persistOptionToApi('bomComponentCategories', cat);
+    const updated = this.saveStoredList('reboot_erp_catalog_bom_component_categories', cat, this.getBomComponentCategories());
+    adminEventBus.emit('BOM_COMPONENT_CATEGORY_SAVED', cat);
+    return updated;
+  }
+
+  public getBomIssueMethods(): string[] {
+    return this.getStoredList('reboot_erp_catalog_bom_issue_methods', [
+      'Auto Backflush (Post-run)',
+      'Manual Kitting / Picking',
+      'Lot Traceable Pick',
+      'Bulk Pre-stage',
+    ]);
+  }
+
+  public saveBomIssueMethod(method: string): string[] {
+    this.persistOptionToApi('bomIssueMethods', method);
+    const updated = this.saveStoredList('reboot_erp_catalog_bom_issue_methods', method, this.getBomIssueMethods());
+    adminEventBus.emit('BOM_ISSUE_METHOD_SAVED', method);
+    return updated;
+  }
+
+  public getSecondaryOperationTypes(): string[] {
+    return this.getStoredList('reboot_erp_catalog_secondary_operation_types', [
+      'Trimming',
+      'Degating',
+      'Sticker Placement',
+      'Labeling',
+      'Printing',
+      'Assembly',
+      'Insert Fitting',
+      'Welding',
+      'Packing',
+      'Inspection',
+      'Quality sorting',
+      'Rework',
+      'Other',
+    ]);
+  }
+
+  public saveSecondaryOperationType(op: string): string[] {
+    this.persistOptionToApi('secondaryOperationTypes', op);
+    const updated = this.saveStoredList('reboot_erp_catalog_secondary_operation_types', op, this.getSecondaryOperationTypes());
+    adminEventBus.emit('SECONDARY_OPERATION_TYPE_SAVED', op);
+    return updated;
+  }
+
+  public getQualityCriticalParams(): string[] {
+    return this.getStoredList('reboot_erp_catalog_quality_critical_params', [
+      'MFI (Melt Flow Index)',
+      'Tensile Strength',
+      'Drop Impact Test',
+      'Dimensional Tolerance ±0.05mm',
+      'Color Delta-E < 0.8',
+      'Wall Thickness Uniformity',
+      'Visual Surface Sink Marks',
+      'Gate Flushness Inspection',
+    ]);
+  }
+
+  public saveQualityCriticalParam(param: string): string[] {
+    this.persistOptionToApi('qualityCriticalParams', param);
+    const updated = this.saveStoredList('reboot_erp_catalog_quality_critical_params', param, this.getQualityCriticalParams());
+    adminEventBus.emit('QUALITY_CRITICAL_PARAM_SAVED', param);
+    return updated;
+  }
+
+  // ==========================================
+  // Dynamic User Governance: Designation, Department & Shifts
+  // ==========================================
+  public getUserDesignations(): string[] {
+    return this.getStoredList('reboot_erp_catalog_user_designations', [
+      'Production Manager',
+      'Plant Operations Director',
+      'Senior Mold Designer',
+      'Molding Operator',
+      'Quality Assurance Lead',
+      'Tool Room Technician',
+      'Stores & Inventory Lead',
+      'Maintenance Engineer',
+      'PPC Executive',
+      'General Operator',
+    ]);
+  }
+
+  public saveUserDesignation(designation: string): string[] {
+    this.persistOptionToApi('userDesignations', designation);
+    const updated = this.saveStoredList('reboot_erp_catalog_user_designations', designation, this.getUserDesignations());
+    adminEventBus.emit('USER_DESIGNATION_SAVED', designation);
+    return updated;
+  }
+
+  public getUserDepartments(): string[] {
+    return this.getStoredList('reboot_erp_catalog_user_departments', [
+      'Manufacturing & Molding',
+      'Quality Assurance & QC',
+      'Tool Room & Maintenance',
+      'Production Planning & Control (PPC)',
+      'Warehouse & Inventory',
+      'Procurement & SCM',
+      'Engineering & R&D',
+      'Finance & Accounts',
+      'Human Resources',
+      'Administration & IT',
+    ]);
+  }
+
+  public saveUserDepartment(dept: string): string[] {
+    this.persistOptionToApi('userDepartments', dept);
+    const updated = this.saveStoredList('reboot_erp_catalog_user_departments', dept, this.getUserDepartments());
+    adminEventBus.emit('USER_DEPARTMENT_SAVED', dept);
+    return updated;
+  }
+
+  public getUserShifts(): string[] {
+    return this.getStoredList('reboot_erp_catalog_user_shifts', [
+      'Shift A (06:00 - 14:00)',
+      'Shift B (14:00 - 22:00)',
+      'Shift C (22:00 - 06:00)',
+      'General (09:00 - 17:30)',
+      'Rotational (12 Hours)',
+    ]);
+  }
+
+  public saveUserShift(shift: string): string[] {
+    this.persistOptionToApi('userShifts', shift);
+    const updated = this.saveStoredList('reboot_erp_catalog_user_shifts', shift, this.getUserShifts());
+    adminEventBus.emit('USER_SHIFT_SAVED', shift);
+    return updated;
+  }
+
 
   public persistOptionToApi(apiKey: string, value: string): void {
     const clean = (value || '').trim();
@@ -1363,6 +1546,27 @@ class MasterDataGovernanceService {
     try {
       const res: any = await api.get('/master-data/options');
       const data = res?.data || res;
+      try {
+        const binRes: any = await api.get('/warehouse-bins', { params: { limit: 100 } });
+        const binRows = binRes?.data?.data || binRes?.data || [];
+        if (Array.isArray(binRows) && binRows.length > 0) {
+          const list = this.getBins();
+          const existingCodes = new Set(list.map((b) => b.code.toLowerCase()));
+          binRows.forEach((r: any) => {
+            const bCode = r.bin_code || r.binCode || r.code;
+            if (bCode && !existingCodes.has(bCode.toLowerCase())) {
+              list.push({
+                code: String(bCode).toUpperCase(),
+                warehouseCode: r.warehouse_id || r.warehouseId || 'RM-WH-01',
+                zone: r.zone || 'Storage Zone',
+              });
+              existingCodes.add(bCode.toLowerCase());
+            }
+          });
+          memSet('reboot_erp_master_bins', JSON.stringify(list));
+          adminEventBus.emit('BIN_MASTER_SAVED', {});
+        }
+      } catch (_) {}
       if (!data || typeof data !== 'object') return;
       const keyMap: Record<string, string> = {
         categories: 'reboot_erp_catalog_categories',
@@ -1379,6 +1583,14 @@ class MasterDataGovernanceService {
         pricingTiers: 'reboot_erp_catalog_pricing_tiers',
         workflowRoutes: 'reboot_erp_catalog_workflow_routes',
         bomClasses: 'reboot_erp_catalog_bom_classes',
+        cycleTimeSources: 'reboot_erp_catalog_cycle_time_sources',
+        bomComponentCategories: 'reboot_erp_catalog_bom_component_categories',
+        bomIssueMethods: 'reboot_erp_catalog_bom_issue_methods',
+        secondaryOperationTypes: 'reboot_erp_catalog_secondary_operation_types',
+        qualityCriticalParams: 'reboot_erp_catalog_quality_critical_params',
+        userDesignations: 'reboot_erp_catalog_user_designations',
+        userDepartments: 'reboot_erp_catalog_user_departments',
+        userShifts: 'reboot_erp_catalog_user_shifts',
       };
       let changed = false;
       for (const [apiKey, storageKey] of Object.entries(keyMap)) {
@@ -1395,7 +1607,34 @@ class MasterDataGovernanceService {
         bomVersions: { storageKey: 'reboot_erp_bom_versions', idField: 'id', eventName: 'BOM_VERSION_SAVED' },
         bomPlants: { storageKey: 'reboot_erp_master_plants', idField: 'code', eventName: 'PLANT_MASTER_SAVED' },
         bomOwners: { storageKey: 'reboot_erp_master_owners', idField: 'name', eventName: 'OWNER_MASTER_SAVED' },
+        operations: { storageKey: 'reboot_erp_master_operations', idField: 'name', eventName: 'OPERATION_MASTER_SAVED' },
+        workCenters: { storageKey: 'reboot_erp_master_workcenters', idField: 'code', eventName: 'WORK_CENTER_MASTER_SAVED' },
+        molds: { storageKey: 'reboot_erp_master_molds', idField: 'code', eventName: 'MOLD_MASTER_SAVED' },
+        runnerScrapCategories: { storageKey: 'reboot_erp_runner_scrap_categories', idField: 'name', eventName: 'RUNNER_SCRAP_SAVED' },
+        purgeLumpsCategories: { storageKey: 'reboot_erp_purge_lumps_categories', idField: 'name', eventName: 'PURGE_LUMPS_SAVED' },
       };
+      try {
+        const mchRes: any = await api.get('/machines', { params: { limit: 100 } });
+        const mchRows = mchRes?.data?.data || mchRes?.data || [];
+        if (Array.isArray(mchRows) && mchRows.length > 0) {
+          const list = this.getMachines();
+          const existingCodes = new Set(list.map((m) => m.code.toLowerCase()));
+          mchRows.forEach((r: any) => {
+            if (r.code && !existingCodes.has(r.code.toLowerCase())) {
+              list.push({
+                id: r.id || r.code,
+                code: r.code,
+                name: r.name || r.code,
+                brand: r.brand || 'Engel',
+                tonnage: Number(r.tonnage || 250),
+              });
+              existingCodes.add(r.code.toLowerCase());
+            }
+          });
+          memSet('reboot_erp_master_machines', JSON.stringify(list));
+          adminEventBus.emit('MACHINE_MASTER_SAVED', {});
+        }
+      } catch (_) {}
       for (const [apiKey, cfg] of Object.entries(jsonObjMap)) {
         const rawArr = data[apiKey];
         if (Array.isArray(rawArr) && rawArr.length > 0) {

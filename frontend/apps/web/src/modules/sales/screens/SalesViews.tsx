@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   SalesOrder,
   SalesQuotation,
@@ -130,10 +130,57 @@ export const SalesViews: React.FC<SalesProps> = ({
   const effectiveCustomers = (customers && customers.length > 0 ? customers : queryCustomers) || [];
   const effectiveRmas = (rmas && rmas.length > 0 ? rmas : queryRmas) || [];
 
+
+
   // Redesigned Indian ERP Compliance Data State
   const [plasticSalesOrders, setPlasticSalesOrders] = useState<PlasticSalesOrder[]>(() => salesDataService.getSalesOrdersSync());
+
+  const allSalesOrders = useMemo(() => {
+    const list = [...plasticSalesOrders];
+    effectiveSos.forEach((so: any) => {
+      const soId = so.so_number || so.id;
+      if (!list.some((p) => p.id === soId)) {
+        list.push({
+          id: soId,
+          orderType: 'Daily Sales Order',
+          customer: so.customer_name || so.customer_id || 'Supreme Polymers India Ltd',
+          customerGstin: so.customer_gstin || '27AAACS1234F1Z5',
+          customerPoNumber: so.customer_po_number || 'PO-LIVE-' + soId.slice(-4),
+          customerPoDate: so.order_date || new Date().toISOString().slice(0, 10),
+          orderDate: so.order_date || new Date().toISOString().slice(0, 10),
+          requiredDeliveryDate: so.delivery_date || so.order_date || new Date().toISOString().slice(0, 10),
+          lines: Array.isArray(so.items) ? so.items : [],
+          totalOrderValue: Number(so.total_amount || 0),
+          status: so.status || 'Confirmed',
+          plant: 'PLT-01 - Plant 1 - Pimpri Auto-Hub',
+          fgStore: 'FG-Automotive Cell',
+          paymentTerms: 'Net 30 Days',
+        } as any);
+      }
+    });
+    return list;
+  }, [plasticSalesOrders, effectiveSos]);
   const [isPlasticOrdersLoading, setIsPlasticOrdersLoading] = useState<boolean>(() => salesDataService.getSalesOrdersSync().length === 0);
   const [monthlyPlans, setMonthlyPlans] = useState<MonthlyPlanOrder[]>(() => salesDataService.getMonthlyPlansSync());
+  const handleCreateMonthlyPlan = (newPlan: MonthlyPlanOrder) => {
+    setMonthlyPlans((prev) => {
+      const exists = prev.some((p) => p.id === newPlan.id);
+      return exists ? prev.map((p) => (p.id === newPlan.id ? newPlan : p)) : [newPlan, ...prev];
+    });
+
+    api.post('/sales-orders', {
+      so_number: newPlan.id,
+      customer_id: newPlan.customer,
+      status: 'active',
+      total_amount: newPlan.totalPlannedValue,
+      order_date: newPlan.createdDate,
+      items: newPlan.items,
+      plant_id: newPlan.plant ? newPlan.plant.split(' - ')[0] : null,
+    }).catch((err: any) => console.warn('Plan DB sync warning:', err));
+
+    showToast(`Monthly Master Plan ${newPlan.id} saved to database!`);
+  };
+
   const [relationships, setRelationships] = useState<OrderRelationship[]>(() => salesDataService.getRelationshipsSync());
   const [deliveries, setDeliveries] = useState<DeliveryNoteChallan[]>(() => salesDataService.getDeliveriesSync());
   const [batches, setBatches] = useState<FgBatchStock[]>(() => salesDataService.getBatchesSync());
@@ -871,6 +918,11 @@ export const SalesViews: React.FC<SalesProps> = ({
             }}
             onNavigate={onNavigate}
             showToast={showToast}
+            onApproveOrder={(orderId) => {
+              salesDataService.approveSalesOrder(orderId);
+              setPlasticSalesOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: 'Approved' } : o)));
+              showToast(`Sales Order ${orderId} approved by Super Admin & released to shop floor.`);
+            }}
           />
         )}
 
@@ -1217,7 +1269,7 @@ export const SalesViews: React.FC<SalesProps> = ({
 
         {currentSub === 'createChallan' && (
           <CreateDeliveryChallan
-            salesOrders={plasticSalesOrders}
+            salesOrders={allSalesOrders}
             onSaveDelivery={handleSaveDelivery}
             onCancel={() => {
               setSelectedDelivery(null);

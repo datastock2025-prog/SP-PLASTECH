@@ -359,7 +359,7 @@
 - **PostgreSQL RLS & Better-Auth Hardening**:
   - Fixed PostgreSQL RLS policy `user_password_history_tenant_isolation` from `AS RESTRICTIVE` to `AS PERMISSIVE` (allowing password updates under non-superuser `erp_app` role without 42501 violations).
   - Provisioned missing Better-Auth `jwks` table and `user.displayUsername` column.
-  - Initialized bootstrap administrator account with active status and synchronized credentials (`admin` / `Plas!Tech#Boot91`).
+  - Initialized bootstrap administrator account with active status and synchronized credentials (`admin` / `[CONFIGURED_BOOTSTRAP_PASSWORD]`).
 - **Frontend Dynamic Data Enforcement**:
   - Verified `MasterDataViews.tsx` strictly consumes dynamic database rows via TanStack Query (`usePaginatedItems`) with zero mock/dummy data fallbacks.
 

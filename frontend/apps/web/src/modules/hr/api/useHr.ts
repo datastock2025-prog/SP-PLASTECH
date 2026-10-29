@@ -13,7 +13,7 @@ import {
 
 export function useEmployees(filter?: any) {
   return useQuery<HrEmployee[]>({
-    queryKey: queryKeys.hr.employees(filter),
+    queryKey: [...queryKeys.hr.employees(), filter],
     queryFn: async () => {
       const res = await api.get<any>('/employees', {
         params: { limit: filter?.limit ?? 100, page: filter?.page ?? 1, sortBy: 'created_at', sortOrder: 'desc', includeTotal: true, ...filter },

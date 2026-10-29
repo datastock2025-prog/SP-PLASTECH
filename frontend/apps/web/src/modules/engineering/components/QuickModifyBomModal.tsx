@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { BomMaster, BomLine, ItemMaster, ApprovalStatus } from '@/src/types';
 import { Edit2, X, Fingerprint, Layers, FolderTree, Check } from 'lucide-react';
 import { masterDataGovernanceService } from '@/src/services/masterDataGovernanceService';
+import { useMe } from '@/src/features/identity/useIdentity';
+import { bomEndpoints } from '@/src/lib/api-client';
+import { ShieldAlert, ShieldCheck, CheckCircle2, XCircle, ArrowUpRight } from 'lucide-react';
 
 export interface QuickModifyBomModalProps {
   bom: BomMaster | null;
@@ -22,11 +25,34 @@ export const QuickModifyBomModal: React.FC<QuickModifyBomModalProps> = ({
   onOpenWizard,
   showToast,
 }) => {
+  const { data: me } = useMe();
+  const isSuperAdmin = Boolean(
+    me?.roleCode === 'SUPER_ADMIN' ||
+    me?.roleName?.toLowerCase().includes('super') ||
+    (me?.abilityRules || []).some((r) => r.action === 'manage' && (r.subject === 'all' || r.subject === 'BillOfMaterial' || r.subject === 'Bom'))
+  );
+
   const [quickModifyBom, setQuickModifyBom] = useState<BomMaster | null>(initialBom);
 
   useEffect(() => {
+    if (!initialBom) {
+      setQuickModifyBom(null);
+      return;
+    }
     setQuickModifyBom(initialBom);
+
+    // If lines are missing or empty, fetch live representation from API
+    if (!initialBom.lines || initialBom.lines.length === 0) {
+      bomEndpoints.getBomById(initialBom.id).then((fresh) => {
+        if (fresh && Array.isArray(fresh.lines) && fresh.lines.length > 0) {
+          setQuickModifyBom((prev) => prev ? { ...prev, lines: fresh.lines } : prev);
+        }
+      }).catch((e) => console.debug('[QuickModifyBomModal] Live lines fetch note:', e));
+    }
   }, [initialBom]);
+
+  const isApproved = quickModifyBom?.status === 'approved' || quickModifyBom?.status === 'released';
+  const isLocked = Boolean(isApproved && !isSuperAdmin);
 
   if (!quickModifyBom) return null;
 
@@ -65,27 +91,88 @@ export const QuickModifyBomModal: React.FC<QuickModifyBomModalProps> = ({
 
         {/* Modal Body */}
         <div className="p-5 overflow-y-auto space-y-5 flex-1 [scrollbar-width:thin]">
-          {/* Lifecycle & Status Bar */}
+          {/* Live Approval Status & Workflow Gate */}
           <div className="p-3.5 bg-[#F9F8F5] rounded-xl border border-[#E4E0D6] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <span className="text-xs font-bold text-[#14213D] block">Recipe Approval Lifecycle State</span>
-              <span className="text-[11px] text-gray-500">Update governance stage for shop floor release</span>
+            <div className="flex items-center gap-3">
+              <div>
+                <span className="text-xs font-bold text-[#14213D] block flex items-center gap-1.5">
+                  Approval Status &amp; Governance
+                  {isApproved ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      <ShieldCheck className="w-3 h-3 text-emerald-600" /> APPROVED &amp; ACTIVE
+                    </span>
+                  ) : quickModifyBom.status === 'under_review' ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                      UNDER REVIEW / PENDING APPROVAL
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                      DRAFT
+                    </span>
+                  )}
+                </span>
+                <span className="text-[11px] text-gray-500">
+                  {isApproved
+                    ? isSuperAdmin
+                      ? 'SuperAdmin mode active: You have full CRUD authority to modify this approved BOM.'
+                      : 'This BOM is APPROVED. All modifications are locked for standard users to protect production.'
+                    : 'BOM is currently open for engineering adjustments and review.'}
+                </span>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {(['draft', 'under_review', 'approved', 'released', 'obsolete'] as ApprovalStatus[]).map((st) => (
+
+            {/* Live Approval Actions */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {quickModifyBom.status === 'draft' && (
                 <button
-                  key={st}
                   type="button"
-                  onClick={() => setQuickModifyBom({ ...quickModifyBom, status: st })}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg capitalize border transition-all ${
-                    quickModifyBom.status === st
-                      ? 'bg-[#14213D] text-white border-[#14213D] shadow-xs'
-                      : 'bg-white text-gray-600 border-[#E4E0D6] hover:border-gray-400'
-                  }`}
+                  onClick={() => {
+                    setQuickModifyBom({ ...quickModifyBom, status: 'under_review' });
+                    showToast('BOM submitted for technical review & approval gate.');
+                  }}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 flex items-center gap-1.5 transition-all shadow-xs"
                 >
-                  {st.replace('_', ' ')}
+                  <ArrowUpRight className="w-3.5 h-3.5" /> Submit for Approval
                 </button>
-              ))}
+              )}
+
+              {(quickModifyBom.status === 'under_review' || isSuperAdmin) && quickModifyBom.status !== 'approved' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickModifyBom({ ...quickModifyBom, status: 'approved' });
+                      showToast('✓ BOM approved and released for production scheduling!');
+                    }}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 flex items-center gap-1.5 transition-all shadow-xs"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Approve BOM
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickModifyBom({ ...quickModifyBom, status: 'draft' });
+                      showToast('BOM returned to Draft status.');
+                    }}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 flex items-center gap-1.5 transition-all shadow-xs"
+                  >
+                    <XCircle className="w-3.5 h-3.5" /> Reject / Return
+                  </button>
+                </>
+              )}
+
+              {isApproved && isSuperAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuickModifyBom({ ...quickModifyBom, status: 'draft' });
+                    showToast('SuperAdmin: Approval revoked. BOM returned to Draft.');
+                  }}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100 flex items-center gap-1.5 transition-all"
+                >
+                  Revoke Approval to Draft
+                </button>
+              )}
             </div>
           </div>
 
@@ -98,7 +185,7 @@ export const QuickModifyBomModal: React.FC<QuickModifyBomModalProps> = ({
                 value={quickModifyBom.version || 'v1.0'}
                 onChange={(e) => setQuickModifyBom({ ...quickModifyBom, version: e.target.value })}
                 className="w-full py-2 px-3 border border-[#E4E0D6] rounded-lg font-mono text-xs focus:border-[#0F8B8D] outline-none"
-                placeholder="e.g. v1.0"
+                placeholder="e.g. v1.0" disabled={isLocked}
               />
             </div>
 
@@ -107,7 +194,7 @@ export const QuickModifyBomModal: React.FC<QuickModifyBomModalProps> = ({
               <select
                 value={quickModifyBom.processType || 'Injection Molding'}
                 onChange={(e) => setQuickModifyBom({ ...quickModifyBom, processType: e.target.value as any })}
-                className="w-full py-2 px-3 border border-[#E4E0D6] rounded-lg text-xs focus:border-[#0F8B8D] outline-none bg-white"
+                className="w-full py-2 px-3 border border-[#E4E0D6] rounded-lg text-xs focus:border-[#0F8B8D] outline-none bg-white disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed" disabled={isLocked}
               >
                 <option value="Injection Molding">Injection Molding</option>
                 <option value="Blow Molding">Blow Molding</option>
@@ -121,7 +208,7 @@ export const QuickModifyBomModal: React.FC<QuickModifyBomModalProps> = ({
               <label className="text-xs font-bold text-[#14213D] block mb-1">Batch Size ({quickModifyBom.baseUOM || 'PCS'})</label>
               <input
                 type="number"
-                value={quickModifyBom.batchSize || 1000}
+                disabled={isLocked} value={quickModifyBom.batchSize || 1000}
                 onChange={(e) => setQuickModifyBom({ ...quickModifyBom, batchSize: parseFloat(e.target.value) || 0 })}
                 className="w-full py-2 px-3 border border-[#E4E0D6] rounded-lg font-mono text-xs focus:border-[#0F8B8D] outline-none"
               />
@@ -132,7 +219,7 @@ export const QuickModifyBomModal: React.FC<QuickModifyBomModalProps> = ({
               <input
                 type="number"
                 step="0.01"
-                value={quickModifyBom.standardCost || 0}
+                disabled={isLocked} value={quickModifyBom.standardCost || 0}
                 onChange={(e) => setQuickModifyBom({ ...quickModifyBom, standardCost: parseFloat(e.target.value) || 0 })}
                 className="w-full py-2 px-3 border border-[#E4E0D6] rounded-lg font-mono font-bold text-xs focus:border-[#0F8B8D] outline-none text-[#14213D]"
               />
@@ -143,7 +230,7 @@ export const QuickModifyBomModal: React.FC<QuickModifyBomModalProps> = ({
               <input
                 type="number"
                 step="0.1"
-                value={quickModifyBom.yieldPct || 98.5}
+                disabled={isLocked} value={quickModifyBom.yieldPct || 98.5}
                 onChange={(e) => setQuickModifyBom({ ...quickModifyBom, yieldPct: parseFloat(e.target.value) || 0 })}
                 className="w-full py-2 px-3 border border-[#E4E0D6] rounded-lg font-mono text-xs focus:border-[#0F8B8D] outline-none text-emerald-700 font-bold"
               />
@@ -154,7 +241,7 @@ export const QuickModifyBomModal: React.FC<QuickModifyBomModalProps> = ({
               <input
                 type="number"
                 step="0.1"
-                value={quickModifyBom.scrapPct || 1.5}
+                disabled={isLocked} value={quickModifyBom.scrapPct || 1.5}
                 onChange={(e) => setQuickModifyBom({ ...quickModifyBom, scrapPct: parseFloat(e.target.value) || 0 })}
                 className="w-full py-2 px-3 border border-[#E4E0D6] rounded-lg font-mono text-xs focus:border-[#0F8B8D] outline-none text-rose-600 font-bold"
               />
@@ -173,7 +260,7 @@ export const QuickModifyBomModal: React.FC<QuickModifyBomModalProps> = ({
                   setQuickModifyBom({ ...quickModifyBom, routings: updatedRoutings });
                 }}
                 className="w-full py-2 px-3 border border-[#E4E0D6] rounded-lg text-xs focus:border-[#0F8B8D] outline-none"
-                placeholder="e.g. WC-INJ-01"
+                placeholder="e.g. WC-INJ-01" disabled={isLocked}
               />
             </div>
 
@@ -192,7 +279,7 @@ export const QuickModifyBomModal: React.FC<QuickModifyBomModalProps> = ({
                   });
                 }}
                 className="w-full py-2 px-3 border border-[#E4E0D6] rounded-lg text-xs focus:border-[#0F8B8D] outline-none font-mono"
-                placeholder="e.g. MOLD-INJ-084"
+                placeholder="e.g. MOLD-INJ-084" disabled={isLocked}
               />
             </div>
           </div>
@@ -353,7 +440,7 @@ export const QuickModifyBomModal: React.FC<QuickModifyBomModalProps> = ({
                               <input
                                 type="number"
                                 step="0.0001"
-                                value={line.qty}
+                                disabled={isLocked} value={line.qty}
                                 onChange={(e) => {
                                   const newQty = parseFloat(e.target.value) || 0;
                                   const updatedLines = [...quickModifyBom.lines];
@@ -378,7 +465,7 @@ export const QuickModifyBomModal: React.FC<QuickModifyBomModalProps> = ({
                               <input
                                 type="number"
                                 step="0.1"
-                                value={line.scrapPct ?? 1.5}
+                                disabled={isLocked} value={line.scrapPct ?? 1.5}
                                 onChange={(e) => {
                                   const newScrap = parseFloat(e.target.value) || 0;
                                   const updatedLines = [...quickModifyBom.lines];
@@ -421,7 +508,7 @@ export const QuickModifyBomModal: React.FC<QuickModifyBomModalProps> = ({
               rows={2}
               value={quickModifyBom.notes || ''}
               onChange={(e) => setQuickModifyBom({ ...quickModifyBom, notes: e.target.value })}
-              placeholder="Enter revision notes, engineering change justification, or production instructions..."
+              placeholder="Enter revision notes, engineering change justification, or production instructions..." disabled={isLocked}
               className="w-full py-2 px-3 border border-[#E4E0D6] rounded-lg text-xs focus:border-[#0F8B8D] outline-none resize-none"
             />
           </div>
@@ -468,8 +555,14 @@ export const QuickModifyBomModal: React.FC<QuickModifyBomModalProps> = ({
             </button>
             <button
               type="button"
+              disabled={isLocked}
+              title={isLocked ? 'Approved BOM is locked. Only Super Admin can edit approved BOMs.' : 'Save Changes'}
               onClick={() => {
-                if (!masterDataGovernanceService.canUserPerformAction('edit_bom')) {
+                if (isLocked) {
+                  showToast('Cannot modify: Approved BOM is locked for production. Only Super Admin can edit.');
+                  return;
+                }
+                if (!isSuperAdmin && !masterDataGovernanceService.canUserPerformAction('edit_bom')) {
                   showToast('Admin permission required to save BOM changes.');
                   return;
                 }
@@ -477,9 +570,13 @@ export const QuickModifyBomModal: React.FC<QuickModifyBomModalProps> = ({
                 showToast(`✓ BOM ${quickModifyBom.id} (${quickModifyBom.parentName}) updated successfully!`);
                 onClose();
               }}
-              className="btn btn-sm btn-primary text-xs flex items-center gap-1.5 shadow-sm"
+              className={`btn btn-sm text-xs flex items-center gap-1.5 shadow-sm ${
+                isLocked
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed border-gray-300'
+                  : 'btn-primary'
+              }`}
             >
-              <Check className="w-3.5 h-3.5" /> Save Changes
+              <Check className="w-3.5 h-3.5" /> {isApproved && isSuperAdmin ? 'Save Changes (SuperAdmin)' : 'Save Changes'}
             </button>
           </div>
         </div>

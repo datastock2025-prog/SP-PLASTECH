@@ -1,0 +1,80 @@
+# ==============================================================================
+# SP-PLASTECH ERP — PRODUCTION CONTAINER TOPOLOGY
+# Usage: podman compose -f compose.prod.yaml up -d
+# Security: Zero host code mounts, non-root user, immutable static assets
+# ==============================================================================
+
+name: sp-plastech-prod
+
+services:
+  db:
+    image: docker.io/library/postgres:16-alpine
+    container_name: sp-plastech-prod-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${PROD_DB_USER:-erp}
+      POSTGRES_PASSWORD: ${PROD_DB_PASSWORD}
+      POSTGRES_DB: ${PROD_DB_NAME:-erp}
+    volumes:
+      - prod_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${PROD_DB_USER:-erp}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    image: ghcr.io/amacneil/dbmate
+    command: --migrations-dir /db/migrations --wait up
+    environment:
+      DATABASE_URL: "postgres://${PROD_DB_USER:-erp}:${PROD_DB_PASSWORD}@db:5432/${PROD_DB_NAME:-erp}?sslmode=disable"
+    volumes:
+      - "./db/migrations:/db/migrations:ro"
+    depends_on:
+      db: { condition: service_healthy }
+
+  api:
+    image: sp-plastech-api:prod
+    build:
+      context: ./middleware
+      dockerfile: Dockerfile
+      target: prod
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://${PROD_DB_USER:-erp}:${PROD_DB_PASSWORD}@db:5432/${PROD_DB_NAME:-erp}
+      AUTH_DATABASE_URL: postgres://${PROD_DB_USER:-erp}:${PROD_DB_PASSWORD}@db:5432/${PROD_DB_NAME:-erp}
+      PORT: "4000"
+      BETTER_AUTH_SECRET: ${PROD_AUTH_SECRET}
+      AUTH_TRUSTED_ORIGINS: ${PROD_TRUSTED_ORIGINS}
+    ports:
+      - "4000:4000"
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -fs http://localhost:4000/health || exit 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  web:
+    image: sp-plastech-web:prod
+    build:
+      context: .
+      dockerfile: containers/frontend.Dockerfile
+      target: prod
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -fs http://localhost:3000 || exit 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      api: { condition: service_healthy }
+
+volumes:
+  prod_pgdata:
+    name: sp-plastech-prod_pgdata
+

@@ -27,7 +27,7 @@ services:
 
   api:
     image: sp-plastech-dev-api:latest
-    build: { context: ./middleware, dockerfile: Dockerfile.dev }
+    build: { context: ./middleware, dockerfile: Dockerfile, target: dev }
     command: npm run dev
     environment:
       DATABASE_URL: postgres://erp:${DEV_DB_PASSWORD:-erp_local_only}@db:5432/erp
@@ -44,11 +44,17 @@ services:
     volumes:
       - "./middleware:/app:Z"
       - "/app/node_modules"
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:4000/health || exit 1" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     depends_on: { migrate: { condition: service_completed_successfully } }
 
   web:
     image: sp-plastech-dev-web:latest
-    build: { context: ., dockerfile: containers/frontend.Dockerfile }
+    build: { context: ., dockerfile: containers/frontend.Dockerfile, target: dev }
     command: npm run dev
     environment:
       BACKEND_URL: http://api:4000
@@ -58,7 +64,7 @@ services:
       - ".:/workspace:Z"
       - "/workspace/node_modules"
       - "/workspace/frontend/node_modules"
-    depends_on: { api: { condition: service_started } }
+    depends_on: { api: { condition: service_healthy } }
 
 volumes:
   pgdata:

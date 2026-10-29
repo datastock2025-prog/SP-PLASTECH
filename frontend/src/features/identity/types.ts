@@ -48,6 +48,7 @@ export const ManagedUserSchema = z.object({
   roleCode: z.string(),
   roleName: z.string(),
   plantIds: z.array(z.string()),
+  lastSetPassword: z.string().nullable().optional(),
 });
 export type ManagedUser = z.infer<typeof ManagedUserSchema>;
 

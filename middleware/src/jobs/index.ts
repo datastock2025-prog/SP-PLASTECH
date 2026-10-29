@@ -2,6 +2,7 @@ import { PgBoss } from 'pg-boss';
 import { config } from '../config.js';
 import { getDrizzle, schema } from '../db.js';
 import { and, eq, sql } from 'drizzle-orm';
+import { processReportJob } from '../modules/document-hub/worker.js';
 
 let bossInstance: PgBoss | null = null;
 
@@ -41,6 +42,7 @@ async function registerWorkers(boss: PgBoss) {
   await boss.createQueue('data-job-process');
   await boss.createQueue('retention-purge');
   await boss.createQueue('backup-run');
+  await boss.createQueue('report-job-process');
 
   // 1. Data Import Batch Processing
   await boss.work('data-job-process', async (jobs) => {
@@ -110,6 +112,19 @@ async function registerWorkers(boss: PgBoss) {
           eq(schema.backupRuns.id, backupRunId),
           eq(schema.backupRuns.tenantId, tenantId),
         ));
+    }
+  });
+
+  // 4. Document Hub Report Generation Processing
+  await boss.work('report-job-process', async (jobs) => {
+    for (const job of jobs) {
+      const { jobId, tenantId } = job.data as { jobId: string; tenantId: string };
+      console.log(`[pg-boss] Processing report generation job ${jobId} for tenant ${tenantId}`);
+      try {
+        await processReportJob(jobId, tenantId);
+      } catch (err: any) {
+        console.error(`[pg-boss] Report generation job ${jobId} failed:`, err?.message);
+      }
     }
   });
 }

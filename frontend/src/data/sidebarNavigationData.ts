@@ -299,6 +299,7 @@ export const NAVIGATION_GROUPS: NavGroupDef[] = [
     defaultExpanded: false,
     items: [
       { id: 'nav-ana-kpi', label: 'Executive KPI Dashboard', view: 'analyticsDash', icon: 'BarChart3' },
+      { id: 'nav-ana-doc-hub', label: 'Document Hub & Reports', view: 'documentHub', icon: 'FileSpreadsheet', badge: 'Async', badgeColor: 'bg-[#0F8B8D]' },
       { id: 'nav-ana-oee', label: 'OEE Analytics & Loss Pareto', view: 'oeeDash', icon: 'PieChart' },
       { id: 'nav-ana-quality', label: 'Quality Defect PPM & Six Sigma', view: 'qualityReports', icon: 'Award' },
       { id: 'nav-ana-aging', label: 'Inventory Aging & Velocity', view: 'scmInventoryAging', icon: 'Clock' },

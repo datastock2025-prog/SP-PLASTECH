@@ -127,7 +127,30 @@ export const crmApi = {
     try {
       const res = await api.get<any>('/crm-accounts', { params: { limit: 100 } });
       const rows = res?.data?.data || res?.data;
-      if (Array.isArray(rows)) return rows;
+      if (Array.isArray(rows)) {
+        return rows.map((c: any): any => ({
+          id: c.id || c.code,
+          accountCode: c.code || c.accountCode,
+          accountName: c.name || c.accountName,
+          customerGroup: c.customer_type || c.customerGroup || 'Automotive Tier-1',
+          accountManager: c.created_by || 'Field Sales Lead',
+          creditStatus: (c.status === 'active' || c.status === 'approved') ? 'Approved' : 'Review Required',
+          creditLimit: Number(c.credit_limit || c.creditLimit || 1000000),
+          availableCredit: Number(c.credit_limit || c.creditLimit || 1000000),
+          outstandingDues: 0,
+          openOrdersCount: 0,
+          ytdSales: 0,
+          accountHealth: 'Good',
+          paymentTerms: c.payment_terms || c.paymentTerms || 'Net 30 Days',
+          gstin: c.gstin || '',
+          pan: c.pan || '',
+          state: Array.isArray(c.billing_addresses) ? c.billing_addresses[0]?.state || 'Maharashtra' : 'Maharashtra',
+          city: Array.isArray(c.billing_addresses) ? c.billing_addresses[0]?.city || '' : '',
+          phone: Array.isArray(c.contacts) ? c.contacts[0]?.phone || '' : '',
+          email: Array.isArray(c.contacts) ? c.contacts[0]?.email || '' : '',
+          version: c.version || 1,
+        }));
+      }
     } catch {}
     return [];
   },

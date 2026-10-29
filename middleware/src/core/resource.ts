@@ -13,6 +13,7 @@ import { and, count, desc, eq, getTableColumns } from 'drizzle-orm';
 import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { is } from 'drizzle-orm';
 import { withDrizzleTx } from '../db.js';
+import { AppError } from './errors.js';
 import { can, wrap, type Actor } from '../middleware.js';
 import type { Subject } from '../ability.js';
 import type { Req, Res } from '../router.js';
@@ -27,6 +28,7 @@ export interface ResourceRouterConfig<TRow = any, TCreate = any, TUpdate = any> 
   subject: Subject;
   table: string;
   columns?: string[];
+  writableColumns?: string[];
   searchColumns?: string[];
   filterColumns?: string[];
   plantScoped?: boolean;
@@ -128,6 +130,16 @@ export function registerResourceRoutes<TRow = any, TCreate = any, TUpdate = any>
     const a = req.actor! as Actor;
     const id = parseId(req);
     const parsed = config.updateSchema.parse(req.body) as Record<string, unknown>;
+    const IMMUTABLE = ['id', 'tenantId', 'tenant_id', 'deletedAt', 'deleted_at', 'createdAt', 'created_at'];
+    for (const k of IMMUTABLE) delete parsed[k];
+
+    if (config.writableColumns && config.writableColumns.length > 0) {
+      const allowed = new Set([...config.writableColumns, 'version']);
+      const disallowed = Object.keys(parsed).filter((k) => !allowed.has(k));
+      if (disallowed.length > 0) {
+        throw new AppError(422, 'UNWRITABLE_FIELD', `Fields not writable on ${config.subject}: ${disallowed.join(', ')}`);
+      }
+    }
     const data = await tx(a, async (db, client) => {
       let patch = parsed;
       if (config.beforeUpdate && parsed.version != null) {

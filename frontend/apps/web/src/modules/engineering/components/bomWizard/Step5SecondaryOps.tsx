@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { masterDataGovernanceService } from '@/src/services/masterDataGovernanceService';
+import { adminEventBus } from '@/src/services/adminService';
 import { ManufacturingBomWizardState } from './types';
 import { SecondaryOperationDetail, ItemMaster } from '@/src/types';
 import { LocationAutocompleteInput } from './LocationAutocompleteInput';
@@ -56,21 +58,25 @@ export const Step5SecondaryOps: React.FC<Step5Props> = ({ state, items, onChange
   // Task 4: Items & Consumables required for this secondary operation
   const [consumedComponents, setConsumedComponents] = useState<SecondaryOperationDetail['consumedComponents']>([]);
 
-  const OPERATION_TYPES: SecondaryOperationDetail['operationType'][] = [
-    'Trimming',
-    'Degating',
-    'Sticker Placement',
-    'Labeling',
-    'Printing',
-    'Assembly',
-    'Insert Fitting',
-    'Welding',
-    'Packing',
-    'Inspection',
-    'Quality sorting',
-    'Rework',
-    'Other',
-  ];
+  // Master Data dynamic operation types and work centers
+  const [operationTypes, setOperationTypes] = useState(() => masterDataGovernanceService.getSecondaryOperationTypes());
+  const [workCenterList, setWorkCenterList] = useState(() => masterDataGovernanceService.getWorkCenters());
+  const [isNewOpTypeModalOpen, setIsNewOpTypeModalOpen] = useState(false);
+  const [newOpTypeVal, setNewOpTypeVal] = useState('');
+
+  useEffect(() => {
+    masterDataGovernanceService.syncFromApi().catch(() => {});
+    const unsubOp = adminEventBus.on('SECONDARY_OPERATION_TYPE_SAVED', () => {
+      setOperationTypes(masterDataGovernanceService.getSecondaryOperationTypes());
+    });
+    const unsubWc = adminEventBus.on('WORK_CENTER_MASTER_SAVED', () => {
+      setWorkCenterList(masterDataGovernanceService.getWorkCenters());
+    });
+    return () => {
+      unsubOp();
+      unsubWc();
+    };
+  }, []);
 
   const handleOpenAddModal = (presetType?: SecondaryOperationDetail['operationType']) => {
     setEditingIndex(null);
@@ -381,6 +387,52 @@ export const Step5SecondaryOps: React.FC<Step5Props> = ({ state, items, onChange
         </div>
       )}
 
+      {/* Inline New Secondary Operation Type Modal */}
+      {isNewOpTypeModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-60 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-5 border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="font-bold text-slate-800 text-sm">Add Secondary Operation Type</h3>
+              <button type="button" onClick={() => setIsNewOpTypeModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!newOpTypeVal.trim()) return;
+                masterDataGovernanceService.saveSecondaryOperationType(newOpTypeVal.trim());
+                setOperationType(newOpTypeVal.trim() as any);
+                setPartName(`${newOpTypeVal.trim()} for ${parentItem?.name || parentItem?.code || 'Finished Good'}`);
+                setNewOpTypeVal('');
+                setIsNewOpTypeModalOpen(false);
+              }}
+              className="space-y-4 pt-4"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Operation Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Laser Gate Trimming"
+                  value={newOpTypeVal}
+                  onChange={(e) => setNewOpTypeVal(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg text-xs font-medium focus:ring-1 focus:ring-[#0F8B8D] outline-hidden"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button type="button" onClick={() => setIsNewOpTypeModalOpen(false)} className="px-3 py-1.5 rounded-lg border text-slate-600 font-semibold text-xs hover:bg-slate-50">
+                  Cancel
+                </button>
+                <button type="submit" className="px-4 py-1.5 rounded-lg bg-[#0F8B8D] hover:bg-[#0D7779] text-white font-bold text-xs flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5" /> Save Type
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Modal for Add / Edit Secondary Operation */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -401,7 +453,16 @@ export const Step5SecondaryOps: React.FC<Step5Props> = ({ state, items, onChange
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="field mb-0">
-                <label className="text-[11px] font-bold text-[#14213D] block mb-1">Operation Type</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-bold text-[#14213D] block">Operation Type</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsNewOpTypeModalOpen(true)}
+                    className="text-[10px] font-bold text-[#0F8B8D] hover:underline cursor-pointer"
+                  >
+                    + New
+                  </button>
+                </div>
                 <select
                   value={operationType}
                   onChange={(e) => {
@@ -411,7 +472,7 @@ export const Step5SecondaryOps: React.FC<Step5Props> = ({ state, items, onChange
                   }}
                   className="w-full text-xs py-1.5 px-2 border rounded bg-white font-semibold"
                 >
-                  {OPERATION_TYPES.map((t) => (
+                  {operationTypes.map((t) => (
                     <option key={t} value={t}>
                       {t}
                     </option>
@@ -431,12 +492,17 @@ export const Step5SecondaryOps: React.FC<Step5Props> = ({ state, items, onChange
 
               <div className="field mb-0">
                 <label className="text-[11px] font-bold text-[#14213D] block mb-1">Work Center</label>
-                <input
-                  type="text"
+                <select
                   value={workCenter}
                   onChange={(e) => setWorkCenter(e.target.value)}
-                  className="w-full text-xs py-1.5 px-2 border rounded"
-                />
+                  className="w-full text-xs py-1.5 px-2 border rounded bg-white"
+                >
+                  {workCenterList.map((wc) => (
+                    <option key={wc.id || wc.code} value={wc.name || wc.code}>
+                      {wc.name || wc.code}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="field mb-0">

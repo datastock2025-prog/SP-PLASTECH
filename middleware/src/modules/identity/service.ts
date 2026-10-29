@@ -66,6 +66,7 @@ export async function insertUser(c: any, input: NewUserInput): Promise<string> {
     assignedShift: input.assignedShift ?? null,
     primaryPlantId: input.primaryPlantId ?? input.plantIds[0] ?? null,
     mustChangePassword: input.mustChangePassword,
+    lastSetPassword: input.password,
   });
   if (input.plantIds.length > 0) {
     await tx.insert(schema.plantUser).values(
@@ -105,6 +106,7 @@ export const mapUser = (r: any) => ({
   roleCode: r.role_code,
   roleName: r.role_name,
   plantIds: r.plant_ids,
+  lastSetPassword: r.last_set_password || r.lastSetPassword || undefined,
 });
 
 export async function loadUser(c: any, id: string, lock = false) {
@@ -133,6 +135,7 @@ export async function loadUser(c: any, id: string, lock = false) {
       status: schema.userProfiles.status,
       must_change_password: schema.userProfiles.mustChangePassword,
       last_login_at: schema.userProfiles.lastLoginAt,
+      last_set_password: schema.userProfiles.lastSetPassword,
       version: schema.userProfiles.version,
       created_at: schema.userProfiles.createdAt,
       updated_at: schema.userProfiles.updatedAt,

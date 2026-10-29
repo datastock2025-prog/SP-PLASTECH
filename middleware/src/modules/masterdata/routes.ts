@@ -6,12 +6,30 @@ import { itemRepository } from './items.repository.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+const GOVERNED_OPTION_KEYS = new Set([
+  'categories', 'itemGroups', 'uoms', 'plantScopes', 'resinTypes', 'colors',
+  'complianceMandates', 'testingLabs', 'packingStandards', 'processingMethods',
+  'samplingPlans', 'pricingTiers', 'bomClasses', 'cycleTimeSources',
+  'bomComponentCategories', 'bomIssueMethods', 'secondaryOperationTypes',
+  'secondaryWorkCenters', 'secondaryStockStatuses', 'secondaryInventoryImpacts',
+  'runnerScrapCategories', 'purgeLumpsCategories', 'qualityCriticalParams',
+  'bomDocumentTypes', 'operations', 'workCenters', 'molds', 'bomVersions', 'bomPlants', 'bomOwners', 'workflowRoutes', 'userDesignations', 'userDepartments', 'userShifts',
+  'reasonCodes', 'quickActions', 'parametersUdf', 'documentSettings', 'userGroups', 'systemParameters'
+]);
+
+const masterOptionsCache = new Map<string, { data: any; cachedAt: number }>();
+
 export function masterdataRoutes(r: any) {
   // ── Dynamic Admin-Governed Catalog Options (Persisted in PostgreSQL system_parameters + approval_workflows + plants) ──
   r.get(
     '/master-data/options',
+    can('read', 'Item'),
     wrap(async (req, res) => {
       const a = req.actor! as Actor;
+      const cached = masterOptionsCache.get(a.tenantId);
+      if (cached && Date.now() - cached.cachedAt < 30_000) {
+        return res.json({ data: cached.data });
+      }
       const data = await withDrizzleTx(
         ctx(a),
         async (tx) => {
@@ -68,6 +86,7 @@ export function masterdataRoutes(r: any) {
         },
         { readOnly: true }
       );
+      masterOptionsCache.set(a.tenantId, { data, cachedAt: Date.now() });
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.json({ data });
     })
@@ -75,6 +94,7 @@ export function masterdataRoutes(r: any) {
 
   r.post(
     '/master-data/options',
+    can('create', 'Item'),
     wrap(async (req, res) => {
       const a = req.actor! as Actor;
       const body = req.body ?? {};
@@ -83,6 +103,12 @@ export function masterdataRoutes(r: any) {
       const valuesInput = Array.isArray(body.values) ? body.values.map((v: any) => String(v).trim()).filter(Boolean) : [];
       if (!key || (!value && valuesInput.length === 0)) {
         return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'key and value are required' } });
+      }
+      if (!GOVERNED_OPTION_KEYS.has(key)) {
+        return res.status(400).json({ error: { code: 'INVALID_KEY', message: `Option key '${key}' is not allowed` } });
+      }
+      if (key === 'workflowRoutes' && a.roleCode !== 'SUPER_ADMIN' && a.roleCode !== 'USER_ADMIN') {
+        return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Only administrators can configure workflow routes' } });
       }
 
       const updated = await withDrizzleTx(ctx(a), async (tx) => {

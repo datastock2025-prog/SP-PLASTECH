@@ -113,12 +113,12 @@ export const AdminReasonCodesView: React.FC<AdminReasonCodesViewProps> = ({
 
   const filteredCodes = reasonCodes.filter((rc) => {
     const matchDept = selectedDept === 'ALL' || rc.department === selectedDept;
-    const matchSubCat = selectedSubCat === 'ALL' || rc.subCategory.toLowerCase() === selectedSubCat.toLowerCase();
+    const matchSubCat = selectedSubCat === 'ALL' || (rc.subCategory || '').toLowerCase() === (selectedSubCat || '').toLowerCase();
     const matchSearch =
-      rc.code.toLowerCase().includes(search.toLowerCase()) ||
-      rc.title.toLowerCase().includes(search.toLowerCase()) ||
-      rc.description.toLowerCase().includes(search.toLowerCase()) ||
-      rc.subCategory.toLowerCase().includes(search.toLowerCase());
+      (rc.code || '').toLowerCase().includes((search || '').toLowerCase()) ||
+      (rc.title || '').toLowerCase().includes((search || '').toLowerCase()) ||
+      (rc.description || '').toLowerCase().includes((search || '').toLowerCase()) ||
+      (rc.subCategory || '').toLowerCase().includes((search || '').toLowerCase());
     return matchDept && matchSubCat && matchSearch;
   });
 
@@ -365,7 +365,7 @@ export const AdminReasonCodesView: React.FC<AdminReasonCodesViewProps> = ({
                 key={sub}
                 onClick={() => setSelectedSubCat(sub)}
                 className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors capitalize cursor-pointer ${
-                  selectedSubCat.toLowerCase() === sub.toLowerCase()
+                  (selectedSubCat || '').toLowerCase() === (sub || '').toLowerCase()
                     ? 'bg-teal-50 text-[#0F8B8D] border border-teal-200 font-semibold'
                     : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
                 }`}

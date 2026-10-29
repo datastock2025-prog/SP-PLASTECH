@@ -123,3 +123,22 @@ When the user sends `/resume` in chat:
 2. **Workspace Verification**: Verify files, git status, and environment readiness (e.g., local dev servers).
 3. **Seamless Continuation**: Acknowledge with "▶️ Session Resumed", update state to `ACTIVE`, and immediately execute the pending tasks without requiring additional prompts.
 
+---
+
+## 6. PODMAN & CONTAINER LIFECYCLE CHEAT SHEET (DEV VS PROD)
+
+### 6.1 Quick Command Cheat Sheet
+- **Instant daily dev start (< 2s, zero-rebuild)**: `npm run dev:podman` (`podman compose up -d`)
+- **Rebuild with new dependencies**: `npm run dev:podman:build` (`podman compose up --build -d`)
+- **Stop local containers**: `npm run dev:podman:down` (`podman compose down`)
+- **Stream service logs**: `npm run dev:podman:logs` (`podman compose logs -f`)
+- **Restart backend only (~1s)**: `podman restart sp-plastech-dev-api-1`
+- **Build sealed production image**: `podman compose -f compose.prod.yaml build`
+
+### 6.2 Strict Dev vs Production Boundaries
+1. **Zero Rebuilds in Development**: Use volume bind mounts (`./middleware:/app:Z`) with anonymous volume for `/app/node_modules`. File edits hot-reload in **<150ms** via `tsx watch` without image rebuilding.
+2. **Zero Host Mounts in Production**: Production topology (`compose.prod.yaml`) MUST NEVER bind-mount host folders. Uses multi-stage Dockerfiles (`target: prod`) running as an unprivileged `node` user with read-only rootfs.
+3. **Zero-Cache Live Development Delivery**: Native Vite Dev Server (`npm run dev`) on `:3000` proxies `/api` directly to `:4000` with sub-millisecond Hot Module Replacement (HMR) directly from source code.
+4. **WSL2 Allocation Governance**: Keep `C:\Users\<user>\.wslconfig` tuned (`memory=4GB`, `processors=3`, `swap=2GB`, `localhostForwarding=true`, `pageReporting=true`) to prevent memory thrashing on 8GB host systems.
+
+

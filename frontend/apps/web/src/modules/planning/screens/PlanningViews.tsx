@@ -249,3 +249,5 @@ const RefreshCwIcon = ({ className }: { className?: string }) => (
     <path d="M8 16H3v5" />
   </svg>
 );
+
+export { ScmViews as PlanningViews };

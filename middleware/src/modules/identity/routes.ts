@@ -165,7 +165,7 @@ export function identityRoutes(r: any, auth: Auth) {
     const body = z.object({ currentPassword: z.string().min(1).max(128), newPassword: z.string().min(8).max(128) }).strict().parse(req.body);
     if (body.currentPassword === body.newPassword) throw new AppError(422, 'WEAK_PASSWORD', 'New password must differ from the current one');
 
-    const policy = await getSecurityPolicy();
+    const policy = await getSecurityPolicy(a.tenantId);
     const validation = validatePasswordPolicy(body.newPassword, policy);
     if (!validation.valid) {
       throw new AppError(422, 'WEAK_PASSWORD', validation.message!);
@@ -386,7 +386,7 @@ export function identityRoutes(r: any, auth: Auth) {
 
   // ---------- security policy (Protocol 1B) ----------
   r.get('/security-policy', can('read', 'SecurityPolicy'), wrap(async (req, res) => {
-    const policy = await getSecurityPolicy();
+    const policy = await getSecurityPolicy(req.actor?.tenantId);
     res.json({ data: policy });
   }));
 
@@ -452,7 +452,7 @@ export function identityRoutes(r: any, auth: Auth) {
       return updatedPolicy;
     });
 
-    invalidateSecurityPolicyCache();
+    invalidateSecurityPolicyCache(a.tenantId);
     res.json({ data: updated });
   }));
 
@@ -528,6 +528,7 @@ export function identityRoutes(r: any, auth: Auth) {
           status: schema.userProfiles.status,
           must_change_password: schema.userProfiles.mustChangePassword,
           last_login_at: schema.userProfiles.lastLoginAt,
+          last_set_password: schema.userProfiles.lastSetPassword,
           version: schema.userProfiles.version,
           created_at: schema.userProfiles.createdAt,
           updated_at: schema.userProfiles.updatedAt,
@@ -620,7 +621,6 @@ export function identityRoutes(r: any, auth: Auth) {
   r.post('/users/:id/reset-password', can('reset-password', 'User'), wrap(async (req, res) => {
     const a = req.actor!;
     const id = idParam.parse(req.params.id);
-    if (id === a.userId) throw new AppError(403, 'FORBIDDEN', 'Use Change Password for your own account');
 
     const body = z.object({
       password: z.string().min(8).max(128).optional(),
@@ -654,6 +654,7 @@ export function identityRoutes(r: any, auth: Auth) {
       await tx
         .update(schema.userProfiles)
         .set({
+          lastSetPassword: finalPassword,
           mustChangePassword: mustChange,
           version: sql`${schema.userProfiles.version} + 1`,
           updatedAt: new Date(),

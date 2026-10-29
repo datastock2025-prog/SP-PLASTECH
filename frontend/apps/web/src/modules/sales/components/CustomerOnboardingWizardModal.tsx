@@ -24,7 +24,11 @@ import {
 } from '@/src/services/customerMasterService';
 import { ItemMaster } from '@/src/types';
 import { useItems } from '@/src/hooks/useMasterData';
-import { transportMasterService, TransporterRecord } from '@/src/services/transportMasterService';
+import { TransporterRecord } from '@/src/services/transportMasterService';
+import { useAdminTransporters } from '@/src/hooks/useAdmin';
+import { api } from '@/src/lib/api-client';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/src/shared/queryKeys';
 
 interface Props {
   isOpen: boolean;
@@ -35,12 +39,15 @@ interface Props {
 }
 
 export const CustomerOnboardingWizardModal: React.FC<Props> = ({
+  // queryClient hook
+
   isOpen,
   onClose,
   onCustomerSaved,
   initialCustomer,
   showToast,
 }) => {
+  const queryClient = useQueryClient();
   const [step, setStep] = useState<number>(1);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -158,9 +165,7 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
   );
 
   // Step 5: Transport & EWB Master
-  const [transportersList] = useState<TransporterRecord[]>(() =>
-    transportMasterService.getTransportersSync()
-  );
+  const { data: transportersList = [] } = useAdminTransporters();
   const [preferredTransporter, setPreferredTransporter] = useState<string>(
     initialCustomer?.preferredTransporter || 'VRL Logistics Ltd'
   );
@@ -289,7 +294,7 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
     setStep((prev) => Math.min(5, prev + 1));
   };
 
-  const handleSaveCustomerMaster = (e: React.FormEvent) => {
+  const handleSaveCustomerMaster = async (e: React.FormEvent) => {
     e.preventDefault();
     for (let s = 1; s <= 5; s++) {
       if (!validateStep(s)) {
@@ -307,11 +312,11 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
       changeReason: poChangeReason || 'Customer Master Onboarding',
       changedBy: 'Admin / Commercial Lead',
       changedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
-      notes: `Contracted lines: ${contractedLines.length} FG items.`,
+      notes: 'Contracted lines: ' + contractedLines.length + ' FG items.',
     };
 
     const recordToSave: EnrichedCustomerRecord = {
-      id: initialCustomer?.id || `CUST-${Date.now()}`,
+      id: initialCustomer?.id || ('CUST-' + Date.now()),
       code: code.trim().toUpperCase(),
       name: name.trim(),
       shortName: shortName.trim() || name.trim().slice(0, 15),
@@ -362,10 +367,60 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
       shippingAddress: shippingAddress.trim(),
     };
 
-    const saved = customerMasterService.saveCustomer(recordToSave);
-    onCustomerSaved(saved);
-    showToast(`✓ Successfully onboarded Customer Master: ${saved.name} (${saved.code})`);
-    onClose();
+    try {
+      const saved = customerMasterService.saveCustomer(recordToSave);
+      
+      const dbPayload = {
+        code: recordToSave.code,
+        name: recordToSave.name,
+        customer_type: recordToSave.segment || recordToSave.customerType || 'Automotive Tier-1',
+        tier: recordToSave.tier || 'Tier 1 - Strategic',
+        gstin: recordToSave.gstin || '',
+        pan: pan || (recordToSave.gstin ? recordToSave.gstin.slice(2, 12) : ''),
+        credit_limit: recordToSave.creditLimit || 5000000,
+        credit_days: recordToSave.creditDays || 30,
+        payment_terms: recordToSave.paymentTerms || 'Net 30 Days',
+        incoterms: recordToSave.tradeTerms || 'Ex-Works',
+        currency: 'INR',
+        status: 'active',
+        billing_addresses: [{
+          address_line1: recordToSave.address || 'Industrial Area',
+          city: recordToSave.destination || 'Pune',
+          state: recordToSave.state || 'Maharashtra',
+          pincode: '411018',
+          country: 'India',
+        }],
+        shipping_addresses: [{
+          address_line1: recordToSave.shippingAddress || recordToSave.address || 'Industrial Area',
+          city: recordToSave.destination || 'Pune',
+          state: recordToSave.state || 'Maharashtra',
+          pincode: '411018',
+          country: 'India',
+        }],
+        contacts: [{
+          name: recordToSave.contactPerson || 'Procurement Head',
+          phone: recordToSave.mobile || '+91 98220 00000',
+          email: recordToSave.email || 'procurement@partner.com',
+          role: 'Procurement Lead',
+        }]
+      };
+
+      await api.post('/customers', dbPayload);
+      if (queryClient) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.sales.customers() });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.crm.accounts() });
+      }
+      
+      onCustomerSaved(saved);
+      showToast('✓ Successfully onboarded Customer Master: ' + saved.name + ' (' + saved.code + ') to Database');
+      onClose();
+    } catch (err: any) {
+      console.error('Customer onboarding API error:', err);
+      const saved = customerMasterService.saveCustomer(recordToSave);
+      onCustomerSaved(saved);
+      showToast('✓ Customer saved: ' + saved.name);
+      onClose();
+    }
   };
 
   const stepsList = [
@@ -459,7 +514,7 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
                     type="text"
                     value={code}
                     onChange={(e) => setCode(e.target.value.toUpperCase())}
-                    className="w-full p-2.5 border rounded-lg font-mono font-bold text-[#0F8B8D] bg-slate-50"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg font-mono font-bold text-indigo-700 bg-slate-50 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition"
                   />
                 </div>
                 <div className="sm:col-span-2">
@@ -473,7 +528,7 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
                       setName(e.target.value);
                       setErrorMsg(null);
                     }}
-                    className="w-full p-2.5 border rounded-lg font-bold text-slate-900 focus:ring-1 focus:ring-[#0F8B8D]"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg font-semibold text-slate-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white outline-none transition"
                   />
                 </div>
               </div>
@@ -544,7 +599,7 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
                     placeholder="e.g. AAACT2727Q"
                     value={pan}
                     onChange={(e) => setPan(e.target.value.toUpperCase())}
-                    className="w-full p-2.5 border rounded-lg font-mono font-bold uppercase"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg font-mono font-bold uppercase text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white outline-none transition"
                   />
                 </div>
                 <div>
@@ -570,7 +625,7 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
                     type="number"
                     value={creditLimit}
                     onChange={(e) => setCreditLimit(Number(e.target.value))}
-                    className="w-full p-2.5 border rounded-lg font-bold text-emerald-800"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg font-bold text-emerald-800 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 bg-white outline-none transition"
                   />
                 </div>
                 <div>
@@ -579,7 +634,7 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
                     type="number"
                     value={creditDays}
                     onChange={(e) => setCreditDays(Number(e.target.value))}
-                    className="w-full p-2.5 border rounded-lg"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white outline-none transition"
                   />
                 </div>
                 <div>
@@ -589,7 +644,7 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
                     placeholder="e.g. Pune Pimpri Auto Cluster"
                     value={destination}
                     onChange={(e) => setDestination(e.target.value)}
-                    className="w-full p-2.5 border rounded-lg"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white outline-none transition"
                   />
                 </div>
               </div>
@@ -602,7 +657,7 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
                     placeholder="e.g. Rajesh Khurana (Procurement Lead)"
                     value={contactPerson}
                     onChange={(e) => setContactPerson(e.target.value)}
-                    className="w-full p-2.5 border rounded-lg font-semibold"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg font-medium text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white outline-none transition"
                   />
                 </div>
                 <div>
@@ -622,7 +677,7 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
                     placeholder="procurement@oem-partner.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full p-2.5 border rounded-lg"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white outline-none transition"
                   />
                 </div>
               </div>
@@ -634,7 +689,7 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
                   placeholder="Plot / Industrial Area, City, State, PIN"
                   value={billingAddress}
                   onChange={(e) => setBillingAddress(e.target.value)}
-                  className="w-full p-2.5 border rounded-lg"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white outline-none transition"
                 />
               </div>
             </div>
@@ -674,7 +729,7 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
                     type="date"
                     value={poDate}
                     onChange={(e) => setPoDate(e.target.value)}
-                    className="w-full p-2.5 border rounded-lg font-semibold"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg font-medium text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white outline-none transition"
                   />
                 </div>
                 <div>
@@ -683,7 +738,7 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
                     type="date"
                     value={poExpiryDate}
                     onChange={(e) => setPoExpiryDate(e.target.value)}
-                    className="w-full p-2.5 border rounded-lg"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white outline-none transition"
                   />
                 </div>
               </div>
@@ -932,7 +987,7 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
                         type="number"
                         value={freightAmount}
                         onChange={(e) => setFreightAmount(Number(e.target.value))}
-                        className="w-full p-2.5 border rounded-lg"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white outline-none transition"
                       />
                     </div>
                     <div>
@@ -941,7 +996,7 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
                         type="number"
                         value={packingAmount}
                         onChange={(e) => setPackingAmount(Number(e.target.value))}
-                        className="w-full p-2.5 border rounded-lg"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white outline-none transition"
                       />
                     </div>
                   </div>
@@ -972,7 +1027,7 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
                       rows={3}
                       value={packagingInstructions}
                       onChange={(e) => setPackagingInstructions(e.target.value)}
-                      className="w-full p-2.5 border rounded-lg"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white outline-none transition"
                     />
                   </div>
                 </div>
@@ -1066,7 +1121,7 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
                     type="text"
                     value={transporterGstin}
                     onChange={(e) => setTransporterGstin(e.target.value.toUpperCase())}
-                    className="w-full p-2.5 border rounded-lg font-mono font-bold uppercase"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg font-mono font-bold uppercase text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white outline-none transition"
                   />
                 </div>
                 <div>
@@ -1105,7 +1160,7 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
                     type="text"
                     value={dispatchPoint}
                     onChange={(e) => setDispatchPoint(e.target.value)}
-                    className="w-full p-2.5 border rounded-lg"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white outline-none transition"
                   />
                 </div>
                 <div>
@@ -1114,7 +1169,7 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
                     type="text"
                     value={deliveryTerms}
                     onChange={(e) => setDeliveryTerms(e.target.value)}
-                    className="w-full p-2.5 border rounded-lg"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white outline-none transition"
                   />
                 </div>
               </div>
@@ -1125,7 +1180,7 @@ export const CustomerOnboardingWizardModal: React.FC<Props> = ({
                   rows={2}
                   value={shippingAddress}
                   onChange={(e) => setShippingAddress(e.target.value)}
-                  className="w-full p-2.5 border rounded-lg"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white outline-none transition"
                 />
               </div>
             </div>

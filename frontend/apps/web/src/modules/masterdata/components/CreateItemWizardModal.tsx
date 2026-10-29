@@ -588,7 +588,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
         tariffCode: newSupplierForm.tariffCode || newSupplierForm.hsnCode || '39021000',
         moq: Number(newSupplierForm.moq || 1000),
         leadTimeDays: Number(newSupplierForm.leadTimeDays || 7),
-      });
+      } as any);
     } catch (err) {
       console.warn('[CreateItemWizardModal] Database supplier persist warning:', err);
     }
@@ -2592,8 +2592,8 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                                     setItemImageSize(sizeKb);
                                     try {
                                       const uploaded = await r2StorageService.uploadItemMedia(file, 'images', itemCode || 'NEW_SKU');
-                                      setItemImage(uploaded.dataUrl || URL.createObjectURL(file));
-                                      setItemImageUrl(uploaded.publicCdnUrl || uploaded.dataUrl);
+                                      setItemImage(((uploaded as any).dataUrl || uploaded.url) || URL.createObjectURL(file));
+                                      setItemImageUrl(uploaded.publicCdnUrl || ((uploaded as any).dataUrl || uploaded.url));
                                       showToast(`✓ Photo "${file.name}" (${sizeKb}) uploaded to Cloud R2 & synced!`);
                                     } catch {
                                       setItemImage(URL.createObjectURL(file));
@@ -2638,8 +2638,8 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                               setItemImageSize(sizeKb);
                               try {
                                 const uploaded = await r2StorageService.uploadItemMedia(file, 'images', itemCode || 'NEW_SKU');
-                                setItemImage(uploaded.dataUrl || URL.createObjectURL(file));
-                                setItemImageUrl(uploaded.publicCdnUrl || uploaded.dataUrl);
+                                setItemImage(((uploaded as any).dataUrl || uploaded.url) || URL.createObjectURL(file));
+                                setItemImageUrl(uploaded.publicCdnUrl || ((uploaded as any).dataUrl || uploaded.url));
                                 showToast(`✓ Photo "${file.name}" (${sizeKb}) uploaded to Cloud R2 & synced!`);
                               } catch {
                                 setItemImage(URL.createObjectURL(file));
@@ -2670,8 +2670,8 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                                   setItemImageSize(sizeKb);
                                   try {
                                     const uploaded = await r2StorageService.uploadItemMedia(file, 'images', itemCode || 'NEW_SKU');
-                                    setItemImage(uploaded.dataUrl || URL.createObjectURL(file));
-                                    setItemImageUrl(uploaded.publicCdnUrl || uploaded.dataUrl);
+                                    setItemImage(((uploaded as any).dataUrl || uploaded.url) || URL.createObjectURL(file));
+                                    setItemImageUrl(uploaded.publicCdnUrl || ((uploaded as any).dataUrl || uploaded.url));
                                     showToast(`✓ Photo "${file.name}" (${sizeKb}) uploaded to Cloud R2 & synced!`);
                                   } catch {
                                     setItemImage(URL.createObjectURL(file));
@@ -3814,7 +3814,7 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                               : `${Math.round(file.size / 1024)} KB`;
                             try {
                               const uploaded = await r2StorageService.uploadItemMedia(file, 'documents', itemCode || 'NEW_SKU');
-                              const fileUrl = uploaded.dataUrl || URL.createObjectURL(file);
+                              const fileUrl = ((uploaded as any).dataUrl || uploaded.url) || URL.createObjectURL(file);
                               setTechnicalDocUrl(uploaded.publicCdnUrl || fileUrl);
                               setDocuments([
                                 ...documents,
@@ -3937,15 +3937,15 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                                 : 'Technical Specification';
                             try {
                               const uploaded = await r2StorageService.uploadItemMedia(f, 'documents', itemCode || 'NEW_SKU');
-                              setTechnicalDocUrl(uploaded.publicCdnUrl || uploaded.dataUrl);
+                              setTechnicalDocUrl(uploaded.publicCdnUrl || ((uploaded as any).dataUrl || uploaded.url));
                               return {
                                 name: f.name,
                                 type,
                                 size: sizeKb,
                                 fileSize: sizeKb,
                                 uploadedOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-                                url: uploaded.dataUrl || URL.createObjectURL(f),
-                                link: uploaded.publicCdnUrl || uploaded.dataUrl,
+                                url: ((uploaded as any).dataUrl || uploaded.url) || URL.createObjectURL(f),
+                                link: uploaded.publicCdnUrl || ((uploaded as any).dataUrl || uploaded.url),
                               };
                             } catch {
                               const blobUrl = URL.createObjectURL(f);
@@ -3998,15 +3998,15 @@ export const CreateItemWizardModal: React.FC<CreateItemWizardProps> = ({
                                     : 'Technical Specification';
                                 try {
                                   const uploaded = await r2StorageService.uploadItemMedia(f, 'documents', itemCode || 'NEW_SKU');
-                                  setTechnicalDocUrl(uploaded.publicCdnUrl || uploaded.dataUrl);
+                                  setTechnicalDocUrl(uploaded.publicCdnUrl || ((uploaded as any).dataUrl || uploaded.url));
                                   return {
                                     name: f.name,
                                     type,
                                     size: sizeKb,
                                     fileSize: sizeKb,
                                     uploadedOn: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-                                    url: uploaded.dataUrl || URL.createObjectURL(f),
-                                    link: uploaded.publicCdnUrl || uploaded.dataUrl,
+                                    url: ((uploaded as any).dataUrl || uploaded.url) || URL.createObjectURL(f),
+                                    link: uploaded.publicCdnUrl || ((uploaded as any).dataUrl || uploaded.url),
                                   };
                                 } catch {
                                   const blobUrl = URL.createObjectURL(f);

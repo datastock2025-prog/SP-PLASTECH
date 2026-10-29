@@ -16,6 +16,8 @@ import {
 } from '@/src/features/identity/useIdentity';
 import { SHIFT_OPTIONS } from '@/src/features/identity/mapMe';
 import type { AbilityRule, ManagedUser, UserStatus } from '@/src/features/identity/types';
+import { masterDataGovernanceService } from '@/src/services/masterDataGovernanceService';
+import { adminEventBus } from '@/src/services/adminService';
 
 interface AdminUsersViewProps {
   showToast?: (msg: string) => void;
@@ -71,6 +73,83 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = () =
   const canDelete = can(rules, 'delete', 'User');
   const canReset = can(rules, 'resetPassword', 'User') || canUpdate;
 
+  const isSuperAdmin = useMemo(() => {
+    if (!me) return false;
+    return (
+      me.roleCode === 'SUPER_ADMIN' ||
+      me.roleName?.toLowerCase().includes('super') ||
+      (me.abilityRules || []).some((r) => r.action === 'manage' && (r.subject === 'all' || r.subject === 'User'))
+    );
+  }, [me]);
+
+  const [designations, setDesignations] = useState<string[]>(() => masterDataGovernanceService.getUserDesignations());
+  const [departments, setDepartments] = useState<string[]>(() => masterDataGovernanceService.getUserDepartments());
+  const [shifts, setShifts] = useState<string[]>(() => masterDataGovernanceService.getUserShifts());
+
+  const [newDesigModalOpen, setNewDesigModalOpen] = useState(false);
+  const [newDesigVal, setNewDesigVal] = useState('');
+  const [newDeptModalOpen, setNewDeptModalOpen] = useState(false);
+  const [newDeptVal, setNewDeptVal] = useState('');
+  const [newShiftModalOpen, setNewShiftModalOpen] = useState(false);
+  const [newShiftVal, setNewShiftVal] = useState('');
+
+  useEffect(() => {
+    masterDataGovernanceService.syncFromApi().then(() => {
+      setDesignations(masterDataGovernanceService.getUserDesignations());
+      setDepartments(masterDataGovernanceService.getUserDepartments());
+      setShifts(masterDataGovernanceService.getUserShifts());
+    }).catch(() => {});
+
+    const unsubDesig = adminEventBus.on('USER_DESIGNATION_SAVED', () => {
+      setDesignations(masterDataGovernanceService.getUserDesignations());
+    });
+    const unsubDept = adminEventBus.on('USER_DEPARTMENT_SAVED', () => {
+      setDepartments(masterDataGovernanceService.getUserDepartments());
+    });
+    const unsubShift = adminEventBus.on('USER_SHIFT_SAVED', () => {
+      setShifts(masterDataGovernanceService.getUserShifts());
+    });
+
+    return () => {
+      unsubDesig();
+      unsubDept();
+      unsubShift();
+    };
+  }, []);
+
+  const handleSaveNewDesignation = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const clean = newDesigVal.trim();
+    if (!clean) return;
+    masterDataGovernanceService.saveUserDesignation(clean);
+    setForm((prev) => ({ ...prev, designation: clean }));
+    setNewDesigVal('');
+    setNewDesigModalOpen(false);
+    showToast(`Added designation: ${clean}`);
+  };
+
+  const handleSaveNewDepartment = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const clean = newDeptVal.trim();
+    if (!clean) return;
+    masterDataGovernanceService.saveUserDepartment(clean);
+    setForm((prev) => ({ ...prev, department: clean }));
+    setNewDeptVal('');
+    setNewDeptModalOpen(false);
+    showToast(`Added department: ${clean}`);
+  };
+
+  const handleSaveNewShift = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const clean = newShiftVal.trim();
+    if (!clean) return;
+    masterDataGovernanceService.saveUserShift(clean);
+    setForm((prev) => ({ ...prev, assignedShift: clean }));
+    setNewShiftVal('');
+    setNewShiftModalOpen(false);
+    showToast(`Added shift: ${clean}`);
+  };
+
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<UserStatus | ''>('');
@@ -108,6 +187,8 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = () =
   const history = useUserHistory(historyUser?.id ?? null);
 
   const [passwordModalUser, setPasswordModalUser] = useState<ManagedUser | null>(null);
+  const [viewPasswordUser, setViewPasswordUser] = useState<ManagedUser | null>(null);
+  const [showRevealedPassword, setShowRevealedPassword] = useState(false);
   const [customPassword, setCustomPassword] = useState('');
   const [showCustomPassword, setShowCustomPassword] = useState(false);
   const [mustChangePasswordOnLogin, setMustChangePasswordOnLogin] = useState(true);
@@ -494,33 +575,31 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = () =
                             <Edit2 className="h-3.5 w-3.5 text-slate-500 hover:text-slate-900" />
                           </Button>
                         )}
-                        {canReset && (
-                          <Button
-                            size="icon-sm"
-                            variant="ghost"
-                            title={
-                              u.id === me?.id
-                                ? 'Change your own password in Profile > Security'
-                                : 'Change / Reset User Password'
-                            }
-                            aria-label="Change or reset password"
-                            disabled={u.id === me?.id || m.resetPassword.isPending}
-                            onClick={() => {
-                              if (u.id === me?.id) {
-                                showToast('To change your own password, visit Profile > Security.');
-                                return;
-                              }
-                              openPasswordModal(u);
-                            }}
-                          >
-                            <KeyRound
-                              className={`h-3.5 w-3.5 ${
-                                u.id === me?.id
-                                  ? 'text-slate-300 dark:text-slate-600'
-                                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-100'
-                              }`}
-                            />
-                          </Button>
+                        {isSuperAdmin && (
+                          <>
+                            <Button
+                              size="icon-sm"
+                              variant="ghost"
+                              title="SuperAdmin: View User Password"
+                              aria-label="View user password"
+                              onClick={() => {
+                                setViewPasswordUser(u);
+                                setShowRevealedPassword(false);
+                              }}
+                            >
+                              <Eye className="h-3.5 w-3.5 text-indigo-600 hover:text-indigo-800 dark:text-indigo-400" />
+                            </Button>
+                            <Button
+                              size="icon-sm"
+                              variant="ghost"
+                              title="SuperAdmin: Change / Reset User Password"
+                              aria-label="Change or reset password"
+                              disabled={m.resetPassword.isPending}
+                              onClick={() => openPasswordModal(u)}
+                            >
+                              <KeyRound className="h-3.5 w-3.5 text-amber-600 hover:text-amber-800 dark:text-amber-400 font-bold" />
+                            </Button>
+                          </>
                         )}
                         {canUpdate && (
                           <Button
@@ -648,32 +727,84 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = () =
               </div>
 
               <div className="space-y-1">
-                <label className="font-semibold text-slate-700 dark:text-slate-300">Designation</label>
-                <Input
-                  placeholder="e.g. Production Manager"
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-slate-700 dark:text-slate-300">Designation</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewDesigVal('');
+                      setNewDesigModalOpen(true);
+                    }}
+                    className="text-[11px] font-bold text-indigo-600 hover:underline dark:text-indigo-400"
+                  >
+                    + New
+                  </button>
+                </div>
+                <select
+                  className={`${selectCls} w-full`}
                   value={form.designation}
                   onChange={(e) => setForm({ ...form, designation: e.target.value })}
-                />
+                >
+                  <option value="">Select Designation...</option>
+                  {designations.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="space-y-1">
-                <label className="font-semibold text-slate-700 dark:text-slate-300">Department</label>
-                <Input
-                  placeholder="e.g. Manufacturing"
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-slate-700 dark:text-slate-300">Department</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewDeptVal('');
+                      setNewDeptModalOpen(true);
+                    }}
+                    className="text-[11px] font-bold text-indigo-600 hover:underline dark:text-indigo-400"
+                  >
+                    + New
+                  </button>
+                </div>
+                <select
+                  className={`${selectCls} w-full`}
                   value={form.department}
                   onChange={(e) => setForm({ ...form, department: e.target.value })}
-                />
+                >
+                  <option value="">Select Department...</option>
+                  {departments.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="space-y-1">
-                <label className="font-semibold text-slate-700 dark:text-slate-300">Shift</label>
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-slate-700 dark:text-slate-300">Shift</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewShiftVal('');
+                      setNewShiftModalOpen(true);
+                    }}
+                    className="text-[11px] font-bold text-indigo-600 hover:underline dark:text-indigo-400"
+                  >
+                    + New
+                  </button>
+                </div>
                 <select
                   className={`${selectCls} w-full`}
                   value={form.assignedShift}
                   onChange={(e) => setForm({ ...form, assignedShift: e.target.value })}
                 >
-                  {SHIFT_OPTIONS.map((s) => (
-                    <option key={s}>{s}</option>
+                  {shifts.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -851,6 +982,95 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = () =
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      
+      {/* SuperAdmin View User Password Dialog */}
+      <Dialog open={!!viewPasswordUser} onOpenChange={(o) => !o && setViewPasswordUser(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+              User Password Credentials
+            </DialogTitle>
+            <DialogDescription>
+              SuperAdmin credential viewer for <b className="text-slate-900 dark:text-slate-100">{viewPasswordUser?.fullName}</b> (
+              <span className="font-mono">{viewPasswordUser?.username ?? viewPasswordUser?.email}</span>).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2 text-xs">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/50">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Password
+                </span>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    className="h-6 w-6 text-slate-500 hover:text-slate-800"
+                    onClick={() => setShowRevealedPassword(!showRevealedPassword)}
+                    title={showRevealedPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showRevealedPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </Button>
+                  {viewPasswordUser?.lastSetPassword && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      className="h-6 w-6 text-slate-500 hover:text-slate-800"
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(viewPasswordUser.lastSetPassword || '');
+                        showToast('Password copied to clipboard');
+                      }}
+                      title="Copy password"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {viewPasswordUser?.lastSetPassword ? (
+                <div className="font-mono text-sm font-bold text-indigo-700 dark:text-indigo-300 select-all tracking-wide">
+                  {showRevealedPassword ? viewPasswordUser.lastSetPassword : '••••••••••••••••'}
+                </div>
+              ) : (
+                <div className="text-slate-500 italic text-[11px]">
+                  No initial password stored (migrated user or changed externally). Click &ldquo;Change / Reset Password&rdquo; below to assign a new password.
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const target = viewPasswordUser;
+                  setViewPasswordUser(null);
+                  if (target) openPasswordModal(target);
+                }}
+                className="gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50"
+              >
+                <KeyRound className="h-3.5 w-3.5" />
+                Change / Reset Password
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setViewPasswordUser(null)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -1069,6 +1289,105 @@ export const AdminUsersView: React.FC<AdminUsersViewProps> = ({ showToast = () =
               </li>
             ))}
           </ul>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Add Designation Dialog */}
+      <Dialog open={newDesigModalOpen} onOpenChange={setNewDesigModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Add User Designation</DialogTitle>
+            <DialogDescription>
+              Create a new operational designation that can be assigned to users.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSaveNewDesignation} className="space-y-4 pt-2">
+            <div>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                Designation Title
+              </label>
+              <Input
+                placeholder="e.g. Mold Maintenance Lead"
+                value={newDesigVal}
+                onChange={(e) => setNewDesigVal(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setNewDesigModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!newDesigVal.trim()} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                Add Designation
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Add Department Dialog */}
+      <Dialog open={newDeptModalOpen} onOpenChange={setNewDeptModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Add User Department</DialogTitle>
+            <DialogDescription>
+              Create a new organizational department for cross-functional routing.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSaveNewDepartment} className="space-y-4 pt-2">
+            <div>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                Department Name
+              </label>
+              <Input
+                placeholder="e.g. Quality Assurance & Lab"
+                value={newDeptVal}
+                onChange={(e) => setNewDeptVal(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setNewDeptModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!newDeptVal.trim()} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                Add Department
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Add Shift Dialog */}
+      <Dialog open={newShiftModalOpen} onOpenChange={setNewShiftModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Add Operating Shift</DialogTitle>
+            <DialogDescription>
+              Define a new plant shift schedule for operator assignment.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSaveNewShift} className="space-y-4 pt-2">
+            <div>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                Shift Schedule Name
+              </label>
+              <Input
+                placeholder="e.g. Shift D (Night Overtime 23:00 - 07:00)"
+                value={newShiftVal}
+                onChange={(e) => setNewShiftVal(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setNewShiftModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!newShiftVal.trim()} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                Add Shift
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

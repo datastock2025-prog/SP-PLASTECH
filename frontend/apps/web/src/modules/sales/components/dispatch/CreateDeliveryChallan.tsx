@@ -49,6 +49,11 @@ import { NicEwbDiagnosticRunnerModal } from './NicEwbDiagnosticRunnerModal';
 import { customerMasterService, ContractedCustomerLine } from '@/src/services/customerMasterService';
 import { salesDataService } from '@/src/services/salesDataService';
 import { getWarehouseStock } from '@/src/hooks/useWarehouse';
+import { useSalesOrders } from '@/src/hooks/useSales';
+import { api } from '@/src/lib/api-client';
+import { useQueryClient } from '@tanstack/react-query';
+import { usePlants } from '@/src/features/identity/useIdentity';
+import { useItems } from '@/src/hooks/useMasterData';
 
 // Standard Finished Goods Master Catalog for adding ad-hoc or catalog items
 export interface CatalogItem {
@@ -182,22 +187,50 @@ interface CreateDeliveryChallanProps {
 }
 
 export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
-  salesOrders,
+  salesOrders: propSalesOrders,
   preSelectedSoId,
   onSaveDelivery,
   onCancel,
   onNavigate,
   showToast,
 }) => {
+  const { data: serverSos = [] } = useSalesOrders();
+  const { data: adminPlants = [] } = usePlants();
+
+  const salesOrders = React.useMemo(() => {
+    const list = [...(propSalesOrders || [])];
+    serverSos.forEach((so: any) => {
+      const soId = so.so_number || so.id;
+      if (!list.some((p) => p.id === soId)) {
+        list.push({
+          id: soId,
+          orderType: 'Daily Sales Order',
+          customer: so.customer_name || so.customer_id || 'OEM Partner Ltd',
+          customerGstin: so.customer_gstin || '27AAACT2727Q1ZW',
+          customerPoNumber: so.customer_po_number || 'PO-STAT-' + soId.slice(-4),
+          customerPoDate: so.order_date || new Date().toISOString().slice(0, 10),
+          orderDate: so.order_date || new Date().toISOString().slice(0, 10),
+          requiredDeliveryDate: so.delivery_date || so.order_date || new Date().toISOString().slice(0, 10),
+          lines: Array.isArray(so.items) ? so.items : [],
+          totalOrderValue: Number(so.total_amount || 0),
+          status: so.status || 'Confirmed',
+          plant: 'PLT-01 - Plant 1 - Pimpri Auto-Hub',
+          fgStore: 'FG-Automotive Cell',
+          paymentTerms: 'Net 30 Days',
+        } as any);
+      }
+    });
+    return list;
+  }, [propSalesOrders, serverSos]);
   const [currentStep, setCurrentStep] = useState(1);
 
   // Step 1: SO & Customer
-  const [selectedSoId, setSelectedSoId] = useState(preSelectedSoId || salesOrders[0]?.id || '');
-  const activeSo = salesOrders.find((s) => s.id === selectedSoId) || salesOrders[0];
+  const [selectedSoId, setSelectedSoId] = useState(preSelectedSoId || '');
+  const activeSo = selectedSoId ? salesOrders.find((s) => s.id === selectedSoId) : null;
 
   // Store & Plant Selection for Live Stock Resolution
-  const [selectedPlant, setSelectedPlant] = useState(activeSo?.plant || 'Plant 1 - Pimpri Auto-Hub');
-  const [selectedFgStore, setSelectedFgStore] = useState(activeSo?.fgStore || 'FG-Automotive Cell');
+  const [selectedPlant, setSelectedPlant] = useState(activeSo?.plant || '');
+  const [selectedFgStore, setSelectedFgStore] = useState(activeSo?.fgStore || '');
 
   // Helper to resolve available stock dynamically from warehouse store batches and inventory stock
   const getStockForStore = (itemCode: string, store: string, plant: string): number => {
@@ -871,9 +904,28 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
     showToast(`All 4 statutory documents generated synchronously! EWB: ${ewbNumber}`);
   };
 
-  const handleCommitSavedResult = () => {
+  const handleCommitSavedResult = async () => {
     if (!generatedResult) return;
     const { delivery, eInvoice, eWayBill, gatePass } = generatedResult;
+    
+    try {
+      await api.post('/delivery-challans', {
+        challan_number: (delivery as any).id || (delivery as any).challanNumber || challanNumber,
+        so_id: (delivery as any).salesOrderId || (delivery as any).soId || activeSo?.id || null,
+        customer_id: activeSo?.customer || delivery.customer,
+        vehicle_no: delivery.vehicleNumber,
+        transporter: delivery.transporterName,
+        lr_number: delivery.lrNumber,
+        dispatch_date: delivery.dispatchDate,
+        status: 'dispatched',
+        lines: delivery.items,
+        total_amount: (delivery as any).invoiceValue || (delivery as any).totalChallanValue || 0,
+        plant_id: originPlant ? originPlant.split(' - ')[0] : null,
+      });
+    } catch (err: any) {
+      console.warn('Delivery challan DB persistence warning:', err?.message);
+    }
+
     setGeneratedResult(null);
     onSaveDelivery(
       delivery,
@@ -931,15 +983,22 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
           </button>
 
           <button
+            disabled={!selectedSoId}
             onClick={() => executeAllInOneDispatch('all-in-one')}
-            className="flex items-center gap-2 px-5 py-2.5 bg-[#0F8B8D] hover:bg-[#0c7274] text-white rounded-xl text-xs font-bold shadow-md shadow-teal-700/15 hover:shadow-lg transition-all transform active:scale-95"
-            title="Generate Note + E-Invoice + E-Way Bill + Gate Pass synchronously"
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              !selectedSoId
+                ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed shadow-none'
+                : 'bg-[#0F8B8D] hover:bg-[#0c7274] text-white shadow-md shadow-teal-700/15 hover:shadow-lg transform active:scale-95 cursor-pointer'
+            }`}
+            title={selectedSoId ? "Generate Note + E-Invoice + E-Way Bill + Gate Pass synchronously" : "Select Source Sales Order to enable 1-Click Dispatch"}
           >
-            <Zap className="w-4 h-4 fill-amber-300 text-amber-300 animate-pulse" />
+            <Zap className={`w-4 h-4 ${!selectedSoId ? 'text-slate-400' : 'fill-amber-300 text-amber-300 animate-pulse'}`} />
             <span>⚡ 1-Click All-in-One Dispatch</span>
-            <span className="bg-teal-900/40 px-2 py-0.5 rounded text-[11px] font-mono">
-              ₹{calculatedTotal.toLocaleString()}
-            </span>
+            {selectedSoId && calculatedTotal > 0 && (
+              <span className="bg-teal-900/40 px-2 py-0.5 rounded text-[11px] font-mono">
+                ₹{calculatedTotal.toLocaleString()}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -987,15 +1046,16 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
                 onChange={(e) => handleSoChange(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg p-2.5 bg-white text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-hidden"
               >
+                <option value="">-- Select Source Sales Order to Fulfill * --</option>
                 {salesOrders.map((so) => (
                   <option key={so.id} value={so.id}>
-                    {so.id} &bull; {so.customer} &bull; PO: {so.customerPoNumber} ({so.lines.length} lines)
+                    {so.id} &bull; {so.customer} &bull; PO: {so.customerPoNumber} ({Array.isArray(so.lines) ? so.lines.length : 0} lines)
                   </option>
                 ))}
               </select>
               <div className="flex items-center justify-between text-xs text-gray-500 pt-1">
-                <span>Order Type: <strong className="text-gray-800">{activeSo?.orderType || 'Daily Sales Order'}</strong></span>
-                <span>Payment: <strong className="text-gray-800">{activeSo?.paymentTerms || '30 Days PDC'}</strong></span>
+                <span>Order Type: <strong className="text-gray-800">{activeSo?.orderType || '—'}</strong></span>
+                <span>Payment: <strong className="text-gray-800">{activeSo?.paymentTerms || '—'}</strong></span>
               </div>
             </div>
 
@@ -1003,15 +1063,15 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
               <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                 Consignee Legal Entity
               </span>
-              <div className="text-base font-bold text-gray-900">{activeSo?.customer}</div>
+              <div className="text-base font-bold text-gray-900">{activeSo ? activeSo.customer : <span className="text-slate-400 font-normal">—</span>}</div>
               <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
                 <div>
                   <span className="text-gray-400 block text-[10px]">GSTIN</span>
-                  <span className="font-mono font-semibold text-gray-800">{activeSo?.customerGstin}</span>
+                  <span className="font-mono font-semibold text-gray-800">{activeSo ? activeSo.customerGstin : '—'}</span>
                 </div>
                 <div>
                   <span className="text-gray-400 block text-[10px]">Place of Supply</span>
-                  <span className="font-semibold text-gray-800">{activeSo?.billingAddress?.placeOfSupply || '27-Maharashtra'}</span>
+                  <span className="font-semibold text-gray-800">{activeSo ? (activeSo.billingAddress?.placeOfSupply || activeSo.placeOfSupply || '27-Maharashtra') : '—'}</span>
                 </div>
               </div>
             </div>
@@ -1025,9 +1085,19 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
                 onChange={(e) => handleStoreChange(selectedFgStore, e.target.value)}
                 className="w-full text-xs font-semibold text-gray-900 bg-white border border-teal-300 rounded-lg p-2 focus:ring-1 focus:ring-teal-500"
               >
-                <option value="Plant 1 - Pimpri Auto-Hub">Plant 1 - Pimpri Auto-Hub</option>
-                <option value="Plant 2 - Chakan Packaging Plant">Plant 2 - Chakan Packaging Plant</option>
-                <option value="Plant 3 - Sanand Component Unit">Plant 3 - Sanand Component Unit</option>
+                <option value="">-- Select Origin Dispatch Plant * --</option>
+                {adminPlants.length > 0 ? (
+                  adminPlants.map((ap: any) => {
+                    const label = ap.code + ' - ' + ap.name;
+                    return (
+                      <option key={ap.id || ap.code} value={label}>
+                        {label} {ap.location ? '(' + ap.location + ')' : ''}
+                      </option>
+                    );
+                  })
+                ) : (
+                  <option value="PLT-01 - Plant 1 - Pimpri Auto-Hub">PLT-01 - Plant 1 - Pimpri Auto-Hub</option>
+                )}
               </select>
               <div className="text-[10px] text-gray-500 mt-1">GSTIN: 27AABCP1122D1Z4</div>
             </div>
@@ -1038,6 +1108,7 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
                 onChange={(e) => handleStoreChange(e.target.value, selectedPlant)}
                 className="w-full text-xs font-semibold text-gray-900 bg-white border border-teal-300 rounded-lg p-2 focus:ring-1 focus:ring-teal-500 font-mono"
               >
+                <option value="">-- Select Origin FG Warehouse Store * --</option>
                 <option value="FG-Automotive Cell">FG-Automotive Cell</option>
                 <option value="FG-Main Warehouse">FG-Main Warehouse</option>
                 <option value="FG-Export Hub">FG-Export Hub</option>
@@ -1048,11 +1119,22 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
             </div>
             <div>
               <span className="text-teal-900 font-bold text-xs">Customer Credit Status</span>
-              <div className="text-emerald-700 font-bold text-sm mt-1.5 flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>APPROVED (₹{(((activeSo?.availableCredit || 0)) / 100000).toFixed(1)}L Avail)</span>
-              </div>
-              <div className="text-[11px] text-gray-500 mt-0.5">PO: {activeSo?.customerPoNumber || 'Direct PO'}</div>
+              {activeSo ? (
+                <>
+                  <div className="text-emerald-700 font-bold text-sm mt-1.5 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>APPROVED (₹{(((activeSo?.availableCredit || 0)) / 100000).toFixed(1)}L Avail)</span>
+                  </div>
+                  <div className="text-[11px] text-gray-500 mt-0.5">PO: {activeSo?.customerPoNumber || 'Direct PO'}</div>
+                </>
+              ) : (
+                <>
+                  <div className="text-slate-400 font-medium text-xs mt-1.5 flex items-center gap-1.5">
+                    <span>— Pending Order Selection —</span>
+                  </div>
+                  <div className="text-[11px] text-gray-400 mt-0.5">PO: —</div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1726,7 +1808,12 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
               Step {currentStep} of 5
             </span>
             <button
+              disabled={currentStep === 1 && !selectedSoId}
               onClick={() => {
+                if (currentStep === 1 && !selectedSoId) {
+                  showToast('⚠️ Please select a Source Sales Order to Fulfill before proceeding to Step 2.');
+                  return;
+                }
                 if (currentStep === 2) {
                   if (invalidStockItems.length > 0) {
                     showToast(
@@ -1745,7 +1832,11 @@ export const CreateDeliveryChallan: React.FC<CreateDeliveryChallanProps> = ({
                 }
                 setCurrentStep(Math.min(5, currentStep + 1));
               }}
-              className="flex items-center gap-1.5 px-5 py-2 bg-[#14213D] hover:bg-[#1f335e] text-white rounded-xl text-xs font-semibold shadow-xs"
+              className={`flex items-center gap-1.5 px-5 py-2 rounded-xl text-xs font-semibold shadow-xs transition ${
+    currentStep === 1 && !selectedSoId
+      ? 'bg-slate-300 text-slate-500 cursor-not-allowed opacity-60'
+      : 'bg-[#14213D] hover:bg-[#1f335e] text-white cursor-pointer'
+  }`}
             >
               <span>Next Step</span>
               <ArrowRight className="w-3.5 h-3.5" />

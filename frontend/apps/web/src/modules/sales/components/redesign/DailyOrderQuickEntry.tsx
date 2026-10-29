@@ -1,3 +1,9 @@
+import { useCustomers } from '@/apps/web/src/modules/masterdata/api/useMasterData';
+import { usePlants } from '@/src/features/identity/useIdentity';
+import { useItems } from '@/src/hooks/useMasterData';
+import { api } from '@/src/lib/api-client';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/src/shared/queryKeys';
 import React, { useState } from 'react';
 import {
   Zap,
@@ -42,119 +48,90 @@ interface QuickRow {
   mouldCode: string;
 }
 
-const CATALOG_ITEMS = [
-  {
-    itemCode: 'FG-AUTO-012',
-    itemName: 'ABS Dashboard Trim Bezel (Matte Black)',
-    customerItemCode: 'TATA-7890-DSB',
-    hsn: '39269099',
-    availableStock: 8200,
-    unitPrice: 55.0,
-    polymerGrade: 'LG Chem ABS-HI121H',
-    mouldCode: 'M-104-ABS-2C',
-  },
-  {
-    itemCode: 'FG-AUTO-045',
-    itemName: 'PP Air Duct Housing - Front Left',
-    customerItemCode: 'TATA-4412-ADH',
-    hsn: '39269099',
-    availableStock: 4600,
-    unitPrice: 42.0,
-    polymerGrade: 'Reliance Repol H110MA',
-    mouldCode: 'M-088-PP-1C',
-  },
-  {
-    itemCode: 'FG-FLIP-28',
-    itemName: '28mm PP Flip-Top Dispenser Cap (Parachute Blue)',
-    customerItemCode: 'MAR-CAP-28B',
-    hsn: '39235010',
-    availableStock: 20000,
-    unitPrice: 15.0,
-    polymerGrade: 'Indian Polymers PP MI 30',
-    mouldCode: 'M-032-CAP-16C',
-  },
-  {
-    itemCode: 'FG-MOTO-088',
-    itemName: 'Nylon-6 Reinforced Rear Mudguard Cowl',
-    customerItemCode: 'BAJ-CWL-900',
-    hsn: '39269099',
-    availableStock: 9500,
-    unitPrice: 95.0,
-    polymerGrade: 'BASF Ultramid PA6',
-    mouldCode: 'M-090-COWL-1C',
-  },
-];
+// CATALOG_ITEMS replaced by live Master Items
 
 export const DailyOrderQuickEntry: React.FC<DailyOrderQuickEntryProps> = ({
   onSaveOrder,
   onCancel,
   showToast,
 }) => {
+  const queryClient = useQueryClient();
+  const { data: rawCustomers = [] } = useCustomers();
+  const { data: adminPlants = [] } = usePlants();
+  const { data: masterItems = [] } = useItems(undefined, 100);
+
+  // Approved customers only
+  const approvedCustomers = React.useMemo(() => {
+    return rawCustomers.filter((c: any) => c.status === 'active' || c.status === 'approved');
+  }, [rawCustomers]);
   // Header State
-  const [customer, setCustomer] = useState('Tata Motors Passenger Vehicles Ltd');
+  const [customer, setCustomer] = useState('');
   const [orderDate, setOrderDate] = useState('2026-09-12');
-  const [plant, setPlant] = useState('Plant 1 - Pimpri Auto-Hub');
+  const [plant, setPlant] = useState('');
   const [fgStore, setFgStore] = useState('FG-Automotive Cell');
-  const [customerPoNumber, setCustomerPoNumber] = useState('PO-TM-JIT-9921');
+
+  React.useEffect(() => {
+    if (!customer && approvedCustomers.length > 0) {
+      setCustomer(approvedCustomers[0].name);
+    }
+  }, [approvedCustomers, customer]);
+
+  React.useEffect(() => {
+    if (!plant && adminPlants.length > 0) {
+      setPlant(adminPlants[0].code + ' - ' + adminPlants[0].name);
+    }
+  }, [adminPlants, plant]);
+
+  const [customerPoNumber, setCustomerPoNumber] = useState(() => 'PO-CALLOFF-' + Date.now().toString().slice(-6));
 
   // Customer metadata preview
   const isInterState = customer.includes('Maruti');
   const customerCreditAvailable = customer.includes('Bajaj') ? -450000 : 8580000;
 
   // Grid Rows State
-  const [rows, setRows] = useState<QuickRow[]>([
-    {
-      id: 'row-1',
-      itemCode: 'FG-AUTO-012',
-      itemName: 'ABS Dashboard Trim Bezel (Matte Black)',
-      customerItemCode: 'TATA-7890-DSB',
-      hsn: '39269099',
-      availableStock: 8200,
-      qty: 2500,
-      uom: 'PCS',
-      unitPrice: 55.0,
-      gstRate: 18,
-      deliveryDate: '2026-09-13',
-      batchPreference: 'FEFO Strict',
-      polymerGrade: 'LG Chem ABS-HI121H',
-      mouldCode: 'M-104-ABS-2C',
-    },
-    {
-      id: 'row-2',
-      itemCode: 'FG-AUTO-045',
-      itemName: 'PP Air Duct Housing - Front Left',
-      customerItemCode: 'TATA-4412-ADH',
-      hsn: '39269099',
-      availableStock: 4600,
-      qty: 1500,
-      uom: 'PCS',
-      unitPrice: 42.0,
-      gstRate: 18,
-      deliveryDate: '2026-09-13',
-      batchPreference: 'FIFO Standard',
-      polymerGrade: 'Reliance Repol H110MA',
-      mouldCode: 'M-088-PP-1C',
-    },
-  ]);
+  const [rows, setRows] = useState<QuickRow[]>(() => []);
+
+  // Initialize first row when items load if empty
+  React.useEffect(() => {
+    if (rows.length === 0 && masterItems.length > 0) {
+      const it = masterItems[0];
+      setRows([{
+        id: 'row-' + Date.now(),
+        itemCode: it.code,
+        itemName: it.name,
+        customerItemCode: it.code,
+        hsn: (it as any).hsn || '39269099',
+        availableStock: Number((it as any).currentStock || (it as any).stock || 5000),
+        qty: 1000,
+        uom: it.uom || 'PCS',
+        unitPrice: Number((it as any).sellingPrice || (it as any).cost || 50),
+        gstRate: 18,
+        deliveryDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+        batchPreference: 'FIFO Standard',
+        polymerGrade: (it as any).polymerType || 'Molding Resin',
+        mouldCode: (it as any).moldTool || 'M-DEFAULT',
+      }]);
+    }
+  }, [masterItems, rows.length]);
 
   // Row Manipulation
   const handleAddRow = () => {
-    const defaultCatalog = CATALOG_ITEMS[0];
+    const it = masterItems[0];
     const newRow: QuickRow = {
-      id: `row-${Date.now()}`,
-      itemCode: defaultCatalog.itemCode,
-      itemName: defaultCatalog.itemName,
-      customerItemCode: defaultCatalog.customerItemCode,
-      hsn: defaultCatalog.hsn,
-      availableStock: defaultCatalog.availableStock,
+      id: 'row-' + Date.now(),
+      itemCode: it?.code || 'FG-NEW',
+      itemName: it?.name || 'Finished Component',
+      customerItemCode: it?.code || 'CUST-REF',
+      hsn: (it as any)?.hsn || '39269099',
+      availableStock: Number((it as any)?.currentStock || 5000),
       qty: 1000,
-      uom: 'PCS',
-      unitPrice: defaultCatalog.unitPrice,
+      uom: it?.uom || 'PCS',
+      unitPrice: Number((it as any)?.sellingPrice || 50),
       gstRate: 18,
-      deliveryDate: '2026-09-13',
-      batchPreference: 'FEFO Strict',
-      polymerGrade: defaultCatalog.polymerGrade,
-      mouldCode: defaultCatalog.mouldCode,
+      deliveryDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
+      batchPreference: 'FIFO Standard',
+      polymerGrade: (it as any)?.polymerType || 'Engineering Grade',
+      mouldCode: 'M-01',
     };
     setRows([...rows, newRow]);
   };
@@ -380,10 +357,11 @@ export const DailyOrderQuickEntry: React.FC<DailyOrderQuickEntryProps> = ({
             onChange={(e) => setCustomer(e.target.value)}
             className="w-full mt-1 border border-gray-300 rounded p-1.5 bg-white text-gray-900 font-semibold"
           >
-            <option value="Tata Motors Passenger Vehicles Ltd">Tata Motors Passenger Vehicles Ltd</option>
-            <option value="Marico FMCG Consumer Products">Marico FMCG Consumer Products</option>
-            <option value="Bajaj Auto Ltd Chakan Works">Bajaj Auto Ltd Chakan Works</option>
-            <option value="Maruti Suzuki India Ltd (Manesar)">Maruti Suzuki India Ltd (Manesar)</option>
+            {approvedCustomers.map((ac) => (
+              <option key={ac.id || ac.code} value={ac.name}>
+                {ac.name} ({ac.code})
+              </option>
+            ))}
           </select>
         </div>
 
@@ -414,8 +392,14 @@ export const DailyOrderQuickEntry: React.FC<DailyOrderQuickEntryProps> = ({
             onChange={(e) => setPlant(e.target.value)}
             className="w-full mt-1 border border-gray-300 rounded p-1.5 bg-white text-gray-900"
           >
-            <option value="Plant 1 - Pimpri Auto-Hub">Plant 1 - Pimpri Auto-Hub</option>
-            <option value="Plant 2 - Chakan Packaging Plant">Plant 2 - Chakan Packaging</option>
+            {adminPlants.map((ap) => {
+              const label = ap.code + ' - ' + ap.name;
+              return (
+                <option key={ap.id || ap.code} value={label}>
+                  {label} {ap.location ? '(' + ap.location + ')' : ''}
+                </option>
+              );
+            })}
           </select>
         </div>
 
@@ -466,9 +450,9 @@ export const DailyOrderQuickEntry: React.FC<DailyOrderQuickEntryProps> = ({
                       onChange={(e) => handleItemSelect(idx, e.target.value)}
                       className="w-full border border-gray-300 rounded p-1.5 text-xs bg-white text-gray-900 font-medium"
                     >
-                      {CATALOG_ITEMS.map((cat) => (
-                        <option key={cat.itemCode} value={cat.itemCode}>
-                          {cat.itemCode} - {cat.itemName}
+                      {masterItems.map((cat: any) => (
+                        <option key={cat.code} value={cat.code}>
+                          {cat.code} - {cat.name}
                         </option>
                       ))}
                     </select>

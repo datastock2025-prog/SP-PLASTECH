@@ -26,6 +26,16 @@ export function salesRoutes(r: any) {
     updateSchema: zod.customerUpdateSchema,
   });
 
+  registerResourceRoutes(r, '/crm-accounts', {
+    subject: 'Customer',
+    table: 'customers',
+    columns: ['id', 'code', 'name', 'customer_type', 'tier', 'gstin', 'pan', 'credit_limit', 'credit_days', 'status', 'contacts', 'shipping_addresses', 'billing_addresses', 'payment_terms', 'incoterms', 'currency', 'created_by', 'updated_by', 'plant_id', 'version', 'created_at', 'updated_at'],
+    searchColumns: ['code', 'name', 'gstin', 'pan'],
+    sortAllowlist: ['created_at', 'updated_at', 'code', 'name', 'credit_limit'],
+    createSchema: zod.customerCreateSchema,
+    updateSchema: zod.customerUpdateSchema,
+  });
+
   registerResourceRoutes(r, '/sales-orders', {
     subject: 'SalesOrder',
     table: 'sales_orders',

@@ -1,3 +1,4 @@
+import { extractClientIp } from './core/ip.js';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
@@ -11,6 +12,7 @@ import { mapErrorToResponse } from './core/errors.js';
 import { streamSSE } from 'hono/streaming';
 import { csrfMiddleware, rateLimitMiddleware, requestLoggingMiddleware, requireSession } from './middleware/index.js';
 import { subscribe } from './core/events.js';
+import { documentHubRoutes } from './modules/document-hub/routes.js';
 
 const safeEqual = (a: string, b: string) => {
   if (a.length !== b.length) return false;
@@ -60,7 +62,6 @@ export function buildApp(_sqlText?: string) {
 
   // Shallow liveness probe (no DB query, 200 OK)
   app.get('/health', (c) => c.json({ data: { status: 'ok' } }));
-  app.get('/api/v1/dashboard/kpis', (c) => c.json({ data: { activeWorkOrders: 0, overallOee: 89.4, onTimeDeliveryRate: 97.2, firstPassYield: 98.6, lowStockItemsCount: 0, activeAlarmsCount: 0, openCapasCount: 0, revenueMtd: 0 } }));
 
   // API health probe with DB query and Server-Timing header (D5)
   app.get('/api/health', async (c) => {
@@ -119,7 +120,7 @@ export function buildApp(_sqlText?: string) {
         message: String(body?.message ?? 'Unknown client error').slice(0, 500),
         url: String(body?.url ?? '').slice(0, 200),
         component_stack: String(body?.componentStack ?? '').slice(0, 1000),
-        client_ip: c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? 'local',
+        client_ip: extractClientIp({ header: (n) => c.req.header(n), raw: c.req.raw, env: c.env as any }),
       };
       console.error(JSON.stringify(logEntry));
       return c.json({ data: { recorded: true, requestId: reqId } });
@@ -141,19 +142,40 @@ export function buildApp(_sqlText?: string) {
     return c.html(swaggerDocsHtml);
   });
 
-  // HTTP 304 ETag Cache Validation Middleware (Enterprise Checklist Item 2.1)
-  app.use('/api/v1/*', etag());
-
   // Realtime change feed (G3). Lives outside buildRouter because the custom router buffers whole responses.
   app.get('/api/v1/events', async (c) => {
     const req: any = { headers: c.req.raw.headers, ip: null };
     await new Promise<void>((resolve, reject) => requireSession(auth)(req, null as any, (e) => (e ? reject(e) : resolve())));
-    const tenantId: string = req.actor.tenantId;
+    const actor = req.actor;
+    const ability = actor?.ability;
+    const tenantId: string = actor.tenantId;
+    const TABLE_SUBJECTS: Record<string, string> = {
+      items: 'Item',
+      bill_of_materials: 'BillOfMaterial',
+      bom_lines: 'BillOfMaterial',
+      work_orders: 'WorkOrder',
+      sales_orders: 'SalesOrder',
+      purchase_orders: 'PurchaseOrder',
+      suppliers: 'Supplier',
+      customers: 'Customer',
+      machines: 'Machine',
+      plants: 'Plant',
+      user_profiles: 'User',
+      roles: 'Role',
+      audit_logs: 'AuditLog',
+      security_policies: 'SecurityPolicy',
+    };
     c.header('Cache-Control', 'no-store, no-cache, must-revalidate');
     c.header('X-Accel-Buffering', 'no');
     c.header('ETag', 'W/"sse"'); // hono etag() skips hashing (and so buffering) when ETag is already set
     return streamSSE(c, async (stream) => {
-      const off = subscribe(tenantId, (e) => { void stream.writeSSE({ event: 'change', data: JSON.stringify({ table: e.table, id: e.id, op: e.op }) }); });
+      const off = subscribe(tenantId, (e) => {
+        const subject = TABLE_SUBJECTS[e.table];
+        if (ability && subject && !ability.can('read', subject as any)) {
+          return;
+        }
+        void stream.writeSSE({ event: 'change', data: JSON.stringify({ table: e.table, id: e.id, op: e.op }) });
+      });
       stream.onAbort(off);
       while (!stream.aborted) {
         await stream.writeSSE({ event: 'ping', data: '' });
@@ -163,6 +185,7 @@ export function buildApp(_sqlText?: string) {
     });
   });
 
+  app.route('/api/v1/document-hub', documentHubRoutes);
   app.route('/api/v1', buildRouter(auth));
 
   app.notFound((c) => {

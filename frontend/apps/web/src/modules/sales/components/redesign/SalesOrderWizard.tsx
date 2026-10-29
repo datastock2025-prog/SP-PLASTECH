@@ -36,8 +36,11 @@ import {
 import { Customer, ItemMaster } from '@/src/types';
 import type { CustomerMasterRecord } from '@/src/services/customerMasterService';
 import { adminService, adminEventBus } from '@/src/services/adminService';
-import { transportMasterService, TransporterRecord } from '@/src/services/transportMasterService';
+import { TransporterRecord } from '@/src/services/transportMasterService';
+import { useAdminTransporters, useSaveAdminTransporter } from '@/src/hooks/useAdmin';
 import { useItems } from '@/src/hooks/useMasterData';
+import { useCustomers } from '@/apps/web/src/modules/masterdata/api/useMasterData';
+import { usePlants } from '@/src/features/identity/useIdentity';
 import { INITIAL_FG_BATCHES, getNextSalesOrderNumber } from '@/src/data/salesOrderDeliveryData';
 import { INITIAL_MOLDS } from '@/src/data/manufacturingData';
 import {
@@ -99,21 +102,28 @@ export const SalesOrderWizard: React.FC<SalesOrderWizardProps> = ({
   const { data: masterItemsList = [] } = useItems(undefined, 100);
 
   // Dynamic customer master synchronization from single source of truth
-  const [customerCatalog, setCustomerCatalog] = useState<CustomerMasterExtended[]>(() =>
-    customerMasterService.getCustomersSync()
-  );
+  const { data: rawCustomers = [] } = useCustomers();
+  const { data: adminPlants = [] } = usePlants();
 
-  useEffect(() => {
-    const handleCustomerSync = () => {
-      setCustomerCatalog(customerMasterService.getCustomersSync());
-    };
-    adminEventBus.on('CUSTOMER_MASTER_UPDATED', handleCustomerSync);
-    adminEventBus.on('CATALOG_RELOADED', handleCustomerSync);
-    return () => {
-      adminEventBus.off('CUSTOMER_MASTER_UPDATED', handleCustomerSync);
-      adminEventBus.off('CATALOG_RELOADED', handleCustomerSync);
-    };
-  }, []);
+  // Filter approved/active customers only
+  const customerCatalog = useMemo(() => {
+    return rawCustomers
+      .filter((c: any) => c.status === 'active' || c.status === 'approved')
+      .map((c: any) => ({
+        id: c.id,
+        code: c.code,
+        name: c.name,
+        shortName: c.name?.slice(0, 15) || c.code,
+        gstin: c.gstin || '',
+        state: c.state || (Array.isArray(c.billing_addresses) && c.billing_addresses[0]?.state) || 'Maharashtra',
+        status: 'active' as const,
+        creditLimit: Number(c.credit_limit || c.creditLimit || 10000000),
+        currentBalance: Number(c.currentBalance || 0),
+        paymentTerms: c.payment_terms || c.paymentTerms || 'Net 30 Days',
+        address: (Array.isArray(c.billing_addresses) && c.billing_addresses[0]?.address_line1) || c.address || '',
+        destination: (Array.isArray(c.billing_addresses) && c.billing_addresses[0]?.city) || 'Pune',
+      }));
+  }, [rawCustomers]);
 
   // Helper to query live single source of truth stock across FG stores
   const getLiveStockForProduct = (itemCode: string, plantName?: string, storeName?: string) => {
@@ -221,11 +231,11 @@ export const SalesOrderWizard: React.FC<SalesOrderWizardProps> = ({
   );
 
   const [customer, setCustomer] = useState(
-    initialOrder?.customer || 'Tata Motors Passenger Vehicles Ltd'
+    initialOrder?.customer || (customerCatalog[0]?.name || '')
   );
   const [customerCode, setCustomerCode] = useState(initialCustRecord?.code || '12398');
   const [customerGstin, setCustomerGstin] = useState(
-    initialOrder?.customerGstin || '27AAACT2727Q1ZW'
+    initialOrder?.customerGstin || (customerCatalog[0]?.gstin || '')
   );
   const [customerState, setCustomerState] = useState('Maharashtra');
   const [customerStateCode, setCustomerStateCode] = useState('27');
@@ -551,9 +561,8 @@ export const SalesOrderWizard: React.FC<SalesOrderWizardProps> = ({
   const [customerInspectionRequired, setCustomerInspectionRequired] = useState(false);
 
   // Step 5: Transport & EWB (Task-3 Transporter Master Autocomplete)
-  const [transportersList, setTransportersList] = useState<TransporterRecord[]>(() =>
-    transportMasterService.getTransportersSync()
-  );
+  const { data: transportersList = [] } = useAdminTransporters();
+  const saveTransporterMutation = useSaveAdminTransporter();
   const [transportMode, setTransportMode] = useState<string>(
     initialOrder?.transportMode || 'Road'
   );
@@ -639,31 +648,28 @@ export const SalesOrderWizard: React.FC<SalesOrderWizardProps> = ({
       return;
     }
 
-    const newTransporter: TransporterRecord = {
-      id: `TRP-${Date.now()}`,
-      transporterCode: transportMasterService.generateNextTransporterCode(),
-      name: quickTransporterName.trim(),
-      transporterIdGstin: quickTransporterGstin.trim().toUpperCase(),
-      contactPerson: 'Logistics Desk',
-      phone: '+91 98000 00000',
-      email: 'dispatch@logistics.example',
-      address: 'Transport Hub',
-      city: 'Pune',
-      state: 'Maharashtra',
-      transportModes: ['Road'],
-      vehicleTypes: ['Standard Container (14 Ton)'],
-      status: 'active',
-      rating: 4.8,
-      totalShipments: 0,
-      onTimeDeliveryPct: 98.0,
-      createdDate: new Date().toISOString().slice(0, 10),
-    };
-
-    transportMasterService.saveTransporter(newTransporter);
-    setTransportersList(transportMasterService.getTransportersSync());
-    handleSelectTransporter(newTransporter);
-    setIsQuickTransporterModalOpen(false);
-    showToast(`✓ Created & selected new transporter: ${newTransporter.name}`);
+    const maxCode = transportersList.reduce(
+      (m, t) => Math.max(m, Number(/(\d+)$/.exec(t.transporterCode)?.[1] ?? 0)),
+      0
+    );
+    saveTransporterMutation.mutate(
+      {
+        patch: {
+          transporterCode: `TRP-${String(maxCode + 1).padStart(3, '0')}`,
+          name: quickTransporterName.trim(),
+          transporterIdGstin: quickTransporterGstin.trim().toUpperCase(),
+          transportModes: ['Road'],
+        },
+      },
+      {
+        onSuccess: (saved) => {
+          handleSelectTransporter(saved);
+          setIsQuickTransporterModalOpen(false);
+          showToast(`✓ Created & selected new transporter: ${saved.name}`);
+        },
+        onError: (err: any) => showToast(`Transporter create failed: ${err?.message ?? 'Unknown error'}`),
+      }
+    );
   };
 
   // Inter-state GST calculation (Maharashtra POS = 27)
@@ -1332,9 +1338,18 @@ export const SalesOrderWizard: React.FC<SalesOrderWizardProps> = ({
                 onChange={(e) => setPlant(e.target.value)}
                 className="w-full text-xs border border-gray-300 rounded-lg p-2.5 bg-white text-gray-900 mt-1"
               >
-                <option value="Plant 1 - Pimpri Auto-Hub">Plant 1 - Pimpri Auto-Hub (Pune)</option>
-                <option value="Plant 2 - Chakan Moulding Complex">Plant 2 - Chakan Moulding Complex</option>
-                <option value="Plant 3 - Sanand Component Facility">Plant 3 - Sanand Component Facility</option>
+                {adminPlants.length > 0 ? (
+                  adminPlants.map((p) => {
+                    const label = `${p.code} - ${p.name}`;
+                    return (
+                      <option key={p.id || p.code} value={label}>
+                        {label} {p.location ? `(${p.location})` : ''}
+                      </option>
+                    );
+                  })
+                ) : (
+                  <option value="PLT-01 - Plant 1 - Pimpri Auto-Hub">Plant 1 - Pimpri Auto-Hub (Pune)</option>
+                )}
               </select>
             </div>
 

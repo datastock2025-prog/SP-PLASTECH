@@ -141,7 +141,7 @@ export function usePaginatedItems(params: {
           : Array.isArray(res)
             ? res
             : [];
-      const meta = res?.meta || res?.data?.meta || {};
+      const meta = (res as any)?.meta || (res as any)?.data?.meta || {};
       const total = Number(meta.total ?? items.length);
 
       const payload = {

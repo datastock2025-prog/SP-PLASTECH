@@ -216,13 +216,53 @@ export const bomEndpoints = {
 
   async saveBom(bom: Partial<BomDto>): Promise<BomDto> {
     const b: any = bom;
+    const rawLines = Array.isArray(b.lines) ? [...b.lines] : Array.isArray(b.components) ? [...b.components] : [];
+    const cleanLines = rawLines.filter((l: any) => !(l && l._bomMetaOnly));
+    const bomMeta = {
+      parent: b.item_code || b.itemCode || b.parent,
+      parentName: b.parentName || b.bomName,
+      bomName: b.bomName || b.parentName,
+      bomVersion: b.bom_version || b.bomVersion || b.version || '1.0',
+      mfgCategory: b.mfgCategory || 'Formula / Recipe BOM',
+      executionToggles: b.executionToggles || {
+        multiLevelEnabled: Boolean(b.multiLevelEnabled),
+        allowSubstitutes: Boolean(b.allowSubstitutes),
+        allowRegrind: Boolean(b.allowRegrind),
+        requireQualityInspection: Boolean(b.requireQualityInspection),
+        requireCustomerApproval: Boolean(b.requireCustomerApproval),
+        autoCreateSecondaryWO: Boolean(b.autoCreateSecondaryWO),
+      },
+      multiLevelEnabled: b.multiLevelEnabled,
+      allowSubstitutes: b.allowSubstitutes,
+      allowRegrind: b.allowRegrind,
+      requireQualityInspection: b.requireQualityInspection,
+      requireCustomerApproval: b.requireCustomerApproval,
+      autoCreateSecondaryWO: b.autoCreateSecondaryWO,
+      cycleTimeSource: b.cycleTimeSource,
+      defaultInputLocation: b.defaultInputLocation,
+      defaultWipLocation: b.defaultWipLocation,
+      defaultFgLocation: b.defaultFgLocation,
+      defaultSecondaryLocation: b.defaultSecondaryLocation,
+      secondaryOperations: b.secondaryOperations || [],
+      routingResources: b.routingResources || [],
+      scrapConfig: b.scrapConfig,
+      qualityConfig: b.qualityConfig,
+      documents: b.documents || [],
+      costRollup: b.costRollup,
+      batchSize: b.batchSize,
+      batchUOM: b.batchUOM || b.baseUOM,
+      yieldPct: b.yieldPct,
+      scrapPct: b.scrapPct,
+    };
+    cleanLines.push({ _bomMetaOnly: true, _bomMeta: bomMeta });
+
     const payload: Record<string, any> = {
       ...b,
       id: b.id,
       item_code: b.item_code || b.itemCode || b.parent,
       bom_version: b.bom_version || b.bomVersion || b.version || '1.0',
       status: b.status || 'draft',
-      lines: b.lines || b.components || [],
+      lines: cleanLines,
     };
 
     if (b.id) {
@@ -240,6 +280,7 @@ export const bomEndpoints = {
             return unpackBomRow(postRow);
           }
         }
+        throw patchErr;
       }
     } else {
       const postRes = await api.post<any>('/bill-of-materials', payload);
@@ -249,10 +290,7 @@ export const bomEndpoints = {
       }
     }
 
-    return unpackBomRow({
-      ...payload,
-      id: b.id || `BOM-${Date.now()}`,
-    });
+    throw new Error('Failed to save Bill of Materials: no data returned from server');
   },
 
   async deleteBom(id: string): Promise<boolean> {

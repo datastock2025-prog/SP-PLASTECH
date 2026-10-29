@@ -272,8 +272,6 @@ export interface BomMaster {
   approvals?: BomApprovalHistory[];
   documents?: BomDocument[];
   department?: string;
-  bomType?: string;
-  mfgCategory?: string;
   [key: string]: any;
 }
 

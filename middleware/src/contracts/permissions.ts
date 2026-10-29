@@ -86,6 +86,7 @@ export const ERP_SUBJECT_CATALOG: readonly ErpSubjectDef[] = [
   { code: 'AuditLog', label: 'System Audit Logs', module: 'OPERATIONS', description: 'Immutable transaction trails, field diffs, forensics', supportedActions: ['read', 'export'] },
   { code: 'Integration', label: 'Third-Party Connectors', module: 'OPERATIONS', description: 'Accounting, ERP sync, weighing scale IoT, webhooks', supportedActions: ['manage', 'create', 'read', 'update', 'delete'] },
   { code: 'DataJob', label: 'Data Import / Export Hub', module: 'OPERATIONS', description: 'Bulk CSV staging, schema validation, batch commits', supportedActions: ['manage', 'create', 'read', 'update', 'delete'] },
+  { code: 'DocumentHub', label: 'Document Hub (Reports)', module: 'OPERATIONS', description: 'Generate and download PDF / XLSX / CSV production reports', supportedActions: ['manage', 'create', 'read', 'export'] },
 ] as const;
 
 export type ErpSubjectCode = (typeof ERP_SUBJECT_CATALOG)[number]['code'];

@@ -58,7 +58,7 @@ export const AdminPlantBranchSettingsView: React.FC<AdminPlantBranchSettingsView
   const savePlantMutation = useSaveAdminPlant();
 
   // Convert PlantDetails to PlantBranch structure
-  const plants: PlantBranch[] = rawPlants.length > 0 ? rawPlants.map((p) => ({
+  const plants: PlantBranch[] = (Array.isArray(rawPlants) ? rawPlants : []).filter(Boolean).map((p) => ({
     id: p.id,
     code: p.plantCode,
     name: p.plantName,
@@ -78,9 +78,9 @@ export const AdminPlantBranchSettingsView: React.FC<AdminPlantBranchSettingsView
     plantHeadPhone: p.contactPhone,
     ehsOfficer: 'Anand Shinde',
     status: p.operationalStatus === 'Offline' ? 'Maintenance Overhaul' : 'Operational',
-  })) : [];
+  }));
 
-  const [selectedPlant, setSelectedPlant] = useState<PlantBranch | null>(null);
+  const [selectedPlant, setSelectedPlant] = useState<PlantBranch | null>(() => (plants.length > 0 ? plants[0] : null));
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<PlantBranch>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -147,6 +147,14 @@ export const AdminPlantBranchSettingsView: React.FC<AdminPlantBranchSettingsView
     });
     setSelectedPlant(created);
     setIsModalOpen(false);
+
+    savePlantMutation.mutate({
+      plantCode: created.code,
+      plantName: created.name,
+      city: created.city,
+      state: created.state,
+      division: created.type,
+    });
 
     masterDataGovernanceService.savePlant({
       code: created.code,
@@ -222,7 +230,7 @@ export const AdminPlantBranchSettingsView: React.FC<AdminPlantBranchSettingsView
         {/* Plant Cards (Left Side) */}
         <div className="lg:col-span-5 space-y-3">
           {plants.map((plt) => {
-            const isSelected = selectedPlant.id === plt.id;
+            const isSelected = Boolean(selectedPlant && plt && selectedPlant.id === plt.id);
             return (
               <div
                 key={plt.id}
@@ -266,6 +274,13 @@ export const AdminPlantBranchSettingsView: React.FC<AdminPlantBranchSettingsView
         </div>
 
         {/* Selected Plant Detail Spec & Update Form (Right Side) */}
+        {!selectedPlant && (
+          <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-sm p-8 text-center text-slate-500">
+            <Building className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+            <p className="text-sm font-semibold text-slate-700">No Plant Selected</p>
+            <p className="text-xs text-slate-400 mt-1">Select a manufacturing facility from the list or add a new plant.</p>
+          </div>
+        )}
         {selectedPlant && (
           <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200">

@@ -97,9 +97,9 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
 
   const filteredGroups = groups.filter((grp) => {
     const matchSearch =
-      grp.name.toLowerCase().includes(search.toLowerCase()) ||
-      grp.code.toLowerCase().includes(search.toLowerCase()) ||
-      grp.department.toLowerCase().includes(search.toLowerCase());
+      (grp.name || "").toLowerCase().includes((search || "").toLowerCase()) ||
+      (grp.code || "").toLowerCase().includes((search || "").toLowerCase()) ||
+      (grp.department || "").toLowerCase().includes((search || "").toLowerCase());
     const matchDept = selectedDept === 'ALL' || grp.department === selectedDept;
     return matchSearch && matchDept;
   });
@@ -281,10 +281,10 @@ export const AdminUserGroupsView: React.FC<AdminUserGroupsViewProps> = ({
   const filteredCandidateUsers = allUsers.filter((u) => {
     const q = memberSearch.toLowerCase();
     return (
-      u.fullName.toLowerCase().includes(q) ||
-      u.email.toLowerCase().includes(q) ||
-      u.designation.toLowerCase().includes(q) ||
-      u.department.toLowerCase().includes(q)
+      (u.fullName || "").toLowerCase().includes(q) ||
+      (u.email || "").toLowerCase().includes(q) ||
+      (u.designation || "").toLowerCase().includes(q) ||
+      (u.department || "").toLowerCase().includes(q)
     );
   });
 

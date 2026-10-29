@@ -31,6 +31,7 @@ import {
 } from '@/src/types';
 import { useAuthContext } from '@/src/shared/components/RequireAuth';
 import { MoldMaster } from '@/src/data/manufacturingData';
+import { api } from '@/src/lib/api-client';
 import { INITIAL_MONTHLY_PLANS } from '@/src/data/salesOrderDeliveryData';
 import {
   PlannedMachineJob,
@@ -273,6 +274,23 @@ export const JitSchedulingPlanner: React.FC<Props> = ({
         console.error(e);
       }
       return updated;
+    });
+
+    // Persist all confirmed jobs to PostgreSQL via REST API
+    targetJobs.forEach((job) => {
+      api.post('/work-orders', {
+        code: job.scheduleNumber || schId || job.id,
+        item_code: job.itemCode,
+        machine_id: job.machineId,
+        target_qty: job.calculatedPcs || 0,
+        produced_qty: 0,
+        good_qty: 0,
+        rejection_qty: 0,
+        status: 'planned',
+        priority: job.priority === 'High' || job.priority === 'Urgent' ? 'high' : 'medium',
+        start_date: job.planDate || planDate,
+        due_date: job.planDate || planDate,
+      }).catch((e) => console.debug('[JitPlanner] Batch save note:', e));
     });
 
     showToast(`💾 Schedule ${schId} confirmed & saved to database! (${targetJobs.length} machine jobs)`);

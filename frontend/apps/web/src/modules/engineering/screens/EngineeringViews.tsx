@@ -634,22 +634,22 @@ export const EngineeringViews: React.FC<EngineeringViewsProps> = ({
       </div>
 
       {/* Manufacturing Category & Parameters if available */}
-      {activeBom.mfgCategory && (
+      {(activeBom as any).mfgCategory && (
         <div className="p-3 bg-teal-50/70 border border-teal-200 rounded-xl flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
             <span className="font-bold text-teal-900">Manufacturing Category:</span>
             <span className="px-2 py-0.5 rounded bg-teal-100 text-teal-800 font-semibold font-mono">
-              {activeBom.mfgCategory}
+              {(activeBom as any).mfgCategory}
             </span>
-            {activeBom.bomType && (
-              <span className="text-gray-500 font-medium">({activeBom.bomType})</span>
+            {(activeBom as any).bomType && (
+              <span className="text-gray-500 font-medium">({(activeBom as any).bomType})</span>
             )}
           </div>
-          {activeBom.standardCost && (
+          {(activeBom as any).standardCost && (
             <div className="flex items-center gap-1.5 font-mono">
               <span className="text-gray-600">Calculated Std Cost:</span>
               <span className="font-bold text-teal-900 text-sm">
-                ${activeBom.standardCost.toFixed(3)}
+                ${Number((activeBom as any).standardCost).toFixed(3)}
               </span>
             </div>
           )}

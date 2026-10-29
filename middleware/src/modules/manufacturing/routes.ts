@@ -5,7 +5,7 @@ import { withDrizzleTx } from '../../db.js';
 import { can, wrap, type Actor } from '../../middleware.js';
 import type { Req, Res } from '../../router.js';
 import { idCondition, patchRow, type ScopedTable } from '../../core/query.js';
-import { workOrders, stockMovementLedger, items, warehouseStock } from '../../schema/erp.js';
+import { workOrders, stockMovementLedger, items, warehouseStock, billOfMaterials } from '../../schema/erp.js';
 import * as schema from '../../schema/index.js';
 import * as zod from '../../schema/zod.js';
 
@@ -20,6 +20,64 @@ export function manufacturingRoutes(r: any) {
     updateSchema: zod.machineUpdateSchema,
   });
 
+  const workOrderAutoSecHook = async (client: any, a: Actor, data: any, dbInstance?: any) => {
+    const db = dbInstance || drizzle(client, { schema });
+    if (data.item_code && typeof data.code === 'string' && !data.code.endsWith('-SEC')) {
+      try {
+        const [bom] = await db
+          .select({ lines: billOfMaterials.lines })
+          .from(billOfMaterials)
+          .where(
+            and(
+              eq(billOfMaterials.itemCode, data.item_code),
+              eq(billOfMaterials.tenantId, a.tenantId),
+              isNull(billOfMaterials.deletedAt)
+            )
+          )
+          .limit(1);
+
+        if (bom && Array.isArray(bom.lines)) {
+          const meta = bom.lines.find((l: any) => l && typeof l === 'object' && l._bomMeta)?._bomMeta;
+          if (meta?.executionToggles?.autoCreateSecondaryWO || meta?.autoCreateSecondaryWO) {
+            const secCode = `${data.code}-SEC`;
+            const [existingSec] = await db
+              .select({ id: workOrders.id })
+              .from(workOrders)
+              .where(
+                and(
+                  eq(workOrders.code, secCode),
+                  eq(workOrders.tenantId, a.tenantId),
+                  isNull(workOrders.deletedAt)
+                )
+              )
+              .limit(1);
+
+            if (!existingSec) {
+              await db.insert(workOrders).values({
+                id: `wo-sec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                tenantId: a.tenantId,
+                plantId: data.plant_id || null,
+                code: secCode,
+                itemCode: data.item_code,
+                machineId: data.machine_id || null,
+                targetQty: Number(data.target_qty || 0),
+                status: 'pending',
+                priority: data.priority || 'normal',
+                startDate: data.start_date ? new Date(data.start_date) : new Date(),
+                dueDate: data.due_date ? new Date(data.due_date) : null,
+                createdBy: a.userId,
+                updatedBy: a.userId,
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[work-orders] autoCreateSecondaryWO error:', err);
+      }
+    }
+    return {};
+  };
+
   registerResourceRoutes(r, '/work-orders', {
     subject: 'WorkOrder',
     table: 'work_orders',
@@ -28,6 +86,7 @@ export function manufacturingRoutes(r: any) {
     sortAllowlist: ['created_at', 'updated_at', 'code', 'target_qty', 'start_date', 'due_date'],
     createSchema: zod.workOrderCreateSchema,
     updateSchema: zod.workOrderUpdateSchema,
+    beforeCreate: workOrderAutoSecHook,
   });
 
   // Backward compatibility alias for migration
@@ -39,6 +98,7 @@ export function manufacturingRoutes(r: any) {
     sortAllowlist: ['created_at', 'updated_at', 'code', 'target_qty', 'start_date', 'due_date'],
     createSchema: zod.workOrderCreateSchema,
     updateSchema: zod.workOrderUpdateSchema,
+    beforeCreate: workOrderAutoSecHook,
   });
 
   // Production entries with transactional work order and stock ledger posting

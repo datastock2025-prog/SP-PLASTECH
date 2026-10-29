@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,7 +66,10 @@ import { AdminGlobalSearchConfigView } from '../components/AdminGlobalSearchConf
 import { AdminQuickActionsConfigView } from '../components/AdminQuickActionsConfigView';
 import { AdminRbacSecurityMultiContextView } from '../components/AdminRbacSecurityMultiContextView';
 import { AdminTransportMasterView } from '../components/AdminTransportMasterView';
+import { AdminMachinesWorkCentersView } from '../components/AdminMachinesWorkCentersView';
 import { Truck } from 'lucide-react';
+import { useMe } from '@/src/features/identity/useIdentity';
+import { buildAbilityFromRules, getSubjectForView } from '@/src/features/identity/ability';
 
 interface AdminViewsProps {
   currentView: string;
@@ -116,16 +119,28 @@ export const AdminViews: React.FC<AdminViewsProps> = ({
     { id: 'adminNotifications', label: 'Notification Rules', icon: Bell, category: 'General' },
   ];
 
+  const { data: me } = useMe();
+  const userAbility = useMemo(() => buildAbilityFromRules(me?.abilityRules), [me?.abilityRules]);
+
   const categories = ['ALL', 'General', 'Production & Taxonomy', 'Org & Workflow', 'Security & Integrations', 'Data & Governance'];
 
+  const authorizedTabs = useMemo(() => {
+    if (userAbility.can('manage', 'all')) return allAdminTabs;
+    return allAdminTabs.filter((tab) => {
+      const req = getSubjectForView(tab.id);
+      if (!req) return true;
+      return userAbility.can(req.action, req.subject);
+    });
+  }, [userAbility]);
+
   const categoryTabs = activeCategory === 'ALL'
-    ? allAdminTabs
-    : allAdminTabs.filter(t => t.category === activeCategory);
+    ? authorizedTabs
+    : authorizedTabs.filter(t => t.category === activeCategory);
   const visibleTabs = categoryTabs.filter((tab) =>
     tab.label.toLowerCase().includes(searchTerm.trim().toLowerCase())
   );
-  const activeTab = allAdminTabs.find((tab) => tab.id === currentView)
-    ?? allAdminTabs.find((tab) => tab.id === 'adminDashboard');
+  const activeTab = authorizedTabs.find((tab) => tab.id === currentView)
+    ?? authorizedTabs.find((tab) => tab.id === 'adminDashboard');
 
   const renderActiveView = () => {
     switch (currentView) {
@@ -156,6 +171,8 @@ export const AdminViews: React.FC<AdminViewsProps> = ({
       // 7. Plant / Branch Settings Screen
       case 'adminPlantSettings':
       case 'adminBranchSettings':
+      case 'adminPlantBranches':
+      case 'adminPlants':
         return <AdminPlantBranchSettingsView onNavigate={onNavigate} showToast={showToast} />;
 
       // 8. Warehouse and Location Code Settings Screen
@@ -167,7 +184,8 @@ export const AdminViews: React.FC<AdminViewsProps> = ({
       case 'adminMachines':
       case 'adminWorkCenters':
       case 'adminMachineSettings':
-        return <AdminMasterDataView showToast={showToast} />;
+      case 'adminMachineWorkCenters':
+        return <AdminMachinesWorkCentersView showToast={showToast} />;
 
       // 10. Shift and Working Calendar Settings Screen
       case 'adminShifts':
@@ -231,10 +249,8 @@ export const AdminViews: React.FC<AdminViewsProps> = ({
       case 'adminWorkspaceRbac':
       case 'adminWorkspaceVisibility':
         return <AdminRolesView showToast={showToast} initialTab="workspace_access" onNavigate={onNavigate} />;
-      case 'adminPlants':
-      case 'adminPlantBranches':
-        return <AdminCompanyPlantsView showToast={showToast} />;
       case 'adminNumbering':
+      case 'adminNumberSequences':
         return <AdminNumberingView showToast={showToast} />;
       case 'adminWorkflows':
         return <AdminWorkflowsView showToast={showToast} />;
@@ -247,6 +263,7 @@ export const AdminViews: React.FC<AdminViewsProps> = ({
       case 'adminBackups':
         return <AdminBackupsView showToast={showToast} />;
       case 'adminNotifications':
+      case 'adminNotificationRules':
         return <AdminNotificationsView showToast={showToast} />;
       case 'adminCustomFields':
       case 'adminSystemParameters':

@@ -118,11 +118,12 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
   ];
 
   const filteredLocations = locations.filter((loc) => {
+    const term = (search || '').toLowerCase().trim();
     const matchSearch =
-      loc.binCode.toLowerCase().includes(search.toLowerCase()) ||
-      loc.warehouseName.toLowerCase().includes(search.toLowerCase()) ||
-      loc.zoneName.toLowerCase().includes(search.toLowerCase()) ||
-      loc.warehouseCode.toLowerCase().includes(search.toLowerCase());
+      (loc.binCode || '').toLowerCase().includes(term) ||
+      (loc.warehouseName || '').toLowerCase().includes(term) ||
+      (loc.zoneName || '').toLowerCase().includes(term) ||
+      (loc.warehouseCode || '').toLowerCase().includes(term);
     const matchZone = selectedZone === 'ALL' || loc.zoneType === selectedZone;
     return matchSearch && matchZone;
   });
@@ -133,7 +134,8 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
       return;
     }
 
-    const targetLoc = locations.find((l) => l.id === id);
+    if (!id) return;
+    const targetLoc = locations.filter(Boolean).find((l) => l && l.id === id);
     if (!targetLoc) return;
 
     const usageCheck = isStoreInUse(targetLoc.binCode);
@@ -355,7 +357,8 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
       return;
     }
 
-    const updated = locations.map((l) => (l.id === editingLoc.id ? editingLoc : l));
+    if (!editingLoc || !editingLoc.id) { setEditingLoc(null); return; }
+    const updated = locations.filter(Boolean).map((l) => (l && l.id === editingLoc.id ? editingLoc : l));
     saveLocations(updated);
 
     masterDataGovernanceService.saveBin({
@@ -400,7 +403,8 @@ export const AdminWarehouseLocationsView: React.FC<AdminWarehouseLocationsViewPr
       return;
     }
 
-    const updated = locations.filter((l) => l.id !== loc.id);
+    if (!loc || !loc.id) return;
+    const updated = locations.filter(Boolean).filter((l) => l && l.id !== loc.id);
     saveLocations(updated);
     showToast(`Deleted unused location: ${loc.binCode}.`);
   };

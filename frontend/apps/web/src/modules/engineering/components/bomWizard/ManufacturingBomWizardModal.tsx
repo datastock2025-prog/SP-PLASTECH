@@ -130,7 +130,7 @@ export const ManufacturingBomWizardModal: React.FC<ManufacturingBomWizardModalPr
         ? ((item as any).creationNotes || `Tooling: ${item.moldToolId || 'MOLD-001'} (${cavities} Cav) • Resin: ${item.resinType || 'Standard Grade'}`)
         : '',
 
-      mfgCategory: 'Discrete Manufacturing BOM',
+      mfgCategory: 'Formula / Recipe BOM',
       multiLevelEnabled: false,
       allowSubstitutes: true,
       allowRegrind: true,
@@ -354,7 +354,7 @@ export const ManufacturingBomWizardModal: React.FC<ManufacturingBomWizardModalPr
       version: `v${cleanVer}`,
       revision: 'Rev A',
       bomType: state.bomType as any,
-      processType: state.parentItem.processingMethod || 'Injection Molding',
+      processType: (state.parentItem.processingMethod || 'Injection Molding') as any,
       status: submitForApproval ? 'under_review' : 'draft',
       approvalStage: submitForApproval ? 'Engineering Review' : 'Draft',
       updated: new Date().toISOString().split('T')[0],
@@ -390,6 +390,21 @@ export const ManufacturingBomWizardModal: React.FC<ManufacturingBomWizardModalPr
       remarks: state.remarks,
       notes: state.remarks || state.description,
       mfgCategory: state.mfgCategory,
+      executionToggles: {
+        multiLevelEnabled: state.multiLevelEnabled,
+        allowSubstitutes: state.allowSubstitutes,
+        allowRegrind: state.allowRegrind,
+        requireQualityInspection: state.requireQualityInspection,
+        requireCustomerApproval: state.requireCustomerApproval,
+        autoCreateSecondaryWO: state.autoCreateSecondaryWO,
+      },
+      multiLevelEnabled: state.multiLevelEnabled,
+      allowSubstitutes: state.allowSubstitutes,
+      allowRegrind: state.allowRegrind,
+      requireQualityInspection: state.requireQualityInspection,
+      requireCustomerApproval: state.requireCustomerApproval,
+      autoCreateSecondaryWO: state.autoCreateSecondaryWO,
+      cycleTimeSource: state.cycleTimeSource,
       secondaryOperations: state.secondaryOperations,
       routingResources: state.routingResources,
       scrapConfig: state.scrapConfig,
@@ -512,7 +527,7 @@ export const ManufacturingBomWizardModal: React.FC<ManufacturingBomWizardModalPr
 
     try {
       sessionStorage.removeItem(`reboot_mfg_bom_draft_${state.parentItem.code}`);
-    } catch (e) {}
+    } catch (e) { console.debug("Failed to clear draft session storage", e); }
 
     setSaveStatus('saved');
     setLastSavedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));

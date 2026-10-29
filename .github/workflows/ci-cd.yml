@@ -213,6 +213,9 @@ jobs:
     permissions:
       contents: read
       deployments: write
+    env:
+      HAS_SUPABASE_DB: ${{ secrets.SUPABASE_DATABASE_URL != '' }}
+      HAS_CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4

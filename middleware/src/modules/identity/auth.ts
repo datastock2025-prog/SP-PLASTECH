@@ -23,16 +23,32 @@ export interface SecurityPolicy {
   ipAllowlist: string[];
 }
 
-let cachedPolicy: SecurityPolicy | null = null;
-let policyCachedAt = 0;
+const DEFAULT_SECURITY_POLICY: SecurityPolicy = {
+  minPasswordLength: 10,
+  requireUppercase: true,
+  requireLowercase: true,
+  requireNumbers: true,
+  requireSymbols: true,
+  passwordHistoryLimit: 3,
+  lockoutThreshold: 5,
+  lockoutDurationMinutes: 15,
+  sessionMaxAgeHours: 8,
+  idleTimeoutMinutes: 30,
+  mfaRequiredRoles: [],
+  ipAllowlist: [],
+};
 
-export async function getSecurityPolicy(): Promise<SecurityPolicy> {
+const policyCache = new Map<string, { policy: SecurityPolicy; cachedAt: number }>();
+
+export async function getSecurityPolicy(tenantId?: string): Promise<SecurityPolicy> {
+  const key = tenantId || '__default__';
   const now = Date.now();
-  if (cachedPolicy && now - policyCachedAt < 60000) {
-    return cachedPolicy;
+  const cached = policyCache.get(key);
+  if (cached && now - cached.cachedAt < 60000) {
+    return cached.policy;
   }
   try {
-    const [row] = await getDrizzle()
+    const q = getDrizzle()
       .select({
         minPasswordLength: schema.securityPolicies.minPasswordLength,
         requireUppercase: schema.securityPolicies.requireUppercase,
@@ -47,11 +63,16 @@ export async function getSecurityPolicy(): Promise<SecurityPolicy> {
         mfaRequiredRoles: schema.securityPolicies.mfaRequiredRoles,
         ipAllowlist: schema.securityPolicies.ipAllowlist,
       })
-      .from(schema.securityPolicies)
-      .limit(1);
+      .from(schema.securityPolicies);
 
+    const rows = tenantId
+      ? await q.where(eq(schema.securityPolicies.tenantId, tenantId)).limit(1)
+      : await q.limit(1);
+
+    const row = rows[0];
+    let resolved: SecurityPolicy;
     if (row) {
-      cachedPolicy = {
+      resolved = {
         minPasswordLength: Number(row.minPasswordLength || 10),
         requireUppercase: Boolean(row.requireUppercase ?? true),
         requireLowercase: Boolean(row.requireLowercase ?? true),
@@ -66,39 +87,15 @@ export async function getSecurityPolicy(): Promise<SecurityPolicy> {
         ipAllowlist: (row.ipAllowlist as string[]) || [],
       };
     } else {
-      cachedPolicy = {
-        minPasswordLength: 10,
-        requireUppercase: true,
-        requireLowercase: true,
-        requireNumbers: true,
-        requireSymbols: true,
-        passwordHistoryLimit: 3,
-        lockoutThreshold: 5,
-        lockoutDurationMinutes: 15,
-        sessionMaxAgeHours: 8,
-        idleTimeoutMinutes: 30,
-        mfaRequiredRoles: [],
-        ipAllowlist: [],
-      };
+      resolved = { ...DEFAULT_SECURITY_POLICY };
     }
+    policyCache.set(key, { policy: resolved, cachedAt: now });
+    return resolved;
   } catch {
-    cachedPolicy = {
-      minPasswordLength: 10,
-      requireUppercase: true,
-      requireLowercase: true,
-      requireNumbers: true,
-      requireSymbols: true,
-      passwordHistoryLimit: 3,
-      lockoutThreshold: 5,
-      lockoutDurationMinutes: 15,
-      sessionMaxAgeHours: 8,
-      idleTimeoutMinutes: 30,
-      mfaRequiredRoles: [],
-      ipAllowlist: [],
-    };
+    const fallback = { ...DEFAULT_SECURITY_POLICY };
+    policyCache.set(key, { policy: fallback, cachedAt: now });
+    return fallback;
   }
-  policyCachedAt = now;
-  return cachedPolicy;
 }
 
 export function validatePasswordPolicy(password: string, policy: SecurityPolicy): { valid: boolean; message?: string } {
@@ -120,9 +117,12 @@ export function validatePasswordPolicy(password: string, policy: SecurityPolicy)
   return { valid: true };
 }
 
-export function invalidateSecurityPolicyCache() {
-  cachedPolicy = null;
-  policyCachedAt = 0;
+export function invalidateSecurityPolicyCache(tenantId?: string) {
+  if (tenantId) {
+    policyCache.delete(tenantId);
+  } else {
+    policyCache.clear();
+  }
 }
 
 const SIGN_IN_PATHS = new Set(['/sign-in/username', '/sign-in/email']);
@@ -217,8 +217,8 @@ export function createAuth() {
       }),
       after: createAuthMiddleware(async (ctx) => {
         if (!SIGN_IN_PATHS.has(ctx.path)) return;
-        const policy = await getSecurityPolicy();
         const profile = await findProfileByIdentifier(ctx.body);
+        const policy = await getSecurityPolicy(profile?.tenant_id);
         const ip = ctx.headers?.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
         const userAgent = ctx.headers?.get('user-agent') || null;
         const identifier = String(ctx.body?.username ?? ctx.body?.email ?? '').trim().toLowerCase();

@@ -1,3 +1,4 @@
+import { extractClientIp } from './core/ip.js';
 import { Hono, type Context } from 'hono';
 
 // Minimal Express-style router on top of Hono so the same route code runs on
@@ -73,7 +74,7 @@ export function createRouter(errorHandler: ErrorHandler) {
       query: Object.fromEntries(new URL(c.req.url).searchParams),
       path: relPath,
       method,
-      ip: c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
+      ip: extractClientIp({ header: (n) => c.req.header(n), raw: c.req.raw, env: c.env as any }),
       headers: c.req.raw.headers,
     };
     let response: Response | undefined;
@@ -139,6 +140,15 @@ export function createRouter(errorHandler: ErrorHandler) {
   };
 
   const app = new Hono();
-  app.all('*', (c) => dispatch(c, new URL(c.req.url).pathname.replace(/^\/api\/v1/, '') || '/'));
+  app.all('*', (c) => {
+    let p = new URL(c.req.url).pathname.replace(/^\/api\/v1/, '') || '/';
+    // Transparently rewrite /admin/* aliases to standard REST domain routes
+    if (p.startsWith('/admin/')) {
+      const rest = p.replace(/^\/admin/, '');
+      if (rest === '/health-metrics') p = '/system/health';
+      else p = rest;
+    }
+    return dispatch(c, p);
+  });
   return { ...api, app };
 }

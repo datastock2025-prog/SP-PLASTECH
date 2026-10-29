@@ -23,6 +23,7 @@ const db = {
   insert: async <T = any>(_tbl: string, _record: any): Promise<T | null> => null,
   update: async <T = any>(_tbl: string, _id: string, _patch: any): Promise<T | null> => null,
   delete: async (_tbl: string, _id: string): Promise<boolean> => true,
+  upsert: async <T = any>(_tbl: string, _record: any): Promise<T | null> => null,
   count: async (_tbl: string, _opt?: any): Promise<number> => 0,
 };
 
@@ -54,7 +55,7 @@ const FinanceViews = React.lazy(() => import('../apps/web/src/modules/finance/sc
 const QualityViews = React.lazy(() => import('../apps/web/src/modules/quality/screens/QualityViews').then((m) => ({ default: m.QualityViews })));
 const MepViews = React.lazy(() => import('../apps/web/src/modules/maintenance/screens/MaintenanceViews').then((m) => ({ default: m.MaintenanceViews })));
 const HrViews = React.lazy(() => import('../apps/web/src/modules/hr/screens/HrViews').then((m) => ({ default: m.HrViews })));
-const ScmViews = React.lazy(() => import('../apps/web/src/modules/planning/screens/ScmViews').then((m) => ({ default: m.PlanningViews })));
+const ScmViews = React.lazy(() => import('../apps/web/src/modules/planning/screens/PlanningViews').then((m) => ({ default: m.ScmViews })));
 const CrmViews = React.lazy(() => import('../apps/web/src/modules/crm/screens/CrmViews').then((m) => ({ default: m.CrmViews })));
 const AdminViews = React.lazy(() => import('../apps/web/src/modules/identity/screens/AdminViews').then((m) => ({ default: m.AdminViews })));
 const AnalyticsViews = React.lazy(() => import('../apps/web/src/modules/analytics/screens/AnalyticsViews').then((m) => ({ default: m.AnalyticsViews })));
@@ -62,6 +63,7 @@ const ReactArchitectureGuide = React.lazy(() => import('./components/ReactArchit
 
 import { useMe, useLogout, useSelectContext } from './features/identity/useIdentity';
 import { mapMeToAuthUser } from './features/identity/mapMe';
+import { buildAbilityFromRules, getSubjectForView } from './features/identity/ability';
 
 // Domain Models & Shared Entities
 import {
@@ -269,6 +271,7 @@ export const App: React.FC = () => {
   const logoutMutation = useLogout();
   const selectContextMutation = useSelectContext();
   const me = meQuery.data ?? null;
+  const userAbility = useMemo(() => buildAbilityFromRules(me?.abilityRules), [me?.abilityRules]);
   const currentUser = useMemo<AuthUser | null>(
     () => (me && !me.mustChangePassword ? mapMeToAuthUser(me) : null),
     [me],
@@ -664,9 +667,10 @@ function resolveViewFromLocation(pathname: string, search: string): string {
   };
 
   const isViewAuthorizedForRole = (canonicalRole: string, view: string): boolean => {
-    if (canonicalRole === 'admin') return true;
+    // 1. Unrestricted access for SUPER_ADMIN or manage:all
+    if (userAbility.can('manage', 'all')) return true;
 
-    // Universal workspace views accessible to all roles
+    // 2. Universal workspace views accessible to all roles
     const universalViews = [
       'home',
       'tasks',
@@ -684,6 +688,16 @@ function resolveViewFromLocation(pathname: string, search: string): string {
       'userPreferences',
     ];
     if (universalViews.includes(view)) return true;
+
+    // 3. Strict CASL Ability Enforcement
+    const req = getSubjectForView(view);
+    if (req) {
+      if (!userAbility.can(req.action, req.subject)) {
+        return false;
+      }
+    }
+
+    if (canonicalRole === 'admin') return true;
 
     // Direct check against workspace RBAC service
     if (workspaceRbacService.isScreenVisible(canonicalRole, view)) {
@@ -1096,6 +1110,7 @@ function resolveViewFromLocation(pathname: string, search: string): string {
       adminTransportMaster: ['Admin & System Settings', 'Transporter Master & Fleet Logistics Directory'],
       adminTransporters: ['Admin & System Settings', 'Transporter Master & Fleet Logistics Directory'],
       analyticsDash: ['Analytics & Intelligence', 'Executive KPI Dashboard'],
+      documentHub: ['Analytics & Intelligence', 'Enterprise Document Hub & Export Center'],
       oeeDash: ['Analytics & Intelligence', 'OEE Analytics & Loss Pareto'],
       qualityReports: ['Analytics & Intelligence', 'Quality Defect PPM & Six Sigma'],
       scmInventoryAging: ['Analytics & Intelligence', 'Inventory Aging & Velocity'],
@@ -1392,6 +1407,7 @@ function resolveViewFromLocation(pathname: string, search: string): string {
   const isAdmin = currentView.startsWith('admin');
   const isAnalytics = [
     'analyticsDash',
+    'documentHub',
     'oeeDash',
     'qualityReports',
     'scmInventoryAging',
@@ -1660,21 +1676,28 @@ function resolveViewFromLocation(pathname: string, search: string): string {
               onNavigate={handleNavigate}
               onUpdateWO={(updated) => {
                 setWorkOrders((prev) => prev.map((w) => (w.id === updated.id ? updated : w)));
-                db.upsert('work_orders', {
-                  id: updated.id,
-                  item_code: updated.item || (updated as any).itemCode,
+                api.patch(`/work-orders/${encodeURIComponent(updated.id)}`, {
                   status: updated.status,
-                  updated_at: new Date().toISOString(),
-                }).catch(console.warn);
+                  produced_qty: updated.completed || 0,
+                  good_qty: updated.completed || 0,
+                  rejection_qty: updated.scrap || 0,
+                }).catch((e) => console.debug('[App.onUpdateWO] API note:', e));
               }}
               onCreateWO={(newWO) => {
                 setWorkOrders((prev) => (prev.some((w) => w.id === newWO.id) ? prev : [newWO, ...prev]));
-                db.upsert('work_orders', {
-                  id: newWO.id,
+                api.post('/work-orders', {
+                  code: newWO.id,
                   item_code: newWO.item || (newWO as any).itemCode,
-                  status: newWO.status,
-                  updated_at: new Date().toISOString(),
-                }).catch(console.warn);
+                  machine_id: newWO.machine || null,
+                  target_qty: newWO.qty || 0,
+                  produced_qty: newWO.completed || 0,
+                  good_qty: newWO.completed || 0,
+                  rejection_qty: newWO.scrap || 0,
+                  status: newWO.status || 'planned',
+                  priority: (newWO.priority?.toLowerCase() || 'medium'),
+                  start_date: newWO.planDate || newWO.day || new Date().toISOString().split('T')[0],
+                  due_date: newWO.dueDate || newWO.planDate || new Date().toISOString().split('T')[0],
+                }).catch((e) => console.debug('[App.onCreateWO] API note:', e));
               }}
               onDeleteWO={(id) => {
                 setWorkOrders((prev) => prev.filter((w) => w.id !== id));

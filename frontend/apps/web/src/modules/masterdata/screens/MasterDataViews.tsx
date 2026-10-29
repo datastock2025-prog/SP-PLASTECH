@@ -721,6 +721,10 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
   const [bomWizardParentItem, setBomWizardParentItem] = useState<ItemMaster | null>(null);
 
   const handleOpenMfgBomWizard = (targetItem: ItemMaster) => {
+    if (targetItem.approval !== 'approved') {
+      showToast(`Cannot create BOM: Item ${targetItem.code} is in "${targetItem.approval || 'draft'}" status. Only APPROVED items can have Manufacturing BOMs created.`);
+      return;
+    }
     if (!canCreateBom && !isSuperAdmin) {
       showToast('Admin or Tooling Lead permission required to create BOMs.');
       return;
@@ -2509,8 +2513,14 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                 </div>
                 <button
                   type="button"
+                  disabled={item.approval !== 'approved'}
+                  title={item.approval !== 'approved' ? `Item must be Approved before creating a BOM (Current: ${item.approval || 'draft'})` : 'Create Manufacturing BOM'}
                   onClick={() => handleOpenMfgBomWizard(item)}
-                  className="btn btn-sm btn-primary flex items-center gap-1.5 shadow-sm"
+                  className={`btn btn-sm flex items-center gap-1.5 shadow-sm ${
+                    item.approval === 'approved'
+                      ? 'btn-primary'
+                      : 'bg-gray-200 text-gray-500 cursor-not-allowed border-gray-300'
+                  }`}
                 >
                   <Plus className="w-3.5 h-3.5" /> Create Manufacturing BOM
                 </button>
@@ -2569,11 +2579,23 @@ export const MasterDataViews: React.FC<MasterDataProps> = ({
                       <p className="text-xs text-gray-500 max-w-md mx-auto mt-1">
                         Configure multi-component resin percentages, secondary degating operations, machine routing, and live cost rollups.
                       </p>
+                      {item.approval !== 'approved' && (
+                        <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          Item status is &ldquo;{(item.approval || 'draft').toUpperCase()}&rdquo;. BOM creation is active only after the item is approved.
+                        </div>
+                      )}
                     </div>
                     <button
                       type="button"
+                      disabled={item.approval !== 'approved'}
+                      title={item.approval !== 'approved' ? `Item must be Approved before creating a BOM (Current: ${item.approval || 'draft'})` : 'Create Manufacturing BOM'}
                       onClick={() => handleOpenMfgBomWizard(item)}
-                      className="btn btn-sm btn-primary flex items-center gap-1.5 mx-auto shadow-sm"
+                      className={`btn btn-sm flex items-center gap-1.5 mx-auto shadow-sm ${
+                        item.approval === 'approved'
+                          ? 'btn-primary'
+                          : 'bg-gray-200 text-gray-400 cursor-not-allowed border-gray-300'
+                      }`}
                     >
                       <Plus className="w-3.5 h-3.5" /> Create Manufacturing BOM
                     </button>

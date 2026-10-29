@@ -35,6 +35,9 @@ export const Step3BatchOutput: React.FC<Step3Props> = ({ state, onChange, errors
   // Master Data Warehouse & Bin integration
   const [warehouseList, setWarehouseList] = useState(() => masterDataGovernanceService.getWarehouses());
   const [binList, setBinList] = useState(() => masterDataGovernanceService.getBins());
+  const [cycleSources, setCycleSources] = useState(() => masterDataGovernanceService.getCycleTimeSources());
+  const [isNewCycleSourceModalOpen, setIsNewCycleSourceModalOpen] = useState<boolean>(false);
+  const [newCycleSourceVal, setNewCycleSourceVal] = useState<string>('');
 
   // Active Dropdowns
   const [openDropdown, setOpenDropdown] = useState<'input' | 'wip' | 'fg' | 'secondary' | null>(null);
@@ -46,15 +49,20 @@ export const Step3BatchOutput: React.FC<Step3Props> = ({ state, onChange, errors
   const [newLocationWh, setNewLocationWh] = useState<string>('RM-WH-01');
 
   useEffect(() => {
+    masterDataGovernanceService.syncFromApi().catch(() => {});
     const unsub = adminEventBus.on('WAREHOUSE_MASTER_SAVED', () => {
       setWarehouseList(masterDataGovernanceService.getWarehouses());
     });
     const unsubBin = adminEventBus.on('BIN_MASTER_SAVED', () => {
       setBinList(masterDataGovernanceService.getBins());
     });
+    const unsubCycle = adminEventBus.on('CYCLE_TIME_SOURCE_SAVED', () => {
+      setCycleSources(masterDataGovernanceService.getCycleTimeSources());
+    });
     return () => {
       unsub();
       unsubBin();
+      unsubCycle();
     };
   }, []);
 
@@ -359,15 +367,26 @@ export const Step3BatchOutput: React.FC<Step3Props> = ({ state, onChange, errors
         {/* Cycle Time Selection & Estimated Time */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-gray-100 text-xs">
           <div className="field mb-0">
-            <label className="text-xs font-bold text-[#14213D] block mb-1">Cycle Time Source</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-bold text-[#14213D] block">Cycle Time Source</label>
+              <button
+                type="button"
+                onClick={() => setIsNewCycleSourceModalOpen(true)}
+                className="text-[10px] font-bold text-[#0F8B8D] hover:underline flex items-center gap-0.5 cursor-pointer"
+              >
+                + New
+              </button>
+            </div>
             <select
               value={state.cycleTimeSource}
               onChange={(e) => onChange({ cycleTimeSource: e.target.value as any })}
               className="w-full text-xs py-2 px-3 border border-[#E4E0D6] rounded-lg bg-white"
             >
-              <option value="Item Master">Item Master Standard ({state.parentItem?.code || 'Parent'})</option>
-              <option value="Routing">Engineering Routing Step Average</option>
-              <option value="Manual">Manual Override (Special Job Run)</option>
+              {cycleSources.map((cs) => (
+                <option key={cs} value={cs}>
+                  {cs}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -639,6 +658,65 @@ export const Step3BatchOutput: React.FC<Step3Props> = ({ state, onChange, errors
       )}
 
       {/* Task 1 Quick Creation Modal for New Warehouse / Bin */}
+      {/* New Cycle Time Source Modal */}
+      {isNewCycleSourceModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-5 border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-[#0F8B8D]" />
+                <h3 className="font-bold text-slate-800 text-sm">Add Cycle Time Source</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsNewCycleSourceModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!newCycleSourceVal.trim()) return;
+                masterDataGovernanceService.saveCycleTimeSource(newCycleSourceVal.trim());
+                onChange({ cycleTimeSource: newCycleSourceVal.trim() as any });
+                setNewCycleSourceVal('');
+                setIsNewCycleSourceModalOpen(false);
+              }}
+              className="space-y-4 pt-4"
+            >
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Source Name / Method *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Mold Trial Run Logbook"
+                  value={newCycleSourceVal}
+                  onChange={(e) => setNewCycleSourceVal(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg text-xs font-medium focus:ring-1 focus:ring-[#0F8B8D] outline-hidden"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsNewCycleSourceModalOpen(false)}
+                  className="px-3 py-1.5 rounded-lg border text-slate-600 font-semibold text-xs hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 rounded-lg bg-[#0F8B8D] hover:bg-[#0D7779] text-white font-bold text-xs flex items-center gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5" /> Save Source
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {isNewLocationModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 p-5 space-y-4 animate-in fade-in zoom-in-95">
