@@ -17,6 +17,7 @@
     "preview:cloudflare": "npm --prefix frontend run build && npm --prefix middleware run preview:cloudflare",
     "clean": "rm -rf dist frontend/dist",
     "lint": "npm --prefix frontend run lint",
+    "dev:fast": "node scripts/dev-start.cjs",
     "dev:podman": "podman compose up -d",
     "dev:podman:build": "podman compose up --build -d",
     "dev:podman:down": "podman compose down",
